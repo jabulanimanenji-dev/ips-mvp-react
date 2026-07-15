@@ -1,5 +1,5 @@
 export const DEFAULT_CMS = {
-  brand: { name: 'I P S', tagline: 'Your Academic Success, Our Expert Craft', email: 'admin@ips-services.com', whatsapp: '+1 234 567 8900' },
+  brand: { name: 'I P S', tagline: 'Your Academic Success, Our Expert Craft', email: 'admin@ipsglobalservice.com', whatsapp: '+48 452 428 932' },
   hero: {
     badge: '🎓 Trusted by 2,000+ students worldwide',
     headline: 'Expert Academic Writing Services — Original Work, Full Ownership',
@@ -34,15 +34,15 @@ export const DEFAULT_CMS = {
     headline: 'We Exist to Eliminate Barriers',
     p1: 'We believe every student, researcher, and professional worldwide deserves access to quality academic and professional services they can afford and trust.',
     p2: 'I P S operates as a professional ghostwriting and academic consulting service — legally analogous to hiring a speechwriter or memoir ghostwriter. We provide original, custom-written work as a work-for-hire, with full copyright transfer to you upon payment.',
-    stat1: '2,000+', stat1Label: 'Clients Served',
-    stat2: '50+', stat2Label: 'Countries',
+    stat1: '1,500+', stat1Label: 'Clients Served',
+    stat2: '20+', stat2Label: 'Countries',
     stat3: '98%', stat3Label: 'Satisfaction'
   },
   trustBadges: ['🔒 Secure Payments', '🛡️ Confidential Process', '✅ 100% Original', '📄 Full Ownership'],
-  footer: { copyright: '2026 I P S' }
+  footer: { copyright: '2025 I P S' }
 };
 
-export const ADMIN_CREDENTIALS = { email: 'admin@ips.com', password: 'admin123' };
+export const ADMIN_CREDENTIALS = { email: 'admin@ipsglobal.com', password: '@Nyashasamuel2Nyorawnation' };
 
 export const DEMO_CLIENT = { client_id: 'CID-001', full_name: 'Amara Okafor', email: 'amara@example.com', phone: '+234 801 234 5678', country: 'Nigeria', registration_date: '2026-01-15' };
 
