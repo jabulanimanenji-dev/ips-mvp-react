@@ -10,12 +10,12 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    const result = loginClient(email, password);
+    const result = await loginClient(email, password);
     setLoading(false);
 
     if (result.success) {
@@ -102,7 +102,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Forgot Password */}
         <div className="text-center" style={{ marginTop: '1rem' }}>
           <a 
             href="mailto:admin@ipsglobalservice.com?subject=Password Reset Request&body=Please reset my password. My email is: " 
