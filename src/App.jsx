@@ -28,7 +28,7 @@ import AdminMessages from './components/admin/AdminMessages';
 import AdminReports from './components/admin/AdminReports';
 import AdminSettings from './components/admin/AdminSettings';
 
-import WriterLogin from './components/writer/WriterLogin';
+import WriterLogin from './components/writer/WriterLogin.jsx';
 
 function ProtectedClientRoute({ children }) {
   const { user } = useAuth();
