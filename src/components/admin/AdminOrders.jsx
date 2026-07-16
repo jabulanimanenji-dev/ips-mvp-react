@@ -5,14 +5,49 @@ import { ORDER_STATUSES, BADGE_STYLES, SERVICE_TYPES } from '../../utils/constan
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([]);
+  const [writers, setWriters] = useState([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [serviceFilter, setServiceFilter] = useState('All');
 
   useEffect(() => {
     const raw = JSON.parse(localStorage.getItem('ips-orders') || '[]');
+    const rawWriters = JSON.parse(localStorage.getItem('ips-admin-writers') || '[]');
     setOrders(raw);
+    setWriters(rawWriters);
   }, []);
+
+  const saveOrders = (updated) => {
+    localStorage.setItem('ips-orders', JSON.stringify(updated));
+    setOrders(updated);
+  };
+
+  const assignWriter = (orderId, writerId) => {
+    const writer = writers.find(w => w.writer_id === writerId);
+    const updated = orders.map(o => {
+      if (o.order_id === orderId) {
+        return {
+          ...o,
+          writer_id: writerId,
+          writer_name: writer ? writer.full_name : '',
+          writer_email: writer ? writer.email : ''
+        };
+      }
+      return o;
+    });
+    saveOrders(updated);
+  };
+
+  const updateStatus = (orderId, newStatus) => {
+    const updated = orders.map(o => o.order_id === orderId ? { ...o, status: newStatus } : o);
+    saveOrders(updated);
+  };
+
+  const deleteOrder = (orderId) => {
+    if (!window.confirm(`Delete order ${orderId}? This cannot be undone.`)) return;
+    const updated = orders.filter(o => o.order_id !== orderId);
+    saveOrders(updated);
+  };
 
   const filtered = orders.filter((o) => {
     const matchesSearch =
@@ -72,10 +107,10 @@ export default function AdminOrders() {
               <th>Service</th>
               <th>Topic</th>
               <th>Writer</th>
+              <th>Status</th>
               <th>Deadline</th>
               <th>Fee</th>
-              <th>Status</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -95,10 +130,36 @@ export default function AdminOrders() {
                 </td>
                 <td>{o.client_name}</td>
                 <td>{o.service_type}</td>
-                <td style={{ maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <td style={{ maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {o.topic_title}
                 </td>
-                <td>{o.writer_name || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                <td>
+                  <select
+                    className="form-select"
+                    value={o.writer_id || ''}
+                    onChange={(e) => assignWriter(o.order_id, e.target.value)}
+                    style={{ minWidth: 140, fontSize: '0.8rem' }}
+                  >
+                    <option value="">— Unassigned —</option>
+                    {writers.filter(w => w.status === 'Active').map(w => (
+                      <option key={w.writer_id} value={w.writer_id}>
+                        {w.full_name} ({w.primary_expertise})
+                      </option>
+                    ))}
+                  </select>
+                </td>
+                <td>
+                  <select
+                    className="form-select"
+                    value={o.status}
+                    onChange={(e) => updateStatus(o.order_id, e.target.value)}
+                    style={{ minWidth: 120, fontSize: '0.8rem' }}
+                  >
+                    {ORDER_STATUSES.map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </td>
                 <td>
                   {fmtDate(o.deadline)}
                   {daysUntil(o.deadline) <= 3 && daysUntil(o.deadline) >= 0 && o.status !== 'Completed' && o.status !== 'Cancelled' && (
@@ -107,12 +168,10 @@ export default function AdminOrders() {
                 </td>
                 <td>{fmtCur(o.total_fee_usd)}</td>
                 <td>
-                  <span className={`badge ${BADGE_STYLES[o.status] || 'badge-new'}`}>{o.status}</span>
-                </td>
-                <td>
-                  <Link to={`/admin/orders/${o.order_id}`} className="btn btn-sm btn-secondary">
-                    Manage
-                  </Link>
+                  <div className="flex gap-1">
+                    <Link to={`/admin/orders/${o.order_id}`} className="btn btn-sm btn-secondary">Manage</Link>
+                    <button className="btn btn-sm btn-danger" onClick={() => deleteOrder(o.order_id)}>Delete</button>
+                  </div>
                 </td>
               </tr>
             ))}

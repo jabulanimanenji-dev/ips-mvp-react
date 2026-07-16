@@ -3,7 +3,7 @@ import { useCMS } from '../../context/CMSContext';
 import { addToast } from '../common/Toast';
 
 export default function AdminCMS() {
-  const { cms, saveCMS, resetCMS, exportCMS } = useCMS();
+  const { cms, saveCMS, resetCMS, exportCMS, addService, removeService, addFAQ, removeFAQ, addTestimonial, removeTestimonial, addTrustBadge, removeTrustBadge } = useCMS();
   const [draft, setDraft] = useState(cms);
 
   useEffect(() => { setDraft(cms); }, [cms]);
@@ -83,14 +83,22 @@ export default function AdminCMS() {
 
       {/* Services */}
       <div style={{ marginBottom: '1.5rem' }}>
-        {sectionTitle('📦 Services (4 Cards)')}
-        <div className="grid grid-2 gap-4">
+        <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
+          {sectionTitle('📦 Services')}
+          <button className="btn btn-sm btn-primary" onClick={() => addService({ icon: '📦', title: 'New Service', description: 'Description here...' })}>+ Add Service</button>
+        </div>
+        <div className="flex flex-col gap-4">
           {(draft.services || []).map((s, i) => (
             <div key={i} className="card" style={{ background: 'var(--bg-surface-2)' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>Service {i + 1}</div>
-              <div className="form-group"><label className="form-label">Icon</label><input className="form-input" value={s.icon || ''} onChange={e => updateService(i, 'icon', e.target.value)} /></div>
-              <div className="form-group"><label className="form-label">Title</label><input className="form-input" value={s.title || ''} onChange={e => updateService(i, 'title', e.target.value)} /></div>
-              <div className="form-group"><label className="form-label">Description</label><textarea className="form-textarea" value={s.description || ''} onChange={e => updateService(i, 'description', e.target.value)} /></div>
+              <div className="flex justify-between items-center" style={{ marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Service {i + 1}</div>
+                <button className="btn btn-sm btn-danger" onClick={() => removeService(i)}>Remove</button>
+              </div>
+              <div className="grid grid-2 gap-4">
+                <div className="form-group"><label className="form-label">Icon</label><input className="form-input" value={s.icon || ''} onChange={e => updateService(i, 'icon', e.target.value)} /></div>
+                <div className="form-group"><label className="form-label">Title</label><input className="form-input" value={s.title || ''} onChange={e => updateService(i, 'title', e.target.value)} /></div>
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}><label className="form-label">Description</label><textarea className="form-textarea" value={s.description || ''} onChange={e => updateService(i, 'description', e.target.value)} /></div>
+              </div>
             </div>
           ))}
         </div>
@@ -113,11 +121,17 @@ export default function AdminCMS() {
 
       {/* FAQ */}
       <div style={{ marginBottom: '1.5rem' }}>
-        {sectionTitle('❓ FAQ (6 Questions)')}
+        <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
+          {sectionTitle('❓ FAQ')}
+          <button className="btn btn-sm btn-primary" onClick={() => addFAQ({ q: 'New Question?', a: 'New Answer...' })}>+ Add FAQ</button>
+        </div>
         <div className="flex flex-col gap-4">
           {(draft.faq || []).map((f, i) => (
             <div key={i} className="card" style={{ background: 'var(--bg-surface-2)' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>Question {i + 1}</div>
+              <div className="flex justify-between items-center" style={{ marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>FAQ {i + 1}</div>
+                <button className="btn btn-sm btn-danger" onClick={() => removeFAQ(i)}>Remove</button>
+              </div>
               <div className="form-group"><label className="form-label">Question</label><input className="form-input" value={f.q || ''} onChange={e => updateFAQ(i, 'q', e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Answer</label><textarea className="form-textarea" value={f.a || ''} onChange={e => updateFAQ(i, 'a', e.target.value)} /></div>
             </div>
@@ -127,11 +141,17 @@ export default function AdminCMS() {
 
       {/* Testimonials */}
       <div style={{ marginBottom: '1.5rem' }}>
-        {sectionTitle('⭐ Testimonials (3 Cards)')}
+        <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
+          {sectionTitle('⭐ Testimonials')}
+          <button className="btn btn-sm btn-primary" onClick={() => addTestimonial({ text: 'Amazing service!', client: 'Client, Country' })}>+ Add Testimonial</button>
+        </div>
         <div className="flex flex-col gap-4">
           {(draft.testimonials || []).map((t, i) => (
             <div key={i} className="card" style={{ background: 'var(--bg-surface-2)' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem' }}>Testimonial {i + 1}</div>
+              <div className="flex justify-between items-center" style={{ marginBottom: '0.5rem' }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>Testimonial {i + 1}</div>
+                <button className="btn btn-sm btn-danger" onClick={() => removeTestimonial(i)}>Remove</button>
+              </div>
               <div className="form-group"><label className="form-label">Quote Text</label><textarea className="form-textarea" value={t.text || ''} onChange={e => updateTestimonial(i, 'text', e.target.value)} /></div>
               <div className="form-group"><label className="form-label">Attribution</label><input className="form-input" value={t.client || ''} onChange={e => updateTestimonial(i, 'client', e.target.value)} /></div>
             </div>
@@ -157,10 +177,18 @@ export default function AdminCMS() {
 
       {/* Trust Badges */}
       <div style={{ marginBottom: '1.5rem' }}>
-        {sectionTitle('🛡️ Trust Badges')}
-        <div className="grid grid-2 gap-4">
+        <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
+          {sectionTitle('🛡️ Trust Badges')}
+          <button className="btn btn-sm btn-primary" onClick={() => addTrustBadge('🔒 New Badge')}>+ Add Badge</button>
+        </div>
+        <div className="flex flex-col gap-4">
           {(draft.trustBadges || []).map((b, i) => (
-            <div key={i} className="form-group"><label className="form-label">Badge {i + 1}</label><input className="form-input" value={b || ''} onChange={e => updateTrustBadge(i, e.target.value)} /></div>
+            <div key={i} className="card" style={{ background: 'var(--bg-surface-2)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                <input className="form-input" value={b || ''} onChange={e => updateTrustBadge(i, e.target.value)} />
+              </div>
+              <button className="btn btn-sm btn-danger" onClick={() => removeTrustBadge(i)}>Remove</button>
+            </div>
           ))}
         </div>
       </div>
