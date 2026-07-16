@@ -18,13 +18,13 @@ export default function SignupPage() {
     e.preventDefault();
     setError('');
 
-    if (!form.name.trim() || !form.email.trim()) {
+    if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
       setError('Please fill in all required fields.');
       return;
     }
 
     setLoading(true);
-    const result = signupClient(form.name.trim(), form.email.trim());
+    const result = signupClient(form.name.trim(), form.email.trim(), form.password.trim());
     setLoading(false);
 
     if (result.success) {
@@ -72,7 +72,7 @@ export default function SignupPage() {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Full Name</label>
+            <label className="form-label">Full Name *</label>
             <input
               type="text"
               name="name"
@@ -85,7 +85,7 @@ export default function SignupPage() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Email Address</label>
+            <label className="form-label">Email Address *</label>
             <input
               type="email"
               name="email"
@@ -98,17 +98,19 @@ export default function SignupPage() {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Password</label>
+            <label className="form-label">Password *</label>
             <input
               type="password"
               name="password"
               className="form-input"
               value={form.password}
               onChange={handleChange}
-              placeholder="••••••••"
+              placeholder="Choose a strong password"
+              required
+              minLength="6"
             />
             <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-              For demo, any password is accepted.
+              Minimum 6 characters. Remember this — you'll need it to login.
             </small>
           </div>
 

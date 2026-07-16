@@ -15,19 +15,19 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
 
-    const result = loginClient(email);
+    const result = loginClient(email, password);
     setLoading(false);
 
     if (result.success) {
       navigate('/client/overview');
     } else {
-      setError(result.error || 'Login failed. Please check your email.');
+      setError(result.error || 'Invalid email or password.');
     }
   };
 
   const fillDemo = () => {
     setEmail('amara@example.com');
-    setPassword('anypassword');
+    setPassword('demo123');
     setError('');
   };
 
@@ -88,10 +88,8 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
+              required
             />
-            <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-              For demo, any password works with a registered email.
-            </small>
           </div>
 
           <button
@@ -104,7 +102,17 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="text-center" style={{ marginTop: '1.5rem' }}>
+        {/* Forgot Password */}
+        <div className="text-center" style={{ marginTop: '1rem' }}>
+          <a 
+            href="mailto:admin@ipsglobalservice.com?subject=Password Reset Request&body=Please reset my password. My email is: " 
+            style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textDecoration: 'none' }}
+          >
+            Forgot password? Contact admin@ipsglobalservice.com
+          </a>
+        </div>
+
+        <div className="text-center" style={{ marginTop: '1rem' }}>
           <button
             type="button"
             className="btn btn-ghost btn-sm"

@@ -8,29 +8,37 @@ export function AuthProvider({ children }) {
   const [admin, setAdmin, removeAdmin] = useLocalStorage('ips-admin-session', null);
   const [writer, setWriter, removeWriter] = useLocalStorage('ips-writer-session', null);
 
-  const loginClient = useCallback((email) => {
-    const clients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
-    const client = clients.find(c => c.email === email);
-    if (client) {
-      setUser({ ...client, email: client.email });
-      return { success: true };
-    }
-    return { success: false, error: 'Invalid credentials' };
-  }, [setUser]);
-
-  const signupClient = useCallback((name, email) => {
-    const clients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
-    const newId = `CID-${String(clients.length + 1).padStart(3, '0')}`;
-    const newClient = {
-      client_id: newId, full_name: name, email,
-      phone: '', country: '', registration_date: new Date().toISOString().split('T')[0],
-      total_orders: 0, total_spent: 0, status: 'Active', notes: ''
-    };
-    clients.push(newClient);
-    localStorage.setItem('ips-clients', JSON.stringify(clients));
-    setUser({ ...newClient, email });
+  const loginClient = useCallback((email, password) => {
+  const clients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
+  const client = clients.find(c => c.email === email && c.password === password);
+  if (client) {
+    setUser({ ...client, email: client.email });
     return { success: true };
-  }, [setUser]);
+  }
+  return { success: false, error: 'Invalid email or password' };
+}, [setUser]);
+
+  const signupClient = useCallback((name, email, password) => {
+  const clients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
+  const newId = `CID-${String(clients.length + 1).padStart(3, '0')}`;
+  const newClient = {
+    client_id: newId,
+    full_name: name,
+    email,
+    password, // ← STORE PASSWORD (encrypted in production)
+    phone: '',
+    country: '',
+    registration_date: new Date().toISOString().split('T')[0],
+    total_orders: 0,
+    total_spent: 0,
+    status: 'Active',
+    notes: ''
+  };
+  clients.push(newClient);
+  localStorage.setItem('ips-clients', JSON.stringify(clients));
+  setUser({ ...newClient, email });
+  return { success: true };
+}, [setUser]);
 
   // ─── SECURE ADMIN LOGIN ───
   const loginAdmin = useCallback(async (email, password) => {
