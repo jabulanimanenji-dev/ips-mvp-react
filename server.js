@@ -8,10 +8,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Import MongoDB models
-import Client from './models/Client.js';
-import Order from './models/Order.js';
-import Writer from './models/Writer.js';
-import Admin from './models/Admin.js';
+import Client from './src/models/Client.js';
+import Order from './src/models/Order.js';
+import Writer from './src/models/Writer.js';
+import Admin from './src/models/Admin.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
