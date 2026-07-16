@@ -8,39 +8,45 @@ export function AuthProvider({ children }) {
   const [admin, setAdmin, removeAdmin] = useLocalStorage('ips-admin-session', null);
   const [writer, setWriter, removeWriter] = useLocalStorage('ips-writer-session', null);
 
-  const loginClient = useCallback((email, password) => {
-  const clients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
-  const client = clients.find(c => c.email === email && c.password === password);
-  if (client) {
-    setUser({ ...client, email: client.email });
-    return { success: true };
-  }
-  return { success: false, error: 'Invalid email or password' };
-}, [setUser]);
+  // CLIENT LOGIN - calls API
+  const loginClient = useCallback(async (email, password) => {
+    try {
+      const response = await fetch('/api/client/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setUser(data.client);
+        return { success: true };
+      }
+      return { success: false, error: data.message || 'Invalid credentials' };
+    } catch (err) {
+      return { success: false, error: 'Server error' };
+    }
+  }, [setUser]);
 
-  const signupClient = useCallback((name, email, password) => {
-  const clients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
-  const newId = `CID-${String(clients.length + 1).padStart(3, '0')}`;
-  const newClient = {
-    client_id: newId,
-    full_name: name,
-    email,
-    password, // ← STORE PASSWORD (encrypted in production)
-    phone: '',
-    country: '',
-    registration_date: new Date().toISOString().split('T')[0],
-    total_orders: 0,
-    total_spent: 0,
-    status: 'Active',
-    notes: ''
-  };
-  clients.push(newClient);
-  localStorage.setItem('ips-clients', JSON.stringify(clients));
-  setUser({ ...newClient, email });
-  return { success: true };
-}, [setUser]);
+  // CLIENT SIGNUP - calls API
+  const signupClient = useCallback(async (name, email, password) => {
+    try {
+      const response = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: name, email, password })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setUser(data.client);
+        return { success: true };
+      }
+      return { success: false, error: data.message || 'Signup failed' };
+    } catch (err) {
+      return { success: false, error: 'Server error' };
+    }
+  }, [setUser]);
 
-  // ─── SECURE ADMIN LOGIN ───
+  // ADMIN LOGIN - calls API
   const loginAdmin = useCallback(async (email, password) => {
     try {
       const response = await fetch('/api/admin/login', {
@@ -48,23 +54,18 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      
       const data = await response.json();
-      
       if (data.success) {
-        const session = { email, name: 'Super Admin', role: data.role || 'superadmin', token: data.token };
-        setAdmin(session);
+        setAdmin({ email, name: 'Super Admin', role: data.role, token: data.token });
         return { success: true };
-      } else {
-        return { success: false, error: data.message || 'Invalid credentials' };
       }
+      return { success: false, error: data.message || 'Invalid credentials' };
     } catch (err) {
-      console.error('Admin login error:', err);
-      return { success: false, error: 'Server error. Please try again.' };
+      return { success: false, error: 'Server error' };
     }
   }, [setAdmin]);
 
-  // ─── WRITER LOGIN ───
+  // WRITER LOGIN - calls API
   const loginWriter = useCallback(async (email, password) => {
     try {
       const response = await fetch('/api/writer/login', {
@@ -72,18 +73,14 @@ export function AuthProvider({ children }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
-      
       const data = await response.json();
-      
       if (data.success) {
         setWriter({ ...data.writer, token: data.token });
         return { success: true };
-      } else {
-        return { success: false, error: data.message || 'Invalid credentials' };
       }
+      return { success: false, error: data.message || 'Invalid credentials' };
     } catch (err) {
-      console.error('Writer login error:', err);
-      return { success: false, error: 'Server error. Please try again.' };
+      return { success: false, error: 'Server error' };
     }
   }, [setWriter]);
 
