@@ -3,23 +3,26 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminLogin() {
-  const [email, setEmail] = useState('admin@ips.com');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('admin@ipsglobal.com');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { loginAdmin } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const result = loginAdmin(email, password);
+    
+    const result = await loginAdmin(email, password);
+    
     if (result.success) {
       navigate('/admin/dashboard', { replace: true });
     } else {
       setError(result.error || 'Invalid credentials');
     }
+    
     setLoading(false);
   };
 
@@ -119,10 +122,6 @@ export default function AdminLogin() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
-
-        <p style={{ textAlign: 'center', marginTop: '1.25rem', color: '#748B91', fontSize: '0.8rem' }}>
-          Demo: admin@ips.com / admin123
-        </p>
       </div>
     </div>
   );

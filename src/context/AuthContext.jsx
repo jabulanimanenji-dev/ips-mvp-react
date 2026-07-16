@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useCallback } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { ADMIN_CREDENTIALS } from '../utils/constants';
 
 const AuthContext = createContext();
 
@@ -32,13 +31,28 @@ export function AuthProvider({ children }) {
     return { success: true };
   }, [setUser]);
 
-  const loginAdmin = useCallback((email, password) => {
-    if (email === ADMIN_CREDENTIALS.email && password === ADMIN_CREDENTIALS.password) {
-      const session = { email, name: 'Super Admin', role: 'superadmin' };
-      setAdmin(session);
-      return { success: true };
+  // ─── SECURE ADMIN LOGIN ─── calls backend API, no hardcoded password
+  const loginAdmin = useCallback(async (email, password) => {
+    try {
+      const response = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        const session = { email, name: 'Super Admin', role: 'superadmin', token: data.token };
+        setAdmin(session);
+        return { success: true };
+      } else {
+        return { success: false, error: data.message || 'Invalid credentials' };
+      }
+    } catch (err) {
+      console.error('Admin login error:', err);
+      return { success: false, error: 'Server error. Please try again.' };
     }
-    return { success: false, error: 'Invalid credentials' };
   }, [setAdmin]);
 
   const logout = useCallback(() => {

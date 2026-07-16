@@ -12,11 +12,26 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(helmet());
+app.use(express.json());
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('✅ Database connected'))
   .catch(err => console.error('❌ Database error:', err));
+
+// ─── SECURE ADMIN LOGIN API ───
+app.post('/api/admin/login', (req, res) => {
+  const { email, password } = req.body;
+
+  const adminEmail = 'admin@ipsglobal.com';
+  const adminPassword = process.env.ADMIN_PASSWORD;
+
+  if (email === adminEmail && password === adminPassword) {
+    res.json({ success: true, token: 'admin-token-12345' });
+  } else {
+    res.status(401).json({ success: false, message: 'Invalid credentials' });
+  }
+});
 
 const PORT = process.env.PORT || 8080;
 
