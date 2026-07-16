@@ -61,3 +61,15 @@ export const BADGE_STYLES = {
   'Disputed': 'badge-disputed',
   'Cancelled': 'badge-cancelled'
 };
+
+// ─── WRITER DEFAULTS ───
+export const WRITER_DEFAULTS = {
+  rating: 5.0,
+  projects_completed: 0,
+  availability: 'Available',
+  status: 'Active',
+  rate_per_page_usd: 10
+};
+
+// ─── ADMIN ROLES ───
+export const ADMIN_ROLES = ['superadmin', 'admin', 'moderator'];

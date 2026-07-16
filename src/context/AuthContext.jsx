@@ -6,6 +6,7 @@ const AuthContext = createContext();
 export function AuthProvider({ children }) {
   const [user, setUser, removeUser] = useLocalStorage('ips-user', null);
   const [admin, setAdmin, removeAdmin] = useLocalStorage('ips-admin-session', null);
+  const [writer, setWriter, removeWriter] = useLocalStorage('ips-writer-session', null);
 
   const loginClient = useCallback((email) => {
     const clients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
@@ -31,7 +32,7 @@ export function AuthProvider({ children }) {
     return { success: true };
   }, [setUser]);
 
-  // ─── SECURE ADMIN LOGIN ─── calls backend API, no hardcoded password
+  // ─── SECURE ADMIN LOGIN ───
   const loginAdmin = useCallback(async (email, password) => {
     try {
       const response = await fetch('/api/admin/login', {
@@ -43,7 +44,7 @@ export function AuthProvider({ children }) {
       const data = await response.json();
       
       if (data.success) {
-        const session = { email, name: 'Super Admin', role: 'superadmin', token: data.token };
+        const session = { email, name: 'Super Admin', role: data.role || 'superadmin', token: data.token };
         setAdmin(session);
         return { success: true };
       } else {
@@ -55,13 +56,37 @@ export function AuthProvider({ children }) {
     }
   }, [setAdmin]);
 
+  // ─── WRITER LOGIN ───
+  const loginWriter = useCallback(async (email, password) => {
+    try {
+      const response = await fetch('/api/writer/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setWriter({ ...data.writer, token: data.token });
+        return { success: true };
+      } else {
+        return { success: false, error: data.message || 'Invalid credentials' };
+      }
+    } catch (err) {
+      console.error('Writer login error:', err);
+      return { success: false, error: 'Server error. Please try again.' };
+    }
+  }, [setWriter]);
+
   const logout = useCallback(() => {
     removeUser();
     removeAdmin();
-  }, [removeUser, removeAdmin]);
+    removeWriter();
+  }, [removeUser, removeAdmin, removeWriter]);
 
   return (
-    <AuthContext.Provider value={{ user, admin, loginClient, signupClient, loginAdmin, logout }}>
+    <AuthContext.Provider value={{ user, admin, writer, loginClient, signupClient, loginAdmin, loginWriter, logout }}>
       {children}
     </AuthContext.Provider>
   );

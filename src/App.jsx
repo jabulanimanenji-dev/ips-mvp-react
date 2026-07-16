@@ -28,6 +28,8 @@ import AdminMessages from './components/admin/AdminMessages';
 import AdminReports from './components/admin/AdminReports';
 import AdminSettings from './components/admin/AdminSettings';
 
+import WriterLogin from './components/writer/WriterLogin';
+
 function ProtectedClientRoute({ children }) {
   const { user } = useAuth();
   return user ? children : <Navigate to="/login" replace />;
@@ -36,6 +38,11 @@ function ProtectedClientRoute({ children }) {
 function ProtectedAdminRoute({ children }) {
   const { admin } = useAuth();
   return admin ? children : <Navigate to="/admin/login" replace />;
+}
+
+function ProtectedWriterRoute({ children }) {
+  const { writer } = useAuth();
+  return writer ? children : <Navigate to="/writer/login" replace />;
 }
 
 export default function App() {
@@ -58,6 +65,10 @@ export default function App() {
         <Route path="profile" element={<ClientProfile />} />
         <Route path="support" element={<ClientSupport />} />
       </Route>
+
+      {/* Writer Portal */}
+      <Route path="/writer/login" element={<WriterLogin />} />
+      <Route path="/writer" element={<ProtectedWriterRoute><div>Writer Dashboard (Coming Soon)</div></ProtectedWriterRoute>} />
 
       {/* Admin Portal */}
       <Route path="/admin/login" element={<AdminLogin />} />
