@@ -1,5 +1,9 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import helmet from 'helmet';
+import mongoose from 'mongoose';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -8,6 +12,11 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(helmet());
+
+// Connect to MongoDB
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('✅ Database connected'))
+  .catch(err => console.error('❌ Database error:', err));
 
 const PORT = process.env.PORT || 8080;
 
