@@ -19,8 +19,8 @@ export default function SignupPage() {
     setError('');
 
     if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
-      setError('Please fill in all required fields.');
-      return;
+      setError(result.error || 'Signup failed. Please try again.');
+alert('Error: ' + (result.error || 'Unknown error'));
     }
 
     setLoading(true);
