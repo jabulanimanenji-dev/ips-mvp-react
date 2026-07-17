@@ -120,4 +120,38 @@ h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
 .cms-row:last-child { margin-bottom: 0; }
 .cms-item { display: flex; flex-direction: column; }
 
-@media (max-width: 768px) { .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; } .section { padding: 3rem 0; } .cms-row { grid-template-columns: 1fr; } }
+/* ═══════════════════════════════════════════════════════════
+   MOBILE RESPONSIVE PACK  (new — replaces the old one-liner)
+   ═══════════════════════════════════════════════════════════ */
+
+/* Hamburger button hidden by default (desktop) */
+.mobile-only { display: none; }
+
+@media (max-width: 768px) {
+  /* Navigation: hide desktop nav, show hamburger */
+  .hidden-mobile { display: none !important; }
+  .mobile-only { display: block !important; }
+
+  /* Layout: single column, tighter spacing */
+  .container { padding: 0 0.75rem !important; }
+  .section { padding: 3rem 0; }
+  .grid, .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr !important; }
+  .cms-row { grid-template-columns: 1fr; }
+
+  /* Typography: smaller headings */
+  h1 { font-size: 1.75rem !important; }
+  h2 { font-size: 1.4rem !important; }
+
+  /* Components: compact cards and buttons */
+  .card { padding: 1rem !important; }
+  .btn-lg { padding: 0.75rem 1.25rem !important; font-size: 0.95rem !important; }
+
+  /* Tables: smaller text so they fit */
+  table { font-size: 0.8rem !important; }
+  th, td { padding: 0.5rem !important; }
+}
+
+/* Desktop safety: hamburger never shows above 768px */
+@media (min-width: 769px) {
+  .mobile-only { display: none !important; }
+}
