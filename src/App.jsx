@@ -1,115 +1,357 @@
-import React, { useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { fmtCur, fmtDate } from '../../utils/formatters';
-import { BADGE_STYLES } from '../../utils/constants';
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './context/AuthContext';
 
-export default function ClientOverview() {
-  const { user } = useAuth();
+import PublicLayout from './pages/PublicLayout';
+import HomePage from './pages/HomePage';
+import QuotePage from './pages/QuotePage';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
 
-  const orders = useMemo(() => {
-    if (!user?.client_id) return [];
-    const all = JSON.parse(localStorage.getItem('ips-orders') || '[]');
-    return all.filter((o) => o.client_id === user.client_id);
-  }, [user]);
+import ClientLayout from './pages/ClientLayout';
+import ClientOverview from './components/client/ClientOverview';
+import ClientOrders from './components/client/ClientOrders';
+import ClientOrderDetail from './components/client/ClientOrderDetail';
+import ClientOrderForm from './components/client/ClientOrderForm';
+import ClientProfile from './components/client/ClientProfile';
+import ClientSupport from './components/client/ClientSupport';
 
-  const stats = useMemo(() => {
-    const active = orders.filter((o) => o.status === 'New' || o.status === 'In Progress' || o.status === 'Under Review').length;
-    const completed = orders.filter((o) => o.status === 'Completed').length;
-    const totalSpent = orders.reduce((sum, o) => sum + (o.total_fee_usd || 0), 0);
-    return { active, completed, totalSpent };
-  }, [orders]);
+import AdminLayout from './pages/AdminLayout';
+import AdminLogin from './components/admin/AdminLogin';
+import AdminDashboard from './components/admin/AdminDashboard';
+import AdminOrders from './components/admin/AdminOrders';
+import AdminOrderDetail from './components/admin/AdminOrderDetail';
+import AdminClients from './components/admin/AdminClients';
+import AdminWriters from './components/admin/AdminWriters';
+import AdminPayments from './components/admin/AdminPayments';
+import AdminCMS from './components/admin/AdminCMS';
+import AdminMessages from './components/admin/AdminMessages';
+import AdminReports from './components/admin/AdminReports';
+import AdminSettings from './components/admin/AdminSettings';
 
-  const recentOrders = orders.slice(0, 5);
+import WriterLogin from './components/writer/WriterLogin';
+
+
+
+function ProtectedClientRoute({ children }) {
+
+  const { user, loading } = useAuth();
+
+
+  if (loading) {
+    return (
+      <div style={{
+        padding:'3rem',
+        textAlign:'center'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+
+  return user
+    ? children
+    : <Navigate to="/login" replace />;
+
+}
+
+
+
+function ProtectedAdminRoute({ children }) {
+
+  const { admin, loading } = useAuth();
+
+
+  if (loading) {
+    return (
+      <div style={{
+        padding:'3rem',
+        textAlign:'center'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+
+  return admin
+    ? children
+    : <Navigate to="/admin/login" replace />;
+
+}
+
+
+
+function ProtectedWriterRoute({ children }) {
+
+  const { writer, loading } = useAuth();
+
+
+  if (loading) {
+    return (
+      <div style={{
+        padding:'3rem',
+        textAlign:'center'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+
+  return writer
+    ? children
+    : <Navigate to="/writer/login" replace />;
+
+}
+
+
+
+
+
+export default function App() {
 
   return (
-    <div>
-      <div className="flex justify-between items-center" style={{ marginBottom: '1.5rem' }}>
-        <div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Dashboard</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-            Welcome back, {user?.full_name || 'Client'}
-          </p>
-        </div>
-        <Link to="/client/orders" className="btn btn-primary btn-sm">
-          View All Orders
-        </Link>
-      </div>
 
-      {/* Stats cards */}
-      <div className="grid grid-3 gap-4" style={{ marginBottom: '2rem' }}>
-        <div className="card" style={{ borderLeft: '4px solid var(--accent-cyan)' }}>
-          <div className="label" style={{ marginBottom: '0.5rem' }}>Active Orders</div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            {stats.active}
-          </div>
-        </div>
-        <div className="card" style={{ borderLeft: '4px solid var(--success)' }}>
-          <div className="label" style={{ marginBottom: '0.5rem' }}>Completed</div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            {stats.completed}
-          </div>
-        </div>
-        <div className="card" style={{ borderLeft: '4px solid var(--accent-gold)' }}>
-          <div className="label" style={{ marginBottom: '0.5rem' }}>Total Spent</div>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            {fmtCur(stats.totalSpent)}
-          </div>
-        </div>
-      </div>
+    <Routes>
 
-      {/* Recent orders */}
-      <div className="card">
-        <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
-          <h3 style={{ fontWeight: 700 }}>Recent Orders</h3>
-        </div>
 
-        {recentOrders.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '2rem 0' }}>
-            No orders yet. <Link to="/quote" style={{ color: 'var(--text-link)' }}>Request a quote</Link> to get started.
-          </p>
-        ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Order ID</th>
-                  <th>Service</th>
-                  <th>Topic</th>
-                  <th>Deadline</th>
-                  <th>Fee</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentOrders.map((o) => (
-                  <tr key={o.order_id}>
-                    <td>
-                      <Link
-                        to={`/client/orders/${o.order_id}`}
-                        style={{ color: 'var(--text-link)', fontWeight: 600, textDecoration: 'none' }}
-                      >
-                        #{o.order_id}
-                      </Link>
-                    </td>
-                    <td>{o.service_type}</td>
-                    <td style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {o.topic_title}
-                    </td>
-                    <td>{fmtDate(o.deadline)}</td>
-                    <td>{fmtCur(o.total_fee_usd)}</td>
-                    <td>
-                      <span className={`badge ${BADGE_STYLES[o.status] || 'badge-new'}`}>
-                        {o.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
+      {/* PUBLIC ROUTES */}
+
+      <Route element={<PublicLayout />}>
+
+        <Route
+          path="/"
+          element={<HomePage />}
+        />
+
+        <Route
+          path="/quote"
+          element={<QuotePage />}
+        />
+
+        <Route
+          path="/login"
+          element={<LoginPage />}
+        />
+
+        <Route
+          path="/signup"
+          element={<SignupPage />}
+        />
+
+      </Route>
+
+
+
+
+
+      {/* CLIENT ROUTES */}
+
+      <Route
+        path="/client"
+        element={
+          <ProtectedClientRoute>
+            <ClientLayout />
+          </ProtectedClientRoute>
+        }
+      >
+
+
+        <Route
+          index
+          element={
+            <Navigate
+              to="/client/overview"
+              replace
+            />
+          }
+        />
+
+
+        <Route
+          path="overview"
+          element={<ClientOverview />}
+        />
+
+
+        <Route
+          path="orders"
+          element={<ClientOrders />}
+        />
+
+
+        <Route
+          path="orders/:orderId"
+          element={<ClientOrderDetail />}
+        />
+
+
+        {/* Quote Page sends users here */}
+
+        <Route
+          path="order"
+          element={<ClientOrderForm />}
+        />
+
+
+        <Route
+          path="profile"
+          element={<ClientProfile />}
+        />
+
+
+        <Route
+          path="support"
+          element={<ClientSupport />}
+        />
+
+
+      </Route>
+
+
+
+
+
+
+
+      {/* WRITER */}
+
+      <Route
+        path="/writer/login"
+        element={<WriterLogin />}
+      />
+
+
+      <Route
+        path="/writer"
+        element={
+          <ProtectedWriterRoute>
+            <div>
+              Writer Dashboard Coming Soon
+            </div>
+          </ProtectedWriterRoute>
+        }
+      />
+
+
+
+
+
+
+
+
+      {/* ADMIN */}
+
+      <Route
+        path="/admin/login"
+        element={<AdminLogin />}
+      />
+
+
+      <Route
+        path="/admin"
+        element={
+          <ProtectedAdminRoute>
+            <AdminLayout />
+          </ProtectedAdminRoute>
+        }
+      >
+
+
+        <Route
+          index
+          element={
+            <Navigate
+              to="/admin/dashboard"
+              replace
+            />
+          }
+        />
+
+
+        <Route
+          path="dashboard"
+          element={<AdminDashboard />}
+        />
+
+
+        <Route
+          path="orders"
+          element={<AdminOrders />}
+        />
+
+
+        <Route
+          path="orders/:orderId"
+          element={<AdminOrderDetail />}
+        />
+
+
+        <Route
+          path="clients"
+          element={<AdminClients />}
+        />
+
+
+        <Route
+          path="writers"
+          element={<AdminWriters />}
+        />
+
+
+        <Route
+          path="payments"
+          element={<AdminPayments />}
+        />
+
+
+        <Route
+          path="cms"
+          element={<AdminCMS />}
+        />
+
+
+        <Route
+          path="messages"
+          element={<AdminMessages />}
+        />
+
+
+        <Route
+          path="reports"
+          element={<AdminReports />}
+        />
+
+
+        <Route
+          path="settings"
+          element={<AdminSettings />}
+        />
+
+
+      </Route>
+
+
+
+
+
+      {/* FALLBACK */}
+
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to="/"
+            replace
+          />
+        }
+      />
+
+
+    </Routes>
+
   );
+
 }
