@@ -61,7 +61,7 @@ export default function QuotePage() {
   };
 
   return (
-    <div style={{ padding: '4rem 0' }}>
+    <div className="quote-page" style={{ padding: '4rem 0' }}>
       <div className="container">
         <div className="section-header">
           <span className="label">Pricing Calculator</span>
@@ -72,7 +72,7 @@ export default function QuotePage() {
         </div>
 
         <div
-          className="card"
+          className="card quote-card"
           style={{
             maxWidth: 640,
             margin: '0 auto',
@@ -90,18 +90,7 @@ export default function QuotePage() {
             </select>
           </div>
 
-          {service === 'thesis' && (
-            <div className="form-group">
-              <label className="form-label">Academic Level</label>
-              <select className="form-select" value={level} onChange={(e) => setLevel(e.target.value)}>
-                <option value="undergraduate">Undergraduate</option>
-                <option value="masters">Master&apos;s</option>
-                <option value="phd">PhD</option>
-              </select>
-            </div>
-          )}
-
-          {service === 'assignment' && (
+          {(service === 'thesis' || service === 'assignment') && (
             <div className="form-group">
               <label className="form-label">Academic Level</label>
               <select className="form-select" value={level} onChange={(e) => setLevel(e.target.value)}>
@@ -142,6 +131,7 @@ export default function QuotePage() {
 
           {calculation && !calculation.error && (
             <div
+              className="price-display"
               style={{
                 marginTop: '1.5rem',
                 padding: '1.25rem',
@@ -153,7 +143,7 @@ export default function QuotePage() {
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
                 {serviceLabel[service]} — {calculation.days} day{calculation.days !== 1 ? 's' : ''} until deadline
               </div>
-              <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.75rem' }}>
+              <div className="price-total" style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '0.75rem' }}>
                 ${calculation.total}
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
@@ -169,6 +159,7 @@ export default function QuotePage() {
 
           {calculation && calculation.error && (
             <div
+              className="error-display"
               style={{
                 marginTop: '1.5rem',
                 padding: '1rem',
@@ -183,12 +174,17 @@ export default function QuotePage() {
             </div>
           )}
 
-          <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-            <Link to="/signup" className="btn btn-primary btn-lg" style={{ width: '100%' }}>
-              Get Started
+          {/* ✅ FIXED: "Get Quote" button goes to /client/order */}
+          <div className="quote-cta" style={{ marginTop: '2rem', textAlign: 'center' }}>
+            <Link
+              to="/client/order"
+              className="btn btn-primary btn-lg"
+              style={{ width: '100%' }}
+            >
+              Get Quote
             </Link>
             <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-              No payment required to request a quote. Full ownership upon completion.
+              No payment required to place your order. Full ownership upon completion.
             </p>
           </div>
         </div>
