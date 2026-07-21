@@ -119,3 +119,142 @@ h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
 .cms-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 1rem; }
 .cms-row:last-child { margin-bottom: 0; }
 .cms-item { display: flex; flex-direction: column; }
+/* ============================================
+   MOBILE RESPONSIVENESS PACK — IPS MVP
+   Append to end of global styles file
+   ============================================ */
+
+@media (max-width: 768px) {
+  /* Layout */
+  .container, .wrapper, .page-container {
+    padding: 12px !important;
+    max-width: 100% !important;
+  }
+
+  /* Grid collapse */
+  .grid, .grid-2, .grid-3, .grid-4,
+  .cards-grid, .stats-grid, .features-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  /* Tables */
+  .table-responsive, table, .data-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+  
+  .table-responsive td, 
+  .table-responsive th {
+    padding: 8px !important;
+  }
+
+  /* Navbar */
+  .navbar, .nav, .top-nav {
+    padding: 8px 12px !important;
+  }
+  
+  .navbar .logo, .nav-logo {
+    height: 32px !important;        /* smaller logo */
+    font-size: 18px !important;
+  }
+  
+  .navbar .desktop-menu,
+  .nav-links.desktop {
+    display: none !important;
+  }
+  
+  .navbar .mobile-menu,
+  .nav-links.mobile,
+  .hamburger-menu {
+    display: flex !important;
+  }
+
+  /* Cards */
+  .card, .panel, .info-box, .stat-card {
+    padding: 16px !important;
+    margin-bottom: 12px !important;
+  }
+
+  /* Forms */
+  input, select, textarea, .form-input {
+    font-size: 16px !important;     /* prevent iOS zoom */
+    padding: 12px !important;
+    width: 100% !important;
+    box-sizing: border-box;
+  }
+  
+  .form-group, .field-group {
+    margin-bottom: 16px !important;
+  }
+
+  /* Buttons */
+  .btn, button, .button {
+    width: 100% !important;
+    padding: 14px !important;
+    font-size: 16px !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Typography */
+  h1, .h1, .page-title { font-size: 24px !important; }
+  h2, .h2, .section-title { font-size: 20px !important; }
+  h3, .h3 { font-size: 18px !important; }
+  p, .text { font-size: 15px !important; line-height: 1.5 !important; }
+
+  /* Sidebar / Admin nav */
+  .sidebar, .admin-sidebar, .side-nav {
+    width: 100% !important;
+    position: relative !important;
+    height: auto !important;
+  }
+  
+  .main-content, .content-area {
+    margin-left: 0 !important;
+    padding: 12px !important;
+  }
+
+  /* Hide desktop-only, show mobile-only */
+  .hidden-mobile, .desktop-only { display: none !important; }
+  .mobile-only, .show-mobile { display: block !important; }
+  
+  /* Flex stack */
+  .flex-row, .row {
+    flex-direction: column !important;
+  }
+  
+  .flex-row > *, .row > * {
+    width: 100% !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Order form specific */
+  .order-form .form-row {
+    flex-direction: column !important;
+  }
+  
+  .order-form .price-display {
+    font-size: 20px !important;
+    text-align: center !important;
+  }
+
+  /* Writer / Admin tables */
+  .writer-table, .admin-table, .orders-table {
+    font-size: 13px !important;
+  }
+  
+  .writer-table td, .admin-table td {
+    padding: 6px 8px !important;
+  }
+}
+
+/* Utility classes (work everywhere) */
+.hidden-mobile { display: block; }
+.mobile-only { display: none; }
+
+@media (max-width: 768px) {
+  .hidden-mobile { display: none !important; }
+  .mobile-only { display: block !important; }
+}
