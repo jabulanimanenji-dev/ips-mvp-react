@@ -12,10 +12,14 @@
     "start": "npm run build && npm run server"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "helmet": "^8.3.0",
-    "mongoose": "^9.7.4",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^8.19.1",
+    "multer": "^2.2.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0"
