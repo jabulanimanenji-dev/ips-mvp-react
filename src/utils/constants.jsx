@@ -44,7 +44,7 @@ export const DEFAULT_CMS = {
 
 export const ADMIN_CREDENTIALS = {
   email: 'admin@ipsglobal.com',
-  password: process.env.ADMIN_PASSWORD || 'temp-fallback-only'
+  password: import.meta.env.VITE_ADMIN_PASSWORD || 'temp-fallback-only'
 };
 
 export const DEMO_CLIENT = { client_id: 'CID-001', full_name: 'Amara Okafor', email: 'amara@example.com', phone: '+234 801 234 5678', country: 'Nigeria', registration_date: '2026-01-15' };
