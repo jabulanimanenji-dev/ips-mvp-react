@@ -215,6 +215,7 @@ export function AuthProvider({ children }) {
           return {
             success:false,
             error:
+              data.error ||
               data.message ||
               'Signup failed'
           };

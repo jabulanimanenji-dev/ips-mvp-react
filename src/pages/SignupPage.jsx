@@ -14,23 +14,30 @@ export default function SignupPage() {
     setError('');
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
     if (!form.name.trim() || !form.email.trim() || !form.password.trim()) {
-      setError(result.error || 'Signup failed. Please try again.');
-alert('Error: ' + (result.error || 'Unknown error'));
+      setError('Please complete all required fields.');
+      return;
     }
 
     setLoading(true);
-    const result = signupClient(form.name.trim(), form.email.trim(), form.password.trim());
-    setLoading(false);
+    try {
+      const result = await signupClient(
+        form.name.trim(),
+        form.email.trim(),
+        form.password
+      );
 
-    if (result.success) {
-      navigate('/client/overview');
-    } else {
-      setError(result.error || 'Signup failed. Please try again.');
+      if (result.success) {
+        navigate('/client/overview');
+      } else {
+        setError(result.error || 'Signup failed. Please try again.');
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
