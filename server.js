@@ -20,10 +20,26 @@ const app = express();
 app.use(helmet());
 app.use(express.json());
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('✅ Database connected'))
-  .catch(err => console.error('❌ Database error:', err));
+// Connect to MongoDB without preventing the frontend from launching.
+const mongoUri = process.env.MONGODB_URI?.trim();
+const hasMongoPlaceholder = !mongoUri
+  || ['USERNAME', 'PASSWORD', 'CLUSTER', 'DATABASE'].some(value => mongoUri.includes(value));
+
+if (!hasMongoPlaceholder) {
+  mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 })
+    .then(() => console.log('✅ Database connected'))
+    .catch(err => console.error('❌ Database connection failed:', err.message));
+} else {
+  console.warn('⚠️ MONGODB_URI is missing or still contains placeholders. The website will launch, but database APIs are unavailable.');
+}
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    server: 'online',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+  });
+});
 
 // ========== CLIENT APIs ==========
 
@@ -280,6 +296,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '127.0.0.1', () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

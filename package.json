@@ -1,25 +1,23 @@
 {
   "name": "ips-mvp-react",
   "version": "1.0.0",
-  "description": "I P S — Complete MVP with React, Express, and God Mode CMS",
+  "description": "I P S \u2014 Complete MVP with React, Express, and God Mode CMS",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:server": "node server.js",
     "build": "vite build",
     "preview": "vite preview",
     "server": "node server.js",
-    "start": "npm run build && npm run server"
+    "start": "npm run build && node server.js",
+    "check": "npm run build && node --check server.js"
   },
   "dependencies": {
-    "bcryptjs": "^3.0.3",
-    "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.19.2",
     "helmet": "^8.3.0",
-    "jsonwebtoken": "^9.0.3",
-    "mongoose": "^8.19.1",
-    "multer": "^2.2.0",
+    "mongoose": "^9.7.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.26.0"
