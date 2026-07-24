@@ -11,42 +11,59 @@ export default function AdminOrders() {
   const [serviceFilter, setServiceFilter] = useState('All');
 
   useEffect(() => {
-    const raw = JSON.parse(localStorage.getItem('ips-orders') || '[]');
-    const rawWriters = JSON.parse(localStorage.getItem('ips-admin-writers') || '[]');
-    setOrders(raw);
-    setWriters(rawWriters);
+    const loadData = async () => {
+      try {
+        const [ordersResponse, writersResponse] = await Promise.all([
+          fetch('/api/orders'),
+          fetch('/api/writers')
+        ]);
+        const ordersData = await ordersResponse.json();
+        const writersData = await writersResponse.json();
+        if (!ordersResponse.ok) throw new Error(ordersData.error || 'Failed to load orders');
+        if (!writersResponse.ok) throw new Error(writersData.error || 'Failed to load writers');
+        setOrders(ordersData.orders || []);
+        setWriters(writersData.writers || []);
+      } catch (error) {
+        console.error('Admin data load failed:', error);
+      }
+    };
+    loadData();
   }, []);
 
-  const saveOrders = (updated) => {
-    localStorage.setItem('ips-orders', JSON.stringify(updated));
-    setOrders(updated);
-  };
-
-  const assignWriter = (orderId, writerId) => {
+  const assignWriter = async (orderId, writerId) => {
     const writer = writers.find(w => w.writer_id === writerId);
-    const updated = orders.map(o => {
-      if (o.order_id === orderId) {
-        return {
-          ...o,
-          writer_id: writerId,
-          writer_name: writer ? writer.full_name : '',
-          writer_email: writer ? writer.email : ''
-        };
-      }
-      return o;
+    const response = await fetch(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        writer_id: writerId,
+        writer_name: writer ? writer.full_name : ''
+      })
     });
-    saveOrders(updated);
+    const data = await response.json();
+    if (response.ok) {
+      setOrders(current => current.map(order => order.order_id === orderId ? data.order : order));
+    }
   };
 
-  const updateStatus = (orderId, newStatus) => {
-    const updated = orders.map(o => o.order_id === orderId ? { ...o, status: newStatus } : o);
-    saveOrders(updated);
+  const updateStatus = async (orderId, newStatus) => {
+    const response = await fetch(`/api/orders/${orderId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+    const data = await response.json();
+    if (response.ok) {
+      setOrders(current => current.map(order => order.order_id === orderId ? data.order : order));
+    }
   };
 
-  const deleteOrder = (orderId) => {
+  const deleteOrder = async (orderId) => {
     if (!window.confirm(`Delete order ${orderId}? This cannot be undone.`)) return;
-    const updated = orders.filter(o => o.order_id !== orderId);
-    saveOrders(updated);
+    const response = await fetch(`/api/orders/${orderId}`, { method: 'DELETE' });
+    if (response.ok) {
+      setOrders(current => current.filter(order => order.order_id !== orderId));
+    }
   };
 
   const filtered = orders.filter((o) => {
