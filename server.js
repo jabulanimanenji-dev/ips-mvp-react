@@ -46,7 +46,7 @@ app.get('/api/health', (req, res) => {
 // Get all clients
 app.get('/api/clients', async (req, res) => {
   try {
-    const clients = await Client.find().sort({ createdAt: -1 });
+    const clients = await Client.find().select('-password').sort({ createdAt: -1 });
     res.json({ success: true, clients });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -60,7 +60,9 @@ app.post('/api/clients', async (req, res) => {
     const newId = `CID-${String(count + 1).padStart(3, '0')}`;
     const client = new Client({ ...req.body, client_id: newId });
     await client.save();
-    res.json({ success: true, client });
+    const safeClient = client.toObject();
+    delete safeClient.password;
+    res.json({ success: true, client: safeClient });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -96,7 +98,9 @@ app.post('/api/client/login', async (req, res) => {
     const { email, password } = req.body;
     const client = await Client.findOne({ email, password });
     if (client) {
-      res.json({ success: true, client });
+      const safeClient = client.toObject();
+      delete safeClient.password;
+      res.json({ success: true, client: safeClient });
     } else {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
@@ -149,6 +153,22 @@ app.delete('/api/orders/:id', async (req, res) => {
   try {
     await Order.findOneAndDelete({ order_id: req.params.id });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Get one order by MongoDB ID or public order ID
+app.get('/api/orders/:id', async (req, res) => {
+  try {
+    const query = mongoose.isValidObjectId(req.params.id)
+      ? { _id: req.params.id }
+      : { order_id: req.params.id };
+    const order = await Order.findOne(query);
+    if (!order) {
+      return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    res.json({ success: true, order });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

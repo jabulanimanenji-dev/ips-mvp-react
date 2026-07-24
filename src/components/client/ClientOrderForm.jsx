@@ -290,29 +290,29 @@ export default function ClientOrderForm() {
 
     const orderPayload = {
 
-      clientId:
-        user._id,
+      client_id:
+        user.client_id,
 
-      clientName:
-        user.name,
+      client_name:
+        user.full_name,
 
-      clientEmail:
+      client_email:
         user.email,
 
+      service_type:
+        service,
 
-      service,
-
-
-      level:
+      academic_level:
         service === 'thesis' ||
         service === 'assignment'
           ? level
-          : null,
+          : 'N/A',
 
 
       subject,
 
-      topic,
+      topic_title:
+        topic,
 
 
       pages:
@@ -327,7 +327,7 @@ export default function ClientOrderForm() {
       requirements,
 
 
-      price:
+      total_fee_usd:
         price?.total || 0,
 
 
@@ -335,12 +335,15 @@ export default function ClientOrderForm() {
         'Pending',
 
 
-      milestones,
-
-
-      createdAt:
-        new Date()
-          .toISOString()
+      milestones:
+        milestones.map((milestone, index) => ({
+          stage: index + 1,
+          name: milestone.label,
+          status: milestone.completed ? 'completed' : 'pending',
+          paid: false,
+          due_date: milestone.dueDate,
+          amount: Math.round(((price?.total || 0) / milestones.length) * 100) / 100
+        }))
 
     };
 
@@ -377,6 +380,7 @@ export default function ClientOrderForm() {
       if (!response.ok) {
 
         throw new Error(
+          data.error ||
           data.message ||
           'Failed to create order'
         );

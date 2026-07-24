@@ -18,7 +18,7 @@ export default function ClientOrders() {
 
     const fetchOrders = async () => {
       try {
-        const res = await fetch(`/api/orders/client/${user._id}`);
+        const res = await fetch(`/api/orders/client/${user.client_id}`);
         if (!res.ok) throw new Error('Failed to fetch orders');
         const data = await res.json();
         setOrders(data.orders || []);
