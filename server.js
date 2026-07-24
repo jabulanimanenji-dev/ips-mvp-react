@@ -46,8 +46,27 @@ app.get('/api/health', (req, res) => {
 // Get all clients
 app.get('/api/clients', async (req, res) => {
   try {
-    const clients = await Client.find().select('-password').sort({ createdAt: -1 });
-    res.json({ success: true, clients });
+    const [clients, orderTotals] = await Promise.all([
+      Client.find().select('-password').sort({ createdAt: -1 }).lean(),
+      Order.aggregate([
+        {
+          $group: {
+            _id: '$client_id',
+            total_orders: { $sum: 1 },
+            total_spent: { $sum: '$total_fee_usd' }
+          }
+        }
+      ])
+    ]);
+    const totalsByClient = new Map(
+      orderTotals.map(total => [total._id, total])
+    );
+    const clientsWithTotals = clients.map(client => ({
+      ...client,
+      total_orders: totalsByClient.get(client.client_id)?.total_orders || 0,
+      total_spent: totalsByClient.get(client.client_id)?.total_spent || 0
+    }));
+    res.json({ success: true, clients: clientsWithTotals });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
