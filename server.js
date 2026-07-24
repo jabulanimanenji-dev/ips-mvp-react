@@ -93,7 +93,7 @@ app.patch('/api/clients/:id', async (req, res) => {
     const client = await Client.findOneAndUpdate(
       { client_id: req.params.id },
       req.body,
-      { new: true }
+      { returnDocument: 'after' }
     ).select('-password');
     res.json({ success: true, client });
   } catch (err) {
@@ -159,7 +159,7 @@ app.patch('/api/orders/:id', async (req, res) => {
     const order = await Order.findOneAndUpdate(
       { order_id: req.params.id },
       req.body,
-      { new: true }
+      { returnDocument: 'after' }
     );
     res.json({ success: true, order });
   } catch (err) {
@@ -252,7 +252,7 @@ app.patch('/api/writers/:id/status', async (req, res) => {
     const writer = await Writer.findOneAndUpdate(
       { writer_id: req.params.id },
       { status: req.body.status },
-      { new: true }
+      { returnDocument: 'after' }
     );
     res.json({ success: true, writer });
   } catch (err) {
@@ -279,7 +279,7 @@ app.patch('/api/writers/:id', async (req, res) => {
     const writer = await Writer.findOneAndUpdate(
       { writer_id: req.params.id },
       updates,
-      { new: true, runValidators: true }
+      { returnDocument: 'after', runValidators: true }
     ).select('-password');
     if (!writer) {
       return res.status(404).json({ success: false, error: 'Writer not found' });
