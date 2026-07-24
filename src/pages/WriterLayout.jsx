@@ -1,9 +1,11 @@
 import React from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function WriterLayout() {
   const { writer, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -35,7 +37,7 @@ export default function WriterLayout() {
             ✍️ Literator Portal
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            {writer?.name || 'Writer'}
+            {writer?.full_name || 'Writer'}
           </div>
         </div>
 
@@ -66,6 +68,24 @@ export default function WriterLayout() {
 
         <div style={{ padding: '1rem 1.5rem 0', borderTop: '1px solid var(--border-light)' }}>
           <button
+            onClick={toggleTheme}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            style={{
+              width: '100%',
+              padding: '0.6rem',
+              marginBottom: '0.65rem',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-light)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontSize: '0.85rem',
+              fontWeight: 600
+            }}
+          >
+            {theme === 'dark' ? '☀ Light Mode' : '☾ Dark Mode'}
+          </button>
+          <button
             onClick={handleLogout}
             style={{
               width: '100%',
@@ -85,7 +105,7 @@ export default function WriterLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="writer-main" style={{ flex: 1, padding: '2rem', overflowY: 'auto' }}>
+      <main className="writer-main" style={{ flex: 1, padding: '2rem', overflowY: 'auto', background: 'var(--bg-body)' }}>
         <Outlet />
       </main>
     </div>
