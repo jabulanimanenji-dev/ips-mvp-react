@@ -16,34 +16,58 @@ export default function AdminWriters() {
   });
 
   useEffect(() => {
-    const raw = JSON.parse(localStorage.getItem('ips-admin-writers') || '[]');
-    setWriters(raw);
+    fetch('/api/writers')
+      .then(response => response.json())
+      .then(data => setWriters(data.writers || []))
+      .catch(error => console.error('Failed to load writers:', error));
   }, []);
 
-  const saveWriters = (updated) => {
-    localStorage.setItem('ips-admin-writers', JSON.stringify(updated));
-    setWriters(updated);
+  const toggleStatus = async (writerId) => {
+    const current = writers.find(writer => writer.writer_id === writerId);
+    if (!current) return;
+    const status = current.status === 'Active' ? 'On Leave' : 'Active';
+    const response = await fetch(`/api/writers/${writerId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    const data = await response.json();
+    if (response.ok) {
+      setWriters(list => list.map(writer => writer.writer_id === writerId ? data.writer : writer));
+    }
   };
 
-  const toggleStatus = (writerId) => {
-    const all = [...writers];
-    const idx = all.findIndex((w) => w.writer_id === writerId);
-    if (idx === -1) return;
-    all[idx] = { ...all[idx], status: all[idx].status === 'Active' ? 'On Leave' : 'Active' };
-    saveWriters(all);
-  };
-
-  const deleteWriter = (writerId) => {
+  const deleteWriter = async (writerId) => {
     if (!window.confirm(`Delete writer ${writerId}? This cannot be undone.`)) return;
-    const updated = writers.filter(w => w.writer_id !== writerId);
-    saveWriters(updated);
+    const response = await fetch(`/api/writers/${writerId}`, { method: 'DELETE' });
+    if (response.ok) {
+      setWriters(list => list.filter(writer => writer.writer_id !== writerId));
+    }
   };
 
-  const addWriter = (e) => {
+  const resetPassword = async (writer) => {
+    const password = window.prompt(`Set a new temporary password for ${writer.full_name}:`);
+    if (!password) return;
+    if (password.length < 6) {
+      window.alert('Password must contain at least 6 characters.');
+      return;
+    }
+    const response = await fetch(`/api/writers/${writer.writer_id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
+    });
+    const data = await response.json();
+    if (response.ok) {
+      window.alert(`Password reset for ${writer.full_name}. Share it securely.`);
+    } else {
+      window.alert(data.error || 'Password reset failed.');
+    }
+  };
+
+  const addWriter = async (e) => {
     e.preventDefault();
-    const newId = `WID-${String(writers.length + 1).padStart(3, '0')}`;
     const writer = {
-      writer_id: newId,
       full_name: newWriter.full_name,
       email: newWriter.email,
       password: newWriter.password,
@@ -55,10 +79,18 @@ export default function AdminWriters() {
       projects_completed: WRITER_DEFAULTS.projects_completed,
       availability: WRITER_DEFAULTS.availability,
       status: WRITER_DEFAULTS.status,
-      created_at: new Date().toISOString()
     };
-    const updated = [...writers, writer];
-    saveWriters(updated);
+    const response = await fetch('/api/writers', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(writer)
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      window.alert(data.error || 'Failed to add writer.');
+      return;
+    }
+    setWriters(list => [...list, data.writer]);
     setNewWriter({
       full_name: '',
       email: '',
@@ -178,6 +210,7 @@ export default function AdminWriters() {
                     <button className="btn btn-sm btn-secondary" onClick={() => toggleStatus(w.writer_id)}>
                       {w.status === 'Active' ? 'Deactivate' : 'Activate'}
                     </button>
+                    <button className="btn btn-sm btn-gold" onClick={() => resetPassword(w)}>Reset PW</button>
                     <button className="btn btn-sm btn-danger" onClick={() => deleteWriter(w.writer_id)}>Delete</button>
                   </div>
                 </td>

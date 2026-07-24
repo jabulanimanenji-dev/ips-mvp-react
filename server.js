@@ -94,7 +94,7 @@ app.patch('/api/clients/:id', async (req, res) => {
       { client_id: req.params.id },
       req.body,
       { new: true }
-    );
+    ).select('-password');
     res.json({ success: true, client });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -217,7 +217,7 @@ app.get('/api/orders/writer/:writerId', async (req, res) => {
 
 app.get('/api/writers', async (req, res) => {
   try {
-    const writers = await Writer.find();
+    const writers = await Writer.find().select('-password');
     res.json({ success: true, writers });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -230,7 +230,9 @@ app.post('/api/writers', async (req, res) => {
     const newId = `WID-${String(count + 1).padStart(3, '0')}`;
     const writer = new Writer({ ...req.body, writer_id: newId });
     await writer.save();
-    res.json({ success: true, writer });
+    const safeWriter = writer.toObject();
+    delete safeWriter.password;
+    res.json({ success: true, writer: safeWriter });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -258,13 +260,45 @@ app.patch('/api/writers/:id/status', async (req, res) => {
   }
 });
 
+app.patch('/api/writers/:id', async (req, res) => {
+  try {
+    const allowedUpdates = [
+      'full_name',
+      'email',
+      'password',
+      'primary_expertise',
+      'secondary_expertise',
+      'academic_level',
+      'rate_per_page_usd',
+      'availability',
+      'status'
+    ];
+    const updates = Object.fromEntries(
+      Object.entries(req.body).filter(([key]) => allowedUpdates.includes(key))
+    );
+    const writer = await Writer.findOneAndUpdate(
+      { writer_id: req.params.id },
+      updates,
+      { new: true, runValidators: true }
+    ).select('-password');
+    if (!writer) {
+      return res.status(404).json({ success: false, error: 'Writer not found' });
+    }
+    res.json({ success: true, writer });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Writer login
 app.post('/api/writer/login', async (req, res) => {
   try {
     const { email, password } = req.body;
     const writer = await Writer.findOne({ email, password, status: 'Active' });
     if (writer) {
-      res.json({ success: true, writer });
+      const safeWriter = writer.toObject();
+      delete safeWriter.password;
+      res.json({ success: true, writer: safeWriter });
     } else {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
