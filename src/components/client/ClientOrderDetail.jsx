@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import OrderWorkspace from '../common/OrderWorkspace';
 
 export default function ClientOrderDetail() {
   const { orderId } = useParams();
@@ -304,6 +305,7 @@ export default function ClientOrderDetail() {
             })}
           </div>
         </div>
+        <OrderWorkspace order={order} role="client" actor={user} />
       </div>
     </div>
   );

@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fmtCur, fmtDate, daysUntil } from '../../utils/formatters';
 import { ORDER_STATUSES, BADGE_STYLES } from '../../utils/constants';
+import { useAuth } from '../../context/AuthContext';
+import OrderWorkspace from '../common/OrderWorkspace';
 
 export default function AdminOrderDetail() {
   const { orderId } = useParams();
   const navigate = useNavigate();
+  const { admin } = useAuth();
   const [order, setOrder] = useState(null);
   const [writers, setWriters] = useState([]);
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -248,6 +251,8 @@ export default function AdminOrderDetail() {
       </div>
 
       {/* Assign Writer Modal */}
+      {order && <OrderWorkspace order={order} role="admin" actor={admin} />}
+
       {showAssignModal && (
         <div
           style={{

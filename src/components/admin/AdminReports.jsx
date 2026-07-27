@@ -4,10 +4,24 @@ import { SERVICE_TYPES } from '../../utils/constants';
 
 export default function AdminReports() {
   const [orders, setOrders] = useState([]);
+  const [mongoClients, setMongoClients] = useState([]);
 
   useEffect(() => {
     const raw = JSON.parse(localStorage.getItem('ips-orders') || '[]');
     setOrders(raw);
+  }, []);
+
+  useEffect(() => {
+    Promise.all([fetch('/api/orders'), fetch('/api/clients')])
+      .then(async ([ordersResponse, clientsResponse]) => [
+        await ordersResponse.json(),
+        await clientsResponse.json()
+      ])
+      .then(([ordersData, clientsData]) => {
+        setOrders(ordersData.orders || []);
+        setMongoClients(clientsData.clients || []);
+      })
+      .catch(error => console.error('Reports load failed:', error));
   }, []);
 
   // Revenue by service
@@ -20,7 +34,7 @@ export default function AdminReports() {
   const maxRevenue = Math.max(...revenueByService.map((r) => r.revenue), 1);
 
   // Orders by country
-  const clients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
+  const clients = mongoClients;
   const countryMap = {};
   orders.forEach((o) => {
     const client = clients.find((c) => c.client_id === o.client_id);

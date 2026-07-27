@@ -30,6 +30,37 @@ export default function AdminDashboard() {
     setActivity(acts);
   }, []);
 
+  useEffect(() => {
+    const loadMongoDashboard = async () => {
+      try {
+        const [ordersResponse, clientsResponse] = await Promise.all([
+          fetch('/api/orders'),
+          fetch('/api/clients')
+        ]);
+        const ordersData = await ordersResponse.json();
+        const clientsData = await clientsResponse.json();
+        const loadedOrders = ordersData.orders || [];
+        setOrders(loadedOrders);
+        setClients(clientsData.clients || []);
+        setActivity(
+          loadedOrders
+            .slice()
+            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+            .slice(0, 6)
+            .map(order => ({
+              id: order.order_id,
+              text: `Order #${order.order_id} — ${order.service_type} for ${order.client_name}`,
+              date: order.createdAt,
+              status: order.status
+            }))
+        );
+      } catch (error) {
+        console.error('Dashboard API load failed:', error);
+      }
+    };
+    loadMongoDashboard();
+  }, []);
+
   const revenue = orders.reduce((sum, o) => {
     const paid = (o.milestones || []).filter((m) => m.paid).reduce((s, m) => s + (o.total_fee_usd / (o.milestones.length || 1)), 0);
     return sum + paid;

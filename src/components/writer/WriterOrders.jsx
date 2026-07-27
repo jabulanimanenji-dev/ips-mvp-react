@@ -10,14 +10,14 @@ export default function WriterOrders() {
   const [filter, setFilter] = useState('All');
 
   useEffect(() => {
-    if (!writer || !writer._id) {
+    if (!writer || !writer.writer_id) {
       setLoading(false);
       return;
     }
 
     const fetchOrders = async () => {
       try {
-        const res = await fetch(`/api/orders/writer/${writer._id}`);
+        const res = await fetch(`/api/orders/writer/${writer.writer_id}`);
         if (!res.ok) throw new Error('Failed to fetch orders');
         const data = await res.json();
         setOrders(data.orders || []);
@@ -122,14 +122,14 @@ export default function WriterOrders() {
                   >
                     <td style={{ padding: '0.75rem' }}>
                       <div style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 200 }}>
-                        {order.topic || 'Untitled'}
+                        {order.topic_title || 'Untitled'}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                        {order.service} • {order.subject}
+                        {order.service_type} • {order.subject}
                       </div>
                     </td>
                     <td style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>
-                      {order.clientName || '—'}
+                      {order.client_name || '—'}
                     </td>
                     <td style={{ padding: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                       {order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'}
@@ -148,7 +148,7 @@ export default function WriterOrders() {
                       </span>
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      ${order.writerPayout || Math.round((order.price || 0) * 0.6)}
+                      ${order.writerPayout || Math.round((order.total_fee_usd || 0) * 0.6)}
                     </td>
                     <td style={{ padding: '0.75rem', textAlign: 'right' }}>
                       <Link

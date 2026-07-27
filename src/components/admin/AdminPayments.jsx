@@ -11,6 +11,13 @@ export default function AdminPayments() {
     setOrders(raw);
   }, []);
 
+  useEffect(() => {
+    fetch('/api/orders')
+      .then(response => response.json())
+      .then(data => setOrders(data.orders || []))
+      .catch(error => console.error('Payments load failed:', error));
+  }, []);
+
   const totalRevenue = orders.reduce((sum, o) => {
     const paidCount = (o.milestones || []).filter((m) => m.paid).length;
     const totalMilestones = o.milestones?.length || 1;
