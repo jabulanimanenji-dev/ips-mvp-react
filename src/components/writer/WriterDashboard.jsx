@@ -9,14 +9,14 @@ export default function WriterDashboard() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!writer || !writer._id) {
+    if (!writer || !writer.writer_id) {
       setLoading(false);
       return;
     }
 
     const fetchOrders = async () => {
       try {
-        const res = await fetch(`/api/orders/writer/${writer._id}`);
+        const res = await fetch(`/api/orders/writer/${writer.writer_id}`);
         if (!res.ok) throw new Error('Failed to fetch orders');
         const data = await res.json();
         setOrders(data.orders || []);
@@ -50,7 +50,7 @@ export default function WriterDashboard() {
       <div style={{ marginBottom: '2rem' }}>
         <h1 className="section-title" style={{ margin: 0 }}>Writer Dashboard</h1>
         <p className="section-subtitle" style={{ margin: '0.25rem 0 0 0' }}>
-          Welcome back, {writer?.name || 'Writer'}
+          Welcome back, {writer?.full_name || 'Writer'}
         </p>
       </div>
 
@@ -70,7 +70,7 @@ export default function WriterDashboard() {
         </div>
         <div className="card stat-card" style={{ padding: '1.25rem', textAlign: 'center' }}>
           <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)' }}>
-            ${orders.reduce((sum, o) => sum + (o.writerPayout || o.price * 0.6 || 0), 0)}
+            ${orders.reduce((sum, o) => sum + (o.writerPayout || o.total_fee_usd * 0.6 || 0), 0)}
           </div>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Total Earnings</div>
         </div>
@@ -126,10 +126,10 @@ export default function WriterDashboard() {
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {order.topic || 'Untitled Order'}
+                    {order.topic_title || 'Untitled Order'}
                   </div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                    {order.service} • {order.subject} • Due {order.deadline ? new Date(order.deadline).toLocaleDateString() : 'TBD'}
+                    {order.service_type} • {order.subject} • Due {order.deadline ? new Date(order.deadline).toLocaleDateString() : 'TBD'}
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
@@ -144,7 +144,7 @@ export default function WriterDashboard() {
                     {order.status}
                   </span>
                   <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                    ${order.writerPayout || Math.round((order.price || 0) * 0.6)}
+                    ${order.writerPayout || Math.round((order.total_fee_usd || 0) * 0.6)}
                   </span>
                 </div>
               </Link>

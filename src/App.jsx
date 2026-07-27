@@ -9,7 +9,7 @@ import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 
 import ClientLayout from './pages/ClientLayout';
-import ClientOverview from './components/client/ClientOverview';
+import ClientOverview from './components/client/ClientOverviewMongo';
 import ClientOrders from './components/client/ClientOrders';
 import ClientOrderDetail from './components/client/ClientOrderDetail';
 import ClientOrderForm from './components/client/ClientOrderForm';
@@ -20,7 +20,7 @@ import AdminLayout from './pages/AdminLayout';
 import AdminLogin from './components/admin/AdminLogin';
 import AdminDashboard from './components/admin/AdminDashboard';
 import AdminOrders from './components/admin/AdminOrders';
-import AdminOrderDetail from './components/admin/AdminOrderDetail';
+import AdminOrderDetail from './components/admin/AdminOrderDetailMongo';
 import AdminClients from './components/admin/AdminClients';
 import AdminWriters from './components/admin/AdminWriters';
 import AdminPayments from './components/admin/AdminPayments';

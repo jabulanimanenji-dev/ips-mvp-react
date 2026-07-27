@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import OrderWorkspace from '../common/OrderWorkspace';
 
 export default function WriterOrderDetail() {
   const { orderId } = useParams();
@@ -18,7 +19,11 @@ export default function WriterOrderDetail() {
         const res = await fetch(`/api/orders/${orderId}`);
         if (!res.ok) throw new Error('Order not found');
         const data = await res.json();
-        setOrder(data.order || data);
+        const fetchedOrder = data.order || data;
+        if (fetchedOrder.writer_id !== writer?.writer_id) {
+          throw new Error('This order is not assigned to your account');
+        }
+        setOrder(fetchedOrder);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -27,7 +32,7 @@ export default function WriterOrderDetail() {
     };
 
     fetchOrder();
-  }, [orderId]);
+  }, [orderId, writer]);
 
   const handleStatusUpdate = async (newStatus) => {
     setUpdating(true);
@@ -51,7 +56,10 @@ export default function WriterOrderDetail() {
   const handleMilestoneToggle = async (index) => {
     if (!order.milestones) return;
     const updated = [...order.milestones];
-    updated[index] = { ...updated[index], completed: !updated[index].completed };
+    updated[index] = {
+      ...updated[index],
+      status: updated[index].status === 'completed' ? 'pending' : 'completed'
+    };
 
     setUpdating(true);
     setUpdateError('');
@@ -120,7 +128,7 @@ export default function WriterOrderDetail() {
         >
           ← Back to Orders
         </button>
-        <h1 className="section-title" style={{ margin: 0 }}>{order.topic || 'Untitled Order'}</h1>
+        <h1 className="section-title" style={{ margin: 0 }}>{order.topic_title || 'Untitled Order'}</h1>
         <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{
             padding: '4px 10px',
@@ -136,6 +144,7 @@ export default function WriterOrderDetail() {
             {order._id || order.id}
           </span>
         </div>
+        <OrderWorkspace order={order} role="writer" actor={writer} />
       </div>
 
       {updateError && (
@@ -149,15 +158,15 @@ export default function WriterOrderDetail() {
         <div className="card" style={{ padding: '1.5rem' }}>
           <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--text-primary)' }}>Order Details</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <DetailRow label="Service" value={order.service} />
-            {order.level && <DetailRow label="Level" value={order.level} />}
+            <DetailRow label="Service" value={order.service_type} />
+            {order.academic_level && <DetailRow label="Level" value={order.academic_level} />}
             <DetailRow label="Subject" value={order.subject || '—'} />
             {order.pages && <DetailRow label="Pages" value={order.pages} />}
             <DetailRow label="Deadline" value={order.deadline ? new Date(order.deadline).toLocaleDateString() : '—'} />
-            <DetailRow label="Price" value={`$${order.price || 0}`} />
-            <DetailRow label="Your Payout" value={`$${order.writerPayout || Math.round((order.price || 0) * 0.6)}`} />
-            <DetailRow label="Client" value={order.clientName || '—'} />
-            <DetailRow label="Client Email" value={order.clientEmail || '—'} />
+            <DetailRow label="Price" value={`$${order.total_fee_usd || 0}`} />
+            <DetailRow label="Your Payout" value={`$${order.writerPayout || Math.round((order.total_fee_usd || 0) * 0.6)}`} />
+            <DetailRow label="Client" value={order.client_name || '—'} />
+            <DetailRow label="Client Email" value={order.client_email || '—'} />
           </div>
 
           {order.requirements && (
