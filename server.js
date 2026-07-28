@@ -114,7 +114,8 @@ app.get('/api/health', (req, res) => {
 app.get('/api/clients', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const [clients, orderTotals] = await Promise.all([
       Client.find().select('-password').sort({ createdAt: -1 }).lean(),
       Order.aggregate([
@@ -162,7 +163,8 @@ app.post('/api/clients', async (req, res) => {
 app.patch('/api/clients/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || (session.role !== 'admin' && !(session.role === 'client' && session.id === req.params.id))) return res.status(403).json({ success: false, error: 'You cannot update this client.' });
+    if (!session) return;
+    if (session.role !== 'admin' && !(session.role === 'client' && session.id === req.params.id)) return res.status(403).json({ success: false, error: 'You cannot update this client.' });
     const updates = { ...req.body };
     if (updates.password) updates.password = hashPassword(updates.password);
     const client = await Client.findOneAndUpdate(
@@ -180,7 +182,8 @@ app.patch('/api/clients/:id', async (req, res) => {
 app.delete('/api/clients/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     await Client.findOneAndDelete({ client_id: req.params.id });
     res.json({ success: true });
   } catch (err) {
@@ -217,7 +220,8 @@ app.post('/api/client/login', async (req, res) => {
 app.get('/api/orders', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const orders = await Order.find().sort({ createdAt: -1 });
     res.json({ success: true, orders });
   } catch (err) {
@@ -229,7 +233,8 @@ app.get('/api/orders', async (req, res) => {
 app.post('/api/orders', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'client') return res.status(403).json({ success: false, error: 'Client access required.' });
+    if (!session) return;
+    if (session.role !== 'client') return res.status(403).json({ success: false, error: 'Client access required.' });
     const count = await Order.countDocuments();
     const newId = `ORD-${String(count + 1).padStart(4, '0')}`;
     const order = new Order({ ...req.body, client_id: session.id, order_id: newId });
@@ -274,7 +279,8 @@ app.patch('/api/orders/:id', async (req, res) => {
 app.delete('/api/orders/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can delete orders.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can delete orders.' });
     await Order.findOneAndDelete({ order_id: req.params.id });
     res.json({ success: true });
   } catch (err) {
@@ -304,7 +310,8 @@ app.get('/api/orders/:id', async (req, res) => {
 app.get('/api/orders/client/:clientId', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || (session.role !== 'admin' && !(session.role === 'client' && session.id === req.params.clientId))) return res.status(403).json({ success: false, error: 'You cannot view these orders.' });
+    if (!session) return;
+    if (session.role !== 'admin' && !(session.role === 'client' && session.id === req.params.clientId)) return res.status(403).json({ success: false, error: 'You cannot view these orders.' });
     const orders = await Order.find({ client_id: req.params.clientId });
     res.json({ success: true, orders });
   } catch (err) {
@@ -316,7 +323,8 @@ app.get('/api/orders/client/:clientId', async (req, res) => {
 app.get('/api/orders/writer/:writerId', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || (session.role !== 'admin' && !(session.role === 'writer' && session.id === req.params.writerId))) return res.status(403).json({ success: false, error: 'You cannot view these assignments.' });
+    if (!session) return;
+    if (session.role !== 'admin' && !(session.role === 'writer' && session.id === req.params.writerId)) return res.status(403).json({ success: false, error: 'You cannot view these assignments.' });
     const orders = await Order.find({ writer_id: req.params.writerId });
     res.json({ success: true, orders });
   } catch (err) {
@@ -329,7 +337,8 @@ app.get('/api/orders/writer/:writerId', async (req, res) => {
 app.get('/api/writers', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const writers = await Writer.find().select('-password');
     res.json({ success: true, writers });
   } catch (err) {
@@ -340,7 +349,8 @@ app.get('/api/writers', async (req, res) => {
 app.post('/api/writers', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const count = await Writer.countDocuments();
     const newId = `WID-${String(count + 1).padStart(3, '0')}`;
     const writer = new Writer({ ...req.body, password: hashPassword(req.body.password), writer_id: newId });
@@ -356,7 +366,8 @@ app.post('/api/writers', async (req, res) => {
 app.delete('/api/writers/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     await Writer.findOneAndDelete({ writer_id: req.params.id });
     res.json({ success: true });
   } catch (err) {
@@ -465,7 +476,8 @@ app.post('/api/admin/login', async (req, res) => {
 app.get('/api/admins', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const admins = await Admin.find();
     res.json({ success: true, admins });
   } catch (err) {
@@ -476,7 +488,8 @@ app.get('/api/admins', async (req, res) => {
 app.post('/api/admins', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const count = await Admin.countDocuments();
     const newId = `ADM-${String(count + 1).padStart(3, '0')}`;
     const admin = new Admin({ ...req.body, password: hashPassword(req.body.password), id: newId });
@@ -490,7 +503,8 @@ app.post('/api/admins', async (req, res) => {
 app.delete('/api/admins/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     await Admin.findOneAndDelete({ id: req.params.id });
     res.json({ success: true });
   } catch (err) {
@@ -697,7 +711,8 @@ app.get('/api/files/:id/download', async (req, res) => {
 app.patch('/api/files/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can review files.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can review files.' });
     const allowed = ['state', 'visibility', 'description', 'category', 'review_reason'];
     const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
     if (updates.state && !['pending', 'approved', 'released', 'rejected', 'archived'].includes(updates.state)) return res.status(400).json({ success: false, error: 'Invalid file state.' });
@@ -861,7 +876,8 @@ app.post('/api/logout', (req, res) => {
 app.patch('/api/work/:id/contact-policy', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can change direct-contact access.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can change direct-contact access.' });
     const enabled = Boolean(req.body.enabled);
     const order = await Order.findOneAndUpdate({ order_id: req.params.id }, { direct_contact_enabled: enabled }, { returnDocument: 'after' });
     const service = order ? null : await ServiceRequest.findOneAndUpdate({ request_id: req.params.id }, { direct_contact_enabled: enabled }, { returnDocument: 'after' });
@@ -901,7 +917,8 @@ app.post('/api/work/:id/expenses', async (req, res) => {
 app.patch('/api/work/:id/expenses/:expenseId', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can review expenses.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can review expenses.' });
     const allowed = ['status', 'approved_amount', 'admin_reason', 'client_visible'];
     const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
     updates.reviewed_by = session.id;
@@ -1015,7 +1032,8 @@ app.get('/api/services/:id', async (req, res) => {
 app.post('/api/services', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'client') return res.status(403).json({ success: false, error: 'A client session is required.' });
+    if (!session) return;
+    if (session.role !== 'client') return res.status(403).json({ success: false, error: 'A client session is required.' });
     const count = await ServiceRequest.countDocuments();
     const requestId = `SRV-${String(count + 1).padStart(5, '0')}`;
     const request = await ServiceRequest.create({
@@ -1122,7 +1140,8 @@ app.patch('/api/services/:id', async (req, res) => {
 app.delete('/api/services/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can delete services.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can delete services.' });
     await ServiceRequest.findOneAndDelete({ request_id: req.params.id });
     res.json({ success: true });
   } catch (err) {
@@ -1340,7 +1359,8 @@ const actionDueState = due => {
 app.get('/api/actions', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || !['admin', 'writer'].includes(session.role)) return res.status(403).json({ success: false, error: 'Action Center access required.' });
+    if (!session) return;
+    if (!['admin', 'writer'].includes(session.role)) return res.status(403).json({ success: false, error: 'Action Center access required.' });
     const isAdmin = session.role === 'admin';
     const orderQuery = isAdmin ? {} : { writer_id: session.id };
     const serviceQuery = isAdmin ? {} : { provider_id: session.id };
@@ -1474,7 +1494,8 @@ app.get('/api/actions', async (req, res) => {
 app.patch('/api/actions/:actionKey', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || !['admin', 'writer'].includes(session.role)) return res.status(403).json({ success: false, error: 'Action Center access required.' });
+    if (!session) return;
+    if (!['admin', 'writer'].includes(session.role)) return res.status(403).json({ success: false, error: 'Action Center access required.' });
     const allowed = ['status', 'priority', 'assigned_to', 'snoozed_until', 'resolution_note', 'snapshot'];
     const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
     if (['resolved', 'dismissed'].includes(updates.status) && !updates.resolution_note?.trim()) return res.status(400).json({ success: false, error: 'A resolution or dismissal reason is required.' });
@@ -1498,7 +1519,8 @@ app.patch('/api/actions/:actionKey', async (req, res) => {
 app.get('/api/admin/inbox', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const messages = await Message.find().sort({ createdAt: -1 }).lean();
     const workIds = [...new Set(messages.map(item => item.order_id))];
     const [orders, services, states, decisions, files, expenses] = await Promise.all([
@@ -1557,7 +1579,8 @@ app.get('/api/admin/inbox', async (req, res) => {
 app.get('/api/admin/inbox/:workId/:channel', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const work = await findWork(req.params.workId);
     if (!work) return res.status(404).json({ success: false, error: 'Related job not found.' });
     const [messages, state, decisions, files, expenses] = await Promise.all([
@@ -1581,7 +1604,8 @@ app.get('/api/admin/inbox/:workId/:channel', async (req, res) => {
 app.patch('/api/admin/inbox/:workId/:channel', async (req, res) => {
   try {
     const session = requireSession(req, res);
-    if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const allowed = ['assigned_admin','priority','status','tags','follow_up_at','snoozed_until','escalated','escalation_reason','resolution_reason'];
     const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowed.includes(key)));
     const state = await ConversationState.findOneAndUpdate(

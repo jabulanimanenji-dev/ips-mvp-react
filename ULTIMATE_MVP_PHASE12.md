@@ -34,6 +34,7 @@ Concurrent saves are protected with a draft version check. If another administra
 - Configuration objects are depth-, key-, array-, and string-limited before storage.
 - Every draft save, publish, reset, and rollback creates an audit event.
 - Public pages fall back to validated defaults if the database is temporarily unavailable.
+- Protected routes stop immediately after an expired or missing session response, preventing duplicate responses and server crashes.
 
 ## Data model
 
@@ -58,7 +59,7 @@ Run:
 npm run check
 ```
 
-This builds the production frontend, checks the Express server syntax, and verifies configuration sanitization, responsive limits, dashboard definitions, and safe-route handling.
+This builds the production frontend, checks the Express server syntax, verifies configuration sanitization, responsive limits, dashboard definitions, and safe-route handling, and launches a temporary backend to confirm unauthenticated protected requests return one `401` response without crashing the process.
 
 ## Deliberate boundaries
 
