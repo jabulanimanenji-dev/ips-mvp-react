@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const NAV_ITEMS = [
   { path: '/admin/dashboard', label: 'Dashboard', icon: '📊' },
   { path: '/admin/orders', label: 'Orders', icon: '📦' },
+  { path: '/admin/services', label: 'Service Operations', icon: 'S' },
   { path: '/admin/clients', label: 'Clients', icon: '👥' },
-  { path: '/admin/writers', label: 'Writers', icon: '✍️' },
+  { path: '/admin/writers', label: 'Service Providers', icon: '✍️' },
   { path: '/admin/payments', label: 'Payments', icon: '💳' },
   { path: '/admin/cms', label: 'CMS (God Mode)', icon: '⚡' },
   { path: '/admin/messages', label: 'Messages', icon: '💬' },
+  { path: '/admin/actions', label: 'Action Center', icon: '!' },
   { path: '/admin/reports', label: 'Reports', icon: '📈' },
   { path: '/admin/settings', label: 'Settings', icon: '⚙️' },
 ];
@@ -18,6 +20,17 @@ export default function AdminSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const [actionCount, setActionCount] = useState(0);
+  const [messageCount, setMessageCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/actions').then(response => response.json()).then(data => {
+      if (data.success) setActionCount(data.summary?.total || 0);
+    }).catch(() => {});
+    fetch('/api/conversations').then(response => response.json()).then(data => {
+      if (data.success) setMessageCount((data.conversations || []).reduce((sum, item) => sum + (item.unread_count || 0), 0));
+    }).catch(() => {});
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -87,7 +100,9 @@ export default function AdminSidebar() {
               }}
             >
               <span style={{ fontSize: '1rem', opacity: 0.9 }}>{item.icon}</span>
-              {item.label}
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.path === '/admin/actions' && actionCount > 0 && <span style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: 20, background: '#ef4444', color: '#fff', display: 'grid', placeItems: 'center', fontSize: '.7rem', fontWeight: 800 }}>{actionCount > 99 ? '99+' : actionCount}</span>}
+              {item.path === '/admin/messages' && messageCount > 0 && <span style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: 20, background: 'var(--primary)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: '.7rem', fontWeight: 800 }}>{messageCount > 99 ? '99+' : messageCount}</span>}
             </Link>
           );
         })}

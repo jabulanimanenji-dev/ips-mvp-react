@@ -111,9 +111,10 @@ export function AuthProvider({ children }) {
 
         if (data.success) {
 
-          setUser(
-            data.client
-          );
+          setUser({
+            ...data.client,
+            token: data.token
+          });
 
 
           return {
@@ -199,9 +200,10 @@ export function AuthProvider({ children }) {
 
           if(data.success){
 
-            setUser(
-              data.client
-            );
+            setUser({
+              ...data.client,
+              token: data.token
+            });
 
 
             return {
@@ -445,6 +447,8 @@ export function AuthProvider({ children }) {
 
   const logout =
     useCallback(() => {
+
+      fetch('/api/logout', { method: 'POST' }).catch(() => {});
 
       removeUser();
 

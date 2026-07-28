@@ -60,6 +60,7 @@ export default function Navbar() {
         {/* Desktop Nav - hidden on mobile */}
         <nav className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
           <Link to="/" className="nav-link" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none' }}>Home</Link>
+          <Link to="/services" className="nav-link" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none' }}>Services</Link>
           <Link to="/quote" className="nav-link" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none' }}>Quote</Link>
           <button onClick={() => handleScroll('about')} className="nav-link" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}>About</button>
           <button onClick={() => handleScroll('faq')} className="nav-link" style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}>FAQ</button>
@@ -113,6 +114,7 @@ export default function Navbar() {
           gap: '0.75rem'
         }}>
           <Link to="/" onClick={() => setMobileOpen(false)} style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none', padding: '0.5rem 0' }}>Home</Link>
+          <Link to="/services" onClick={() => setMobileOpen(false)} style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none', padding: '0.5rem 0' }}>Services</Link>
           <Link to="/quote" onClick={() => setMobileOpen(false)} style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-secondary)', textDecoration: 'none', padding: '0.5rem 0' }}>Quote</Link>
           <button onClick={() => handleScroll('about')} style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '0.5rem 0' }}>About</button>
           <button onClick={() => handleScroll('faq')} style={{ fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: '0.5rem 0' }}>FAQ</button>

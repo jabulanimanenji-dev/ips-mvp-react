@@ -33,6 +33,7 @@ const OrderSchema = new mongoose.Schema({
   revision_count: { type: Number, default: 0 },
   admin_notes: { type: String, default: '' },
   writer_notes: { type: String, default: '' },
+  direct_contact_enabled: { type: Boolean, default: false },
   status_history: [{
     status: String,
     actor_id: String,

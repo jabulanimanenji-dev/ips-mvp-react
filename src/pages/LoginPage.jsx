@@ -52,10 +52,15 @@ export default function LoginPage() {
           >
             IPS
           </div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Client Login</h2>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Welcome to IPS</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-            Access your orders and track progress
+            Sign in to manage every service in one workspace
           </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 8, marginBottom: '1.5rem' }}>
+          <div style={{ padding: '.75rem .35rem', textAlign: 'center', borderRadius: 10, background: 'var(--bg-active)', border: '1px solid var(--border-focus)', fontSize: '.78rem', fontWeight: 800, color: 'var(--primary)' }}>Client</div>
+          <Link to="/writer/login" style={{ padding: '.75rem .35rem', textAlign: 'center', borderRadius: 10, border: '1px solid var(--border)', fontSize: '.78rem', fontWeight: 700, textDecoration: 'none', color: 'var(--text-secondary)' }}>Provider</Link>
         </div>
 
         {error && (

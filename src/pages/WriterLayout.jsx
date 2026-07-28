@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -8,13 +8,27 @@ export default function WriterLayout() {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
+  const [actionCount, setActionCount] = useState(0);
+  const [messageCount, setMessageCount] = useState(0);
 
   const navItems = [
     { path: '/writer/dashboard', label: 'Dashboard', icon: '📊' },
-    { path: '/writer/orders', label: 'My Orders', icon: '📝' },
+    { path: '/writer/services', label: 'Service Jobs', icon: 'S' },
+    { path: '/writer/orders', label: 'Assigned Jobs', icon: '📝' },
+    { path: '/writer/messages?category=messages', label: 'Messages', icon: '💬' },
+    { path: '/writer/actions', label: 'Action Center', icon: '!' },
   ];
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path) => location.pathname === path.split('?')[0];
+
+  useEffect(() => {
+    fetch('/api/actions').then(response => response.json()).then(data => {
+      if (data.success) setActionCount(data.summary?.total || 0);
+    }).catch(() => {});
+    fetch('/api/conversations').then(response => response.json()).then(data => {
+      if (data.success) setMessageCount((data.conversations || []).reduce((sum, item) => sum + (item.unread_count || 0), 0));
+    }).catch(() => {});
+  }, [location.pathname]);
 
   const handleLogout = () => {
     logout();
@@ -34,10 +48,10 @@ export default function WriterLayout() {
       }}>
         <div style={{ padding: '0 1.5rem 1.5rem', borderBottom: '1px solid var(--border-light)' }}>
           <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary)' }}>
-            ✍️ Literator Portal
+            IPS Provider Portal
           </div>
           <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-            {writer?.full_name || 'Writer'}
+            {writer?.full_name || 'Service Provider'}
           </div>
         </div>
 
@@ -61,7 +75,9 @@ export default function WriterLayout() {
               }}
             >
               <span>{item.icon}</span>
-              {item.label}
+              <span style={{ flex: 1 }}>{item.label}</span>
+              {item.path === '/writer/actions' && actionCount > 0 && <span style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: 20, background: '#ef4444', color: '#fff', display: 'grid', placeItems: 'center', fontSize: '.7rem', fontWeight: 800 }}>{actionCount > 99 ? '99+' : actionCount}</span>}
+              {item.path.startsWith('/writer/messages') && messageCount > 0 && <span style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: 20, background: 'var(--primary)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: '.7rem', fontWeight: 800 }}>{messageCount > 99 ? '99+' : messageCount}</span>}
             </Link>
           ))}
         </nav>

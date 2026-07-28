@@ -194,7 +194,7 @@ export default function WriterOrderDetail() {
           <div className="card" style={{ padding: '1.5rem' }}>
             <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--text-primary)' }}>Update Status</h3>
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {['Pending', 'In Progress', 'Under Review', 'Completed'].map(s => (
+              {['Accepted by Writer', 'In Progress', 'Submitted for Admin Review'].map(s => (
                 <button
                   key={s}
                   onClick={() => handleStatusUpdate(s)}

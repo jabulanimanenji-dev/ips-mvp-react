@@ -3,5 +3,8 @@ dist/
 .env
 .env.local
 uploads/
+ips-mvp-react-interactive-portals/
+ips-mvp-react-unified-platform/
+work-build*/
 *.log
 .DS_Store

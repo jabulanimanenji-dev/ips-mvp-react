@@ -7,6 +7,7 @@ import HomePage from './pages/HomePage';
 import QuotePage from './pages/QuotePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import ServiceMarketplacePage from './pages/ServiceMarketplacePage';
 
 import ClientLayout from './pages/ClientLayout';
 import ClientOverview from './components/client/ClientOverviewMongo';
@@ -15,6 +16,7 @@ import ClientOrderDetail from './components/client/ClientOrderDetail';
 import ClientOrderForm from './components/client/ClientOrderForm';
 import ClientProfile from './components/client/ClientProfile';
 import ClientSupport from './components/client/ClientSupport';
+import ClientServices from './components/client/ClientServices';
 
 import AdminLayout from './pages/AdminLayout';
 import AdminLogin from './components/admin/AdminLogin';
@@ -28,13 +30,21 @@ import AdminCMS from './components/admin/AdminCMS';
 import AdminMessages from './components/admin/AdminMessages';
 import AdminReports from './components/admin/AdminReports';
 import AdminSettings from './components/admin/AdminSettings';
+import AdminServices from './components/admin/AdminServices';
 
 import WriterLogin from './components/writer/WriterLogin';
 import WriterLayout from './pages/WriterLayout';
 import WriterDashboard from './components/writer/WriterDashboard';
 import WriterOrders from './components/writer/WriterOrders';
 import WriterOrderDetail from './components/writer/WriterOrderDetail';
+import ProviderServices from './components/writer/ProviderServices';
+import ServiceJobDetail from './components/common/ServiceJobDetail';
+import ActionCenter from './components/common/ActionCenter';
+import DirectMessaging from './components/common/DirectMessaging';
 
+const ADMIN_ENTRY_PATH = (import.meta.env.VITE_ADMIN_ENTRY_PATH || '/ips-mission-control')
+  .trim()
+  .replace(/\/+$/, '');
 
 
 function ProtectedClientRoute({ children }) {
@@ -81,7 +91,7 @@ function ProtectedAdminRoute({ children }) {
 
   return admin
     ? children
-    : <Navigate to="/admin/login" replace />;
+    : <Navigate to={ADMIN_ENTRY_PATH} replace />;
 
 }
 
@@ -135,6 +145,8 @@ export default function App() {
           element={<QuotePage />}
         />
 
+        <Route path="/services" element={<ServiceMarketplacePage />} />
+
         <Route
           path="/login"
           element={<LoginPage />}
@@ -185,6 +197,9 @@ export default function App() {
           element={<ClientOrders />}
         />
 
+        <Route path="services" element={<ClientServices />} />
+        <Route path="services/:requestId" element={<ServiceJobDetail role="client" />} />
+
 
         <Route
           path="orders/:orderId"
@@ -210,6 +225,7 @@ export default function App() {
           path="support"
           element={<ClientSupport />}
         />
+        <Route path="messages" element={<DirectMessaging role="client" />} />
 
 
       </Route>
@@ -239,7 +255,11 @@ export default function App() {
         <Route index element={<Navigate to="/writer/dashboard" replace />} />
         <Route path="dashboard" element={<WriterDashboard />} />
         <Route path="orders" element={<WriterOrders />} />
+        <Route path="services" element={<ProviderServices />} />
+        <Route path="services/:requestId" element={<ServiceJobDetail role="writer" />} />
         <Route path="orders/:orderId" element={<WriterOrderDetail />} />
+        <Route path="messages" element={<DirectMessaging role="writer" />} />
+        <Route path="actions" element={<ActionCenter role="writer" />} />
       </Route>
 
 
@@ -251,10 +271,8 @@ export default function App() {
 
       {/* ADMIN */}
 
-      <Route
-        path="/admin/login"
-        element={<AdminLogin />}
-      />
+      <Route path={ADMIN_ENTRY_PATH} element={<AdminLogin />} />
+      <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 
 
       <Route
@@ -289,6 +307,9 @@ export default function App() {
           element={<AdminOrders />}
         />
 
+        <Route path="services" element={<AdminServices />} />
+        <Route path="services/:requestId" element={<ServiceJobDetail role="admin" />} />
+
 
         <Route
           path="orders/:orderId"
@@ -322,8 +343,10 @@ export default function App() {
 
         <Route
           path="messages"
-          element={<AdminMessages />}
+          element={<DirectMessaging role="admin" />}
         />
+        <Route path="job-messages" element={<AdminMessages />} />
+        <Route path="actions" element={<ActionCenter role="admin" />} />
 
 
         <Route

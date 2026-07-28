@@ -1,157 +1,101 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+
+const done = ['Completed', 'Cancelled'];
 
 export default function WriterDashboard() {
   const { writer } = useAuth();
   const [orders, setOrders] = useState([]);
+  const [services, setServices] = useState([]);
+  const [filter, setFilter] = useState('attention');
+  const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (!writer || !writer.writer_id) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchOrders = async () => {
-      try {
-        const res = await fetch(`/api/orders/writer/${writer.writer_id}`);
-        if (!res.ok) throw new Error('Failed to fetch orders');
-        const data = await res.json();
-        setOrders(data.orders || []);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchOrders();
-  }, [writer]);
-
-  const activeOrders = orders.filter(o => o.status === 'In Progress');
-  const pendingOrders = orders.filter(o => o.status === 'Pending');
-  const completedOrders = orders.filter(o => o.status === 'Completed');
-
-  const statusColor = (status) => {
-    switch (status) {
-      case 'Pending': return '#f59e0b';
-      case 'In Progress': return '#3b82f6';
-      case 'Under Review': return '#8b5cf6';
-      case 'Completed': return '#10b981';
-      case 'Cancelled': return '#ef4444';
-      default: return '#6b7280';
-    }
+  const load = () => {
+    if (!writer?.writer_id) return setLoading(false);
+    Promise.all([
+      fetch(`/api/orders/writer/${writer.writer_id}`).then(r => r.json()),
+      fetch(`/api/services?provider_id=${writer.writer_id}`).then(r => r.json())
+    ]).then(([a, b]) => {
+      setOrders(a.orders || []);
+      setServices(b.requests || []);
+    }).finally(() => setLoading(false));
   };
+  useEffect(load, [writer]);
+
+  const jobs = useMemo(() => [
+    ...services.map(job => ({
+      ...job, id: job.request_id, title: job.title, kind: job.family === 'odd_job' ? 'Odd job' : 'Professional',
+      href: '/writer/services', due: job.deadline, payout: job.quote?.labor || 0
+    })),
+    ...orders.map(job => ({
+      ...job, id: job.order_id, title: job.topic_title, kind: 'Academic & writing',
+      href: `/writer/orders/${job._id}`, due: job.deadline,
+      payout: job.writerPayout || Math.round((job.total_fee_usd || 0) * .6)
+    }))
+  ], [orders, services]);
+
+  const today = new Date();
+  const attention = jobs.filter(j => {
+    const days = j.due ? (new Date(j.due) - today) / 86400000 : 99;
+    return !done.includes(j.status) && (days <= 3 || ['Assigned', 'Pending', 'Revision Required', 'Correction Required'].includes(j.status));
+  });
+  const shown = jobs.filter(j => {
+    const text = `${j.title} ${j.id} ${j.kind} ${j.status}`.toLowerCase();
+    const matchesQuery = text.includes(query.toLowerCase());
+    if (!matchesQuery) return false;
+    if (filter === 'attention') return attention.includes(j);
+    if (filter === 'active') return !done.includes(j.status);
+    if (filter === 'completed') return j.status === 'Completed';
+    return true;
+  });
+  const active = jobs.filter(j => !done.includes(j.status));
+  const dueSoon = jobs.filter(j => j.due && !done.includes(j.status) && (new Date(j.due) - today) / 86400000 <= 3);
+  const earnings = jobs.filter(j => j.status === 'Completed').reduce((sum, j) => sum + Number(j.payout || 0), 0);
 
   return (
-    <div className="writer-dashboard">
-      <div style={{ marginBottom: '2rem' }}>
-        <h1 className="section-title" style={{ margin: 0 }}>Writer Dashboard</h1>
-        <p className="section-subtitle" style={{ margin: '0.25rem 0 0 0' }}>
-          Welcome back, {writer?.full_name || 'Writer'}
-        </p>
+    <div>
+      <section style={{ padding: '2rem', borderRadius: 24, color: '#fff', background: 'linear-gradient(125deg,#081b38,#3f145d 62%,#9b247d)', marginBottom: '1.5rem', boxShadow: '0 24px 60px rgba(11,28,59,.2)' }}>
+        <small style={{ fontWeight: 800, letterSpacing: '.14em', opacity: .7 }}>PROVIDER COMMAND CENTER</small>
+        <h1 style={{ color: '#fff', fontSize: 'clamp(1.8rem,4vw,3rem)', margin: '.4rem 0' }}>Good to see you, {writer?.full_name?.split(' ')[0] || 'Provider'}.</h1>
+        <p style={{ color: 'rgba(255,255,255,.75)', maxWidth: 650 }}>Review priorities, manage every assignment and keep clients informed from one workspace.</p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: '1.25rem' }}>
+          <Link to="/writer/services" className="btn" style={{ background: '#fff', color: '#40105d' }}>Open service jobs</Link>
+          <Link to="/writer/orders" className="btn" style={{ background: 'rgba(255,255,255,.1)', color: '#fff', border: '1px solid rgba(255,255,255,.24)' }}>Academic assignments</Link>
+        </div>
+      </section>
+
+      {attention.length > 0 && <section className="card" style={{ marginBottom: '1.5rem', borderLeft: '5px solid #ee7b54' }}>
+        <strong style={{ color: '#b54627' }}>{attention.length} item{attention.length === 1 ? '' : 's'} need your attention</strong>
+        <p style={{ color: 'var(--text-muted)', margin: '.25rem 0 0' }}>New assignments, revisions, or jobs approaching their deadline.</p>
+      </section>}
+
+      <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
+        {[['All jobs', jobs.length], ['Active', active.length], ['Due soon', dueSoon.length], ['Earned', `$${earnings.toFixed(0)}`]].map(([label, value]) =>
+          <div className="card" key={label}><strong style={{ fontSize: '1.9rem', color: 'var(--primary)' }}>{value}</strong><div>{label}</div></div>
+        )}
       </div>
 
-      {/* Stats */}
-      <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
-        <div className="card stat-card" style={{ padding: '1.25rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#3b82f6' }}>{activeOrders.length}</div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Active</div>
+      <section className="card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <div><h2 style={{ margin: 0 }}>My work queue</h2><p style={{ color: 'var(--text-muted)', margin: '.2rem 0' }}>Open a job to message, upload files and update delivery.</p></div>
+          <input className="form-input" style={{ maxWidth: 280 }} value={query} onChange={e => setQuery(e.target.value)} placeholder="Search jobs..." />
         </div>
-        <div className="card stat-card" style={{ padding: '1.25rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b' }}>{pendingOrders.length}</div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Pending</div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: '1rem' }}>
+          {[['attention','Needs attention'],['active','Active'],['all','All'],['completed','Completed']].map(([value,label]) =>
+            <button key={value} className={`btn btn-sm ${filter === value ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter(value)}>{label}</button>
+          )}
         </div>
-        <div className="card stat-card" style={{ padding: '1.25rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: '#10b981' }}>{completedOrders.length}</div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Completed</div>
-        </div>
-        <div className="card stat-card" style={{ padding: '1.25rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--primary)' }}>
-            ${orders.reduce((sum, o) => sum + (o.writerPayout || o.total_fee_usd * 0.6 || 0), 0)}
-          </div>
-          <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>Total Earnings</div>
-        </div>
-      </div>
-
-      {/* Active Orders */}
-      <div className="card" style={{ padding: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h2 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--text-primary)' }}>Active Orders</h2>
-          <Link to="/writer/orders" style={{ fontSize: '0.85rem', color: 'var(--primary)', textDecoration: 'none' }}>
-            View All →
+        {loading && <p>Loading your work queue...</p>}
+        {!loading && !shown.length && <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nothing in this view.</div>}
+        {shown.map(job => (
+          <Link key={`${job.kind}-${job.id}`} to={job.href} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '1rem 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
+            <div><small style={{ color: 'var(--primary)', fontWeight: 800 }}>{job.kind.toUpperCase()} · {job.id}</small><h3 style={{ margin: '.25rem 0' }}>{job.title}</h3><small style={{ color: 'var(--text-muted)' }}>{job.due ? `Due ${new Date(job.due).toLocaleDateString()}` : 'Deadline to be confirmed'}</small></div>
+            <div style={{ textAlign: 'right' }}><strong>{job.status}</strong><div>{job.progress || 0}% complete</div>{job.payout > 0 && <small>${job.payout}</small>}</div>
           </Link>
-        </div>
-
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-            Loading orders...
-          </div>
-        )}
-
-        {error && (
-          <div style={{ padding: '1rem', borderRadius: 'var(--radius-md)', background: 'rgba(220,38,38,0.08)', border: '1px solid rgba(220,38,38,0.25)', color: 'var(--danger)', fontSize: '0.9rem' }}>
-            {error}
-          </div>
-        )}
-
-        {!loading && !error && activeOrders.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
-            No active orders. Check the admin portal for assignments.
-          </div>
-        )}
-
-        {!loading && !error && activeOrders.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {activeOrders.map((order) => (
-              <Link
-                key={order._id || order.id}
-                to={`/writer/orders/${order._id || order.id}`}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '1rem',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-light)',
-                  textDecoration: 'none',
-                  color: 'inherit',
-                  transition: 'border-color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
-                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-light)'}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {order.topic_title || 'Untitled Order'}
-                  </div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                    {order.service_type} • {order.subject} • Due {order.deadline ? new Date(order.deadline).toLocaleDateString() : 'TBD'}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0 }}>
-                  <span style={{
-                    padding: '4px 10px',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    background: `${statusColor(order.status)}15`,
-                    color: statusColor(order.status)
-                  }}>
-                    {order.status}
-                  </span>
-                  <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                    ${order.writerPayout || Math.round((order.total_fee_usd || 0) * 0.6)}
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-      </div>
+        ))}
+      </section>
     </div>
   );
 }

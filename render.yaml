@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: ips-mvp-react
+    runtime: node
+    region: frankfurt
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: ADMIN_EMAIL
+        value: admin@ipsglobal.com
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: VITE_ADMIN_ENTRY_PATH
+        sync: false
+      - key: UPLOADS_DIR
+        value: /var/data/ips-uploads
+    disk:
+      name: ips-uploads
+      mountPath: /var/data
+      sizeGB: 1

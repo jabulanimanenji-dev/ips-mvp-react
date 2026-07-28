@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 
 const NAV_ITEMS = [
-  { path: '/client/overview', label: 'Overview', icon: '◈' },
-  { path: '/client/orders', label: 'My Orders', icon: '▤' },
+  { path: '/client/overview', label: 'Home', icon: '◈' },
+  { path: '/client/services', label: 'Service Hub', icon: 'S' },
+  { path: '/client/orders', label: 'Academic & Writing', icon: '▤' },
+  { path: '/client/messages', label: 'Messages', icon: '💬' },
   { path: '/client/profile', label: 'Profile', icon: '◉' },
   { path: '/client/support', label: 'Support', icon: '✉' },
 ];
@@ -15,6 +17,13 @@ export default function ClientSidebar() {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [messageCount, setMessageCount] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/conversations').then(response => response.json()).then(data => {
+      if (data.success) setMessageCount((data.conversations || []).reduce((sum, item) => sum + (item.unread_count || 0), 0));
+    }).catch(() => {});
+  }, [location.pathname]);
 
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + '/');
 
@@ -97,7 +106,7 @@ export default function ClientSidebar() {
             IPS
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>Client Portal</div>
+            <div style={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>My IPS</div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               {user?.full_name || 'Guest'}
             </div>
@@ -130,7 +139,8 @@ export default function ClientSidebar() {
                   }}
                 >
                   <span style={{ fontSize: '1rem', opacity: 0.8 }}>{item.icon}</span>
-                  {item.label}
+                  <span style={{ flex: 1 }}>{item.label}</span>
+                  {item.path === '/client/messages' && messageCount > 0 && <span style={{ minWidth: 24, height: 24, padding: '0 7px', borderRadius: 20, background: 'var(--primary)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: '.7rem', fontWeight: 800 }}>{messageCount > 99 ? '99+' : messageCount}</span>}
                 </Link>
               );
             })}

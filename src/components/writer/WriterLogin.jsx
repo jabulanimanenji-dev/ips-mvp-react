@@ -69,9 +69,9 @@ export default function WriterLogin() {
             ✍️
           </div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#F8F4E9', marginBottom: 4 }}>
-            Literator Portal
+            Service Provider Portal
           </h1>
-          <p style={{ color: '#748B91', fontSize: '0.875rem' }}>Writer Login</p>
+          <p style={{ color: '#748B91', fontSize: '0.875rem' }}>Professional, local and writing specialists</p>
         </div>
 
         {error && (
@@ -124,7 +124,7 @@ export default function WriterLogin() {
         </form>
 
         <p style={{ textAlign: 'center', marginTop: '1.25rem', color: '#748B91', fontSize: '0.8rem' }}>
-          Contact admin to get your writer credentials
+          Contact IPS administration to activate provider access
         </p>
       </div>
     </div>
