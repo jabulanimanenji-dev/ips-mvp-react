@@ -31,6 +31,7 @@ import AdminMessages from './components/admin/AdminMessages';
 import AdminReports from './components/admin/AdminReports';
 import AdminSettings from './components/admin/AdminSettings';
 import AdminServices from './components/admin/AdminServices';
+import AdminSupportTickets from './components/admin/AdminSupportTickets';
 
 import WriterLogin from './components/writer/WriterLogin';
 import WriterLayout from './pages/WriterLayout';
@@ -347,6 +348,7 @@ export default function App() {
         />
         <Route path="job-messages" element={<AdminMessages />} />
         <Route path="actions" element={<ActionCenter role="admin" />} />
+        <Route path="support" element={<AdminSupportTickets />} />
 
 
         <Route

@@ -463,6 +463,36 @@ export function AuthProvider({ children }) {
       removeWriter
     ]);
 
+  const updateClientProfile =
+    useCallback(
+      async (updates) => {
+        if (!user?.client_id) {
+          return { success: false, error: 'No client session is available.' };
+        }
+
+        try {
+          const response = await fetch(`/api/clients/${user.client_id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+          });
+          const data = await response.json();
+          if (!response.ok || !data.success) {
+            return { success: false, error: data.error || 'Profile update failed.' };
+          }
+          setUser(previous => ({
+            ...previous,
+            ...data.client,
+            token: previous?.token
+          }));
+          return { success: true, client: data.client };
+        } catch {
+          return { success: false, error: 'The server could not update your profile.' };
+        }
+      },
+      [setUser, user?.client_id]
+    );
+
 
 
 
@@ -490,6 +520,8 @@ export function AuthProvider({ children }) {
         loginAdmin,
 
         loginWriter,
+
+        updateClientProfile,
 
         logout
 

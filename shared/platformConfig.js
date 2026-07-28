@@ -75,6 +75,7 @@ export const SAFE_ROUTE_OPTIONS = {
     ['/admin/payments', 'Payments'],
     ['/admin/cms', 'Visual Builder'],
     ['/admin/messages', 'Messages'],
+    ['/admin/support', 'Support Tickets'],
     ['/admin/actions', 'Action Center'],
     ['/admin/reports', 'Reports'],
     ['/admin/settings', 'Settings']
@@ -113,6 +114,7 @@ const navigation = {
     { id: 'admin-payments', label: 'Payments', icon: '▣', target: '/admin/payments', visible: true },
     { id: 'admin-cms', label: 'Visual Builder', icon: '⚡', target: '/admin/cms', visible: true },
     { id: 'admin-messages', label: 'Messages', icon: '●', target: '/admin/messages', visible: true },
+    { id: 'admin-support', label: 'Support Tickets', icon: '?', target: '/admin/support', visible: true },
     { id: 'admin-actions', label: 'Action Center', icon: '!', target: '/admin/actions', visible: true },
     { id: 'admin-reports', label: 'Reports', icon: '↗', target: '/admin/reports', visible: true },
     { id: 'admin-settings', label: 'Settings', icon: '⚙', target: '/admin/settings', visible: true }
@@ -120,7 +122,7 @@ const navigation = {
 };
 
 export const DEFAULT_PLATFORM_CONFIG = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   theme: {
     light: {
       primary: '#A305A6',
@@ -337,6 +339,12 @@ const normaliseNav = (items, portal) => {
       visible: item?.visible !== false
     };
   }).filter(Boolean);
+  fallback.forEach(item => {
+    if (!seen.has(item.id)) {
+      cleaned.push(clonePlatformConfig(item));
+      seen.add(item.id);
+    }
+  });
   if (portal === 'admin') {
     const required = fallback.find(item => item.id === 'admin-cms');
     const existing = cleaned.find(item => item.id === 'admin-cms');

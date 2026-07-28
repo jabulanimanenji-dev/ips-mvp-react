@@ -10,6 +10,7 @@ export default function AdminSidebar() {
   const { config } = useCMS();
   const [actionCount, setActionCount] = useState(0);
   const [messageCount, setMessageCount] = useState(0);
+  const [supportCount, setSupportCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = (config.navigation?.admin || []).filter(item => item.visible);
   const sidebarWidth = config.layouts?.admin?.sidebarWidth || 260;
@@ -20,6 +21,9 @@ export default function AdminSidebar() {
     }).catch(() => {});
     fetch('/api/conversations').then(response => response.json()).then(data => {
       if (data.success) setMessageCount((data.conversations || []).reduce((sum, item) => sum + (item.unread_count || 0), 0));
+    }).catch(() => {});
+    fetch('/api/support-tickets').then(response => response.json()).then(data => {
+      if (data.success) setSupportCount((data.tickets || []).filter(ticket => !['Resolved', 'Closed'].includes(ticket.status)).length);
     }).catch(() => {});
   }, [location.pathname]);
 
@@ -87,6 +91,7 @@ export default function AdminSidebar() {
                 <span style={{ flex: 1 }}>{item.label}</span>
                 {item.target === '/admin/actions' && actionCount > 0 && <span className="admin-nav-count admin-nav-count-danger">{actionCount > 99 ? '99+' : actionCount}</span>}
                 {item.target.startsWith('/admin/messages') && messageCount > 0 && <span className="admin-nav-count">{messageCount > 99 ? '99+' : messageCount}</span>}
+                {item.target === '/admin/support' && supportCount > 0 && <span className="admin-nav-count">{supportCount > 99 ? '99+' : supportCount}</span>}
               </Link>
             );
           })}

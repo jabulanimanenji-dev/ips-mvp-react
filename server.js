@@ -28,6 +28,7 @@ import DirectConversation from './models/DirectConversation.js';
 import DirectMessage from './models/DirectMessage.js';
 import PlatformConfig from './models/PlatformConfig.js';
 import ConfigRevision from './models/ConfigRevision.js';
+import SupportTicket from './models/SupportTicket.js';
 import { DEFAULT_PLATFORM_CONFIG, clonePlatformConfig, normalisePlatformConfig } from './shared/platformConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -145,9 +146,22 @@ app.get('/api/clients', async (req, res) => {
 // Create client
 app.post('/api/clients', async (req, res) => {
   try {
+    const fullName = String(req.body?.full_name || '').trim();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    if (fullName.length < 2 || !email.includes('@') || password.length < 8) {
+      return res.status(400).json({ success: false, error: 'Name, valid email, and a password of at least 8 characters are required.' });
+    }
     const count = await Client.countDocuments();
     const newId = `CID-${String(count + 1).padStart(3, '0')}`;
-    const client = new Client({ ...req.body, password: hashPassword(req.body.password), client_id: newId });
+    const client = new Client({
+      client_id: newId,
+      full_name: fullName,
+      email,
+      password: hashPassword(password),
+      phone: String(req.body?.phone || '').trim(),
+      country: String(req.body?.country || '').trim()
+    });
     await client.save();
     const safeClient = client.toObject();
     delete safeClient.password;
@@ -165,13 +179,19 @@ app.patch('/api/clients/:id', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (session.role !== 'admin' && !(session.role === 'client' && session.id === req.params.id)) return res.status(403).json({ success: false, error: 'You cannot update this client.' });
-    const updates = { ...req.body };
+    const clientFields = ['full_name', 'phone', 'country', 'password'];
+    const adminFields = [...clientFields, 'email', 'status', 'notes'];
+    const allowedFields = session.role === 'admin' ? adminFields : clientFields;
+    const updates = Object.fromEntries(
+      Object.entries(req.body || {}).filter(([key]) => allowedFields.includes(key))
+    );
     if (updates.password) updates.password = hashPassword(updates.password);
     const client = await Client.findOneAndUpdate(
       { client_id: req.params.id },
       updates,
-      { returnDocument: 'after' }
+      { returnDocument: 'after', runValidators: true }
     ).select('-password');
+    if (!client) return res.status(404).json({ success: false, error: 'Client not found.' });
     res.json({ success: true, client });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -235,9 +255,17 @@ app.post('/api/orders', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (session.role !== 'client') return res.status(403).json({ success: false, error: 'Client access required.' });
+    const client = await Client.findOne({ client_id: session.id }).select('-password');
+    if (!client) return res.status(404).json({ success: false, error: 'Client account not found.' });
     const count = await Order.countDocuments();
     const newId = `ORD-${String(count + 1).padStart(4, '0')}`;
-    const order = new Order({ ...req.body, client_id: session.id, order_id: newId });
+    const order = new Order({
+      ...req.body,
+      client_id: session.id,
+      client_name: client.full_name,
+      client_email: client.email,
+      order_id: newId
+    });
     await order.save();
     res.json({ success: true, order });
   } catch (err) {
@@ -299,6 +327,9 @@ app.get('/api/orders/:id', async (req, res) => {
     const order = await Order.findOne(query);
     if (!order) {
       return res.status(404).json({ success: false, error: 'Order not found' });
+    }
+    if (!canAccessWork(session, { record: order, kind: 'academic' })) {
+      return res.status(403).json({ success: false, error: 'You do not have access to this order.' });
     }
     res.json({ success: true, order });
   } catch (err) {
@@ -377,11 +408,15 @@ app.delete('/api/writers/:id', async (req, res) => {
 
 app.patch('/api/writers/:id/status', async (req, res) => {
   try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const writer = await Writer.findOneAndUpdate(
       { writer_id: req.params.id },
       { status: req.body.status },
       { returnDocument: 'after' }
-    );
+    ).select('-password');
+    if (!writer) return res.status(404).json({ success: false, error: 'Writer not found.' });
     res.json({ success: true, writer });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -390,6 +425,11 @@ app.patch('/api/writers/:id/status', async (req, res) => {
 
 app.patch('/api/writers/:id', async (req, res) => {
   try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin' && !(session.role === 'writer' && session.id === req.params.id)) {
+      return res.status(403).json({ success: false, error: 'You cannot update this provider.' });
+    }
     const allowedUpdates = [
       'full_name',
       'email',
@@ -401,8 +441,9 @@ app.patch('/api/writers/:id', async (req, res) => {
       'availability',
       'status'
     ];
+    const providerUpdates = ['full_name', 'password', 'primary_expertise', 'secondary_expertise', 'academic_level', 'availability'];
     const updates = Object.fromEntries(
-      Object.entries(req.body).filter(([key]) => allowedUpdates.includes(key))
+      Object.entries(req.body).filter(([key]) => (session.role === 'admin' ? allowedUpdates : providerUpdates).includes(key))
     );
     if (updates.password) updates.password = hashPassword(updates.password);
     const writer = await Writer.findOneAndUpdate(
@@ -478,7 +519,7 @@ app.get('/api/admins', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    const admins = await Admin.find();
+    const admins = await Admin.find().select('-password').sort({ createdAt: -1 });
     res.json({ success: true, admins });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -494,7 +535,9 @@ app.post('/api/admins', async (req, res) => {
     const newId = `ADM-${String(count + 1).padStart(3, '0')}`;
     const admin = new Admin({ ...req.body, password: hashPassword(req.body.password), id: newId });
     await admin.save();
-    res.json({ success: true, admin });
+    const safeAdmin = admin.toObject();
+    delete safeAdmin.password;
+    res.json({ success: true, admin: safeAdmin });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -507,6 +550,349 @@ app.delete('/api/admins/:id', async (req, res) => {
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     await Admin.findOneAndDelete({ id: req.params.id });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ========== PHASE 9: DATA CONSOLIDATION, SUPPORT, ANALYTICS ==========
+
+const requireAdminSession = (req, res) => {
+  const session = requireSession(req, res);
+  if (!session) return null;
+  if (session.role !== 'admin') {
+    res.status(403).json({ success: false, error: 'Admin access required.' });
+    return null;
+  }
+  return session;
+};
+
+const milestoneValue = (order, milestone) => {
+  const explicit = Number(milestone?.amount);
+  if (Number.isFinite(explicit) && explicit >= 0) return explicit;
+  const count = Math.max(order?.milestones?.length || 1, 1);
+  return Number(order?.total_fee_usd || 0) / count;
+};
+
+const phase9Analytics = async () => {
+  const [orders, services, clients, writers, admins, tickets] = await Promise.all([
+    Order.find().sort({ createdAt: -1 }).lean(),
+    ServiceRequest.find().sort({ createdAt: -1 }).lean(),
+    Client.find().select('-password').sort({ createdAt: -1 }).lean(),
+    Writer.find().select('-password').sort({ createdAt: -1 }).lean(),
+    Admin.find().select('-password').sort({ createdAt: -1 }).lean(),
+    SupportTicket.find().sort({ last_activity_at: -1 }).lean()
+  ]);
+
+  const paidAcademic = orders.reduce((total, order) => total + (order.milestones || [])
+    .filter(milestone => milestone.paid)
+    .reduce((sum, milestone) => sum + milestoneValue(order, milestone), 0), 0);
+  const outstandingAcademic = orders.reduce((total, order) => total + (order.milestones || [])
+    .filter(milestone => !milestone.paid && String(milestone.status).toLowerCase() !== 'cancelled')
+    .reduce((sum, milestone) => sum + milestoneValue(order, milestone), 0), 0);
+  const acceptedServiceValue = services
+    .filter(service => service.quote?.accepted)
+    .reduce((total, service) => total + Number(service.quote?.total || 0), 0);
+  const inactiveStatuses = new Set(['Completed', 'Cancelled', 'Closed']);
+  const activeOrders = orders.filter(order => !inactiveStatuses.has(order.status)).length;
+  const activeServices = services.filter(service => !inactiveStatuses.has(service.status)).length;
+  const newSignups30d = clients.filter(client => {
+    const registered = new Date(client.createdAt || client.registration_date);
+    return Number.isFinite(registered.getTime()) && Date.now() - registered.getTime() <= 30 * 24 * 60 * 60 * 1000;
+  }).length;
+  const openTickets = tickets.filter(ticket => !['Resolved', 'Closed'].includes(ticket.status)).length;
+  const clientCountries = new Map(clients.map(client => [client.client_id, client.country || 'Unknown']));
+
+  const serviceMap = new Map();
+  const addServiceStat = (key, type, value = 0) => {
+    const label = String(key || 'Uncategorised');
+    const current = serviceMap.get(`${type}:${label}`) || { service: label, type, count: 0, value: 0 };
+    current.count += 1;
+    current.value += Number(value || 0);
+    serviceMap.set(`${type}:${label}`, current);
+  };
+  orders.forEach(order => addServiceStat(order.service_type, 'academic', order.total_fee_usd));
+  services.forEach(service => addServiceStat(service.category || service.family, service.family, service.quote?.total));
+
+  const countryMap = new Map();
+  const addCountryStat = (clientId, value = 0) => {
+    const country = clientCountries.get(clientId) || 'Unknown';
+    const current = countryMap.get(country) || { country, count: 0, value: 0 };
+    current.count += 1;
+    current.value += Number(value || 0);
+    countryMap.set(country, current);
+  };
+  orders.forEach(order => addCountryStat(order.client_id, order.total_fee_usd));
+  services.forEach(service => addCountryStat(service.client_id, service.quote?.total));
+
+  const outstandingAcademicOrders = orders.map(order => {
+    const outstanding = (order.milestones || [])
+      .filter(milestone => !milestone.paid && String(milestone.status).toLowerCase() !== 'cancelled')
+      .reduce((sum, milestone) => sum + milestoneValue(order, milestone), 0);
+    return {
+      order_id: order.order_id,
+      client_name: order.client_name,
+      service_type: order.service_type,
+      outstanding
+    };
+  }).filter(item => item.outstanding > 0).sort((a, b) => b.outstanding - a.outstanding);
+
+  const attention = orders.filter(order => {
+    const deadline = new Date(order.deadline);
+    const days = Number.isFinite(deadline.getTime()) ? Math.ceil((deadline.getTime() - Date.now()) / 86400000) : 9999;
+    return ['New', 'Disputed'].includes(order.status)
+      || (days >= 0 && days <= 7 && !inactiveStatuses.has(order.status));
+  }).slice(0, 10).map(order => ({
+    order_id: order.order_id,
+    client_name: order.client_name,
+    service_type: order.service_type,
+    deadline: order.deadline,
+    status: order.status
+  }));
+
+  const recentActivity = [
+    ...orders.slice(0, 20).map(order => ({
+      id: order.order_id,
+      kind: 'academic',
+      text: `Academic order ${order.order_id}: ${order.service_type}`,
+      status: order.status,
+      date: order.updatedAt || order.createdAt,
+      target: `/admin/orders/${order.order_id}`
+    })),
+    ...services.slice(0, 20).map(service => ({
+      id: service.request_id,
+      kind: service.family,
+      text: `Service request ${service.request_id}: ${service.title}`,
+      status: service.status,
+      date: service.updatedAt || service.createdAt,
+      target: `/admin/services/${service.request_id}`
+    })),
+    ...tickets.slice(0, 20).map(ticket => ({
+      id: ticket.ticket_id,
+      kind: 'support',
+      text: `Support ticket ${ticket.ticket_id}: ${ticket.subject}`,
+      status: ticket.status,
+      date: ticket.last_activity_at || ticket.updatedAt || ticket.createdAt,
+      target: `/admin/support?ticket=${ticket.ticket_id}`
+    }))
+  ].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 10);
+
+  return {
+    counts: {
+      clients: clients.length,
+      providers: writers.length,
+      admins: admins.length,
+      academicOrders: orders.length,
+      serviceRequests: services.length,
+      supportTickets: tickets.length,
+      openTickets,
+      activeWork: activeOrders + activeServices,
+      newSignups30d
+    },
+    finance: {
+      paidAcademic,
+      outstandingAcademic,
+      acceptedServiceValue,
+      trackedValue: paidAcademic + outstandingAcademic + acceptedServiceValue,
+      currency: 'USD',
+      collectionStatus: 'tracking_only'
+    },
+    byService: [...serviceMap.values()].sort((a, b) => b.value - a.value),
+    byCountry: [...countryMap.values()].sort((a, b) => b.count - a.count),
+    outstandingAcademicOrders,
+    attention,
+    recentActivity
+  };
+};
+
+app.get('/api/admin/analytics', async (req, res) => {
+  try {
+    if (!requireAdminSession(req, res)) return;
+    res.json({ success: true, analytics: await phase9Analytics(), source: 'MongoDB' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/data-summary', async (req, res) => {
+  try {
+    if (!requireAdminSession(req, res)) return;
+    const [
+      clients, providers, admins, academicOrders, serviceRequests, files,
+      workMessages, directConversations, directMessages, supportTickets, audits
+    ] = await Promise.all([
+      Client.countDocuments(),
+      Writer.countDocuments(),
+      Admin.countDocuments(),
+      Order.countDocuments(),
+      ServiceRequest.countDocuments(),
+      PlatformFile.countDocuments(),
+      Message.countDocuments(),
+      DirectConversation.countDocuments(),
+      DirectMessage.countDocuments(),
+      SupportTicket.countDocuments(),
+      AuditLog.countDocuments()
+    ]);
+    res.json({
+      success: true,
+      source: 'MongoDB',
+      mode: 'server_authoritative',
+      collections: {
+        clients, providers, admins, academicOrders, serviceRequests, files,
+        workMessages, directConversations, directMessages, supportTickets, audits
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/export', async (req, res) => {
+  try {
+    const session = requireAdminSession(req, res);
+    if (!session) return;
+    const [
+      clients, providers, admins, academicOrders, serviceRequests,
+      fileMetadata, supportTickets, config, audit
+    ] = await Promise.all([
+      Client.find().select('-password').lean(),
+      Writer.find().select('-password').lean(),
+      Admin.find().select('-password').lean(),
+      Order.find().lean(),
+      ServiceRequest.find().lean(),
+      PlatformFile.find().select('-stored_name').lean(),
+      SupportTicket.find().lean(),
+      PlatformConfig.findOne({ key: platformConfigKey }).select('-draft').lean(),
+      AuditLog.find().sort({ createdAt: -1 }).limit(5000).lean()
+    ]);
+    await AuditLog.create({
+      order_id: 'PLATFORM-DATA',
+      actor_id: session.id,
+      actor_role: 'admin',
+      action: 'database_export_created',
+      details: { format: 'json', exportedAt: new Date().toISOString() }
+    });
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="ips-database-export-${new Date().toISOString().slice(0, 10)}.json"`);
+    res.send(JSON.stringify({
+      schema: 'ips-phase9-export-v1',
+      source: 'MongoDB',
+      exported_at: new Date().toISOString(),
+      data: {
+        clients, providers, admins, academicOrders, serviceRequests,
+        fileMetadata, supportTickets, platformConfig: config?.published || null, audit
+      }
+    }, null, 2));
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/support-tickets', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (!['admin', 'client'].includes(session.role)) {
+      return res.status(403).json({ success: false, error: 'Support tickets are available to clients and administrators.' });
+    }
+    const scope = session.role === 'admin' ? {} : { client_id: session.id };
+    if (req.query.status) scope.status = req.query.status;
+    const tickets = await SupportTicket.find(scope).sort({ last_activity_at: -1 });
+    res.json({ success: true, tickets });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/support-tickets', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'client') return res.status(403).json({ success: false, error: 'Client access required.' });
+    const subject = String(req.body?.subject || '').trim();
+    const body = String(req.body?.message || '').trim();
+    if (subject.length < 4 || subject.length > 180 || body.length < 10 || body.length > 5000) {
+      return res.status(400).json({ success: false, error: 'Add a clear subject and a message between 10 and 5,000 characters.' });
+    }
+    const client = await Client.findOne({ client_id: session.id }).select('-password');
+    if (!client) return res.status(404).json({ success: false, error: 'Client account not found.' });
+    const ticketId = `SUP-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    const ticket = await SupportTicket.create({
+      ticket_id: ticketId,
+      client_id: client.client_id,
+      client_name: client.full_name,
+      client_email: client.email,
+      subject,
+      category: req.body?.category,
+      priority: req.body?.priority,
+      messages: [{ sender_id: session.id, sender_role: 'client', body }],
+      last_activity_at: new Date()
+    });
+    await AuditLog.create({
+      order_id: ticketId,
+      actor_id: session.id,
+      actor_role: 'client',
+      action: 'support_ticket_created',
+      details: { category: ticket.category, priority: ticket.priority }
+    });
+    res.status(201).json({ success: true, ticket });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/support-tickets/:id/messages', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (!['admin', 'client'].includes(session.role)) return res.status(403).json({ success: false, error: 'Support access required.' });
+    const ticket = await SupportTicket.findOne({ ticket_id: req.params.id });
+    if (!ticket) return res.status(404).json({ success: false, error: 'Support ticket not found.' });
+    if (session.role === 'client' && ticket.client_id !== session.id) {
+      return res.status(403).json({ success: false, error: 'You cannot access this support ticket.' });
+    }
+    if (ticket.status === 'Closed') return res.status(409).json({ success: false, error: 'This ticket is closed.' });
+    const body = String(req.body?.message || '').trim();
+    if (body.length < 1 || body.length > 5000) return res.status(400).json({ success: false, error: 'Message must be between 1 and 5,000 characters.' });
+    ticket.messages.push({ sender_id: session.id, sender_role: session.role, body });
+    ticket.last_activity_at = new Date();
+    if (session.role === 'client' && ['Waiting for Client', 'Resolved'].includes(ticket.status)) ticket.status = 'In Progress';
+    if (session.role === 'admin' && ['Open', 'In Progress'].includes(ticket.status)) ticket.status = 'Waiting for Client';
+    await ticket.save();
+    await AuditLog.create({
+      order_id: ticket.ticket_id,
+      actor_id: session.id,
+      actor_role: session.role,
+      action: 'support_ticket_message_sent',
+      details: { status: ticket.status }
+    });
+    res.json({ success: true, ticket });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/support-tickets/:id', async (req, res) => {
+  try {
+    const session = requireAdminSession(req, res);
+    if (!session) return;
+    const allowed = ['status', 'priority', 'assigned_admin', 'resolution_note'];
+    const updates = Object.fromEntries(Object.entries(req.body || {}).filter(([key]) => allowed.includes(key)));
+    updates.last_activity_at = new Date();
+    const ticket = await SupportTicket.findOneAndUpdate(
+      { ticket_id: req.params.id },
+      updates,
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!ticket) return res.status(404).json({ success: false, error: 'Support ticket not found.' });
+    await AuditLog.create({
+      order_id: ticket.ticket_id,
+      actor_id: session.id,
+      actor_role: 'admin',
+      action: 'support_ticket_updated',
+      details: updates
+    });
+    res.json({ success: true, ticket });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1034,20 +1420,25 @@ app.post('/api/services', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (session.role !== 'client') return res.status(403).json({ success: false, error: 'A client session is required.' });
+    const client = await Client.findOne({ client_id: session.id }).select('-password');
+    if (!client) return res.status(404).json({ success: false, error: 'Client account not found.' });
     const count = await ServiceRequest.countDocuments();
     const requestId = `SRV-${String(count + 1).padStart(5, '0')}`;
     const request = await ServiceRequest.create({
-      ...req.body, client_id: session.id,
+      ...req.body,
+      client_id: session.id,
+      client_name: client.full_name,
+      client_email: client.email,
       request_id: requestId,
       status_history: [{
         status: 'New Request',
-        actor_id: req.body.client_id,
+        actor_id: session.id,
         actor_role: 'client',
         reason: 'Request submitted'
       }]
     });
     await recordAudit({
-      order_id: requestId, actor_id: req.body.client_id, actor_role: 'client',
+      order_id: requestId, actor_id: session.id, actor_role: 'client',
       action: 'service_request_created', details: { family: request.family, category: request.category }
     });
     res.json({ success: true, request });

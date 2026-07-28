@@ -56,7 +56,12 @@ try {
     ['GET', '/api/actions'],
     ['PATCH', '/api/actions/test-action'],
     ['GET', '/api/admin/inbox'],
-    ['GET', '/api/admin/platform-config']
+    ['GET', '/api/admin/platform-config'],
+    ['GET', '/api/admin/analytics'],
+    ['GET', '/api/admin/data-summary'],
+    ['GET', '/api/admin/export'],
+    ['GET', '/api/support-tickets'],
+    ['POST', '/api/support-tickets']
   ];
 
   for (const [method, route] of protectedRequests) {
