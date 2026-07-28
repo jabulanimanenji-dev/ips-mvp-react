@@ -1,221 +1,94 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useCMS } from '../../context/CMSContext';
-import { fmtCur, fmtDate, daysUntil } from '../../utils/formatters';
+import { fmtCur, fmtDate } from '../../utils/formatters';
 import { BADGE_STYLES } from '../../utils/constants';
 import DashboardZone from '../common/DashboardZone';
 import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
 
 export default function AdminDashboard() {
   const { cms } = useCMS();
-  const [orders, setOrders] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [activity, setActivity] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const rawOrders = JSON.parse(localStorage.getItem('ips-orders') || '[]');
-    const rawClients = JSON.parse(localStorage.getItem('ips-clients') || '[]');
-    setOrders(rawOrders);
-    setClients(rawClients);
-
-    // Build recent activity from orders
-    const acts = rawOrders
-      .slice()
-      .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
-      .slice(0, 6)
-      .map((o) => ({
-        id: o.order_id,
-        text: `Order #${o.order_id} — ${o.service_type} for ${o.client_name}`,
-        date: o.created_date,
-        status: o.status,
-      }));
-    setActivity(acts);
+    fetch('/api/admin/analytics')
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Dashboard could not be loaded.');
+        setAnalytics(data.analytics);
+      })
+      .catch(loadError => setError(loadError.message));
   }, []);
 
-  useEffect(() => {
-    const loadMongoDashboard = async () => {
-      try {
-        const [ordersResponse, clientsResponse] = await Promise.all([
-          fetch('/api/orders'),
-          fetch('/api/clients')
-        ]);
-        const ordersData = await ordersResponse.json();
-        const clientsData = await clientsResponse.json();
-        const loadedOrders = ordersData.orders || [];
-        setOrders(loadedOrders);
-        setClients(clientsData.clients || []);
-        setActivity(
-          loadedOrders
-            .slice()
-            .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-            .slice(0, 6)
-            .map(order => ({
-              id: order.order_id,
-              text: `Order #${order.order_id} — ${order.service_type} for ${order.client_name}`,
-              date: order.createdAt,
-              status: order.status
-            }))
-        );
-      } catch (error) {
-        console.error('Dashboard API load failed:', error);
-      }
-    };
-    loadMongoDashboard();
-  }, []);
-
-  const revenue = orders.reduce((sum, o) => {
-    const paid = (o.milestones || []).filter((m) => m.paid).reduce((s, m) => s + (o.total_fee_usd / (o.milestones.length || 1)), 0);
-    return sum + paid;
-  }, 0);
-
-  const activeOrders = orders.filter((o) => o.status === 'In Progress' || o.status === 'Under Review').length;
-  const newSignups = clients.filter((c) => {
-    const reg = new Date(c.registration_date);
-    const now = new Date();
-    return now - reg < 30 * 24 * 60 * 60 * 1000;
-  }).length;
-  const pendingPayments = orders.reduce((sum, o) => {
-    const unpaidMilestones = (o.milestones || []).filter((m) => !m.paid && (m.status === 'completed' || m.status === 'active'));
-    return sum + unpaidMilestones.length * (o.total_fee_usd / (o.milestones.length || 1));
-  }, 0);
-
-  const attentionOrders = orders
-    .filter((o) => {
-      const d = daysUntil(o.deadline);
-      return (d <= 7 && d >= 0 && o.status !== 'Completed' && o.status !== 'Cancelled') || o.status === 'Disputed' || o.status === 'New';
-    })
-    .slice(0, 5);
-
+  const counts = analytics?.counts || {};
+  const finance = analytics?.finance || {};
+  const attention = analytics?.attention || [];
+  const activity = analytics?.recentActivity || [];
   const statCards = [
-    { title: 'Total Revenue', value: fmtCur(revenue), icon: '💰', grad: 'linear-gradient(135deg, #7A4BA8 0%, #C3A7E3 100%)' },
-    { title: 'Active Orders', value: activeOrders, icon: '📦', grad: 'linear-gradient(135deg, #6EC9E8 0%, #4F95B1 100%)' },
-    { title: 'New Signups (30d)', value: newSignups, icon: '👤', grad: 'linear-gradient(135deg, #D07E47 0%, #ED9E6F 100%)' },
-    { title: 'Pending Payments', value: fmtCur(pendingPayments), icon: '⏳', grad: 'linear-gradient(135deg, #512F5C 0%, #B66570 100%)' },
+    { title: 'Academic Paid', value: fmtCur(finance.paidAcademic || 0), grad: 'linear-gradient(135deg,#7A4BA8,#C3A7E3)' },
+    { title: 'Active Work', value: counts.activeWork || 0, grad: 'linear-gradient(135deg,#4F95B1,#6EC9E8)' },
+    { title: 'New Signups (30d)', value: counts.newSignups30d || 0, grad: 'linear-gradient(135deg,#D07E47,#ED9E6F)' },
+    { title: 'Open Support', value: counts.openTickets || 0, grad: 'linear-gradient(135deg,#512F5C,#B66570)' }
   ];
 
   return (
     <div>
-      <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.5rem' }}>Dashboard</h2>
+      <div className="flex justify-between items-end" style={{ marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
+        <div><div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>MongoDB mission control</div><h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '.35rem 0' }}>Dashboard</h2></div>
+        <small style={{ color: 'var(--text-muted)' }}>One source of truth across every IPS service</small>
+      </div>
+      {error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{error}</div>}
 
       <div className="grid grid-3 gap-4">
-      {/* Stats */}
-      <DashboardZone portal="admin" id="stats">
-      <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
-        {statCards.map((s, i) => (
-          <div
-            key={i}
-            className="card"
-            style={{
-              background: s.grad,
-              color: '#fff',
-              border: 'none',
-              boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
-            }}
-          >
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{s.icon}</div>
-            <div style={{ fontSize: '1.6rem', fontWeight: 800 }}>{s.value}</div>
-            <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>{s.title}</div>
+        <DashboardZone portal="admin" id="stats">
+          <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
+            {statCards.map(card => (
+              <div key={card.title} className="card" style={{ background: card.grad, color: '#fff', border: 'none' }}>
+                <strong style={{ fontSize: '1.6rem' }}>{card.value}</strong><div style={{ opacity: .9 }}>{card.title}</div>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
-      </DashboardZone>
+        </DashboardZone>
 
-        {/* Orders Needing Attention */}
         <DashboardZone portal="admin" id="attention">
-        <div className="card" style={{ gridColumn: 'span 2' }}>
-          <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>🚨 Orders Needing Attention</h3>
-            <Link to="/admin/orders" className="btn btn-sm btn-secondary">View All</Link>
+          <div className="card" style={{ gridColumn: 'span 2' }}>
+            <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}><h3>Academic Orders Needing Attention</h3><Link to="/admin/orders" className="btn btn-secondary btn-sm">View All</Link></div>
+            {attention.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>All clear.</p> : (
+              <div style={{ overflowX: 'auto' }}><table className="data-table"><thead><tr><th>ID</th><th>Client</th><th>Service</th><th>Deadline</th><th>Status</th></tr></thead><tbody>
+                {attention.map(item => <tr key={item.order_id}><td><Link to={`/admin/orders/${item.order_id}`}>{item.order_id}</Link></td><td>{item.client_name}</td><td>{item.service_type}</td><td>{fmtDate(item.deadline)}</td><td><span className={`badge ${BADGE_STYLES[item.status] || 'badge-new'}`}>{item.status}</span></td></tr>)}
+              </tbody></table></div>
+            )}
           </div>
-          {attentionOrders.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>All clear. No orders need attention.</p>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Client</th>
-                  <th>Service</th>
-                  <th>Deadline</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attentionOrders.map((o) => (
-                  <tr key={o.order_id}>
-                    <td>
-                      <Link to={`/admin/orders/${o.order_id}`} style={{ color: 'var(--text-link)', fontWeight: 600 }}>
-                        #{o.order_id}
-                      </Link>
-                    </td>
-                    <td>{o.client_name}</td>
-                    <td>{o.service_type}</td>
-                    <td>{fmtDate(o.deadline)} <span style={{ fontSize: '0.75rem', color: 'var(--danger)' }}>({daysUntil(o.deadline)}d)</span></td>
-                    <td><span className={`badge ${BADGE_STYLES[o.status] || 'badge-new'}`}>{o.status}</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
         </DashboardZone>
 
-        {/* Quick Actions */}
         <DashboardZone portal="admin" id="quickActions">
-        <div className="card">
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem' }}>⚡ Quick Actions</h3>
-          <ConfigurableActionGroup portal="admin" area="quickActions" className="flex flex-col gap-2" />
-        </div>
+          <div className="card"><h3 style={{ marginBottom: '1rem' }}>Quick Actions</h3><ConfigurableActionGroup portal="admin" area="quickActions" className="flex flex-col gap-2" /></div>
         </DashboardZone>
 
-        {/* Recent Activity */}
         <DashboardZone portal="admin" id="activity">
-        <div className="card" style={{ gridColumn: 'span 2' }}>
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem' }}>📋 Recent Activity</h3>
-          {activity.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No recent activity.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {activity.map((a) => (
-                <div key={a.id} className="flex justify-between items-center" style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--border)' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{a.text}</div>
-                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{fmtDate(a.date)}</div>
-                  </div>
-                  <span className={`badge ${BADGE_STYLES[a.status] || 'badge-new'}`}>{a.status}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+          <div className="card" style={{ gridColumn: 'span 2' }}>
+            <h3 style={{ marginBottom: '1rem' }}>Recent Platform Activity</h3>
+            {activity.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>No activity yet.</p> : activity.map(item => (
+              <Link key={`${item.kind}-${item.id}`} to={item.target} className="flex justify-between items-center" style={{ padding: '.7rem 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
+                <span><strong>{item.text}</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>{fmtDate(item.date)} · {item.kind}</small></span>
+                <span className={`badge ${BADGE_STYLES[item.status] || 'badge-review'}`}>{item.status}</span>
+              </Link>
+            ))}
+          </div>
         </DashboardZone>
 
-        {/* CMS Status */}
         <DashboardZone portal="admin" id="cmsStatus">
-        <div className="card">
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem' }}>🌐 CMS Status</h3>
-          <div className="flex flex-col gap-3">
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>Brand Name</span>
-              <span style={{ fontWeight: 600 }}>{cms?.brand?.name || 'I P S'}</span>
+          <div className="card">
+            <h3 style={{ marginBottom: '1rem' }}>Platform Status</h3>
+            <div className="flex flex-col gap-3">
+              <div className="flex justify-between"><span>Brand</span><strong>{cms?.brand?.name || 'IPS'}</strong></div>
+              <div className="flex justify-between"><span>Clients</span><strong>{counts.clients || 0}</strong></div>
+              <div className="flex justify-between"><span>Providers</span><strong>{counts.providers || 0}</strong></div>
+              <div className="flex justify-between"><span>Service requests</span><strong>{counts.serviceRequests || 0}</strong></div>
+              <Link to="/admin/cms" className="btn btn-primary btn-sm">Open Visual Builder</Link>
             </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>Services Listed</span>
-              <span style={{ fontWeight: 600 }}>{(cms?.services || []).length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>FAQs</span>
-              <span style={{ fontWeight: 600 }}>{(cms?.faq || []).length}</span>
-            </div>
-            <div className="flex justify-between">
-              <span style={{ color: 'var(--text-muted)' }}>Testimonials</span>
-              <span style={{ fontWeight: 600 }}>{(cms?.testimonials || []).length}</span>
-            </div>
-            <Link to="/admin/cms" className="btn btn-sm btn-primary" style={{ marginTop: '0.5rem' }}>
-              Open CMS Editor
-            </Link>
           </div>
-        </div>
         </DashboardZone>
       </div>
     </div>

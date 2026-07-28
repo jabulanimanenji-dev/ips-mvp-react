@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { addToast } from '../common/Toast';
 import { useCMS } from '../../context/CMSContext';
+import { useAuth } from '../../context/AuthContext';
+import PageDesignerV2 from './PageDesignerV2';
+import MediaLibrary from './MediaLibrary';
 import { DEFAULT_CMS } from '../../utils/constants';
 import {
   DEFAULT_PLATFORM_CONFIG,
@@ -14,7 +17,9 @@ import {
 import './admin-cms.css';
 
 const TABS = [
-  ['builder', 'Visual Builder'],
+  ['pages', 'Page Designer 2.0'],
+  ['media', 'Media Library'],
+  ['builder', 'Portal Layouts'],
   ['theme', 'Theme Studio'],
   ['navigation', 'Navigation'],
   ['content', 'Content'],
@@ -89,12 +94,13 @@ function ColorField({ label, value, onChange }) {
 
 export default function AdminCMS() {
   const { refreshConfig } = useCMS();
+  const { hasAdminPermission } = useAuth();
   const [draft, setDraft] = useState(() => hydrate(DEFAULT_PLATFORM_CONFIG));
   const [published, setPublished] = useState(() => hydrate(DEFAULT_PLATFORM_CONFIG));
   const [baseline, setBaseline] = useState('');
   const [versions, setVersions] = useState([]);
   const [meta, setMeta] = useState({ draftVersion: 1, publishedVersion: 1, publishedAt: null });
-  const [activeTab, setActiveTab] = useState('builder');
+  const [activeTab, setActiveTab] = useState('pages');
   const [portal, setPortal] = useState('public');
   const [selectedButton, setSelectedButton] = useState('heroPrimary');
   const [previewTheme, setPreviewTheme] = useState('dark');
@@ -104,6 +110,9 @@ export default function AdminCMS() {
   const [working, setWorking] = useState('');
   const [dragIndex, setDragIndex] = useState(null);
   const importInput = useRef(null);
+  const canEdit = hasAdminPermission('design.edit');
+  const canPublish = hasAdminPermission('design.publish');
+  const canManageMedia = hasAdminPermission('media.manage');
 
   const dirty = useMemo(() => baseline && JSON.stringify(draft) !== baseline, [baseline, draft]);
   const sectionCatalog = useMemo(() => new Map(HOME_SECTION_CATALOG.map(item => [item.id, item])), []);
@@ -451,14 +460,14 @@ export default function AdminCMS() {
     <div className="phase12-shell">
       <div className="phase12-topbar">
         <div>
-          <div className="phase12-eyebrow">Ultimate MVP · Phase 12</div>
-          <h2>Platform Design Studio</h2>
-          <p>Control layout, navigation, buttons, content and brand styling from one governed workspace.</p>
+          <div className="phase12-eyebrow">Ultimate MVP · Phase 11</div>
+          <h2>Visual Builder 2.0</h2>
+          <p>Edit every registered page, responsive position, visual layer, media asset, portal layout, and brand style from one governed workspace.</p>
         </div>
         <div className="phase12-actions">
           <span className={`phase12-dirty ${dirty ? 'is-dirty' : ''}`}>{dirty ? 'Unsaved changes' : 'Draft saved'}</span>
-          <button className="btn btn-secondary" onClick={saveDraft} disabled={Boolean(working)}>{working === 'save' ? 'Saving…' : 'Save Draft'}</button>
-          <button className="btn btn-primary" onClick={() => setActiveTab('versions')}>Review & Publish</button>
+          {canEdit && <button className="btn btn-secondary" onClick={saveDraft} disabled={Boolean(working)}>{working === 'save' ? 'Saving…' : 'Save Draft'}</button>}
+          {canPublish && <button className="btn btn-primary" onClick={() => setActiveTab('versions')}>Review & Publish</button>}
         </div>
       </div>
 
@@ -473,6 +482,10 @@ export default function AdminCMS() {
           <button key={id} type="button" className={activeTab === id ? 'active' : ''} onClick={() => setActiveTab(id)}>{label}</button>
         ))}
       </div>
+
+      {activeTab === 'pages' && <PageDesignerV2 draft={draft} setDraft={setDraft} />}
+
+      {activeTab === 'media' && <MediaLibrary canManage={canManageMedia} />}
 
       {activeTab === 'builder' && (
         <div className="phase12-builder-grid">
@@ -749,8 +762,8 @@ export default function AdminCMS() {
             <p>This updates the public site and all portal layouts. The current live version remains available for instant rollback.</p>
             <Field label="Release note" value={publishNote} onChange={setPublishNote} multiline help="Describe what changed so future administrators can understand this release." />
             <div className="phase12-publish-actions">
-              <button className="btn btn-primary btn-lg" onClick={publish} disabled={Boolean(working)}>{working === 'publish' ? 'Publishing…' : 'Publish to Live'}</button>
-              <button className="btn btn-secondary" onClick={saveDraft} disabled={Boolean(working)}>Save without publishing</button>
+              {canPublish && <button className="btn btn-primary btn-lg" onClick={publish} disabled={Boolean(working)}>{working === 'publish' ? 'Publishing…' : 'Publish to Live'}</button>}
+              {canEdit && <button className="btn btn-secondary" onClick={saveDraft} disabled={Boolean(working)}>Save without publishing</button>}
             </div>
             <div className="phase12-safety-list"><span>Validated internal destinations</span><span>Responsive size limits</span><span>Immutable version snapshot</span><span>Administrator audit event</span></div>
           </section>

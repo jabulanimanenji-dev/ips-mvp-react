@@ -25,12 +25,6 @@ export default function LoginPage() {
     }
   };
 
-  const fillDemo = () => {
-    setEmail('amara@example.com');
-    setPassword('demo123');
-    setError('');
-  };
-
   return (
     <div className="flex justify-center items-center" style={{ minHeight: '80vh', padding: '2rem 1rem' }}>
       <div className="card" style={{ width: '100%', maxWidth: 420 }}>
@@ -114,16 +108,6 @@ export default function LoginPage() {
           >
             Forgot password? Contact admin@ipsglobalservice.com
           </a>
-        </div>
-
-        <div className="text-center" style={{ marginTop: '1rem' }}>
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm"
-            onClick={fillDemo}
-          >
-            Use Demo Account
-          </button>
         </div>
 
         <div

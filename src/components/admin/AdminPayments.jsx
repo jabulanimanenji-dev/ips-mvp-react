@@ -2,148 +2,55 @@ import React, { useEffect, useState } from 'react';
 import { fmtCur } from '../../utils/formatters';
 
 export default function AdminPayments() {
-  const [orders, setOrders] = useState([]);
-  const [linkForm, setLinkForm] = useState({ clientEmail: '', amount: '', description: '' });
-  const [generatedLink, setGeneratedLink] = useState('');
+  const [analytics, setAnalytics] = useState(null);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const raw = JSON.parse(localStorage.getItem('ips-orders') || '[]');
-    setOrders(raw);
+    fetch('/api/admin/analytics')
+      .then(async response => {
+        const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Payment data could not be loaded.');
+        setAnalytics(data.analytics);
+      })
+      .catch(loadError => setError(loadError.message));
   }, []);
 
-  useEffect(() => {
-    fetch('/api/orders')
-      .then(response => response.json())
-      .then(data => setOrders(data.orders || []))
-      .catch(error => console.error('Payments load failed:', error));
-  }, []);
-
-  const totalRevenue = orders.reduce((sum, o) => {
-    const paidCount = (o.milestones || []).filter((m) => m.paid).length;
-    const totalMilestones = o.milestones?.length || 1;
-    return sum + (o.total_fee_usd / totalMilestones) * paidCount;
-  }, 0);
-
-  const outstanding = orders.reduce((sum, o) => {
-    const unpaidMilestones = (o.milestones || []).filter((m) => !m.paid && m.status !== 'cancelled');
-    const totalMilestones = o.milestones?.length || 1;
-    return sum + (o.total_fee_usd / totalMilestones) * unpaidMilestones.length;
-  }, 0);
-
-  const outstandingOrders = orders.filter((o) => {
-    return (o.milestones || []).some((m) => !m.paid && m.status !== 'cancelled');
-  });
-
-  const handleCreateLink = (e) => {
-    e.preventDefault();
-    const id = `pay_${Date.now()}`;
-    const link = `https://ips-services.com/pay/${id}?amount=${linkForm.amount}&desc=${encodeURIComponent(linkForm.description)}`;
-    setGeneratedLink(link);
-  };
+  const finance = analytics?.finance || {};
+  const outstanding = analytics?.outstandingAcademicOrders || [];
 
   return (
     <div>
-      <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.5rem' }}>Payments</h2>
-
-      <div className="grid grid-3 gap-4" style={{ marginBottom: '1.5rem' }}>
-        <div className="card" style={{ background: 'var(--grad-card-1)', color: '#fff', border: 'none' }}>
-          <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>Total Revenue</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 4 }}>{fmtCur(totalRevenue)}</div>
-        </div>
-        <div className="card" style={{ background: 'var(--grad-card-3)', color: '#fff', border: 'none' }}>
-          <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>Outstanding</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 4 }}>{fmtCur(outstanding)}</div>
-        </div>
-        <div className="card" style={{ background: 'var(--grad-card-4)', color: '#fff', border: 'none' }}>
-          <div style={{ fontSize: '0.85rem', opacity: 0.9 }}>Orders with Unpaid Milestones</div>
-          <div style={{ fontSize: '1.8rem', fontWeight: 800, marginTop: 4 }}>{outstandingOrders.length}</div>
-        </div>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>MongoDB finance ledger</div>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '.35rem 0' }}>Payments & Tracked Value</h2>
+        <p style={{ color: 'var(--text-muted)', margin: 0 }}>This view reports recorded milestones and accepted quotes. Phase 8 collection processing remains intentionally disabled.</p>
       </div>
-
+      {error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{error}</div>}
+      <div className="grid grid-4 gap-4" style={{ marginBottom: '1rem' }}>
+        {[
+          ['Academic paid', fmtCur(finance.paidAcademic || 0)],
+          ['Academic outstanding', fmtCur(finance.outstandingAcademic || 0)],
+          ['Accepted service quotes', fmtCur(finance.acceptedServiceValue || 0)],
+          ['Total tracked value', fmtCur(finance.trackedValue || 0)]
+        ].map(([label, value]) => (
+          <div className="card" key={label}><strong style={{ fontSize: '1.55rem' }}>{value}</strong><div style={{ color: 'var(--text-muted)' }}>{label}</div></div>
+        ))}
+      </div>
       <div className="grid grid-2 gap-4">
-        {/* Outstanding Breakdown */}
         <div className="card">
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem' }}>📋 Outstanding by Order</h3>
-          {outstandingOrders.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No outstanding payments.</p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {outstandingOrders.map((o) => {
-                const unpaidCount = (o.milestones || []).filter((m) => !m.paid && m.status !== 'cancelled').length;
-                const totalMilestones = o.milestones?.length || 1;
-                const orderOutstanding = (o.total_fee_usd / totalMilestones) * unpaidCount;
-                return (
-                  <div key={o.order_id} className="flex justify-between items-center" style={{ padding: '0.6rem 0', borderBottom: '1px solid var(--border)' }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>Order #{o.order_id}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{o.client_name} · {o.service_type}</div>
-                    </div>
-                    <div style={{ fontWeight: 700, color: 'var(--accent-gold)' }}>{fmtCur(orderOutstanding)}</div>
-                  </div>
-                );
-              })}
+          <h3 style={{ marginBottom: '1rem' }}>Outstanding Academic Milestones</h3>
+          {outstanding.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>No outstanding academic milestone value.</p> : outstanding.map(item => (
+            <div key={item.order_id} className="flex justify-between items-center" style={{ borderBottom: '1px solid var(--border)', padding: '.7rem 0' }}>
+              <div><strong>{item.order_id}</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>{item.client_name} · {item.service_type}</small></div>
+              <strong>{fmtCur(item.outstanding)}</strong>
             </div>
-          )}
+          ))}
         </div>
-
-        {/* Create Payment Link */}
         <div className="card">
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem' }}>🔗 Create Payment Link</h3>
-          <form onSubmit={handleCreateLink} className="flex flex-col gap-3">
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Client Email</label>
-              <input
-                type="email"
-                className="form-input"
-                placeholder="client@example.com"
-                value={linkForm.clientEmail}
-                onChange={(e) => setLinkForm({ ...linkForm, clientEmail: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Amount (USD)</label>
-              <input
-                type="number"
-                className="form-input"
-                placeholder="0.00"
-                min="1"
-                step="0.01"
-                value={linkForm.amount}
-                onChange={(e) => setLinkForm({ ...linkForm, amount: e.target.value })}
-                required
-              />
-            </div>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Description</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="Milestone 2 payment for Order #1001"
-                value={linkForm.description}
-                onChange={(e) => setLinkForm({ ...linkForm, description: e.target.value })}
-                required
-              />
-            </div>
-            <button type="submit" className="btn btn-gold" style={{ marginTop: 4 }}>
-              Generate Link
-            </button>
-          </form>
-
-          {generatedLink && (
-            <div
-              style={{
-                marginTop: '1rem',
-                padding: '0.75rem 1rem',
-                borderRadius: 10,
-                background: 'rgba(34,197,94,0.1)',
-                border: '1px solid rgba(34,197,94,0.2)',
-              }}
-            >
-              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--success)', marginBottom: 4 }}>Link Generated</div>
-              <div style={{ fontSize: '0.8rem', wordBreak: 'break-all', color: 'var(--text-secondary)' }}>{generatedLink}</div>
-            </div>
-          )}
+          <h3 style={{ marginBottom: '.5rem' }}>Collection Status</h3>
+          <div className="badge badge-review" style={{ marginBottom: '1rem' }}>Tracking only</div>
+          <p style={{ color: 'var(--text-muted)' }}>No payment links are generated because no verified payment gateway is active. This prevents fake checkout URLs and false payment confirmations.</p>
+          <p style={{ color: 'var(--text-secondary)' }}>When Phase 8 is activated, provider webhooks, payment intents, refunds, receipts, reconciliation, and disputes will connect here.</p>
         </div>
       </div>
     </div>

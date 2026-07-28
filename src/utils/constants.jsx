@@ -53,12 +53,6 @@ export const DEFAULT_CMS = {
   footer: { copyright: '2025 I P S' }
 };
 
-export const ADMIN_CREDENTIALS = {
-  email: 'admin@ipsglobal.com'
-};
-
-export const DEMO_CLIENT = { client_id: 'CID-001', full_name: 'Amara Okafor', email: 'amara@example.com', phone: '+234 801 234 5678', country: 'Nigeria', registration_date: '2026-01-15' };
-
 export const SERVICE_TYPES = ['Thesis', 'Assignment', 'Project Report', 'Odd Job'];
 export const ACADEMIC_LEVELS = ['Undergraduate', 'Master', 'PhD', 'N/A'];
 export const ORDER_STATUSES = ['New', 'In Progress', 'Under Review', 'Completed', 'Disputed', 'Cancelled'];

@@ -56,7 +56,20 @@ try {
     ['GET', '/api/actions'],
     ['PATCH', '/api/actions/test-action'],
     ['GET', '/api/admin/inbox'],
-    ['GET', '/api/admin/platform-config']
+    ['GET', '/api/admin/platform-config'],
+    ['GET', '/api/admin/analytics'],
+    ['GET', '/api/admin/data-summary'],
+    ['GET', '/api/admin/export'],
+    ['GET', '/api/admin/me'],
+    ['POST', '/api/admin/change-password'],
+    ['GET', '/api/admins'],
+    ['GET', '/api/admin-roles'],
+    ['GET', '/api/admin/permissions'],
+    ['GET', '/api/admin/audit-logs'],
+    ['GET', '/api/admin/media'],
+    ['POST', '/api/admin/media'],
+    ['GET', '/api/support-tickets'],
+    ['POST', '/api/support-tickets']
   ];
 
   for (const [method, route] of protectedRequests) {
