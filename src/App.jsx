@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 
@@ -32,6 +32,7 @@ import AdminReports from './components/admin/AdminReports';
 import AdminSettings from './components/admin/AdminSettings';
 import AdminServices from './components/admin/AdminServices';
 import AdminSupportTickets from './components/admin/AdminSupportTickets';
+import AdminAccessManager from './components/admin/AdminAccessManager';
 
 import WriterLogin from './components/writer/WriterLogin';
 import WriterLayout from './pages/WriterLayout';
@@ -42,6 +43,7 @@ import ProviderServices from './components/writer/ProviderServices';
 import ServiceJobDetail from './components/common/ServiceJobDetail';
 import ActionCenter from './components/common/ActionCenter';
 import DirectMessaging from './components/common/DirectMessaging';
+import VisualPageLayer from './components/common/VisualPageLayer';
 
 const ADMIN_ENTRY_PATH = (import.meta.env.VITE_ADMIN_ENTRY_PATH || '/ips-mission-control')
   .trim()
@@ -75,7 +77,9 @@ function ProtectedClientRoute({ children }) {
 
 function ProtectedAdminRoute({ children }) {
 
-  const { admin, loading } = useAuth();
+  const { admin, loading, changeAdminPassword, logout } = useAuth();
+  const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' });
+  const [passwordState, setPasswordState] = useState({ working: false, error: '' });
 
 
   if (loading) {
@@ -90,9 +94,39 @@ function ProtectedAdminRoute({ children }) {
   }
 
 
-  return admin
-    ? children
-    : <Navigate to={ADMIN_ENTRY_PATH} replace />;
+  if (!admin) return <Navigate to={ADMIN_ENTRY_PATH} replace />;
+
+  if (admin.mustChangePassword) {
+    const submit = async event => {
+      event.preventDefault();
+      if (passwords.next !== passwords.confirm) {
+        setPasswordState({ working: false, error: 'The new passwords do not match.' });
+        return;
+      }
+      setPasswordState({ working: true, error: '' });
+      const result = await changeAdminPassword(passwords.current, passwords.next);
+      if (!result.success) setPasswordState({ working: false, error: result.error });
+    };
+    return (
+      <div style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: '1rem', background: 'var(--bg-body)' }}>
+        <form className="card" style={{ width: 'min(500px, 100%)' }} onSubmit={submit}>
+          <div className="badge badge-review">Security action required</div>
+          <h2>Replace your temporary password</h2>
+          <p style={{ color: 'var(--text-muted)' }}>Before Mission Control opens, choose a private password known only to you. Your temporary credentials and prior sessions will be revoked.</p>
+          {passwordState.error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem' }}>{passwordState.error}</div>}
+          <div className="flex flex-col gap-3">
+            <input className="form-input" type="password" placeholder="Current temporary password" value={passwords.current} onChange={event => setPasswords({ ...passwords, current: event.target.value })} required />
+            <input className="form-input" type="password" minLength={10} pattern="(?=.*[A-Za-z])(?=.*\d).{10,}" placeholder="New password (10+ characters, letter + number)" value={passwords.next} onChange={event => setPasswords({ ...passwords, next: event.target.value })} required />
+            <input className="form-input" type="password" minLength={10} pattern="(?=.*[A-Za-z])(?=.*\d).{10,}" placeholder="Confirm new password" value={passwords.confirm} onChange={event => setPasswords({ ...passwords, confirm: event.target.value })} required />
+            <button className="btn btn-primary" disabled={passwordState.working}>{passwordState.working ? 'Securing account…' : 'Change password and continue'}</button>
+            <button type="button" className="btn btn-secondary" onClick={logout}>Sign out</button>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  return children;
 
 }
 
@@ -129,6 +163,7 @@ export default function App() {
 
   return (
 
+    <VisualPageLayer>
     <Routes>
 
 
@@ -362,6 +397,11 @@ export default function App() {
           element={<AdminSettings />}
         />
 
+        <Route
+          path="access"
+          element={<AdminAccessManager />}
+        />
+
 
       </Route>
 
@@ -383,6 +423,7 @@ export default function App() {
 
 
     </Routes>
+    </VisualPageLayer>
 
   );
 

@@ -14,6 +14,7 @@ import Client from './models/Client.js';
 import Order from './models/Order.js';
 import Writer from './models/Writer.js';
 import Admin from './models/Admin.js';
+import AdminRole from './models/AdminRole.js';
 import PlatformFile from './models/PlatformFile.js';
 import Message from './models/Message.js';
 import AuditLog from './models/AuditLog.js';
@@ -28,8 +29,16 @@ import DirectConversation from './models/DirectConversation.js';
 import DirectMessage from './models/DirectMessage.js';
 import PlatformConfig from './models/PlatformConfig.js';
 import ConfigRevision from './models/ConfigRevision.js';
+import MediaAsset from './models/MediaAsset.js';
 import SupportTicket from './models/SupportTicket.js';
 import { DEFAULT_PLATFORM_CONFIG, clonePlatformConfig, normalisePlatformConfig } from './shared/platformConfig.js';
+import {
+  ADMIN_PERMISSION_CATALOG,
+  BUILT_IN_ADMIN_ROLES,
+  hasAdminPermission,
+  permissionForAdminRequest,
+  rolePermissions
+} from './shared/adminPermissions.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,6 +46,8 @@ const uploadsDir = process.env.UPLOADS_DIR
   ? path.resolve(process.env.UPLOADS_DIR)
   : path.join(__dirname, 'uploads');
 await fs.mkdir(uploadsDir, { recursive: true });
+const mediaDir = path.join(uploadsDir, 'media');
+await fs.mkdir(mediaDir, { recursive: true });
 
 const app = express();
 app.use(helmet());
@@ -52,6 +63,8 @@ const hashPassword = password => {
   const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
   return `scrypt$${salt}$${hash}`;
 };
+const validAdminPassword = password =>
+  String(password).length >= 10 && /[A-Za-z]/.test(String(password)) && /\d/.test(String(password));
 const verifyPassword = (password, stored) => {
   if (!stored?.startsWith('scrypt$')) return String(password) === String(stored);
   const [, salt, expected] = stored.split('$');
@@ -100,6 +113,66 @@ if (!hasMongoPlaceholder) {
 } else {
   console.warn('⚠️ MONGODB_URI is missing or still contains placeholders. The website will launch, but database APIs are unavailable.');
 }
+
+const resolveAdminAccess = async session => {
+  if (session?.root_admin) {
+    return {
+      adminId: session.id,
+      name: 'Primary Super Admin',
+      email: session.id,
+      role: 'superadmin',
+      permissions: ['*'],
+      isSuperAdmin: true,
+      isRoot: true,
+      mustChangePassword: false
+    };
+  }
+  const admin = await Admin.findOne({ id: session?.id }).lean();
+  if (!admin || (admin.status || 'Active') !== 'Active') return null;
+  if (Number(session?.session_version || 1) !== Number(admin.session_version || 1)) return null;
+  const customRole = admin.custom_role_id
+    ? await AdminRole.findOne({ role_id: admin.custom_role_id }).lean()
+    : null;
+  const permissions = customRole
+    ? rolePermissions('custom', customRole.permissions)
+    : rolePermissions(admin.role, admin.permissions);
+  return {
+    adminId: admin.id,
+    name: admin.name,
+    email: admin.email,
+    role: admin.role,
+    customRoleId: admin.custom_role_id || '',
+    customRoleName: customRole?.name || '',
+    permissions,
+    isSuperAdmin: admin.role === 'superadmin' || permissions.includes('*'),
+    isRoot: false,
+    mustChangePassword: Boolean(admin.must_change_password)
+  };
+};
+
+app.use(async (req, res, next) => {
+  try {
+    const session = readSession(req);
+    if (!session) return next();
+    if (session.role !== 'admin') return next();
+    const requiredPermission = permissionForAdminRequest(req.method, req.path);
+    const isAccessRefresh = req.path === '/api/admin/me';
+    if (!requiredPermission && !isAccessRefresh) return next();
+    const access = await resolveAdminAccess(session);
+    if (!access) return res.status(401).json({ success: false, error: 'This administrator session is no longer active.' });
+    if (requiredPermission && !hasAdminPermission(access, requiredPermission)) {
+      return res.status(403).json({
+        success: false,
+        error: `Administrator permission required: ${requiredPermission}`,
+        permission: requiredPermission
+      });
+    }
+    req.adminAccess = access;
+    next();
+  } catch (error) {
+    res.status(503).json({ success: false, error: `Administrator access could not be verified: ${error.message}` });
+  }
+});
 
 app.get('/api/health', (req, res) => {
   res.json({
@@ -485,30 +558,207 @@ app.post('/api/writer/login', async (req, res) => {
 
 // ========== ADMIN APIs ==========
 
+const adminLoginAttempts = new Map();
+const adminLoginWindowMs = 15 * 60 * 1000;
+const adminLoginMaxAttempts = 5;
+const adminLoginKey = req => `${String(req.body?.email || '').trim().toLowerCase()}|${req.ip || req.socket?.remoteAddress || 'unknown'}`;
+const adminLoginThrottle = (req, res) => {
+  const key = adminLoginKey(req);
+  const now = Date.now();
+  const previous = adminLoginAttempts.get(key);
+  if (!previous || now - previous.firstAttempt > adminLoginWindowMs) {
+    adminLoginAttempts.delete(key);
+    return { key, blocked: false };
+  }
+  if (previous.count >= adminLoginMaxAttempts) {
+    const waitSeconds = Math.max(1, Math.ceil((adminLoginWindowMs - (now - previous.firstAttempt)) / 1000));
+    res.setHeader('Retry-After', String(waitSeconds));
+    res.status(429).json({ success: false, error: 'Too many administrator sign-in attempts. Try again later.' });
+    return { key, blocked: true };
+  }
+  return { key, blocked: false };
+};
+const recordAdminLoginFailure = key => {
+  const now = Date.now();
+  const previous = adminLoginAttempts.get(key);
+  adminLoginAttempts.set(key, !previous || now - previous.firstAttempt > adminLoginWindowMs
+    ? { count: 1, firstAttempt: now }
+    : { ...previous, count: previous.count + 1 });
+};
+
 app.post('/api/admin/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const throttle = adminLoginThrottle(req, res);
+    if (throttle.blocked) return;
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
     const adminEmail = String(process.env.ADMIN_EMAIL || 'admin@ipsglobal.com').trim().toLowerCase();
     
     if (email === adminEmail && password === process.env.ADMIN_PASSWORD) {
-      const token = signSession({ id: email, role: 'admin' });
+      const token = signSession({
+        id: email,
+        role: 'admin',
+        admin_role: 'superadmin',
+        root_admin: true,
+        session_version: 1
+      });
       setSessionCookie(res, token);
-      res.json({ success: true, token, role: 'superadmin' });
+      adminLoginAttempts.delete(throttle.key);
+      AuditLog.create({
+        order_id: 'ADMIN-ACCESS',
+        actor_id: email,
+        actor_role: 'superadmin',
+        action: 'administrator_login_succeeded',
+        details: { root: true }
+      }).catch(() => {});
+      res.json({
+        success: true,
+        token,
+        role: 'superadmin',
+        admin: {
+          id: email,
+          email,
+          name: 'Primary Super Admin',
+          role: 'superadmin',
+          permissions: ['*'],
+          isSuperAdmin: true,
+          isRoot: true,
+          mustChangePassword: false
+        }
+      });
       return;
     }
     
     const admin = await Admin.findOne({ email });
-    if (admin && verifyPassword(password, admin.password)) {
+    if (admin && (admin.status || 'Active') === 'Active' && verifyPassword(password, admin.password)) {
       if (!admin.password.startsWith('scrypt$')) {
         admin.password = hashPassword(password);
-        await admin.save();
       }
-      const token = signSession({ id: admin.id, role: 'admin' });
+      const customRole = admin.custom_role_id
+        ? await AdminRole.findOne({ role_id: admin.custom_role_id })
+        : null;
+      const permissions = customRole
+        ? rolePermissions('custom', customRole.permissions)
+        : rolePermissions(admin.role, admin.permissions);
+      admin.last_login_at = new Date();
+      await admin.save();
+      const token = signSession({
+        id: admin.id,
+        role: 'admin',
+        admin_role: admin.role,
+        session_version: admin.session_version || 1
+      });
       setSessionCookie(res, token);
-      res.json({ success: true, token, role: admin.role });
+      adminLoginAttempts.delete(throttle.key);
+      AuditLog.create({
+        order_id: 'ADMIN-ACCESS',
+        actor_id: admin.id,
+        actor_role: 'admin',
+        action: 'administrator_login_succeeded',
+        details: { role: admin.role }
+      }).catch(() => {});
+      res.json({
+        success: true,
+        token,
+        role: admin.role,
+        admin: {
+          id: admin.id,
+          name: admin.name,
+          email: admin.email,
+          role: admin.role,
+          customRoleId: admin.custom_role_id || '',
+          customRoleName: customRole?.name || '',
+          permissions,
+          isSuperAdmin: admin.role === 'superadmin' || permissions.includes('*'),
+          isRoot: false,
+          mustChangePassword: Boolean(admin.must_change_password)
+        }
+      });
     } else {
+      recordAdminLoginFailure(throttle.key);
+      await AuditLog.create({
+        order_id: 'ADMIN-ACCESS',
+        actor_id: email || 'unknown',
+        actor_role: 'anonymous',
+        action: 'administrator_login_failed',
+        details: { ip: req.ip || '', attempt_count: adminLoginAttempts.get(throttle.key)?.count || 1 }
+      }).catch(() => {});
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/me', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin' || !req.adminAccess) return res.status(403).json({ success: false, error: 'Admin access required.' });
+    res.json({ success: true, admin: req.adminAccess });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/change-password', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (!req.adminAccess) return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (req.adminAccess.isRoot) {
+      return res.status(409).json({ success: false, error: 'Change the root Super Admin password in the protected deployment environment.' });
+    }
+    const currentPassword = String(req.body?.currentPassword || '');
+    const newPassword = String(req.body?.newPassword || '');
+    if (!validAdminPassword(newPassword)) {
+      return res.status(400).json({ success: false, error: 'The new password must contain at least 10 characters, one letter, and one number.' });
+    }
+    const admin = await Admin.findOne({ id: req.adminAccess.adminId });
+    if (!admin || !verifyPassword(currentPassword, admin.password)) {
+      return res.status(401).json({ success: false, error: 'The current password is incorrect.' });
+    }
+    if (verifyPassword(newPassword, admin.password)) {
+      return res.status(400).json({ success: false, error: 'Choose a password different from the current password.' });
+    }
+    admin.password = hashPassword(newPassword);
+    admin.must_change_password = false;
+    admin.last_password_reset_at = new Date();
+    admin.session_version = Number(admin.session_version || 1) + 1;
+    await admin.save();
+    const token = signSession({
+      id: admin.id,
+      role: 'admin',
+      admin_role: admin.role,
+      session_version: admin.session_version
+    });
+    setSessionCookie(res, token);
+    await AuditLog.create({
+      order_id: 'ADMIN-ACCESS',
+      actor_id: admin.id,
+      actor_role: 'admin',
+      action: 'administrator_password_changed',
+      details: { administrator_id: admin.id }
+    });
+    const access = await resolveAdminAccess({ id: admin.id, session_version: admin.session_version });
+    res.json({ success: true, token, admin: access });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/audit-logs', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin' || !req.adminAccess) return res.status(403).json({ success: false, error: 'Admin access required.' });
+    const logs = await AuditLog.find({
+      $or: [
+        { order_id: { $in: ['ADMIN-ACCESS', 'PLATFORM-CONFIG', 'MEDIA-LIBRARY'] } },
+        { actor_role: { $in: ['admin', 'superadmin'] } }
+      ]
+    }).sort({ createdAt: -1 }).limit(150).lean();
+    res.json({ success: true, logs });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -518,9 +768,20 @@ app.get('/api/admins', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
     const admins = await Admin.find().select('-password').sort({ createdAt: -1 });
-    res.json({ success: true, admins });
+    res.json({
+      success: true,
+      rootAdmin: {
+        id: String(process.env.ADMIN_EMAIL || 'admin@ipsglobal.com').trim().toLowerCase(),
+        name: 'Primary Super Admin',
+        email: String(process.env.ADMIN_EMAIL || 'admin@ipsglobal.com').trim().toLowerCase(),
+        role: 'superadmin',
+        status: 'Active',
+        isRoot: true
+      },
+      admins
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -530,14 +791,106 @@ app.post('/api/admins', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    const count = await Admin.countDocuments();
-    const newId = `ADM-${String(count + 1).padStart(3, '0')}`;
-    const admin = new Admin({ ...req.body, password: hashPassword(req.body.password), id: newId });
+    if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    const name = String(req.body?.name || '').trim();
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const temporaryPassword = String(req.body?.password || '');
+    if (name.length < 2 || !email.includes('@') || !validAdminPassword(temporaryPassword)) {
+      return res.status(400).json({ success: false, error: 'Name, valid email, and a temporary password of at least 10 characters with a letter and number are required.' });
+    }
+    const role = BUILT_IN_ADMIN_ROLES[req.body?.role] && req.body.role !== 'superadmin' ? req.body.role : 'moderator';
+    const customRoleId = String(req.body?.custom_role_id || '');
+    const customRole = customRoleId ? await AdminRole.findOne({ role_id: customRoleId }).lean() : null;
+    if (customRoleId && !customRole) {
+      return res.status(400).json({ success: false, error: 'The selected custom role does not exist.' });
+    }
+    const newId = `ADM-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    const admin = new Admin({
+      id: newId,
+      name,
+      email,
+      password: hashPassword(temporaryPassword),
+      role,
+      custom_role_id: customRoleId,
+      permissions: customRole ? rolePermissions('custom', customRole.permissions) : rolePermissions(role, req.body?.permissions),
+      status: 'Active',
+      must_change_password: true,
+      session_version: 1,
+      created_by: req.adminAccess.adminId,
+      last_password_reset_at: new Date()
+    });
     await admin.save();
     const safeAdmin = admin.toObject();
     delete safeAdmin.password;
+    await AuditLog.create({
+      order_id: 'ADMIN-ACCESS',
+      actor_id: req.adminAccess.adminId,
+      actor_role: 'superadmin',
+      action: 'administrator_created',
+      details: { admin_id: admin.id, role: admin.role, custom_role_id: admin.custom_role_id }
+    });
     res.json({ success: true, admin: safeAdmin });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/admins/:id', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    if (req.adminAccess.adminId === req.params.id && (req.body?.status || req.body?.role)) {
+      return res.status(409).json({ success: false, error: 'Use another Super Admin to change your own authority or status.' });
+    }
+    const admin = await Admin.findOne({ id: req.params.id });
+    if (!admin) return res.status(404).json({ success: false, error: 'Administrator not found.' });
+    if (req.body?.role && (!BUILT_IN_ADMIN_ROLES[req.body.role] || req.body.role === 'superadmin')) {
+      return res.status(400).json({ success: false, error: 'Choose a valid delegated administrator role. The immutable root account is the only Super Admin.' });
+    }
+    if (req.body?.custom_role_id) {
+      const customRole = await AdminRole.findOne({ role_id: String(req.body.custom_role_id) }).lean();
+      if (!customRole) return res.status(400).json({ success: false, error: 'The selected custom role does not exist.' });
+    }
+    const allowed = ['name', 'email', 'role', 'custom_role_id', 'permissions', 'status', 'suspended_reason', 'must_change_password'];
+    for (const [key, value] of Object.entries(req.body || {})) {
+      if (allowed.includes(key)) admin[key] = value;
+    }
+    if (req.body?.temporary_password) {
+      if (!validAdminPassword(req.body.temporary_password)) {
+        return res.status(400).json({ success: false, error: 'Temporary password must contain at least 10 characters, one letter, and one number.' });
+      }
+      admin.password = hashPassword(req.body.temporary_password);
+      admin.must_change_password = true;
+      admin.last_password_reset_at = new Date();
+    }
+    const assignedCustomRole = admin.custom_role_id
+      ? await AdminRole.findOne({ role_id: admin.custom_role_id }).lean()
+      : null;
+    if (admin.custom_role_id && !assignedCustomRole) {
+      return res.status(400).json({ success: false, error: 'The selected custom role does not exist.' });
+    }
+    admin.permissions = assignedCustomRole
+      ? rolePermissions('custom', assignedCustomRole.permissions)
+      : rolePermissions(admin.role);
+    admin.session_version = Number(admin.session_version || 1) + 1;
+    await admin.save();
+    const safeAdmin = admin.toObject();
+    delete safeAdmin.password;
+    await AuditLog.create({
+      order_id: 'ADMIN-ACCESS',
+      actor_id: req.adminAccess.adminId,
+      actor_role: 'superadmin',
+      action: req.body?.temporary_password ? 'administrator_password_reset' : 'administrator_updated',
+      details: {
+        admin_id: admin.id,
+        role: admin.role,
+        status: admin.status,
+        permissions: admin.permissions,
+        reason: String(req.body?.reason || req.body?.suspended_reason || '').slice(0, 500)
+      }
+    });
+    res.json({ success: true, admin: safeAdmin, sessionsRevoked: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -547,8 +900,113 @@ app.delete('/api/admins/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    await Admin.findOneAndDelete({ id: req.params.id });
+    if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    if (req.adminAccess.adminId === req.params.id) return res.status(409).json({ success: false, error: 'You cannot delete your own administrator account.' });
+    const removed = await Admin.findOneAndDelete({ id: req.params.id });
+    if (!removed) return res.status(404).json({ success: false, error: 'Administrator not found.' });
+    await AuditLog.create({
+      order_id: 'ADMIN-ACCESS',
+      actor_id: req.adminAccess.adminId,
+      actor_role: 'superadmin',
+      action: 'administrator_deleted',
+      details: { admin_id: removed.id, role: removed.role }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/permissions', async (req, res) => {
+  const session = requireSession(req, res);
+  if (!session) return;
+  if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+  res.json({ success: true, permissions: ADMIN_PERMISSION_CATALOG, builtInRoles: BUILT_IN_ADMIN_ROLES });
+});
+
+app.get('/api/admin-roles', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    const roles = await AdminRole.find().sort({ name: 1 }).lean();
+    res.json({ success: true, roles });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin-roles', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    const name = String(req.body?.name || '').trim();
+    if (name.length < 3) return res.status(400).json({ success: false, error: 'Role name must be at least 3 characters.' });
+    const role = await AdminRole.create({
+      role_id: `ROLE-${Date.now().toString(36).toUpperCase()}`,
+      name,
+      description: String(req.body?.description || '').trim(),
+      permissions: rolePermissions('custom', req.body?.permissions),
+      created_by: req.adminAccess.adminId,
+      updated_by: req.adminAccess.adminId
+    });
+    await AuditLog.create({
+      order_id: 'ADMIN-ACCESS',
+      actor_id: req.adminAccess.adminId,
+      actor_role: 'superadmin',
+      action: 'custom_admin_role_created',
+      details: { role_id: role.role_id, permissions: role.permissions }
+    });
+    res.status(201).json({ success: true, role });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/admin-roles/:id', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    const updates = {
+      ...(req.body?.name !== undefined ? { name: String(req.body.name).trim() } : {}),
+      ...(req.body?.description !== undefined ? { description: String(req.body.description).trim() } : {}),
+      ...(req.body?.permissions !== undefined ? { permissions: rolePermissions('custom', req.body.permissions) } : {}),
+      updated_by: req.adminAccess.adminId
+    };
+    const role = await AdminRole.findOneAndUpdate({ role_id: req.params.id }, updates, { returnDocument: 'after', runValidators: true });
+    if (!role) return res.status(404).json({ success: false, error: 'Custom role not found.' });
+    await Admin.updateMany({ custom_role_id: role.role_id }, { $inc: { session_version: 1 } });
+    await AuditLog.create({
+      order_id: 'ADMIN-ACCESS',
+      actor_id: req.adminAccess.adminId,
+      actor_role: 'superadmin',
+      action: 'custom_admin_role_updated',
+      details: { role_id: role.role_id, permissions: role.permissions }
+    });
+    res.json({ success: true, role, sessionsRevoked: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/admin-roles/:id', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    const assigned = await Admin.countDocuments({ custom_role_id: req.params.id, status: { $ne: 'Archived' } });
+    if (assigned) return res.status(409).json({ success: false, error: 'Reassign administrators before deleting this role.' });
+    const role = await AdminRole.findOneAndDelete({ role_id: req.params.id });
+    if (!role) return res.status(404).json({ success: false, error: 'Custom role not found.' });
+    await AuditLog.create({
+      order_id: 'ADMIN-ACCESS',
+      actor_id: req.adminAccess.adminId,
+      actor_role: 'superadmin',
+      action: 'custom_admin_role_deleted',
+      details: { role_id: role.role_id, name: role.name }
+    });
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2045,6 +2503,156 @@ const getOrCreatePlatformConfig = async () => {
     throw error;
   }
 };
+
+const allowedMediaTypes = {
+  'image/jpeg': { extension: '.jpg', mediaType: 'image' },
+  'image/png': { extension: '.png', mediaType: 'image' },
+  'image/webp': { extension: '.webp', mediaType: 'image' },
+  'image/gif': { extension: '.gif', mediaType: 'image' },
+  'video/mp4': { extension: '.mp4', mediaType: 'video' },
+  'video/webm': { extension: '.webm', mediaType: 'video' }
+};
+const matchesMediaSignature = (buffer, mimeType) => {
+  const hex = buffer.subarray(0, 16).toString('hex');
+  if (mimeType === 'image/jpeg') return hex.startsWith('ffd8ff');
+  if (mimeType === 'image/png') return hex.startsWith('89504e470d0a1a0a');
+  if (mimeType === 'image/gif') return buffer.subarray(0, 6).toString('ascii').startsWith('GIF8');
+  if (mimeType === 'image/webp') return buffer.subarray(0, 4).toString('ascii') === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WEBP';
+  if (mimeType === 'video/mp4') return buffer.subarray(4, 8).toString('ascii') === 'ftyp';
+  if (mimeType === 'video/webm') return hex.startsWith('1a45dfa3');
+  return false;
+};
+
+app.get('/api/media/:assetId', async (req, res) => {
+  try {
+    const asset = await MediaAsset.findOne({ asset_id: req.params.assetId }).lean();
+    if (!asset) return res.status(404).json({ success: false, error: 'Media asset not found.' });
+    const absolutePath = path.resolve(mediaDir, asset.stored_name);
+    if (!absolutePath.startsWith(`${path.resolve(mediaDir)}${path.sep}`)) {
+      return res.status(400).json({ success: false, error: 'Invalid media path.' });
+    }
+    res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    res.type(asset.mime_type);
+    res.sendFile(absolutePath);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/media', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin' || !req.adminAccess) return res.status(403).json({ success: false, error: 'Admin access required.' });
+    const assets = await MediaAsset.find().sort({ createdAt: -1 }).lean();
+    res.json({ success: true, assets });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/media', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin' || !req.adminAccess) return res.status(403).json({ success: false, error: 'Admin access required.' });
+    const mimeType = String(req.body?.mimeType || '').toLowerCase();
+    const mediaSpec = allowedMediaTypes[mimeType];
+    if (!mediaSpec) return res.status(415).json({ success: false, error: 'Use JPG, PNG, WEBP, GIF, MP4, or WEBM media.' });
+    const encoded = String(req.body?.data || '').replace(/^data:[^;]+;base64,/, '');
+    if (!encoded || !/^[A-Za-z0-9+/=\r\n]+$/.test(encoded)) {
+      return res.status(400).json({ success: false, error: 'A valid base64 media payload is required.' });
+    }
+    const buffer = Buffer.from(encoded, 'base64');
+    const maxBytes = mediaSpec.mediaType === 'video' ? 25 * 1024 * 1024 : 8 * 1024 * 1024;
+    if (!buffer.length || buffer.length > maxBytes) {
+      return res.status(413).json({ success: false, error: `${mediaSpec.mediaType === 'video' ? 'Videos' : 'Images'} must be smaller than ${maxBytes / 1024 / 1024} MB.` });
+    }
+    if (!matchesMediaSignature(buffer, mimeType)) {
+      return res.status(415).json({ success: false, error: 'The file contents do not match the declared media type.' });
+    }
+    const assetId = `MEDIA-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    const storedName = `${assetId}${mediaSpec.extension}`;
+    await fs.writeFile(path.join(mediaDir, storedName), buffer, { flag: 'wx' });
+    const asset = await MediaAsset.create({
+      asset_id: assetId,
+      original_name: String(req.body?.name || `upload${mediaSpec.extension}`).slice(0, 180),
+      stored_name: storedName,
+      mime_type: mimeType,
+      media_type: mediaSpec.mediaType,
+      size: buffer.length,
+      alt_text: String(req.body?.altText || '').slice(0, 220),
+      caption: String(req.body?.caption || '').slice(0, 500),
+      tags: Array.isArray(req.body?.tags) ? req.body.tags.map(tag => String(tag).trim().slice(0, 40)).filter(Boolean).slice(0, 12) : [],
+      uploaded_by: req.adminAccess?.adminId || session.id
+    });
+    await recordAudit({
+      order_id: 'MEDIA-LIBRARY',
+      actor_id: req.adminAccess?.adminId || session.id,
+      actor_role: 'admin',
+      action: 'visual_media_uploaded',
+      details: { asset_id: asset.asset_id, mime_type: asset.mime_type, size: asset.size }
+    });
+    res.status(201).json({ success: true, asset });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/admin/media/:assetId', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin' || !req.adminAccess) return res.status(403).json({ success: false, error: 'Admin access required.' });
+    const updates = {
+      ...(req.body?.altText !== undefined ? { alt_text: String(req.body.altText).slice(0, 220) } : {}),
+      ...(req.body?.caption !== undefined ? { caption: String(req.body.caption).slice(0, 500) } : {}),
+      ...(req.body?.tags !== undefined ? {
+        tags: Array.isArray(req.body.tags)
+          ? req.body.tags.map(tag => String(tag).trim().slice(0, 40)).filter(Boolean).slice(0, 12)
+          : []
+      } : {})
+    };
+    const asset = await MediaAsset.findOneAndUpdate(
+      { asset_id: req.params.assetId },
+      updates,
+      { returnDocument: 'after', runValidators: true }
+    );
+    if (!asset) return res.status(404).json({ success: false, error: 'Media asset not found.' });
+    res.json({ success: true, asset });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/admin/media/:assetId', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin' || !req.adminAccess) return res.status(403).json({ success: false, error: 'Admin access required.' });
+    const [asset, platform] = await Promise.all([
+      MediaAsset.findOne({ asset_id: req.params.assetId }),
+      PlatformConfig.findOne({ key: platformConfigKey }).lean()
+    ]);
+    if (!asset) return res.status(404).json({ success: false, error: 'Media asset not found.' });
+    const configText = JSON.stringify({ draft: platform?.draft, published: platform?.published });
+    if (configText.includes(asset.asset_id)) {
+      return res.status(409).json({ success: false, error: 'This media is used by a draft or published page. Remove it from the builder first.' });
+    }
+    await MediaAsset.deleteOne({ _id: asset._id });
+    await fs.unlink(path.join(mediaDir, asset.stored_name)).catch(() => {});
+    await recordAudit({
+      order_id: 'MEDIA-LIBRARY',
+      actor_id: req.adminAccess?.adminId || session.id,
+      actor_role: 'admin',
+      action: 'visual_media_deleted',
+      details: { asset_id: asset.asset_id, original_name: asset.original_name }
+    });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 app.get('/api/platform-config', async (req, res) => {
   try {

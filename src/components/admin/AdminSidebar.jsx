@@ -2,17 +2,22 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCMS } from '../../context/CMSContext';
+import { ADMIN_NAV_PERMISSIONS } from '../../../shared/adminPermissions';
 
 export default function AdminSidebar() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { admin, logout, hasAdminPermission } = useAuth();
   const { config } = useCMS();
   const [actionCount, setActionCount] = useState(0);
   const [messageCount, setMessageCount] = useState(0);
   const [supportCount, setSupportCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const navItems = (config.navigation?.admin || []).filter(item => item.visible);
+  const navItems = (config.navigation?.admin || []).filter(item => {
+    if (!item.visible) return false;
+    const permission = ADMIN_NAV_PERMISSIONS[item.target.split('?')[0]];
+    return !permission || hasAdminPermission(permission);
+  });
   const sidebarWidth = config.layouts?.admin?.sidebarWidth || 260;
 
   useEffect(() => {
@@ -59,6 +64,7 @@ export default function AdminSidebar() {
             <div>
               <div style={{ fontWeight: 700, color: '#F8F4E9', fontSize: '0.95rem', lineHeight: 1.2 }}>Mission Control</div>
               <div style={{ fontSize: '0.7rem', color: '#748B91', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Admin Portal</div>
+              <div style={{ fontSize: '0.68rem', color: '#B9CDEE', marginTop: 3 }}>{admin?.customRoleName || admin?.role || 'Administrator'}</div>
             </div>
           </div>
         </div>

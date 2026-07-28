@@ -7,6 +7,7 @@ import React, {
 } from 'react';
 
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { hasAdminPermission } from '../../shared/adminPermissions';
 
 
 const AuthContext = createContext();
@@ -68,6 +69,26 @@ export function AuthProvider({ children }) {
 
 
   }, []);
+
+  useEffect(() => {
+    if (!admin) return;
+    let cancelled = false;
+    fetch('/api/admin/me', { credentials: 'same-origin' })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.success) throw new Error(data.error || 'Administrator session expired.');
+        if (!cancelled) {
+          setAdmin(previous => ({
+            ...data.admin,
+            id: data.admin?.adminId || data.admin?.id || previous?.id
+          }));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) removeAdmin();
+      });
+    return () => { cancelled = true; };
+  }, [admin?.id, removeAdmin, setAdmin]);
 
 
 
@@ -292,18 +313,10 @@ export function AuthProvider({ children }) {
 
 
             setAdmin({
-
-              email,
-
-              name:
-                'Super Admin',
-
-              role:
-                data.role,
-
-              token:
-                data.token
-
+              ...(data.admin || {}),
+              id: data.admin?.id || data.admin?.adminId || email,
+              email: data.admin?.email || email,
+              role: data.admin?.role || data.role
             });
 
 
@@ -493,6 +506,32 @@ export function AuthProvider({ children }) {
       [setUser, user?.client_id]
     );
 
+  const changeAdminPassword =
+    useCallback(
+      async (currentPassword, newPassword) => {
+        try {
+          const response = await fetch('/api/admin/change-password', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPassword, newPassword })
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.success) {
+            return { success: false, error: data.error || 'The administrator password could not be changed.' };
+          }
+          setAdmin(previous => ({
+            ...data.admin,
+            id: data.admin?.adminId || data.admin?.id || previous?.id
+          }));
+          return { success: true };
+        } catch {
+          return { success: false, error: 'The server could not change the administrator password.' };
+        }
+      },
+      [setAdmin]
+    );
+
 
 
 
@@ -523,7 +562,13 @@ export function AuthProvider({ children }) {
 
         updateClientProfile,
 
-        logout
+        changeAdminPassword,
+
+        logout,
+
+        hasAdminPermission:
+          permission =>
+            hasAdminPermission(admin, permission)
 
       }}
 

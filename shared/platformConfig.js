@@ -15,6 +15,88 @@ export const PORTAL_LABELS = {
   admin: 'Admin portal'
 };
 
+export const PAGE_CATALOG = [
+  { id: 'public.home', portal: 'public', label: 'Home', path: '/' },
+  { id: 'public.services', portal: 'public', label: 'Service marketplace', path: '/services' },
+  { id: 'public.quote', portal: 'public', label: 'Request a quote', path: '/quote' },
+  { id: 'public.login', portal: 'public', label: 'Client sign in', path: '/login' },
+  { id: 'public.signup', portal: 'public', label: 'Client sign up', path: '/signup' },
+  { id: 'client.overview', portal: 'client', label: 'Client overview', path: '/client/overview' },
+  { id: 'client.orders', portal: 'client', label: 'Academic orders', path: '/client/orders' },
+  { id: 'client.order-detail', portal: 'client', label: 'Academic order workspace', path: '/client/orders/:id' },
+  { id: 'client.new-order', portal: 'client', label: 'New academic order', path: '/client/order' },
+  { id: 'client.services', portal: 'client', label: 'Client service hub', path: '/client/services' },
+  { id: 'client.service-detail', portal: 'client', label: 'Service request workspace', path: '/client/services/:id' },
+  { id: 'client.messages', portal: 'client', label: 'Client messages', path: '/client/messages' },
+  { id: 'client.profile', portal: 'client', label: 'Client profile', path: '/client/profile' },
+  { id: 'client.support', portal: 'client', label: 'Client support', path: '/client/support' },
+  { id: 'writer.login', portal: 'writer', label: 'Provider sign in', path: '/writer/login' },
+  { id: 'writer.dashboard', portal: 'writer', label: 'Provider dashboard', path: '/writer/dashboard' },
+  { id: 'writer.orders', portal: 'writer', label: 'Provider academic jobs', path: '/writer/orders' },
+  { id: 'writer.order-detail', portal: 'writer', label: 'Provider academic workspace', path: '/writer/orders/:id' },
+  { id: 'writer.services', portal: 'writer', label: 'Provider service jobs', path: '/writer/services' },
+  { id: 'writer.service-detail', portal: 'writer', label: 'Provider service workspace', path: '/writer/services/:id' },
+  { id: 'writer.messages', portal: 'writer', label: 'Provider messages', path: '/writer/messages' },
+  { id: 'writer.actions', portal: 'writer', label: 'Provider action centre', path: '/writer/actions' },
+  { id: 'admin.login', portal: 'admin', label: 'Hidden admin sign in', path: '@admin-entry' },
+  { id: 'admin.dashboard', portal: 'admin', label: 'Admin dashboard', path: '/admin/dashboard' },
+  { id: 'admin.orders', portal: 'admin', label: 'Admin orders', path: '/admin/orders' },
+  { id: 'admin.order-detail', portal: 'admin', label: 'Admin order workspace', path: '/admin/orders/:id' },
+  { id: 'admin.services', portal: 'admin', label: 'Admin service operations', path: '/admin/services' },
+  { id: 'admin.service-detail', portal: 'admin', label: 'Admin service workspace', path: '/admin/services/:id' },
+  { id: 'admin.clients', portal: 'admin', label: 'Admin clients', path: '/admin/clients' },
+  { id: 'admin.writers', portal: 'admin', label: 'Admin providers', path: '/admin/writers' },
+  { id: 'admin.payments', portal: 'admin', label: 'Admin payments', path: '/admin/payments' },
+  { id: 'admin.cms', portal: 'admin', label: 'Visual Builder 2.0', path: '/admin/cms' },
+  { id: 'admin.access', portal: 'admin', label: 'Administrator access', path: '/admin/access' },
+  { id: 'admin.messages', portal: 'admin', label: 'Admin messages', path: '/admin/messages' },
+  { id: 'admin.job-messages', portal: 'admin', label: 'Admin job messages', path: '/admin/job-messages' },
+  { id: 'admin.actions', portal: 'admin', label: 'Admin action centre', path: '/admin/actions' },
+  { id: 'admin.support', portal: 'admin', label: 'Admin support tickets', path: '/admin/support' },
+  { id: 'admin.reports', portal: 'admin', label: 'Admin reports', path: '/admin/reports' },
+  { id: 'admin.settings', portal: 'admin', label: 'Admin settings', path: '/admin/settings' }
+];
+
+const defaultPageDesign = page => ({
+  id: page.id,
+  enabled: true,
+  background: {
+    type: 'theme',
+    color: '#00010D',
+    gradientStart: '#321A6B',
+    gradientEnd: '#A305A6',
+    assetId: '',
+    overlayColor: '#00010D',
+    overlayOpacity: 0
+  },
+  minHeight: 0,
+  contentMaxWidth: 0,
+  padding: {
+    desktop: 0,
+    tablet: 0,
+    mobile: 0
+  },
+  elements: []
+});
+
+const routeMatches = (pattern, pathname) => {
+  if (pattern === pathname) return true;
+  const patternParts = pattern.split('/').filter(Boolean);
+  const pathParts = pathname.split('/').filter(Boolean);
+  return patternParts.length === pathParts.length && patternParts.every((part, index) =>
+    part.startsWith(':') || part === pathParts[index]
+  );
+};
+
+export const resolvePageDefinition = (pathname, adminEntryPath = '') => {
+  const cleanPath = String(pathname || '/').replace(/\/+$/, '') || '/';
+  if (adminEntryPath && cleanPath === adminEntryPath) return PAGE_CATALOG.find(page => page.id === 'admin.login');
+  return PAGE_CATALOG
+    .filter(page => page.path.startsWith('/'))
+    .sort((a, b) => Number(a.path.includes(':')) - Number(b.path.includes(':')))
+    .find(page => routeMatches(page.path, cleanPath));
+};
+
 export const DASHBOARD_WIDGET_CATALOG = {
   client: [
     { id: 'hero', label: 'Welcome & quick start', width: 'full' },
@@ -74,6 +156,7 @@ export const SAFE_ROUTE_OPTIONS = {
     ['/admin/writers', 'Service Providers'],
     ['/admin/payments', 'Payments'],
     ['/admin/cms', 'Visual Builder'],
+    ['/admin/access', 'Access Control'],
     ['/admin/messages', 'Messages'],
     ['/admin/support', 'Support Tickets'],
     ['/admin/actions', 'Action Center'],
@@ -113,6 +196,7 @@ const navigation = {
     { id: 'admin-writers', label: 'Service Providers', icon: '✎', target: '/admin/writers', visible: true },
     { id: 'admin-payments', label: 'Payments', icon: '▣', target: '/admin/payments', visible: true },
     { id: 'admin-cms', label: 'Visual Builder', icon: '⚡', target: '/admin/cms', visible: true },
+    { id: 'admin-access', label: 'Access Control', icon: 'A', target: '/admin/access', visible: true },
     { id: 'admin-messages', label: 'Messages', icon: '●', target: '/admin/messages', visible: true },
     { id: 'admin-support', label: 'Support Tickets', icon: '?', target: '/admin/support', visible: true },
     { id: 'admin-actions', label: 'Action Center', icon: '!', target: '/admin/actions', visible: true },
@@ -122,7 +206,7 @@ const navigation = {
 };
 
 export const DEFAULT_PLATFORM_CONFIG = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   theme: {
     light: {
       primary: '#A305A6',
@@ -288,6 +372,7 @@ export const DEFAULT_PLATFORM_CONFIG = {
       backgroundColor: '', textColor: '', position: 4, visible: true, showOn: 'all'
     }
   },
+  pageDesigns: Object.fromEntries(PAGE_CATALOG.map(page => [page.id, defaultPageDesign(page)])),
   content: {}
 };
 
@@ -304,6 +389,66 @@ const cleanOptionalColor = value => /^#[0-9a-f]{6}$/i.test(String(value || '')) 
 const cleanTarget = (value, fallback = '/') => {
   const target = cleanText(value, 160);
   return /^(\/|#)[A-Za-z0-9/_?&=#.%+-]*$/.test(target) ? target : fallback;
+};
+const cleanId = (value, fallback = '') => cleanText(value || fallback, 80).replace(/[^a-zA-Z0-9_.:-]/g, '-');
+
+const normalisePlacement = (value, fallback) => ({
+  x: clamp(value?.x, 0, 100, fallback.x),
+  y: clamp(value?.y, 0, 5000, fallback.y),
+  width: clamp(value?.width, 60, 1600, fallback.width),
+  height: clamp(value?.height, 36, 1200, fallback.height)
+});
+
+const normalisePageElement = (item, index) => {
+  const type = ['button', 'text', 'image', 'video', 'banner', 'card'].includes(item?.type) ? item.type : 'text';
+  const desktop = normalisePlacement(item?.placement?.desktop, { x: 50, y: 80 + (index * 70), width: 280, height: 64 });
+  return {
+    id: cleanId(item?.id, `element-${index + 1}`),
+    type,
+    text: cleanText(item?.text || (type === 'button' ? 'Open' : 'New element'), 500),
+    assetId: cleanId(item?.assetId),
+    alt: cleanText(item?.alt, 180),
+    target: cleanTarget(item?.target, '/'),
+    backgroundColor: cleanOptionalColor(item?.backgroundColor),
+    textColor: cleanOptionalColor(item?.textColor),
+    borderRadius: clamp(item?.borderRadius, 0, 80, 12),
+    zIndex: clamp(item?.zIndex, 1, 50, index + 1),
+    visible: item?.visible !== false,
+    showOn: ['all', 'desktop', 'tablet', 'mobile'].includes(item?.showOn) ? item.showOn : 'all',
+    placement: {
+      desktop,
+      tablet: normalisePlacement(item?.placement?.tablet, { ...desktop, width: Math.min(desktop.width, 640) }),
+      mobile: normalisePlacement(item?.placement?.mobile, { x: 50, y: desktop.y, width: Math.min(desktop.width, 320), height: desktop.height })
+    }
+  };
+};
+
+const normalisePageDesign = (input, page) => {
+  const fallback = defaultPageDesign(page);
+  const background = input?.background || {};
+  return {
+    id: page.id,
+    enabled: input?.enabled !== false,
+    background: {
+      type: ['theme', 'color', 'gradient', 'image', 'video'].includes(background.type) ? background.type : fallback.background.type,
+      color: cleanColor(background.color, fallback.background.color),
+      gradientStart: cleanColor(background.gradientStart, fallback.background.gradientStart),
+      gradientEnd: cleanColor(background.gradientEnd, fallback.background.gradientEnd),
+      assetId: cleanId(background.assetId),
+      overlayColor: cleanColor(background.overlayColor, fallback.background.overlayColor),
+      overlayOpacity: clamp(background.overlayOpacity, 0, 0.95, 0)
+    },
+    minHeight: clamp(input?.minHeight, 0, 6000, 0),
+    contentMaxWidth: clamp(input?.contentMaxWidth, 0, 2400, 0),
+    padding: {
+      desktop: clamp(input?.padding?.desktop, 0, 240, 0),
+      tablet: clamp(input?.padding?.tablet, 0, 180, 0),
+      mobile: clamp(input?.padding?.mobile, 0, 120, 0)
+    },
+    elements: Array.isArray(input?.elements)
+      ? input.elements.slice(0, 40).map(normalisePageElement)
+      : []
+  };
 };
 
 const safeJson = (value, depth = 0) => {
@@ -346,13 +491,14 @@ const normaliseNav = (items, portal) => {
     }
   });
   if (portal === 'admin') {
-    const required = fallback.find(item => item.id === 'admin-cms');
-    const existing = cleaned.find(item => item.id === 'admin-cms');
-    if (existing) {
-      existing.visible = true;
-      existing.target = required.target;
-    }
-    else cleaned.push(clonePlatformConfig(required));
+    ['admin-cms', 'admin-access'].forEach(id => {
+      const required = fallback.find(item => item.id === id);
+      const existing = cleaned.find(item => item.id === id);
+      if (existing) {
+        existing.visible = true;
+        existing.target = required.target;
+      } else cleaned.push(clonePlatformConfig(required));
+    });
   }
   return cleaned;
 };
@@ -444,6 +590,11 @@ export function normalisePlatformConfig(input = {}) {
       showOn: ['all', 'desktop', 'mobile'].includes(button.showOn) ? button.showOn : fallback.showOn
     };
   });
+
+  result.pageDesigns = Object.fromEntries(PAGE_CATALOG.map(page => [
+    page.id,
+    normalisePageDesign(source.pageDesigns?.[page.id], page)
+  ]));
 
   result.content = safeJson(source.content || {}) || {};
   return result;

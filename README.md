@@ -61,17 +61,18 @@ npm run check
 npm start
 ```
 
-`npm run check` builds the app, validates the server, verifies the Phase 12 visual builder, verifies Phase 9 data consolidation, and tests unauthorized access to protected routes.
+`npm run check` builds the app, validates the server, verifies Phase 11 Visual Builder 2.0 and administrator hierarchy, verifies the earlier builder and Phase 9 data consolidation, and tests unauthorized access to protected routes.
 
 ## Current phase status
 
 - Phases 1–7: core workflows, governed communication, files/evidence, and action centre.
 - Phase 9: MongoDB data consolidation and support/reporting/settings upgrade.
-- Phase 12: versioned visual builder with preview, publish, and rollback.
+- Phase 11: Visual Builder 2.0, governed page media, responsive free positioning, server-enforced administrator hierarchy, custom roles, session revocation, and security audit.
+- Phase 12 foundation: versioned visual configuration with preview, publish, and rollback.
 - Phase 8 remains intentionally deferred until a verified payment provider is selected.
-- Phases 10 and 11 remain for production communications and full security/session hardening.
+- Phase 10 remains for production email/SMS/push delivery and notification reliability.
 
-See `ULTIMATE_MVP_PHASE9.md`, `PHASE12_VISUAL_BUILDER.md`, and the existing phase verification documents for details.
+See `ULTIMATE_MVP_PHASE9.md`, `ULTIMATE_MVP_PHASE11.md`, `PHASE12_VISUAL_BUILDER.md`, and the existing phase verification documents for details.
 
 ## Security
 
