@@ -26,6 +26,9 @@ import ConversationState from './models/ConversationState.js';
 import ActionState from './models/ActionState.js';
 import DirectConversation from './models/DirectConversation.js';
 import DirectMessage from './models/DirectMessage.js';
+import PlatformConfig from './models/PlatformConfig.js';
+import ConfigRevision from './models/ConfigRevision.js';
+import { DEFAULT_PLATFORM_CONFIG, clonePlatformConfig, normalisePlatformConfig } from './shared/platformConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1594,6 +1597,230 @@ app.patch('/api/admin/inbox/:workId/:channel', async (req, res) => {
 });
 
 // ========== STATIC FILES ==========
+
+// ========== PHASE 12: PLATFORM CONFIGURATION & VISUAL BUILDER ==========
+
+const platformConfigKey = 'platform';
+const defaultPlatformConfig = () => normalisePlatformConfig(clonePlatformConfig(DEFAULT_PLATFORM_CONFIG));
+const databaseIsReady = () => mongoose.connection.readyState === 1;
+
+const getOrCreatePlatformConfig = async () => {
+  let platform = await PlatformConfig.findOne({ key: platformConfigKey });
+  if (platform) return platform;
+  const defaults = defaultPlatformConfig();
+  try {
+    platform = await PlatformConfig.create({
+      key: platformConfigKey,
+      draft: defaults,
+      published: defaults,
+      draftVersion: 1,
+      publishedVersion: 1,
+      publishedAt: new Date()
+    });
+    await ConfigRevision.create({
+      key: platformConfigKey,
+      version: 1,
+      config: defaults,
+      publishedBy: 'system',
+      note: 'Initial platform configuration'
+    });
+    return platform;
+  } catch (error) {
+    if (error?.code === 11000) return PlatformConfig.findOne({ key: platformConfigKey });
+    throw error;
+  }
+};
+
+app.get('/api/platform-config', async (req, res) => {
+  try {
+    if (!databaseIsReady()) {
+      return res.json({
+        success: true,
+        config: defaultPlatformConfig(),
+        version: 1,
+        publishedAt: null,
+        fallback: true
+      });
+    }
+    const platform = await getOrCreatePlatformConfig();
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.json({
+      success: true,
+      config: normalisePlatformConfig(platform.published),
+      version: platform.publishedVersion,
+      publishedAt: platform.publishedAt
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/admin/platform-config', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!databaseIsReady()) return res.status(503).json({ success: false, error: 'The database must be connected to use the visual builder.' });
+    const [platform, revisions] = await Promise.all([
+      getOrCreatePlatformConfig(),
+      ConfigRevision.find({ key: platformConfigKey }).select('-config').sort({ version: -1 }).limit(30).lean()
+    ]);
+    res.json({
+      success: true,
+      draft: normalisePlatformConfig(platform.draft),
+      published: normalisePlatformConfig(platform.published),
+      draftVersion: platform.draftVersion,
+      publishedVersion: platform.publishedVersion,
+      draftUpdatedBy: platform.draftUpdatedBy,
+      publishedBy: platform.publishedBy,
+      publishedAt: platform.publishedAt,
+      revisions
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/admin/platform-config/draft', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!databaseIsReady()) return res.status(503).json({ success: false, error: 'The database must be connected to save a draft.' });
+    const config = normalisePlatformConfig(req.body?.config);
+    const platform = await getOrCreatePlatformConfig();
+    if (req.body?.expectedVersion != null && Number(req.body.expectedVersion) !== platform.draftVersion) {
+      return res.status(409).json({ success: false, error: 'This draft was changed by another administrator. Reload the builder before saving.' });
+    }
+    platform.draft = config;
+    platform.draftVersion += 1;
+    platform.draftUpdatedBy = session.id || session.email || 'admin';
+    await platform.save();
+    await recordAudit({
+      order_id: 'PLATFORM-CONFIG',
+      actor_id: session.id || session.email || 'admin',
+      actor_role: 'admin',
+      action: 'platform_config_draft_saved',
+      details: { draftVersion: platform.draftVersion }
+    });
+    res.json({ success: true, draft: config, draftVersion: platform.draftVersion });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/platform-config/publish', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!databaseIsReady()) return res.status(503).json({ success: false, error: 'The database must be connected to publish.' });
+    const platform = await getOrCreatePlatformConfig();
+    if (req.body?.expectedVersion != null && Number(req.body.expectedVersion) !== platform.draftVersion) {
+      return res.status(409).json({ success: false, error: 'This draft was changed by another administrator. Reload the builder before publishing.' });
+    }
+    const config = normalisePlatformConfig(req.body?.config || platform.draft);
+    const nextVersion = platform.publishedVersion + 1;
+    const actor = session.id || session.email || 'admin';
+    const note = String(req.body?.note || '').slice(0, 240);
+    platform.draft = config;
+    platform.published = config;
+    platform.draftVersion += 1;
+    platform.publishedVersion = nextVersion;
+    platform.draftUpdatedBy = actor;
+    platform.publishedBy = actor;
+    platform.publishedAt = new Date();
+    await platform.save();
+    await ConfigRevision.create({
+      key: platformConfigKey,
+      version: nextVersion,
+      config,
+      publishedBy: actor,
+      note
+    });
+    await recordAudit({
+      order_id: 'PLATFORM-CONFIG',
+      actor_id: actor,
+      actor_role: 'admin',
+      action: 'platform_config_published',
+      details: { version: nextVersion, note }
+    });
+    res.json({
+      success: true,
+      config,
+      publishedVersion: nextVersion,
+      publishedAt: platform.publishedAt
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/platform-config/reset-draft', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!databaseIsReady()) return res.status(503).json({ success: false, error: 'The database must be connected to reset a draft.' });
+    const platform = await getOrCreatePlatformConfig();
+    const useDefaults = req.body?.source === 'defaults';
+    platform.draft = useDefaults ? defaultPlatformConfig() : normalisePlatformConfig(platform.published);
+    platform.draftVersion += 1;
+    platform.draftUpdatedBy = session.id || session.email || 'admin';
+    await platform.save();
+    await recordAudit({
+      order_id: 'PLATFORM-CONFIG',
+      actor_id: session.id || session.email || 'admin',
+      actor_role: 'admin',
+      action: 'platform_config_draft_reset',
+      details: { source: useDefaults ? 'defaults' : 'published' }
+    });
+    res.json({ success: true, draft: platform.draft, draftVersion: platform.draftVersion });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/platform-config/rollback/:version', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (!databaseIsReady()) return res.status(503).json({ success: false, error: 'The database must be connected to roll back.' });
+    const requestedVersion = Number(req.params.version);
+    const revision = await ConfigRevision.findOne({ key: platformConfigKey, version: requestedVersion });
+    if (!revision) return res.status(404).json({ success: false, error: 'That configuration version does not exist.' });
+    const platform = await getOrCreatePlatformConfig();
+    const config = normalisePlatformConfig(revision.config);
+    const nextVersion = platform.publishedVersion + 1;
+    const actor = session.id || session.email || 'admin';
+    platform.draft = config;
+    platform.published = config;
+    platform.draftVersion += 1;
+    platform.publishedVersion = nextVersion;
+    platform.draftUpdatedBy = actor;
+    platform.publishedBy = actor;
+    platform.publishedAt = new Date();
+    await platform.save();
+    await ConfigRevision.create({
+      key: platformConfigKey,
+      version: nextVersion,
+      config,
+      publishedBy: actor,
+      note: `Rollback to version ${requestedVersion}`
+    });
+    await recordAudit({
+      order_id: 'PLATFORM-CONFIG',
+      actor_id: actor,
+      actor_role: 'admin',
+      action: 'platform_config_rolled_back',
+      details: { fromVersion: requestedVersion, newVersion: nextVersion }
+    });
+    res.json({ success: true, config, publishedVersion: nextVersion, publishedAt: platform.publishedAt });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 const PORT = process.env.PORT || 8080;
 app.use(express.static(path.join(__dirname, 'dist')));

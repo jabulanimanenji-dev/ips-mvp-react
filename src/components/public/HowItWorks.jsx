@@ -1,4 +1,5 @@
 import React from 'react';
+import { useCMS } from '../../context/CMSContext';
 
 const STEPS = [
   {
@@ -24,19 +25,22 @@ const STEPS = [
 ];
 
 export default function HowItWorks() {
+  const { cms } = useCMS();
+  const process = cms?.process || {};
+  const steps = process.steps || STEPS;
   return (
     <section className="section" style={{ background: 'var(--bg-surface)' }}>
       <div className="container">
         <div className="section-header">
-          <div className="label">The Process</div>
-          <h2 className="section-title">How It Works</h2>
+          <div className="label">{process.label || 'The Process'}</div>
+          <h2 className="section-title">{process.headline || 'How It Works'}</h2>
           <p className="section-subtitle">
-            A simple, transparent workflow designed to keep you in control from start to finish.
+            {process.subheadline || 'A simple, transparent workflow designed to keep you in control from start to finish.'}
           </p>
         </div>
 
         <div className="grid grid-4 gap-6">
-          {STEPS.map((step, idx) => (
+          {steps.map((step, idx) => (
             <div key={idx} className="card text-center animate-fade-in-up" style={{ animationDelay: `${idx * 0.1}s` }}>
               <div
                 style={{

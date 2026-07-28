@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { useCMS } from '../../context/CMSContext';
 
 export default function Footer() {
-  const { cms } = useCMS();
+  const { cms, config } = useCMS();
   const brand = cms?.brand || {};
   const trustBadges = cms?.trustBadges || [];
   const footer = cms?.footer || {};
+  const navigation = (config.navigation?.public || []).filter(item => item.visible);
 
   return (
     <footer style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)', padding: '3rem 0 1.5rem' }}>
@@ -19,10 +20,9 @@ export default function Footer() {
 
           <div className="flex flex-col gap-2">
             <div className="label" style={{ marginBottom: '0.25rem' }}>Navigation</div>
-            <Link to="/" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>Home</Link>
-            <Link to="/quote" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>Request a Quote</Link>
-            <Link to="/login" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>Client Login</Link>
-            <Link to="/signup" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>Sign Up</Link>
+            {navigation.map(item => item.target.startsWith('#')
+              ? <a key={item.id} href={`/${item.target}`} style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>{item.label}</a>
+              : <Link key={item.id} to={item.target} style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', textDecoration: 'none' }}>{item.label}</Link>)}
           </div>
 
           <div className="flex flex-col gap-2">

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useCMS } from '../../context/CMSContext';
 import { fmtCur, fmtDate, daysUntil } from '../../utils/formatters';
 import { BADGE_STYLES } from '../../utils/constants';
+import DashboardZone from '../common/DashboardZone';
+import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
 
 export default function AdminDashboard() {
   const { cms } = useCMS();
@@ -95,7 +97,9 @@ export default function AdminDashboard() {
     <div>
       <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.5rem' }}>Dashboard</h2>
 
+      <div className="grid grid-3 gap-4">
       {/* Stats */}
+      <DashboardZone portal="admin" id="stats">
       <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
         {statCards.map((s, i) => (
           <div
@@ -114,9 +118,10 @@ export default function AdminDashboard() {
           </div>
         ))}
       </div>
+      </DashboardZone>
 
-      <div className="grid grid-3 gap-4">
         {/* Orders Needing Attention */}
+        <DashboardZone portal="admin" id="attention">
         <div className="card" style={{ gridColumn: 'span 2' }}>
           <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 700 }}>🚨 Orders Needing Attention</h3>
@@ -153,20 +158,18 @@ export default function AdminDashboard() {
             </table>
           )}
         </div>
+        </DashboardZone>
 
         {/* Quick Actions */}
+        <DashboardZone portal="admin" id="quickActions">
         <div className="card">
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem' }}>⚡ Quick Actions</h3>
-          <div className="flex flex-col gap-2">
-            <Link to="/admin/orders" className="btn btn-primary">Manage Orders</Link>
-            <Link to="/admin/clients" className="btn btn-secondary">View Clients</Link>
-            <Link to="/admin/writers" className="btn btn-secondary">Assign Writers</Link>
-            <Link to="/admin/payments" className="btn btn-gold">Create Payment Link</Link>
-            <Link to="/admin/cms" className="btn btn-ghost">Edit CMS (God Mode)</Link>
-          </div>
+          <ConfigurableActionGroup portal="admin" area="quickActions" className="flex flex-col gap-2" />
         </div>
+        </DashboardZone>
 
         {/* Recent Activity */}
+        <DashboardZone portal="admin" id="activity">
         <div className="card" style={{ gridColumn: 'span 2' }}>
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem' }}>📋 Recent Activity</h3>
           {activity.length === 0 ? (
@@ -185,8 +188,10 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+        </DashboardZone>
 
         {/* CMS Status */}
+        <DashboardZone portal="admin" id="cmsStatus">
         <div className="card">
           <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: '1rem' }}>🌐 CMS Status</h3>
           <div className="flex flex-col gap-3">
@@ -211,6 +216,7 @@ export default function AdminDashboard() {
             </Link>
           </div>
         </div>
+        </DashboardZone>
       </div>
     </div>
   );

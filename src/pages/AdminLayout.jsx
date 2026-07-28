@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import { useTheme } from '../context/ThemeContext';
+import { useCMS } from '../context/CMSContext';
 
 const PAGE_TITLES = {
   '/admin/dashboard': 'Dashboard',
@@ -19,6 +20,8 @@ const PAGE_TITLES = {
 export default function AdminLayout() {
   const location = useLocation();
   const { theme, toggleTheme } = useTheme();
+  const { config } = useCMS();
+  const layout = config.layouts?.admin || {};
 
   // Force dark theme for admin portal
   useEffect(() => {
@@ -29,14 +32,17 @@ export default function AdminLayout() {
     };
   }, []);
 
-  const pageTitle = Object.entries(PAGE_TITLES).find(([path]) =>
+  const configuredTitle = (config.navigation?.admin || []).find(item =>
+    location.pathname.startsWith(item.target?.split('?')[0])
+  )?.label;
+  const pageTitle = configuredTitle || Object.entries(PAGE_TITLES).find(([path]) =>
     location.pathname.startsWith(path)
   )?.[1] || 'Admin';
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className={`admin-layout density-${layout.density || 'comfortable'}`} style={{ display: 'flex', minHeight: '100vh' }}>
       <AdminSidebar />
-      <div style={{ marginLeft: 260, flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div className="admin-layout-content" style={{ marginLeft: layout.sidebarWidth || 260, flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Topbar */}
         <header
           style={{
@@ -44,9 +50,9 @@ export default function AdminLayout() {
             position: 'sticky',
             top: 0,
             zIndex: 90,
-            background: 'rgba(12,17,31,0.92)',
+            background: 'var(--bg-header)',
             backdropFilter: 'blur(12px)',
-            borderBottom: '1px solid rgba(185,205,238,0.08)',
+            borderBottom: '1px solid var(--border)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -68,7 +74,7 @@ export default function AdminLayout() {
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #660273 0%, #A305A6 100%)',
+                background: 'var(--grad-hero)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -83,10 +89,17 @@ export default function AdminLayout() {
         </header>
 
         {/* Main Content */}
-        <main style={{ flex: 1, padding: '1.5rem 2rem 3rem' }}>
+        <main className="admin-main-content" style={{ flex: 1, padding: `${layout.contentPadding || 32}px` }}>
           <Outlet />
         </main>
       </div>
+      <style>{`
+        @media (max-width: 768px) {
+          .admin-layout-content { margin-left: 0 !important; width: 100%; }
+          .admin-layout-content > header { padding-left: 5.5rem !important; }
+          .admin-main-content { padding: 1rem !important; }
+        }
+      `}</style>
     </div>
   );
 }

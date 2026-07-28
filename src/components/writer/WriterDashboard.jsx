@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import DashboardZone from '../common/DashboardZone';
+import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
 
 const done = ['Completed', 'Cancelled'];
 
@@ -55,28 +57,32 @@ export default function WriterDashboard() {
   const earnings = jobs.filter(j => j.status === 'Completed').reduce((sum, j) => sum + Number(j.payout || 0), 0);
 
   return (
-    <div>
-      <section style={{ padding: '2rem', borderRadius: 24, color: '#fff', background: 'linear-gradient(125deg,#081b38,#3f145d 62%,#9b247d)', marginBottom: '1.5rem', boxShadow: '0 24px 60px rgba(11,28,59,.2)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <DashboardZone portal="writer" id="hero">
+      <section style={{ padding: '2rem', borderRadius: 24, color: '#fff', background: 'var(--grad-hero)', marginBottom: '1.5rem', boxShadow: '0 24px 60px rgba(11,28,59,.2)' }}>
         <small style={{ fontWeight: 800, letterSpacing: '.14em', opacity: .7 }}>PROVIDER COMMAND CENTER</small>
         <h1 style={{ color: '#fff', fontSize: 'clamp(1.8rem,4vw,3rem)', margin: '.4rem 0' }}>Good to see you, {writer?.full_name?.split(' ')[0] || 'Provider'}.</h1>
         <p style={{ color: 'rgba(255,255,255,.75)', maxWidth: 650 }}>Review priorities, manage every assignment and keep clients informed from one workspace.</p>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: '1.25rem' }}>
-          <Link to="/writer/services" className="btn" style={{ background: '#fff', color: '#40105d' }}>Open service jobs</Link>
-          <Link to="/writer/orders" className="btn" style={{ background: 'rgba(255,255,255,.1)', color: '#fff', border: '1px solid rgba(255,255,255,.24)' }}>Academic assignments</Link>
-        </div>
+        <ConfigurableActionGroup portal="writer" area="hero" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: '1.25rem' }} />
       </section>
+      </DashboardZone>
 
+      <DashboardZone portal="writer" id="attention">
       {attention.length > 0 && <section className="card" style={{ marginBottom: '1.5rem', borderLeft: '5px solid #ee7b54' }}>
         <strong style={{ color: '#b54627' }}>{attention.length} item{attention.length === 1 ? '' : 's'} need your attention</strong>
         <p style={{ color: 'var(--text-muted)', margin: '.25rem 0 0' }}>New assignments, revisions, or jobs approaching their deadline.</p>
       </section>}
+      </DashboardZone>
 
+      <DashboardZone portal="writer" id="stats">
       <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
         {[['All jobs', jobs.length], ['Active', active.length], ['Due soon', dueSoon.length], ['Earned', `$${earnings.toFixed(0)}`]].map(([label, value]) =>
           <div className="card" key={label}><strong style={{ fontSize: '1.9rem', color: 'var(--primary)' }}>{value}</strong><div>{label}</div></div>
         )}
       </div>
+      </DashboardZone>
 
+      <DashboardZone portal="writer" id="queue">
       <section className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: '1rem' }}>
           <div><h2 style={{ margin: 0 }}>My work queue</h2><p style={{ color: 'var(--text-muted)', margin: '.2rem 0' }}>Open a job to message, upload files and update delivery.</p></div>
@@ -96,6 +102,7 @@ export default function WriterDashboard() {
           </Link>
         ))}
       </section>
+      </DashboardZone>
     </div>
   );
 }

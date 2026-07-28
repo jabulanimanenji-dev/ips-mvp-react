@@ -1,85 +1,158 @@
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_CMS } from '../utils/constants';
-import React, { createContext, useContext, useCallback } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
+import { DEFAULT_PLATFORM_CONFIG, normalisePlatformConfig } from '../../shared/platformConfig';
+import { useTheme } from './ThemeContext';
 
 const CMSContext = createContext();
 
+const mergeContent = content => ({
+  ...DEFAULT_CMS,
+  ...(content || {}),
+  brand: { ...DEFAULT_CMS.brand, ...(content?.brand || {}) },
+  hero: { ...DEFAULT_CMS.hero, ...(content?.hero || {}) },
+  process: { ...DEFAULT_CMS.process, ...(content?.process || {}), steps: content?.process?.steps || DEFAULT_CMS.process.steps },
+  pricing: { ...DEFAULT_CMS.pricing, ...(content?.pricing || {}) },
+  about: { ...DEFAULT_CMS.about, ...(content?.about || {}) },
+  footer: { ...DEFAULT_CMS.footer, ...(content?.footer || {}) }
+});
+
+const fontStack = family => ({
+  Inter: "'Inter', system-ui, -apple-system, sans-serif",
+  System: "system-ui, -apple-system, sans-serif",
+  Georgia: "Georgia, 'Times New Roman', serif",
+  Arial: "Arial, Helvetica, sans-serif",
+  Verdana: "Verdana, Geneva, sans-serif"
+}[family] || "'Inter', system-ui, -apple-system, sans-serif");
+
 export function CMSProvider({ children }) {
-  const [cms, setCMS, removeCMS] = useLocalStorage('ips-cms-config', DEFAULT_CMS);
+  const { theme } = useTheme();
+  const [config, setConfig] = useState(() => normalisePlatformConfig(DEFAULT_PLATFORM_CONFIG));
+  const [loading, setLoading] = useState(true);
+  const [publishedVersion, setPublishedVersion] = useState(1);
+
+  const refreshConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/platform-config', { cache: 'no-store' });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setConfig(normalisePlatformConfig(data.config));
+        setPublishedVersion(data.version || 1);
+      }
+    } catch {
+      // The validated default keeps the public site usable while the API is unavailable.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshConfig();
+  }, [refreshConfig]);
+
+  useEffect(() => {
+    const palette = config.theme?.[theme] || config.theme?.light;
+    const root = document.documentElement;
+    const variables = {
+      '--font': fontStack(config.theme?.fontFamily),
+      '--primary': palette.primary,
+      '--primary-dark': palette.primaryDark,
+      '--accent-gold': palette.accent,
+      '--bg-body': palette.background,
+      '--bg-surface': palette.surface,
+      '--bg-surface-2': palette.surfaceAlt,
+      '--bg-card': palette.surface,
+      '--bg-header': palette.surface,
+      '--text-primary': palette.text,
+      '--text-secondary': palette.textSecondary,
+      '--text-muted': palette.textMuted,
+      '--border': palette.border,
+      '--border-strong': palette.border,
+      '--border-focus': palette.primaryDark,
+      '--success': palette.success,
+      '--danger': palette.danger,
+      '--grad-hero': `linear-gradient(135deg, ${config.theme?.gradientStart} 0%, ${config.theme?.gradientEnd} 100%)`,
+      '--grad-card-1': `linear-gradient(135deg, ${palette.primaryDark} 0%, ${palette.primary} 100%)`,
+      '--grad-card-3': `linear-gradient(135deg, ${palette.accent} 0%, ${config.theme?.gradientEnd} 100%)`,
+      '--radius-md': `${config.theme?.buttonRadius ?? 10}px`,
+      '--radius-lg': `${config.theme?.cardRadius ?? 16}px`,
+      '--content-max': `${config.layouts?.public?.contentWidth || 1200}px`,
+      '--section-spacing': `${config.layouts?.public?.sectionSpacing || 80}px`
+    };
+    Object.entries(variables).forEach(([name, value]) => value && root.style.setProperty(name, value));
+  }, [config, theme]);
+
+  const cms = useMemo(() => mergeContent(config.content), [config.content]);
+
+  const updateContent = useCallback(updater => {
+    setConfig(previous => {
+      const currentContent = mergeContent(previous.content);
+      const nextContent = typeof updater === 'function' ? updater(currentContent) : updater;
+      return normalisePlatformConfig({ ...previous, content: nextContent });
+    });
+  }, []);
 
   const updateCMS = useCallback((section, data) => {
-    setCMS(prev => ({ ...prev, [section]: { ...prev[section], ...data } }));
-  }, [setCMS]);
+    updateContent(previous => ({ ...previous, [section]: { ...previous[section], ...data } }));
+  }, [updateContent]);
 
   const updateCMSField = useCallback((section, field, value) => {
-    setCMS(prev => {
-      const sectionData = prev[section];
+    updateContent(previous => {
+      const sectionData = previous[section];
       if (Array.isArray(sectionData)) {
-        const arr = [...sectionData];
-        arr[field] = value;
-        return { ...prev, [section]: arr };
+        const items = [...sectionData];
+        items[field] = value;
+        return { ...previous, [section]: items };
       }
-      return { ...prev, [section]: { ...sectionData, [field]: value } };
+      return { ...previous, [section]: { ...sectionData, [field]: value } };
     });
-  }, [setCMS]);
+  }, [updateContent]);
 
   const resetCMS = useCallback(() => {
-    if (window.confirm('Reset ALL CMS content to default? This cannot be undone.')) {
-      removeCMS();
-      setCMS(DEFAULT_CMS);
+    if (window.confirm('Reset the local preview content to the platform defaults?')) {
+      setConfig(previous => normalisePlatformConfig({ ...previous, content: DEFAULT_CMS }));
     }
-  }, [removeCMS, setCMS]);
+  }, []);
 
   const exportCMS = useCallback(() => {
-    const blob = new Blob([JSON.stringify(cms, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'ips-cms-config.json';
-    a.click();
-  }, [cms]);
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: 'application/json' });
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = `ips-platform-config-v${publishedVersion}.json`;
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
+  }, [config, publishedVersion]);
 
-  const saveCMS = useCallback((newCMS) => {
-    setCMS(newCMS);
-  }, [setCMS]);
+  const saveCMS = useCallback(newCMS => {
+    updateContent(newCMS);
+  }, [updateContent]);
 
-  // ─── NEW: Add/Remove CMS Items ───
-  const addService = useCallback((service) => {
-    setCMS(prev => ({ ...prev, services: [...prev.services, service] }));
-  }, [setCMS]);
-
-  const removeService = useCallback((idx) => {
-    setCMS(prev => ({ ...prev, services: prev.services.filter((_, i) => i !== idx) }));
-  }, [setCMS]);
-
-  const addFAQ = useCallback((faq) => {
-    setCMS(prev => ({ ...prev, faq: [...prev.faq, faq] }));
-  }, [setCMS]);
-
-  const removeFAQ = useCallback((idx) => {
-    setCMS(prev => ({ ...prev, faq: prev.faq.filter((_, i) => i !== idx) }));
-  }, [setCMS]);
-
-  const addTestimonial = useCallback((testimonial) => {
-    setCMS(prev => ({ ...prev, testimonials: [...prev.testimonials, testimonial] }));
-  }, [setCMS]);
-
-  const removeTestimonial = useCallback((idx) => {
-    setCMS(prev => ({ ...prev, testimonials: prev.testimonials.filter((_, i) => i !== idx) }));
-  }, [setCMS]);
-
-  const addTrustBadge = useCallback((badge) => {
-    setCMS(prev => ({ ...prev, trustBadges: [...prev.trustBadges, badge] }));
-  }, [setCMS]);
-
-  const removeTrustBadge = useCallback((idx) => {
-    setCMS(prev => ({ ...prev, trustBadges: prev.trustBadges.filter((_, i) => i !== idx) }));
-  }, [setCMS]);
+  const addItem = useCallback((section, item) => {
+    updateContent(previous => ({ ...previous, [section]: [...(previous[section] || []), item] }));
+  }, [updateContent]);
+  const removeItem = useCallback((section, index) => {
+    updateContent(previous => ({ ...previous, [section]: (previous[section] || []).filter((_, itemIndex) => itemIndex !== index) }));
+  }, [updateContent]);
 
   return (
-    <CMSContext.Provider value={{ 
-      cms, updateCMS, updateCMSField, resetCMS, exportCMS, saveCMS,
-      addService, removeService, addFAQ, removeFAQ, 
-      addTestimonial, removeTestimonial, addTrustBadge, removeTrustBadge
+    <CMSContext.Provider value={{
+      cms,
+      config,
+      loading,
+      publishedVersion,
+      refreshConfig,
+      updateCMS,
+      updateCMSField,
+      resetCMS,
+      exportCMS,
+      saveCMS,
+      addService: item => addItem('services', item),
+      removeService: index => removeItem('services', index),
+      addFAQ: item => addItem('faq', item),
+      removeFAQ: index => removeItem('faq', index),
+      addTestimonial: item => addItem('testimonials', item),
+      removeTestimonial: index => removeItem('testimonials', index),
+      addTrustBadge: item => addItem('trustBadges', item),
+      removeTrustBadge: index => removeItem('trustBadges', index)
     }}>
       {children}
     </CMSContext.Provider>

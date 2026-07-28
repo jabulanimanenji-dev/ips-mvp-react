@@ -25,6 +25,17 @@ export const DEFAULT_CMS = {
     { q: 'Who are your writers?', a: 'Verified professionals with advanced degrees. Each writer is vetted, rated, and bound by strict NDAs. You never interact with them directly — we manage everything for your privacy.' },
     { q: 'What if I need revisions?', a: 'Two free revisions per milestone, provided the request is within the original scope. Additional revisions are available at a small fee. Your satisfaction is our priority.' }
   ],
+  process: {
+    label: 'The Process',
+    headline: 'How It Works',
+    subheadline: 'A simple, transparent workflow designed to keep you in control from start to finish.',
+    steps: [
+      { number: '01', title: 'Request a Quote', description: 'Tell us what you need, including the scope and deadline.' },
+      { number: '02', title: 'Review & Confirm', description: 'Review the quote and delivery plan, then confirm when you are ready.' },
+      { number: '03', title: 'Track Progress', description: 'Follow progress, decisions, files and messages in your private portal.' },
+      { number: '04', title: 'Receive & Complete', description: 'Review the final delivery and keep every approved file in your workspace.' }
+    ]
+  },
   testimonials: [
     { text: 'I P S handled my entire Master\'s thesis. The milestone system made it affordable, and the final work was publishable quality.', client: 'Client, Nigeria' },
     { text: 'Found accommodation in London within a week through their odd jobs service. Professional, fast, and incredibly helpful.', client: 'Client, United Kingdom' },

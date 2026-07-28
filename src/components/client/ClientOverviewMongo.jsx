@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import DashboardZone from '../common/DashboardZone';
+import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
 
 const closed = ['Completed', 'Cancelled'];
 
@@ -47,12 +49,13 @@ export default function ClientOverviewMongo() {
   const completed = activity.filter(item => item.status === 'Completed');
 
   return (
-    <div>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <DashboardZone portal="client" id="hero">
       <section style={{
         borderRadius: 24,
         padding: '2rem',
         color: '#fff',
-        background: 'linear-gradient(125deg,#091a35 0%,#40105d 62%,#8a187d 100%)',
+        background: 'var(--grad-hero)',
         boxShadow: '0 22px 55px rgba(16,24,40,.18)',
         marginBottom: '1.5rem',
         position: 'relative',
@@ -66,13 +69,12 @@ export default function ClientOverviewMongo() {
           <p style={{ maxWidth: 640, color: 'rgba(255,255,255,.76)', marginBottom: '1.25rem' }}>
             One place for professional services, odd jobs, academic support, quotes, files and delivery progress.
           </p>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Link to="/services?type=professional" className="btn" style={{ background: '#fff', color: '#40105d' }}>Request a service</Link>
-            <Link to="/client/order" className="btn" style={{ background: 'rgba(255,255,255,.1)', color: '#fff', border: '1px solid rgba(255,255,255,.25)' }}>Academic & writing order</Link>
-          </div>
+          <ConfigurableActionGroup portal="client" area="hero" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }} />
         </div>
       </section>
+      </DashboardZone>
 
+      <DashboardZone portal="client" id="stats">
       <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
         {[
           ['All jobs', activity.length, 'Across every IPS service'],
@@ -87,7 +89,9 @@ export default function ClientOverviewMongo() {
           </div>
         ))}
       </div>
+      </DashboardZone>
 
+      <DashboardZone portal="client" id="serviceLaunchers">
       <div className="grid grid-3 gap-4" style={{ marginBottom: '1.5rem' }}>
         <Link to="/services?type=professional" className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #a305a6' }}>
           <small style={{ color: 'var(--primary)', fontWeight: 800 }}>START HERE</small>
@@ -105,11 +109,13 @@ export default function ClientOverviewMongo() {
           <p style={{ color: 'var(--text-muted)' }}>Structured writing, editing and research orders.</p>
         </Link>
       </div>
+      </DashboardZone>
 
+      <DashboardZone portal="client" id="activity">
       <div className="card">
         <div className="flex justify-between items-center" style={{ gap: 12, flexWrap: 'wrap' }}>
           <div><h3>Recent activity</h3><p style={{ color: 'var(--text-muted)' }}>Every job, together in one timeline.</p></div>
-          <Link className="btn btn-secondary btn-sm" to="/client/services">Open Service Hub</Link>
+          <ConfigurableActionGroup portal="client" area="activity" actionClassName="btn-sm" />
         </div>
         {loading && <p>Loading your workspace...</p>}
         {!loading && !activity.length && <p style={{ color: 'var(--text-muted)', padding: '1.5rem 0' }}>No activity yet. Choose a service above to begin.</p>}
@@ -120,6 +126,7 @@ export default function ClientOverviewMongo() {
           </Link>
         ))}
       </div>
+      </DashboardZone>
     </div>
   );
 }

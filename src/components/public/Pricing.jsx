@@ -53,7 +53,7 @@ export default function Pricing() {
           <div className="label">Transparent Pricing</div>
 
           <h2 className="section-title">
-            THIS IS THE NEW PRICING COMPONENT
+            Academic Support for Every Level
           </h2>
 
           <p className="section-subtitle">

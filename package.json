@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "server": "node server.js",
     "start": "npm run build && node server.js",
-    "check": "npm run build && node --check server.js"
+    "check": "npm run build && node --check server.js && npm run verify:phase12",
+    "verify:phase12": "node scripts/verify-phase12.mjs"
   },
   "dependencies": {
     "dotenv": "^17.4.2",

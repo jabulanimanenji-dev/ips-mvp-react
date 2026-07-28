@@ -1,16 +1,13 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useCMS } from '../../context/CMSContext';
+import ConfigurableAction from '../common/ConfigurableAction';
 
 export default function Hero() {
-  const { cms } = useCMS();
-  const navigate = useNavigate();
+  const { cms, config } = useCMS();
   const hero = cms?.hero || {};
-
-  const scrollToPricing = () => {
-    const el = document.getElementById('pricing');
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
-  };
+  const actions = Object.values(config.buttons || {})
+    .filter(button => ['heroPrimary', 'heroSecondary'].includes(button.id))
+    .sort((a, b) => a.position - b.position);
 
   return (
     <section
@@ -30,7 +27,8 @@ export default function Hero() {
         style={{
           position: 'absolute',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.45)', // darken image; adjust 0.45 to taste
+          background: 'var(--grad-hero)',
+          opacity: 0.72,
           zIndex: 1
         }}
       />
@@ -86,12 +84,16 @@ export default function Hero() {
         </p>
 
         <div className="flex items-center justify-center gap-4" style={{ flexWrap: 'wrap' }}>
-          <button onClick={() => navigate('/quote')} className="btn btn-lg" style={{ background: '#fff', color: 'var(--primary)', fontWeight: 700 }}>
-            {hero.ctaPrimary || 'Request a Quote'}
-          </button>
-          <button onClick={scrollToPricing} className="btn btn-ghost btn-lg" style={{ color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}>
-            {hero.ctaSecondary || 'View Pricing'}
-          </button>
+          {actions.map(button => (
+            <ConfigurableAction
+              key={button.id}
+              button={button}
+              className="btn-lg"
+              style={button.variant === 'ghost'
+                ? { color: '#fff', borderColor: 'rgba(255,255,255,0.45)' }
+                : { fontWeight: 700 }}
+            />
+          ))}
         </div>
       </div>
 
