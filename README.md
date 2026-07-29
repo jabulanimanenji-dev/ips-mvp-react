@@ -7,8 +7,9 @@ IPS is a full-stack service operations platform for academic work, professional 
 - React 18 and Vite
 - Express
 - MongoDB with Mongoose
+- Private Cloudflare R2 object storage
 - Server-signed session cookies
-- Render deployment
+- Render Starter deployment
 
 ## Local setup on Windows CMD
 
@@ -19,6 +20,8 @@ npm install
 ```
 
 Fill in the real values in `.env`. Never commit `.env`.
+Local development uses `STORAGE_PROVIDER=local` and does not require Cloudflare
+credentials.
 
 Start the backend in one CMD window:
 
@@ -43,14 +46,26 @@ Open `http://127.0.0.1:3000`.
 - `ADMIN_PASSWORD`
 - `VITE_ADMIN_ENTRY_PATH`
 
-Production should also set `NODE_ENV=production`, a unique `SESSION_SECRET`,
-and an absolute `UPLOADS_DIR`. Render must use
-`UPLOADS_DIR=/var/data/ips-uploads` so uploaded files remain on the persistent
-disk.
+Production also requires:
+
+- `NODE_ENV=production`
+- `STORAGE_PROVIDER=r2`
+- `R2_ENDPOINT`
+- `R2_BUCKET_NAME`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+
+`R2_PREFIX=production` keeps production objects under a dedicated prefix. The
+R2 bucket must remain private. The production token must have Object Read &
+Write access to that bucket only. R2 values are server-only and must never use
+a `VITE_` prefix.
 
 ## Data architecture
 
-MongoDB is the single source of truth for clients, providers, admins, academic orders, service requests, workspaces, files, messages, actions, support tickets, reports, finance tracking, audits, and published platform configuration.
+MongoDB is the source of truth for clients, providers, admins, academic orders,
+service requests, workspaces, file metadata, messages, actions, support
+tickets, reports, finance tracking, audits, and published platform
+configuration. File content is stored in the private R2 bucket.
 
 Browser storage is only used to remember theme and cached signed-in identity. Protected operations require a valid server-signed session.
 
@@ -72,7 +87,7 @@ npm start
 - Phase 9: MongoDB data consolidation and support/reporting/settings upgrade.
 - Phase 11: Visual Builder 2.0, governed page media, responsive free positioning, server-enforced administrator hierarchy, custom roles, session revocation, and security audit.
 - Phase 12 foundation: versioned visual configuration with preview, publish, and rollback.
-- Phase 13 deployment preparation: Render Blueprint validation, pinned Node runtime, production configuration checks, MongoDB-aware health checks, persistent uploads, and graceful shutdown.
+- Phase 13 deployment preparation: Render Blueprint validation, pinned Node runtime, production configuration checks, MongoDB-aware health checks, private R2 uploads, zero-downtime-compatible storage, and graceful shutdown.
 - Phase 8 remains intentionally deferred until a verified payment provider is selected.
 - Phase 10 remains for production email/SMS/push delivery and notification reliability.
 
@@ -80,7 +95,12 @@ See `ULTIMATE_MVP_PHASE9.md`, `ULTIMATE_MVP_PHASE11.md`, `PHASE12_VISUAL_BUILDER
 
 ## Security
 
-Do not commit `.env`, private keys, database credentials, production passwords, or user-uploaded files. The JSON export excludes password hashes and file storage names. Database restoration and destructive bulk changes require a controlled maintenance process.
+Do not commit `.env`, private keys, database credentials, production passwords,
+R2 credentials, or user-uploaded files. Put production secrets directly into
+the Render service environment, not source code, chat, screenshots, tickets,
+or build logs. The JSON export excludes password hashes and file storage names.
+Database restoration, credential rotation, and destructive bulk changes
+require a controlled maintenance process.
 
 ## License
 

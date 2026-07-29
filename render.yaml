@@ -15,16 +15,22 @@ services:
       - key: MONGODB_URI
         sync: false
       - key: ADMIN_EMAIL
-        value: admin@ipsglobal.com
+        value: admin@ipsglobalservice.com
       - key: ADMIN_PASSWORD
         sync: false
       - key: SESSION_SECRET
         generateValue: true
       - key: VITE_ADMIN_ENTRY_PATH
         sync: false
-      - key: UPLOADS_DIR
-        value: /var/data/ips-uploads
-    disk:
-      name: ips-uploads
-      mountPath: /var/data
-      sizeGB: 1
+      - key: STORAGE_PROVIDER
+        value: r2
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_BUCKET_NAME
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_PREFIX
+        value: production
