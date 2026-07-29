@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,40 +15,78 @@ assert.equal(
   'Protected routes must return immediately after requireSession sends a 401 response.'
 );
 
-const port = 18880 + Math.floor(Math.random() * 100);
-const server = spawn(process.execPath, ['server.js'], {
-  cwd: projectDir,
-  env: {
-    ...process.env,
-    PORT: String(port),
-    MONGODB_URI: 'mongodb://USERNAME:PASSWORD@CLUSTER/DATABASE',
-    NODE_ENV: 'development',
-    SESSION_SECRET: 'session-guard-verification-secret-32-characters'
-  },
-  stdio: ['ignore', 'pipe', 'pipe']
-});
+const waitForExit = (child, timeoutMs) => {
+  if (child.exitCode !== null || child.signalCode) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const onExit = () => {
+      clearTimeout(timeout);
+      resolve(true);
+    };
+    const timeout = setTimeout(() => {
+      child.off('exit', onExit);
+      resolve(false);
+    }, timeoutMs);
+    child.once('exit', onExit);
+  });
+};
 
+const stopServer = async child => {
+  if (!child?.pid || child.exitCode !== null || child.signalCode) return;
+  if (!child.kill('SIGTERM')) {
+    throw new Error('The verification server could not be asked to shut down.');
+  }
+  if (await waitForExit(child, 5000)) return;
+
+  child.kill('SIGKILL');
+  const forcedExitCompleted = await waitForExit(child, 5000);
+  if (!forcedExitCompleted) {
+    throw new Error('The verification server remained alive after a forced shutdown.');
+  }
+  throw new Error('The verification server did not shut down gracefully within five seconds.');
+};
+
+const port = 18880 + Math.floor(Math.random() * 100);
+const verificationUploadsDir = await mkdtemp(path.join(tmpdir(), 'ips-session-guard-'));
+let server;
 let stdout = '';
 let stderr = '';
-server.stdout.on('data', chunk => { stdout += chunk.toString(); });
-server.stderr.on('data', chunk => { stderr += chunk.toString(); });
-
-const waitForServer = new Promise((resolve, reject) => {
-  const timeout = setTimeout(() => reject(new Error(`Server did not start.\n${stdout}\n${stderr}`)), 10000);
-  const check = () => {
-    if (stdout.includes('Server running on port')) {
-      clearTimeout(timeout);
-      resolve();
-    }
-  };
-  server.stdout.on('data', check);
-  server.once('exit', code => {
-    clearTimeout(timeout);
-    reject(new Error(`Server exited before verification with code ${code}.\n${stdout}\n${stderr}`));
-  });
-});
 
 try {
+  server = spawn(process.execPath, ['server.js'], {
+    cwd: projectDir,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      MONGODB_URI: 'mongodb://USERNAME:PASSWORD@CLUSTER/DATABASE',
+      NODE_ENV: 'development',
+      SESSION_SECRET: 'session-guard-verification-secret-32-characters',
+      UPLOADS_DIR: verificationUploadsDir
+    },
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  server.stdout.on('data', chunk => { stdout += chunk.toString(); });
+  server.stderr.on('data', chunk => { stderr += chunk.toString(); });
+
+  const waitForServer = new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Server did not start.\n${stdout}\n${stderr}`)), 10000);
+    const check = () => {
+      if (stdout.includes('Server running on port')) {
+        clearTimeout(timeout);
+        resolve();
+      }
+    };
+    server.stdout.on('data', check);
+    server.once('error', error => {
+      clearTimeout(timeout);
+      reject(new Error(`Server could not be launched: ${error.message}`));
+    });
+    server.once('exit', code => {
+      clearTimeout(timeout);
+      reject(new Error(`Server exited before verification with code ${code}.\n${stdout}\n${stderr}`));
+    });
+  });
+
   await waitForServer;
 
   const protectedRequests = [
@@ -85,10 +124,16 @@ try {
 
   const health = await fetch(`http://127.0.0.1:${port}/api/health`);
   assert.equal(health.status, 200);
-  assert.equal((await health.json()).server, 'online');
+  const healthPayload = await health.json();
+  assert.equal(healthPayload.server, 'online');
+  assert.equal(healthPayload.ready, true);
   assert.equal(server.exitCode, null, `Server crashed during unauthorized request checks.\n${stderr}`);
 
   console.log(`Session guard verification passed for ${protectedRequests.length} protected requests.`);
 } finally {
-  server.kill();
+  try {
+    await stopServer(server);
+  } finally {
+    await rm(verificationUploadsDir, { recursive: true, force: true });
+  }
 }

@@ -5,7 +5,7 @@ Open Command Prompt (CMD), not PowerShell.
 ## First-time setup
 
 ```bat
-cd /d "C:\Users\pea\ips-mvp-react"
+cd /d "C:\Users\pea\ips-mvp-react-git"
 copy .env.example .env
 npm install
 ```
@@ -19,14 +19,14 @@ database-backed actions will be unavailable.
 Keep the first CMD window open:
 
 ```bat
-cd /d "C:\Users\pea\ips-mvp-react"
+cd /d "C:\Users\pea\ips-mvp-react-git"
 npm run dev:server
 ```
 
 Open a second CMD window and keep it open:
 
 ```bat
-cd /d "C:\Users\pea\ips-mvp-react"
+cd /d "C:\Users\pea\ips-mvp-react-git"
 npm run dev
 ```
 
@@ -61,7 +61,8 @@ Then run `npm run dev` again.
 Stop the development servers first, then run:
 
 ```bat
-cd /d "C:\Users\pea\ips-mvp-react"
+cd /d "C:\Users\pea\ips-mvp-react-git"
+npm run build
 npm start
 ```
 

@@ -2,10 +2,11 @@ services:
   - type: web
     name: ips-mvp-react
     runtime: node
+    branch: main
     region: frankfurt
     plan: starter
-    buildCommand: npm ci && npm run build
-    startCommand: node server.js
+    buildCommand: npm ci --include=dev && npm run check
+    startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:

@@ -43,7 +43,10 @@ Open `http://127.0.0.1:3000`.
 - `ADMIN_PASSWORD`
 - `VITE_ADMIN_ENTRY_PATH`
 
-Production should also set `NODE_ENV=production`.
+Production should also set `NODE_ENV=production`, a unique `SESSION_SECRET`,
+and an absolute `UPLOADS_DIR`. Render must use
+`UPLOADS_DIR=/var/data/ips-uploads` so uploaded files remain on the persistent
+disk.
 
 ## Data architecture
 
@@ -61,7 +64,7 @@ npm run check
 npm start
 ```
 
-`npm run check` builds the app, validates the server, verifies Phase 11 Visual Builder 2.0 and administrator hierarchy, verifies the earlier builder and Phase 9 data consolidation, and tests unauthorized access to protected routes.
+`npm run check` builds the app, validates the server, verifies Phase 11 Visual Builder 2.0 and administrator hierarchy, verifies the earlier builder and Phase 9 data consolidation, validates the Phase 13 production configuration, and tests unauthorized access to protected routes.
 
 ## Current phase status
 
@@ -69,6 +72,7 @@ npm start
 - Phase 9: MongoDB data consolidation and support/reporting/settings upgrade.
 - Phase 11: Visual Builder 2.0, governed page media, responsive free positioning, server-enforced administrator hierarchy, custom roles, session revocation, and security audit.
 - Phase 12 foundation: versioned visual configuration with preview, publish, and rollback.
+- Phase 13 deployment preparation: Render Blueprint validation, pinned Node runtime, production configuration checks, MongoDB-aware health checks, persistent uploads, and graceful shutdown.
 - Phase 8 remains intentionally deferred until a verified payment provider is selected.
 - Phase 10 remains for production email/SMS/push delivery and notification reliability.
 
