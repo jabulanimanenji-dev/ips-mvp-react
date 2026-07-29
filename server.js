@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ quiet: true });
 
 import express from 'express';
 import helmet from 'helmet';
@@ -39,9 +39,17 @@ import {
   permissionForAdminRequest,
   rolePermissions
 } from './shared/adminPermissions.js';
+import {
+  assertProductionConfiguration,
+  isConfiguredMongoUri,
+  isValidAdminPassword
+} from './shared/runtimeConfig.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const isProduction = process.env.NODE_ENV === 'production';
+assertProductionConfiguration(process.env);
+
 const uploadsDir = process.env.UPLOADS_DIR
   ? path.resolve(process.env.UPLOADS_DIR)
   : path.join(__dirname, 'uploads');
@@ -50,21 +58,18 @@ const mediaDir = path.join(uploadsDir, 'media');
 await fs.mkdir(mediaDir, { recursive: true });
 
 const app = express();
+app.disable('x-powered-by');
+if (isProduction) app.set('trust proxy', 1);
 app.use(helmet());
 app.use(express.json({ limit: '35mb' }));
 
-const isProduction = process.env.NODE_ENV === 'production';
 const sessionSecret = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'local-development-change-me';
-if (isProduction && (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32)) {
-  throw new Error('SESSION_SECRET must be set to a unique value of at least 32 characters in production.');
-}
 const hashPassword = password => {
   const salt = crypto.randomBytes(16).toString('hex');
   const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
   return `scrypt$${salt}$${hash}`;
 };
-const validAdminPassword = password =>
-  String(password).length >= 10 && /[A-Za-z]/.test(String(password)) && /\d/.test(String(password));
+const validAdminPassword = isValidAdminPassword;
 const verifyPassword = (password, stored) => {
   if (!stored?.startsWith('scrypt$')) return String(password) === String(stored);
   const [, salt, expected] = stored.split('$');
@@ -101,17 +106,23 @@ const requireSession = (req, res) => {
   return session;
 };
 
-// Connect to MongoDB without preventing the frontend from launching.
+// Production waits for MongoDB before accepting traffic. Development can still
+// launch without a database so the interface and verification tools remain usable.
 const mongoUri = process.env.MONGODB_URI?.trim();
-const hasMongoPlaceholder = !mongoUri
-  || ['USERNAME', 'PASSWORD', 'CLUSTER', 'DATABASE'].some(value => mongoUri.includes(value));
+const hasConfiguredMongo = isConfiguredMongoUri(mongoUri);
 
-if (!hasMongoPlaceholder) {
-  mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 })
-    .then(() => console.log('✅ Database connected'))
-    .catch(err => console.error('❌ Database connection failed:', err.message));
+if (hasConfiguredMongo) {
+  try {
+    await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 10000 });
+    console.log('Database connected.');
+  } catch (error) {
+    console.error('Database connection failed:', error.message);
+    if (isProduction) {
+      throw new Error(`Production startup aborted because MongoDB could not be reached: ${error.message}`);
+    }
+  }
 } else {
-  console.warn('⚠️ MONGODB_URI is missing or still contains placeholders. The website will launch, but database APIs are unavailable.');
+  console.warn('MONGODB_URI is missing or contains placeholders. Database APIs are unavailable in this development session.');
 }
 
 const resolveAdminAccess = async session => {
@@ -175,10 +186,13 @@ app.use(async (req, res, next) => {
 });
 
 app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
+  const databaseConnected = mongoose.connection.readyState === 1;
+  const ready = !isProduction || databaseConnected;
+  res.status(ready ? 200 : 503).json({
+    success: ready,
     server: 'online',
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+    database: databaseConnected ? 'connected' : 'disconnected',
+    ready
   });
 });
 
@@ -2845,13 +2859,57 @@ app.post('/api/admin/platform-config/rollback/:version', async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 8080;
-app.use(express.static(path.join(__dirname, 'dist')));
+const PORT = Number(process.env.PORT || 8080);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error('PORT must be an integer between 1 and 65535.');
+}
+
+const distDir = path.join(__dirname, 'dist');
+const indexFile = path.join(distDir, 'index.html');
+if (isProduction) {
+  try {
+    await fs.access(indexFile);
+  } catch {
+    throw new Error('Production frontend build is missing. Run npm run build before npm start.');
+  }
+}
+
+app.use(express.static(distDir));
 
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(indexFile);
 });
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+let shuttingDown = false;
+const shutDown = signal => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`${signal} received. Closing the HTTP server and database connection.`);
+
+  const forcedExit = setTimeout(() => {
+    console.error('Graceful shutdown timed out.');
+    process.exit(1);
+  }, 25000);
+  forcedExit.unref();
+
+  server.close(async () => {
+    let exitCode = 0;
+    try {
+      await mongoose.disconnect();
+    } catch (error) {
+      exitCode = 1;
+      console.error('Database shutdown failed:', error.message);
+    } finally {
+      clearTimeout(forcedExit);
+      process.exit(exitCode);
+    }
+  });
+};
+
+process.once('SIGTERM', () => shutDown('SIGTERM'));
+process.once('SIGINT', () => shutDown('SIGINT'));
