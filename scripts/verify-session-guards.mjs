@@ -60,6 +60,7 @@ try {
       MONGODB_URI: 'mongodb://USERNAME:PASSWORD@CLUSTER/DATABASE',
       NODE_ENV: 'development',
       SESSION_SECRET: 'session-guard-verification-secret-32-characters',
+      STORAGE_PROVIDER: 'local',
       UPLOADS_DIR: verificationUploadsDir
     },
     stdio: ['ignore', 'pipe', 'pipe']
