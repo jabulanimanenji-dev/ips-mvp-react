@@ -235,7 +235,7 @@ export default function OrderWorkspace({ order, role, actor, workKind = 'academi
                   {file.state === 'pending' && file.uploader_id === actorId && role !== 'admin' && <small style={{ color: 'var(--warning)' }}>Visible only to you and admin while awaiting review.</small>}
                 </div>
                 <div className="flex gap-1">
-                  <a className="btn btn-secondary btn-sm" href={`/api/files/${file._id}/download?token=${encodeURIComponent(actor?.token || '')}`}>Download</a>
+                  <a className="btn btn-secondary btn-sm" href={`/api/files/${file._id}/download`}>Download</a>
                   {role === 'admin' && <select className="form-select" value={file.visibility} onChange={e => updateFile(file._id, { visibility: e.target.value })} style={{ maxWidth: 155 }}><option value="admin">Admin only</option><option value="admin_client">Client</option><option value="admin_writer">Provider</option><option value="all">Client + provider</option></select>}
                   {role === 'admin' && file.state === 'pending' && <button className="btn btn-secondary btn-sm" onClick={() => reviewFile(file, 'approved')}>Approve</button>}
                   {role === 'admin' && file.state !== 'released' && file.state !== 'rejected' && <button className="btn btn-primary btn-sm" onClick={() => reviewFile(file, 'released')}>Release</button>}
