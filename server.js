@@ -44,18 +44,36 @@ import {
   isConfiguredMongoUri,
   isValidAdminPassword
 } from './shared/runtimeConfig.js';
+import {
+  createObjectStorage,
+  StorageObjectNotFoundError,
+  StorageRequestError
+} from './shared/objectStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isProduction = process.env.NODE_ENV === 'production';
 assertProductionConfiguration(process.env);
 
-const uploadsDir = process.env.UPLOADS_DIR
-  ? path.resolve(process.env.UPLOADS_DIR)
-  : path.join(__dirname, 'uploads');
-await fs.mkdir(uploadsDir, { recursive: true });
-const mediaDir = path.join(uploadsDir, 'media');
-await fs.mkdir(mediaDir, { recursive: true });
+const objectStorage = await createObjectStorage({
+  environment: process.env,
+  defaultLocalRoot: path.join(__dirname, 'uploads')
+});
+const storageKey = (scope, storedName) => {
+  const safeName = String(storedName || '');
+  if (
+    !safeName
+    || safeName !== path.basename(safeName)
+    || safeName.includes('\\')
+    || /[\u0000-\u001F\u007F]/.test(safeName)
+  ) {
+    throw new Error('Invalid stored object name.');
+  }
+  if (objectStorage.provider === 'local') {
+    return scope === 'media' ? `media/${safeName}` : safeName;
+  }
+  return `${scope}/${safeName}`;
+};
 
 const app = express();
 app.disable('x-powered-by');
@@ -88,7 +106,7 @@ const signSession = payload => {
 const readSession = req => {
   try {
     const cookieToken = String(req.headers.cookie || '').split(';').map(v => v.trim()).find(v => v.startsWith('ips_session='))?.slice(12);
-    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.query.token || cookieToken;
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || cookieToken;
     if (!token) return null;
     const [body, signature] = token.split('.');
     const expected = crypto.createHmac('sha256', sessionSecret).update(body).digest('base64url');
@@ -192,6 +210,7 @@ app.get('/api/health', (req, res) => {
     success: ready,
     server: 'online',
     database: databaseConnected ? 'connected' : 'disconnected',
+    storage: objectStorage.provider,
     ready
   });
 });
@@ -1372,7 +1391,85 @@ app.patch('/api/support-tickets/:id', async (req, res) => {
 
 // ========== COLLABORATION, FILES, MESSAGES, NOTIFICATIONS ==========
 
-const allowedExtensions = new Set(['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.txt', '.zip', '.png', '.jpg', '.jpeg']);
+const allowedFileTypes = new Map([
+  ['.pdf', 'application/pdf'],
+  ['.doc', 'application/msword'],
+  ['.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+  ['.xls', 'application/vnd.ms-excel'],
+  ['.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+  ['.ppt', 'application/vnd.ms-powerpoint'],
+  ['.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+  ['.txt', 'text/plain'],
+  ['.zip', 'application/zip'],
+  ['.png', 'image/png'],
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg']
+]);
+const allowedExtensions = new Set(allowedFileTypes.keys());
+const normaliseUploadName = (value, fallback = 'upload') => {
+  const basename = path.basename(String(value || fallback).replaceAll('\\', '/'));
+  const cleaned = basename.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 180);
+  return cleaned || fallback;
+};
+const decodeBase64File = (value, maxBytes) => {
+  const encoded = String(value || '').replace(/^data:[^;]+;base64,/, '').trim();
+  if (
+    !encoded
+    || encoded.length % 4 !== 0
+    || !/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)
+  ) {
+    return null;
+  }
+  const buffer = Buffer.from(encoded, 'base64');
+  const canonical = buffer.toString('base64').replace(/=+$/, '');
+  if (!buffer.length || buffer.length > maxBytes || canonical !== encoded.replace(/=+$/, '')) return null;
+  return buffer;
+};
+const matchesFileSignature = (buffer, extension) => {
+  const hex = buffer.subarray(0, 16).toString('hex');
+  if (extension === '.pdf') return buffer.subarray(0, 5).toString('ascii') === '%PDF-';
+  if (extension === '.png') return hex.startsWith('89504e470d0a1a0a');
+  if (extension === '.jpg' || extension === '.jpeg') return hex.startsWith('ffd8ff');
+  if (['.docx', '.xlsx', '.pptx', '.zip'].includes(extension)) {
+    return ['504b0304', '504b0506', '504b0708'].some(signature => hex.startsWith(signature));
+  }
+  if (['.doc', '.xls', '.ppt'].includes(extension)) return hex.startsWith('d0cf11e0a1b11ae1');
+  if (extension === '.txt') return !buffer.includes(0);
+  return false;
+};
+const respondWithStorageError = (res, error, notFoundMessage = 'Stored file not found.') => {
+  if (error instanceof StorageObjectNotFoundError) {
+    res.status(404).json({ success: false, error: notFoundMessage });
+    return true;
+  }
+  if (error instanceof StorageRequestError) {
+    console.error('Object storage request failed:', error.message);
+    res.status(502).json({ success: false, error: 'Object storage is temporarily unavailable.' });
+    return true;
+  }
+  return false;
+};
+const parseByteRange = (value, size) => {
+  const match = /^bytes=(\d*)-(\d*)$/.exec(String(value || '').trim());
+  if (!match || (!match[1] && !match[2]) || !Number.isSafeInteger(size) || size < 1) return null;
+  if (!match[1]) {
+    const suffixLength = Number(match[2]);
+    if (!Number.isSafeInteger(suffixLength) || suffixLength < 1) return null;
+    return { start: Math.max(0, size - suffixLength), end: size - 1 };
+  }
+  const start = Number(match[1]);
+  const requestedEnd = match[2] ? Number(match[2]) : size - 1;
+  if (
+    !Number.isSafeInteger(start)
+    || !Number.isSafeInteger(requestedEnd)
+    || start < 0
+    || requestedEnd < start
+    || start >= size
+  ) {
+    return null;
+  }
+  return { start, end: Math.min(requestedEnd, size - 1) };
+};
 const visibleToRole = {
   admin: ['admin', 'admin_writer', 'admin_client', 'all'],
   writer: ['admin_writer', 'all'],
@@ -1505,36 +1602,60 @@ app.post('/api/orders/:id/files', async (req, res) => {
     if (!allowedExtensions.has(extension)) {
       return res.status(400).json({ success: false, error: 'This file type is not allowed.' });
     }
-    if (!data || !Number.isFinite(Number(size)) || Number(size) > 25 * 1024 * 1024) {
+    const declaredSize = Number(size);
+    if (!data || !Number.isFinite(declaredSize) || declaredSize > 25 * 1024 * 1024) {
       return res.status(400).json({ success: false, error: 'File is empty or exceeds the 25 MB limit.' });
     }
-    const buffer = Buffer.from(data.replace(/^data:[^;]+;base64,/, ''), 'base64');
-    if (!buffer.length || buffer.length > 25 * 1024 * 1024) {
+    const buffer = decodeBase64File(data, 25 * 1024 * 1024);
+    if (!buffer || buffer.length !== declaredSize || !matchesFileSignature(buffer, extension)) {
       return res.status(400).json({ success: false, error: 'Invalid file data.' });
     }
     const storedName = `${crypto.randomUUID()}${extension}`;
-    await fs.writeFile(path.join(uploadsDir, storedName), buffer);
+    const objectKey = storageKey('work-files', storedName);
+    const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
+    await objectStorage.write(objectKey, buffer, {
+      contentType: allowedFileTypes.get(extension),
+      metadata: { sha256: checksum, scope: 'work-file' }
+    });
     const defaultVisibility = uploader_role === 'client'
       ? 'admin_client'
       : uploader_role === 'writer'
         ? 'admin_writer'
         : ['admin', 'admin_client', 'admin_writer', 'all'].includes(visibility) ? visibility : 'admin';
     const state = uploader_role === 'admin' ? 'released' : 'pending';
-    const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
-    const file = await PlatformFile.create({
-      order_id: req.params.id, milestone_stage, original_name: path.basename(name),
-      stored_name: storedName, mime_type: mime_type || 'application/octet-stream',
-      size: buffer.length, category, description, uploader_id, uploader_role,
-      visibility: defaultVisibility, state, checksum, version_group: crypto.randomUUID(),
-      released_by: state === 'released' ? session.id : '',
-      released_at: state === 'released' ? new Date() : null
-    });
+    let file;
+    try {
+      file = await PlatformFile.create({
+        order_id: req.params.id,
+        milestone_stage,
+        original_name: normaliseUploadName(name, `upload${extension}`),
+        stored_name: storedName,
+        mime_type: allowedFileTypes.get(extension),
+        size: buffer.length,
+        category,
+        description,
+        uploader_id,
+        uploader_role,
+        visibility: defaultVisibility,
+        state,
+        checksum,
+        version_group: crypto.randomUUID(),
+        released_by: state === 'released' ? session.id : '',
+        released_at: state === 'released' ? new Date() : null
+      });
+    } catch (error) {
+      await objectStorage.remove(objectKey).catch(cleanupError => {
+        console.error('Failed to remove an uncommitted work-file object:', cleanupError.message);
+      });
+      throw error;
+    }
     await recordAudit({
       order_id: req.params.id, actor_id: uploader_id, actor_role: uploader_role,
       action: 'file_uploaded', details: { file_id: file.id, name: file.original_name, state: file.state }
     });
     res.json({ success: true, file });
   } catch (err) {
+    if (respondWithStorageError(res, err)) return;
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -1558,10 +1679,16 @@ app.get('/api/files/:id/download', async (req, res) => {
     if (role !== 'admin' && !ownsFile && !isReleasedToRole) {
       return res.status(403).json({ success: false, error: 'This file has not been released to you.' });
     }
+    const storedObject = await objectStorage.read(storageKey('work-files', file.stored_name));
     file.download_count += 1;
     await file.save();
-    res.download(path.join(uploadsDir, file.stored_name), file.original_name);
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Length', storedObject.body.length);
+    res.attachment(file.original_name);
+    res.type(file.mime_type || storedObject.contentType || 'application/octet-stream');
+    res.send(storedObject.body);
   } catch (err) {
+    if (respondWithStorageError(res, err, 'File content is not available.')) return;
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -2143,28 +2270,77 @@ app.post('/api/conversations/:id/messages', async (req, res) => {
       if (!work?.record.direct_contact_enabled) return res.status(403).json({ success: false, error: 'Direct client-provider contact is disabled.' });
     }
     const body = String(req.body.body || '').trim();
-    const attachmentInput = Array.isArray(req.body.attachments) ? req.body.attachments.slice(0, 3) : [];
+    const attachmentInput = Array.isArray(req.body.attachments) ? req.body.attachments : [];
+    if (attachmentInput.length > 3) {
+      return res.status(400).json({ success: false, error: 'Attach no more than 3 files to one message.' });
+    }
     if (!body && !attachmentInput.length) return res.status(400).json({ success: false, error: 'Write a message or attach a file.' });
-    const attachments = [];
+    const preparedAttachments = [];
+    let totalAttachmentBytes = 0;
     for (const item of attachmentInput) {
       const extension = path.extname(item.name || '').toLowerCase();
       if (!allowedExtensions.has(extension)) return res.status(400).json({ success: false, error: `File type ${extension || 'unknown'} is not allowed.` });
-      const buffer = Buffer.from(String(item.data || '').replace(/^data:[^;]+;base64,/, ''), 'base64');
-      if (!buffer.length || buffer.length > 10 * 1024 * 1024) return res.status(400).json({ success: false, error: 'Each attachment must be 10 MB or smaller.' });
-      const stored_name = `${crypto.randomUUID()}${extension}`;
-      await fs.writeFile(path.join(uploadsDir, stored_name), buffer);
-      attachments.push({ original_name: path.basename(item.name), stored_name, mime_type: item.mime_type || 'application/octet-stream', size: buffer.length });
+      const buffer = decodeBase64File(item.data, 10 * 1024 * 1024);
+      if (!buffer || !matchesFileSignature(buffer, extension)) {
+        return res.status(400).json({ success: false, error: `Attachment ${path.basename(String(item.name || 'file'))} has invalid file data.` });
+      }
+      if (Number.isFinite(Number(item.size)) && Number(item.size) !== buffer.length) {
+        return res.status(400).json({ success: false, error: `Attachment ${path.basename(String(item.name || 'file'))} has an invalid size.` });
+      }
+      totalAttachmentBytes += buffer.length;
+      if (totalAttachmentBytes > 20 * 1024 * 1024) {
+        return res.status(413).json({ success: false, error: 'Attachments must total 20 MB or less per message.' });
+      }
+      const storedName = `${crypto.randomUUID()}${extension}`;
+      preparedAttachments.push({
+        buffer,
+        objectKey: storageKey('message-attachments', storedName),
+        record: {
+          original_name: normaliseUploadName(item.name, `attachment${extension}`),
+          stored_name: storedName,
+          mime_type: allowedFileTypes.get(extension),
+          size: buffer.length
+        }
+      });
     }
-    const message = await DirectMessage.create({
-      conversation_id: conversation.conversation_id, sender_id: session.id, sender_role: session.role,
-      body, attachments, reply_to: req.body.reply_to || null, read_by: [session.id]
-    });
-    conversation.last_message_at = message.createdAt;
-    conversation.last_message_preview = body.slice(0, 180) || `${attachments.length} attachment(s)`;
-    conversation.status = 'open';
-    await conversation.save();
+    const writtenObjectKeys = [];
+    let message = null;
+    try {
+      for (const attachment of preparedAttachments) {
+        const checksum = crypto.createHash('sha256').update(attachment.buffer).digest('hex');
+        await objectStorage.write(attachment.objectKey, attachment.buffer, {
+          contentType: attachment.record.mime_type,
+          metadata: { sha256: checksum, scope: 'message-attachment' }
+        });
+        writtenObjectKeys.push(attachment.objectKey);
+      }
+      message = await DirectMessage.create({
+        conversation_id: conversation.conversation_id,
+        sender_id: session.id,
+        sender_role: session.role,
+        body,
+        attachments: preparedAttachments.map(attachment => attachment.record),
+        reply_to: req.body.reply_to || null,
+        read_by: [session.id]
+      });
+      conversation.last_message_at = message.createdAt;
+      conversation.last_message_preview = body.slice(0, 180) || `${preparedAttachments.length} attachment(s)`;
+      conversation.status = 'open';
+      await conversation.save();
+    } catch (error) {
+      if (message?._id) {
+        await DirectMessage.deleteOne({ _id: message._id }).catch(cleanupError => {
+          console.error('Failed to remove an uncommitted direct message:', cleanupError.message);
+        });
+      }
+      await Promise.all(writtenObjectKeys.map(objectKey => objectStorage.remove(objectKey).catch(cleanupError => {
+        console.error('Failed to remove an uncommitted message attachment:', cleanupError.message);
+      })));
+      throw error;
+    }
     res.status(201).json({ success: true, message });
   } catch (err) {
+    if (respondWithStorageError(res, err)) return;
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -2178,8 +2354,14 @@ app.get('/api/conversation-files/:conversationId/:messageId/:index', async (req,
     const message = await DirectMessage.findById(req.params.messageId);
     const attachment = message?.attachments?.[Number(req.params.index)];
     if (!message || message.conversation_id !== conversation.conversation_id || !attachment) return res.status(404).json({ success: false, error: 'Attachment not found.' });
-    res.download(path.join(uploadsDir, attachment.stored_name), attachment.original_name);
+    const storedObject = await objectStorage.read(storageKey('message-attachments', attachment.stored_name));
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Length', storedObject.body.length);
+    res.attachment(attachment.original_name);
+    res.type(attachment.mime_type || storedObject.contentType || 'application/octet-stream');
+    res.send(storedObject.body);
   } catch (err) {
+    if (respondWithStorageError(res, err, 'Attachment content is not available.')) return;
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -2541,14 +2723,24 @@ app.get('/api/media/:assetId', async (req, res) => {
   try {
     const asset = await MediaAsset.findOne({ asset_id: req.params.assetId }).lean();
     if (!asset) return res.status(404).json({ success: false, error: 'Media asset not found.' });
-    const absolutePath = path.resolve(mediaDir, asset.stored_name);
-    if (!absolutePath.startsWith(`${path.resolve(mediaDir)}${path.sep}`)) {
-      return res.status(400).json({ success: false, error: 'Invalid media path.' });
+    const requestedRange = req.headers.range;
+    const range = requestedRange ? parseByteRange(requestedRange, Number(asset.size)) : null;
+    if (requestedRange && !range) {
+      res.setHeader('Content-Range', `bytes */${asset.size}`);
+      return res.status(416).end();
     }
+    const storedObject = await objectStorage.read(storageKey('media', asset.stored_name), { range });
     res.setHeader('Cache-Control', 'public, max-age=86400, immutable');
+    res.setHeader('Accept-Ranges', 'bytes');
+    res.setHeader('Content-Length', storedObject.body.length);
+    if (range) {
+      res.setHeader('Content-Range', storedObject.contentRange || `bytes ${range.start}-${range.end}/${asset.size}`);
+      res.status(206);
+    }
     res.type(asset.mime_type);
-    res.sendFile(absolutePath);
+    res.send(storedObject.body);
   } catch (err) {
+    if (respondWithStorageError(res, err, 'Media content is not available.')) return;
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -2587,19 +2779,32 @@ app.post('/api/admin/media', async (req, res) => {
     }
     const assetId = `MEDIA-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
     const storedName = `${assetId}${mediaSpec.extension}`;
-    await fs.writeFile(path.join(mediaDir, storedName), buffer, { flag: 'wx' });
-    const asset = await MediaAsset.create({
-      asset_id: assetId,
-      original_name: String(req.body?.name || `upload${mediaSpec.extension}`).slice(0, 180),
-      stored_name: storedName,
-      mime_type: mimeType,
-      media_type: mediaSpec.mediaType,
-      size: buffer.length,
-      alt_text: String(req.body?.altText || '').slice(0, 220),
-      caption: String(req.body?.caption || '').slice(0, 500),
-      tags: Array.isArray(req.body?.tags) ? req.body.tags.map(tag => String(tag).trim().slice(0, 40)).filter(Boolean).slice(0, 12) : [],
-      uploaded_by: req.adminAccess?.adminId || session.id
+    const objectKey = storageKey('media', storedName);
+    const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
+    await objectStorage.write(objectKey, buffer, {
+      contentType: mimeType,
+      metadata: { sha256: checksum, scope: 'cms-media' }
     });
+    let asset;
+    try {
+      asset = await MediaAsset.create({
+        asset_id: assetId,
+        original_name: normaliseUploadName(req.body?.name, `upload${mediaSpec.extension}`),
+        stored_name: storedName,
+        mime_type: mimeType,
+        media_type: mediaSpec.mediaType,
+        size: buffer.length,
+        alt_text: String(req.body?.altText || '').slice(0, 220),
+        caption: String(req.body?.caption || '').slice(0, 500),
+        tags: Array.isArray(req.body?.tags) ? req.body.tags.map(tag => String(tag).trim().slice(0, 40)).filter(Boolean).slice(0, 12) : [],
+        uploaded_by: req.adminAccess?.adminId || session.id
+      });
+    } catch (error) {
+      await objectStorage.remove(objectKey).catch(cleanupError => {
+        console.error('Failed to remove an uncommitted media object:', cleanupError.message);
+      });
+      throw error;
+    }
     await recordAudit({
       order_id: 'MEDIA-LIBRARY',
       actor_id: req.adminAccess?.adminId || session.id,
@@ -2653,8 +2858,23 @@ app.delete('/api/admin/media/:assetId', async (req, res) => {
     if (configText.includes(asset.asset_id)) {
       return res.status(409).json({ success: false, error: 'This media is used by a draft or published page. Remove it from the builder first.' });
     }
-    await MediaAsset.deleteOne({ _id: asset._id });
-    await fs.unlink(path.join(mediaDir, asset.stored_name)).catch(() => {});
+    const objectKey = storageKey('media', asset.stored_name);
+    const storedObject = await objectStorage.read(objectKey);
+    await objectStorage.remove(objectKey);
+    try {
+      await MediaAsset.deleteOne({ _id: asset._id });
+    } catch (error) {
+      await objectStorage.write(objectKey, storedObject.body, {
+        contentType: asset.mime_type,
+        metadata: {
+          sha256: crypto.createHash('sha256').update(storedObject.body).digest('hex'),
+          scope: 'cms-media'
+        }
+      }).catch(restoreError => {
+        console.error('Failed to restore media after database deletion error:', restoreError.message);
+      });
+      throw error;
+    }
     await recordAudit({
       order_id: 'MEDIA-LIBRARY',
       actor_id: req.adminAccess?.adminId || session.id,
@@ -2664,6 +2884,7 @@ app.delete('/api/admin/media/:assetId', async (req, res) => {
     });
     res.json({ success: true });
   } catch (err) {
+    if (respondWithStorageError(res, err, 'Media content is not available.')) return;
     res.status(500).json({ success: false, error: err.message });
   }
 });
@@ -2913,3 +3134,5 @@ const shutDown = signal => {
 
 process.once('SIGTERM', () => shutDown('SIGTERM'));
 process.once('SIGINT', () => shutDown('SIGINT'));
+
+export { app, server };

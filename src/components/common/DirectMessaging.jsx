@@ -65,9 +65,11 @@ export default function DirectMessaging({ role }) {
   };
 
   const chooseFiles = async event => {
-    const files = [...event.target.files].slice(0, 3);
+    const files = [...event.target.files];
     event.target.value = '';
+    if (files.length > 3) return setError('Attach no more than 3 files to one message.');
     if (files.some(file => file.size > 10 * 1024 * 1024)) return setError('Each attachment must be 10 MB or smaller.');
+    if (files.reduce((total, file) => total + file.size, 0) > 20 * 1024 * 1024) return setError('Attachments must total 20 MB or less per message.');
     const encoded = await Promise.all(files.map(file => new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => resolve({ name: file.name, mime_type: file.type, size: file.size, data: reader.result });
@@ -136,7 +138,7 @@ export default function DirectMessaging({ role }) {
             <div style={{ flex:1,padding:'1rem',overflowY:'auto',maxHeight:540,display:'grid',gap:10,alignContent:'start' }}>
               {messages.map(message => { const mine=message.sender_id===viewerId; return <div key={message._id} style={{maxWidth:'78%',justifySelf:mine?'end':'start',background:mine?'var(--primary)':'var(--bg-surface-2)',color:mine?'#fff':'var(--text-primary)',padding:'.7rem .85rem',borderRadius:mine?'14px 14px 3px 14px':'14px 14px 14px 3px'}}>
                 <small style={{opacity:.72,fontWeight:700}}>{message.sender_role}</small>{message.body&&<div style={{whiteSpace:'pre-wrap'}}>{message.body}</div>}
-                {message.attachments?.map((file,index)=><a key={file.stored_name} href={`/api/conversation-files/${thread.conversation_id}/${message._id}/${index}?token=${encodeURIComponent(actor?.token||'')}`} style={{display:'block',color:'inherit',marginTop:6,textDecoration:'underline'}}>📎 {file.original_name} ({(file.size/1024).toFixed(1)} KB)</a>)}
+                {message.attachments?.map((file,index)=><a key={file.stored_name} href={`/api/conversation-files/${thread.conversation_id}/${message._id}/${index}`} style={{display:'block',color:'inherit',marginTop:6,textDecoration:'underline'}}>📎 {file.original_name} ({(file.size/1024).toFixed(1)} KB)</a>)}
                 <small style={{display:'block',opacity:.62,marginTop:4}}>{new Date(message.createdAt).toLocaleString()}</small>
               </div>; })}
               <div ref={endRef} />
