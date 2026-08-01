@@ -1,17 +1,16 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useCMS } from '../../context/CMSContext';
+import useResponsiveDevice from '../../hooks/useResponsiveDevice';
 
 export default function ConfigurableAction({ button, className = '', style = {}, onAction }) {
   const location = useLocation();
   const navigate = useNavigate();
-  if (!button?.visible) return null;
+  const { previewDevice } = useCMS();
+  const activeDevice = useResponsiveDevice(previewDevice);
+  if (!button?.visible || (button.showOn !== 'all' && button.showOn !== activeDevice)) return null;
 
-  const visibilityClass = button.showOn === 'desktop'
-    ? 'config-desktop-only'
-    : button.showOn === 'mobile'
-      ? 'config-mobile-only'
-      : '';
-  const buttonClass = `btn btn-${button.variant || 'primary'} ${visibilityClass} ${className}`.trim();
+  const buttonClass = `btn btn-${button.variant || 'primary'} ${className}`.trim();
   const configuredStyle = {
     ...style,
     ...(button.backgroundColor ? { background: button.backgroundColor } : {}),

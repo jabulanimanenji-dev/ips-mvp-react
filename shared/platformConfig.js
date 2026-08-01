@@ -1,3 +1,5 @@
+import { normaliseHeroResponsive } from './heroResponsive.js';
+
 export const HOME_SECTION_CATALOG = [
   { id: 'hero', label: 'Hero', description: 'Headline and primary calls to action.' },
   { id: 'services', label: 'Services', description: 'Academic and professional service cards.' },
@@ -6,6 +8,36 @@ export const HOME_SECTION_CATALOG = [
   { id: 'faq', label: 'FAQ', description: 'Frequently asked questions.' },
   { id: 'testimonials', label: 'Testimonials', description: 'Client stories and social proof.' },
   { id: 'about', label: 'About', description: 'Company story and performance statistics.' }
+];
+
+
+const DEFAULT_SERVICE_CATEGORIES = [
+  { id: 'academic', name: 'Academic Services', shortName: 'Academic', icon: '🎓', description: 'Theses, dissertations, assignments, research, editing and data analysis.', family: 'professional', featured: true, active: true, order: 0 },
+  { id: 'business', name: 'Business Services', shortName: 'Business', icon: '💼', description: 'Business plans, proposals, market research, pitch decks and administration.', family: 'professional', featured: true, active: true, order: 1 },
+  { id: 'technology', name: 'Technology Services', shortName: 'Technology', icon: '💻', description: 'Websites, software, automation, AI solutions and technical support.', family: 'professional', featured: true, active: true, order: 2 },
+  { id: 'creative', name: 'Creative & Design', shortName: 'Creative', icon: '🎨', description: 'Branding, graphics, presentations, video, animation and UI/UX.', family: 'professional', featured: true, active: true, order: 3 },
+  { id: 'career', name: 'Career Services', shortName: 'Career', icon: '↗', description: 'CVs, cover letters, LinkedIn profiles and interview preparation.', family: 'professional', featured: true, active: true, order: 4 },
+  { id: 'translation', name: 'Translation & Language', shortName: 'Translation', icon: '🌍', description: 'Translation, transcription, localization and language support.', family: 'professional', featured: true, active: true, order: 5 },
+  { id: 'assistance', name: 'Personal & Local Assistance', shortName: 'Assistance', icon: '✓', description: 'Relocation, errands, appointments, forms, travel and practical support.', family: 'odd_job', featured: true, active: true, order: 6 }
+];
+
+const DEFAULT_SERVICE_ITEMS = [
+  { id: 'thesis-writing', categoryId: 'academic', name: 'Thesis Writing', description: 'Structured support for undergraduate and postgraduate theses.', pricingType: 'per_page', startingPrice: 15, unit: 'per page', featured: true, active: true, quoteEnabled: true, order: 0 },
+  { id: 'dissertation', categoryId: 'academic', name: 'Dissertation Support', description: 'Research, literature review, methodology, analysis and full dissertation support.', pricingType: 'per_page', startingPrice: 25, unit: 'per page', featured: true, active: true, quoteEnabled: true, order: 1 },
+  { id: 'assignments', categoryId: 'academic', name: 'Assignments & Coursework', description: 'Essays, reports, case studies, presentations and coursework.', pricingType: 'per_page', startingPrice: 12, unit: 'per page', featured: true, active: true, quoteEnabled: true, order: 2 },
+  { id: 'phd-research', categoryId: 'academic', name: 'PhD Research Support', description: 'Advanced doctoral research, journal articles and specialist analysis.', pricingType: 'per_page', startingPrice: 40, unit: 'per page', featured: true, active: true, quoteEnabled: true, order: 3 },
+  { id: 'editing-proofreading', categoryId: 'academic', name: 'Editing & Proofreading', description: 'Language, structure, formatting, citations and academic presentation.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: false, active: true, quoteEnabled: true, order: 4 },
+  { id: 'data-analysis', categoryId: 'academic', name: 'Research & Data Analysis', description: 'SPSS, Excel, qualitative analysis, visualization and interpretation.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 5 },
+  { id: 'business-plan', categoryId: 'business', name: 'Business Plans', description: 'Investor-ready business plans with strategy, market and financial sections.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 0 },
+  { id: 'market-research', categoryId: 'business', name: 'Market Research', description: 'Competitor, customer and opportunity research for confident decisions.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 1 },
+  { id: 'website-development', categoryId: 'technology', name: 'Website Development', description: 'Business websites, portals, landing pages and web applications.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 0 },
+  { id: 'automation-ai', categoryId: 'technology', name: 'Automation & AI', description: 'Workflow automation, AI integrations and productivity solutions.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 1 },
+  { id: 'graphic-design', categoryId: 'creative', name: 'Graphic Design & Branding', description: 'Logos, identity systems, social assets and branded materials.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 0 },
+  { id: 'presentation-design', categoryId: 'creative', name: 'Presentation Design', description: 'Professional slide decks for academic, business and investor audiences.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 1 },
+  { id: 'cv-linkedin', categoryId: 'career', name: 'CV & LinkedIn', description: 'ATS-ready CVs, cover letters and optimized LinkedIn profiles.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 0 },
+  { id: 'translation', categoryId: 'translation', name: 'Translation & Localization', description: 'Clear, audience-appropriate translation and localization.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 0 },
+  { id: 'relocation', categoryId: 'assistance', name: 'Relocation Assistance', description: 'Accommodation search, viewing coordination and moving support.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 0 },
+  { id: 'personal-admin', categoryId: 'assistance', name: 'Personal Administration', description: 'Appointments, forms, reservations, purchasing and organization.', pricingType: 'quote', startingPrice: 0, unit: 'custom quote', featured: true, active: true, quoteEnabled: true, order: 1 }
 ];
 
 export const PORTAL_LABELS = {
@@ -21,6 +53,8 @@ export const PAGE_CATALOG = [
   { id: 'public.quote', portal: 'public', label: 'Request a quote', path: '/quote' },
   { id: 'public.login', portal: 'public', label: 'Client sign in', path: '/login' },
   { id: 'public.signup', portal: 'public', label: 'Client sign up', path: '/signup' },
+  { id: 'public.join', portal: 'public', label: 'Join IPS', path: '/join' },
+  { id: 'public.provider-application', portal: 'public', label: 'Provider application', path: '/become-a-provider' },
   { id: 'client.overview', portal: 'client', label: 'Client overview', path: '/client/overview' },
   { id: 'client.orders', portal: 'client', label: 'Academic orders', path: '/client/orders' },
   { id: 'client.order-detail', portal: 'client', label: 'Academic order workspace', path: '/client/orders/:id' },
@@ -47,7 +81,7 @@ export const PAGE_CATALOG = [
   { id: 'admin.clients', portal: 'admin', label: 'Admin clients', path: '/admin/clients' },
   { id: 'admin.writers', portal: 'admin', label: 'Admin providers', path: '/admin/writers' },
   { id: 'admin.payments', portal: 'admin', label: 'Admin payments', path: '/admin/payments' },
-  { id: 'admin.cms', portal: 'admin', label: 'Visual Builder 2.0', path: '/admin/cms' },
+  { id: 'admin.cms', portal: 'admin', label: 'Platform Studio', path: '/admin/cms' },
   { id: 'admin.access', portal: 'admin', label: 'Administrator access', path: '/admin/access' },
   { id: 'admin.messages', portal: 'admin', label: 'Admin messages', path: '/admin/messages' },
   { id: 'admin.job-messages', portal: 'admin', label: 'Admin job messages', path: '/admin/job-messages' },
@@ -128,7 +162,10 @@ export const SAFE_ROUTE_OPTIONS = {
     ['#about', 'About section'],
     ['#faq', 'FAQ section'],
     ['/login', 'Client login'],
-    ['/signup', 'Client signup']
+    ['/signup', 'Client signup'],
+    ['/join', 'Choose account type'],
+    ['/become-a-provider', 'Provider application'],
+    ['/writer/login', 'Provider login']
   ],
   client: [
     ['/client/overview', 'Overview'],
@@ -155,7 +192,7 @@ export const SAFE_ROUTE_OPTIONS = {
     ['/admin/clients', 'Clients'],
     ['/admin/writers', 'Service Providers'],
     ['/admin/payments', 'Payments'],
-    ['/admin/cms', 'Visual Builder'],
+    ['/admin/cms', 'Platform Studio'],
     ['/admin/access', 'Access Control'],
     ['/admin/messages', 'Messages'],
     ['/admin/support', 'Support Tickets'],
@@ -195,7 +232,7 @@ const navigation = {
     { id: 'admin-clients', label: 'Clients', icon: '●', target: '/admin/clients', visible: true },
     { id: 'admin-writers', label: 'Service Providers', icon: '✎', target: '/admin/writers', visible: true },
     { id: 'admin-payments', label: 'Payments', icon: '▣', target: '/admin/payments', visible: true },
-    { id: 'admin-cms', label: 'Visual Builder', icon: '⚡', target: '/admin/cms', visible: true },
+    { id: 'admin-cms', label: 'Platform Studio', icon: '⚡', target: '/admin/cms', visible: true },
     { id: 'admin-access', label: 'Access Control', icon: 'A', target: '/admin/access', visible: true },
     { id: 'admin-messages', label: 'Messages', icon: '●', target: '/admin/messages', visible: true },
     { id: 'admin-support', label: 'Support Tickets', icon: '?', target: '/admin/support', visible: true },
@@ -206,7 +243,7 @@ const navigation = {
 };
 
 export const DEFAULT_PLATFORM_CONFIG = {
-  schemaVersion: 3,
+  schemaVersion: 5,
   theme: {
     light: {
       primary: '#A305A6',
@@ -247,6 +284,36 @@ export const DEFAULT_PLATFORM_CONFIG = {
     client: { sidebarWidth: 260, contentPadding: 32, density: 'comfortable' },
     writer: { sidebarWidth: 240, contentPadding: 32, density: 'comfortable' },
     admin: { sidebarWidth: 260, contentPadding: 32, density: 'comfortable' }
+  },
+  serviceCatalog: {
+    heading: 'What do you need today?',
+    subheading: 'Start with academics—our flagship expertise—or explore trusted help for business, technology, creative work and everyday needs.',
+    searchPlaceholder: 'Search thesis writing, business plans, websites, design, translation…',
+    categories: DEFAULT_SERVICE_CATEGORIES,
+    services: DEFAULT_SERVICE_ITEMS
+  },
+  features: {
+    publicWebsite: true,
+    clientRegistration: true,
+    providerApplications: true,
+    clientLogin: true,
+    providerLogin: true,
+    quoteRequests: true,
+    serviceMarketplace: true,
+    pricing: true,
+    testimonials: true,
+    faq: true,
+    contact: true,
+    newsletter: false,
+    clientOrders: true,
+    clientMessaging: true,
+    clientFileUploads: true,
+    providerAssignments: true,
+    providerMessaging: true,
+    providerFileUploads: true,
+    providerEarnings: false,
+    payments: false,
+    maintenanceMode: false
   },
   homeSections: HOME_SECTION_CATALOG.map((section, index) => ({
     id: section.id,
@@ -521,6 +588,53 @@ export function normalisePlatformConfig(input = {}) {
   result.theme.buttonRadius = clamp(theme.buttonRadius, 0, 40, base.theme.buttonRadius);
   result.theme.cardRadius = clamp(theme.cardRadius, 0, 40, base.theme.cardRadius);
 
+  const catalogSource = source.serviceCatalog || {};
+  const rawCategories = Array.isArray(catalogSource.categories) ? catalogSource.categories : base.serviceCatalog.categories;
+  const categoryIds = new Set();
+  result.serviceCatalog = {
+    heading: cleanText(catalogSource.heading || base.serviceCatalog.heading, 120),
+    subheading: cleanText(catalogSource.subheading || base.serviceCatalog.subheading, 320),
+    searchPlaceholder: cleanText(catalogSource.searchPlaceholder || base.serviceCatalog.searchPlaceholder, 160),
+    categories: rawCategories.slice(0, 50).map((item, index) => {
+      const fallbackId = `category-${index + 1}`;
+      let id = cleanText(item?.id || fallbackId, 60).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') || fallbackId;
+      while (categoryIds.has(id)) id = `${id}-${index + 1}`;
+      categoryIds.add(id);
+      return {
+        id,
+        name: cleanText(item?.name || 'New category', 100),
+        shortName: cleanText(item?.shortName || item?.name || 'Category', 50),
+        icon: cleanText(item?.icon || '◆', 12),
+        description: cleanText(item?.description || '', 320),
+        family: item?.family === 'odd_job' ? 'odd_job' : 'professional',
+        featured: item?.featured !== false,
+        active: item?.active !== false,
+        order: clamp(item?.order, 0, 999, index)
+      };
+    }).sort((a, b) => a.order - b.order).map((item, order) => ({ ...item, order })),
+    services: []
+  };
+  const validCategoryIds = new Set(result.serviceCatalog.categories.map(item => item.id));
+  const defaultCategoryId = result.serviceCatalog.categories[0]?.id || 'academic';
+  const rawServices = Array.isArray(catalogSource.services) ? catalogSource.services : base.serviceCatalog.services;
+  result.serviceCatalog.services = rawServices.slice(0, 300).map((item, index) => ({
+    id: cleanText(item?.id || `service-${index + 1}`, 80).toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') || `service-${index + 1}`,
+    categoryId: validCategoryIds.has(item?.categoryId) ? item.categoryId : defaultCategoryId,
+    name: cleanText(item?.name || 'New service', 120),
+    description: cleanText(item?.description || '', 500),
+    pricingType: ['per_page', 'fixed', 'hourly', 'quote'].includes(item?.pricingType) ? item.pricingType : 'quote',
+    startingPrice: clamp(item?.startingPrice, 0, 1000000, 0),
+    unit: cleanText(item?.unit || 'custom quote', 60),
+    featured: item?.featured === true,
+    active: item?.active !== false,
+    quoteEnabled: item?.quoteEnabled !== false,
+    order: clamp(item?.order, 0, 999, index)
+  }));
+
+  result.features = Object.fromEntries(
+    Object.entries(base.features).map(([key, fallback]) => [key, source.features?.[key] == null ? fallback : source.features[key] === true])
+  );
+
   Object.keys(base.layouts).forEach(portal => {
     const layout = source.layouts?.[portal] || {};
     result.layouts[portal] = {
@@ -587,7 +701,7 @@ export function normalisePlatformConfig(input = {}) {
       textColor: cleanOptionalColor(button.textColor),
       position: clamp(button.position, 0, 20, fallback.position),
       visible: button.visible !== false,
-      showOn: ['all', 'desktop', 'mobile'].includes(button.showOn) ? button.showOn : fallback.showOn
+      showOn: ['all', 'desktop', 'tablet', 'mobile'].includes(button.showOn) ? button.showOn : fallback.showOn
     };
   });
 
@@ -597,5 +711,9 @@ export function normalisePlatformConfig(input = {}) {
   ]));
 
   result.content = safeJson(source.content || {}) || {};
+  result.content.hero = {
+    ...(result.content.hero || {}),
+    responsive: normaliseHeroResponsive(result.content.hero?.responsive, result.content.hero || {})
+  };
   return result;
 }

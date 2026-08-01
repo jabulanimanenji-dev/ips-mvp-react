@@ -5,18 +5,31 @@ import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { CMSProvider } from './context/CMSContext';
+import PlatformPreviewApp from './preview/PlatformPreviewApp';
+import { installPreviewSafetyRuntime } from './preview/previewFixtures';
 import './styles/global.css';
 
+const isPlatformPreview = window.location.pathname === '/__platform-preview';
+if (isPlatformPreview) installPreviewSafetyRuntime();
+
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <BrowserRouter>
+  isPlatformPreview ? (
+    <React.StrictMode>
       <ThemeProvider>
+        <PlatformPreviewApp />
+      </ThemeProvider>
+    </React.StrictMode>
+  ) : (
+    <React.StrictMode>
+      <BrowserRouter>
+        <ThemeProvider>
         <AuthProvider>
           <CMSProvider>
             <App />
           </CMSProvider>
         </AuthProvider>
-      </ThemeProvider>
-    </BrowserRouter>
-  </React.StrictMode>
+        </ThemeProvider>
+      </BrowserRouter>
+    </React.StrictMode>
+  )
 );

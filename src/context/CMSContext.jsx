@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_CMS } from '../utils/constants';
 import { DEFAULT_PLATFORM_CONFIG, normalisePlatformConfig } from '../../shared/platformConfig';
+import { normaliseHeroResponsive } from '../../shared/heroResponsive.js';
 import { useTheme } from './ThemeContext';
 
 const CMSContext = createContext();
@@ -9,7 +10,13 @@ const mergeContent = content => ({
   ...DEFAULT_CMS,
   ...(content || {}),
   brand: { ...DEFAULT_CMS.brand, ...(content?.brand || {}) },
-  hero: { ...DEFAULT_CMS.hero, ...(content?.hero || {}) },
+  authNavigation: { ...DEFAULT_CMS.authNavigation, ...(content?.authNavigation || {}) },
+  join: { ...DEFAULT_CMS.join, ...(content?.join || {}) },
+  hero: {
+    ...DEFAULT_CMS.hero,
+    ...(content?.hero || {}),
+    responsive: normaliseHeroResponsive(content?.hero?.responsive || DEFAULT_CMS.hero.responsive, content?.hero || DEFAULT_CMS.hero)
+  },
   process: { ...DEFAULT_CMS.process, ...(content?.process || {}), steps: content?.process?.steps || DEFAULT_CMS.process.steps },
   pricing: { ...DEFAULT_CMS.pricing, ...(content?.pricing || {}) },
   about: { ...DEFAULT_CMS.about, ...(content?.about || {}) },
@@ -23,6 +30,36 @@ const fontStack = family => ({
   Arial: "Arial, Helvetica, sans-serif",
   Verdana: "Verdana, Geneva, sans-serif"
 }[family] || "'Inter', system-ui, -apple-system, sans-serif");
+
+const themeVariables = (config, theme) => {
+  const palette = config.theme?.[theme] || config.theme?.light;
+  return {
+    '--font': fontStack(config.theme?.fontFamily),
+    '--primary': palette.primary,
+    '--primary-dark': palette.primaryDark,
+    '--accent-gold': palette.accent,
+    '--bg-body': palette.background,
+    '--bg-surface': palette.surface,
+    '--bg-surface-2': palette.surfaceAlt,
+    '--bg-card': palette.surface,
+    '--bg-header': palette.surface,
+    '--text-primary': palette.text,
+    '--text-secondary': palette.textSecondary,
+    '--text-muted': palette.textMuted,
+    '--border': palette.border,
+    '--border-strong': palette.border,
+    '--border-focus': palette.primaryDark,
+    '--success': palette.success,
+    '--danger': palette.danger,
+    '--grad-hero': `linear-gradient(135deg, ${config.theme?.gradientStart} 0%, ${config.theme?.gradientEnd} 100%)`,
+    '--grad-card-1': `linear-gradient(135deg, ${palette.primaryDark} 0%, ${palette.primary} 100%)`,
+    '--grad-card-3': `linear-gradient(135deg, ${palette.accent} 0%, ${config.theme?.gradientEnd} 100%)`,
+    '--radius-md': `${config.theme?.buttonRadius ?? 10}px`,
+    '--radius-lg': `${config.theme?.cardRadius ?? 16}px`,
+    '--content-max': `${config.layouts?.public?.contentWidth || 1200}px`,
+    '--section-spacing': `${config.layouts?.public?.sectionSpacing || 80}px`
+  };
+};
 
 export function CMSProvider({ children }) {
   const { theme } = useTheme();
@@ -50,35 +87,8 @@ export function CMSProvider({ children }) {
   }, [refreshConfig]);
 
   useEffect(() => {
-    const palette = config.theme?.[theme] || config.theme?.light;
     const root = document.documentElement;
-    const variables = {
-      '--font': fontStack(config.theme?.fontFamily),
-      '--primary': palette.primary,
-      '--primary-dark': palette.primaryDark,
-      '--accent-gold': palette.accent,
-      '--bg-body': palette.background,
-      '--bg-surface': palette.surface,
-      '--bg-surface-2': palette.surfaceAlt,
-      '--bg-card': palette.surface,
-      '--bg-header': palette.surface,
-      '--text-primary': palette.text,
-      '--text-secondary': palette.textSecondary,
-      '--text-muted': palette.textMuted,
-      '--border': palette.border,
-      '--border-strong': palette.border,
-      '--border-focus': palette.primaryDark,
-      '--success': palette.success,
-      '--danger': palette.danger,
-      '--grad-hero': `linear-gradient(135deg, ${config.theme?.gradientStart} 0%, ${config.theme?.gradientEnd} 100%)`,
-      '--grad-card-1': `linear-gradient(135deg, ${palette.primaryDark} 0%, ${palette.primary} 100%)`,
-      '--grad-card-3': `linear-gradient(135deg, ${palette.accent} 0%, ${config.theme?.gradientEnd} 100%)`,
-      '--radius-md': `${config.theme?.buttonRadius ?? 10}px`,
-      '--radius-lg': `${config.theme?.cardRadius ?? 16}px`,
-      '--content-max': `${config.layouts?.public?.contentWidth || 1200}px`,
-      '--section-spacing': `${config.layouts?.public?.sectionSpacing || 80}px`
-    };
-    Object.entries(variables).forEach(([name, value]) => value && root.style.setProperty(name, value));
+    Object.entries(themeVariables(config, theme)).forEach(([name, value]) => value != null && root.style.setProperty(name, value));
   }, [config, theme]);
 
   const cms = useMemo(() => mergeContent(config.content), [config.content]);
@@ -139,6 +149,7 @@ export function CMSProvider({ children }) {
       config,
       loading,
       publishedVersion,
+      previewDevice: null,
       refreshConfig,
       updateCMS,
       updateCMSField,
@@ -155,6 +166,40 @@ export function CMSProvider({ children }) {
       removeTrustBadge: index => removeItem('trustBadges', index)
     }}>
       {children}
+    </CMSContext.Provider>
+  );
+}
+
+export function CMSPreviewProvider({ config: previewConfig, previewDevice = 'desktop', children }) {
+  const { theme } = useTheme();
+  const normalised = useMemo(() => normalisePlatformConfig(previewConfig || DEFAULT_PLATFORM_CONFIG), [previewConfig]);
+  const value = useMemo(() => {
+    return {
+      cms: mergeContent(normalised.content),
+      config: normalised,
+      loading: false,
+      publishedVersion: 0,
+      previewDevice,
+      refreshConfig: async () => {},
+      updateCMS: () => {},
+      updateCMSField: () => {},
+      resetCMS: () => {},
+      exportCMS: () => {},
+      saveCMS: () => {},
+      addService: () => {},
+      removeService: () => {},
+      addFAQ: () => {},
+      removeFAQ: () => {},
+      addTestimonial: () => {},
+      removeTestimonial: () => {},
+      addTrustBadge: () => {},
+      removeTrustBadge: () => {}
+    };
+  }, [normalised, previewDevice]);
+
+  return (
+    <CMSContext.Provider value={value}>
+      <div className="cms-preview-theme" data-theme={theme} style={themeVariables(normalised, theme)}>{children}</div>
     </CMSContext.Provider>
   );
 }

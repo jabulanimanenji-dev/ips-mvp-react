@@ -2,17 +2,49 @@ import mongoose from 'mongoose';
 
 const WriterSchema = new mongoose.Schema({
   writer_id: { type: String, required: true, unique: true },
-  full_name: { type: String, required: true },
-  email: { type: String, required: true, unique: true },
+  full_name: { type: String, required: true, trim: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
+  phone: { type: String, default: '', trim: true },
+  country: { type: String, default: '', trim: true },
+  city: { type: String, default: '', trim: true },
+  professional_title: { type: String, default: '', trim: true },
+  experience_level: { type: String, enum: ['entry-level', 'experienced', 'student-trainee'], default: 'entry-level' },
+  has_professional_experience: { type: Boolean, default: false },
+  bio: { type: String, default: '', maxlength: 2500 },
+  motivation: { type: String, default: '', maxlength: 2500 },
   primary_expertise: { type: String, default: '' },
   secondary_expertise: { type: String, default: '' },
+  services: { type: [String], default: [] },
+  skills: { type: [String], default: [] },
+  languages: { type: [String], default: [] },
   academic_level: { type: String, default: 'Master' },
+  years_of_experience: { type: Number, default: 0, min: 0, max: 80 },
+  portfolio_url: { type: String, default: '', trim: true },
+  linkedin_url: { type: String, default: '', trim: true },
+  cv_url: { type: String, default: '', trim: true },
+  cv_original_name: { type: String, default: '', trim: true },
+  cv_stored_name: { type: String, default: '', trim: true },
+  cv_mime_type: { type: String, default: '', trim: true },
+  cv_size: { type: Number, default: 0, min: 0 },
+  cv_uploaded_at: { type: Date, default: null },
   rate_per_page_usd: { type: Number, default: 10 },
   rating: { type: Number, default: 5.0 },
   projects_completed: { type: Number, default: 0 },
   availability: { type: String, default: 'Available' },
-  status: { type: String, default: 'Active' }
+  status: { type: String, enum: ['Active', 'On Leave', 'Suspended', 'Inactive'], default: 'Inactive' },
+  application_status: {
+    type: String,
+    enum: ['pending', 'approved', 'rejected', 'more_information'],
+    default: 'pending',
+    index: true
+  },
+  application_source: { type: String, enum: ['self-service', 'admin'], default: 'admin' },
+  application_date: { type: Date, default: Date.now },
+  reviewed_at: { type: Date, default: null },
+  reviewed_by: { type: String, default: '' },
+  admin_notes: { type: String, default: '', maxlength: 3000 },
+  rejection_reason: { type: String, default: '', maxlength: 1500 }
 }, { timestamps: true });
 
 export default mongoose.model('Writer', WriterSchema);

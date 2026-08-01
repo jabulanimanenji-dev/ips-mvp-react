@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import PageDesignerV2 from './PageDesignerV2';
 import MediaLibrary from './MediaLibrary';
 import { DEFAULT_CMS } from '../../utils/constants';
+import { normaliseHeroResponsive } from '../../../shared/heroResponsive.js';
 import {
   DEFAULT_PLATFORM_CONFIG,
   DASHBOARD_WIDGET_CATALOG,
@@ -17,11 +18,14 @@ import {
 import './admin-cms.css';
 
 const TABS = [
-  ['pages', 'Page Designer 2.0'],
+  ['dashboard', 'Dashboard'],
+  ['pages', 'Website Builder'],
   ['media', 'Media Library'],
   ['builder', 'Portal Layouts'],
   ['theme', 'Theme Studio'],
   ['navigation', 'Navigation'],
+  ['services', 'Services & Pricing'],
+  ['features', 'Feature Controls'],
   ['content', 'Content'],
   ['versions', 'Publish & History']
 ];
@@ -41,7 +45,13 @@ const mergeContent = content => ({
   ...DEFAULT_CMS,
   ...(content || {}),
   brand: { ...DEFAULT_CMS.brand, ...(content?.brand || {}) },
-  hero: { ...DEFAULT_CMS.hero, ...(content?.hero || {}) },
+  authNavigation: { ...DEFAULT_CMS.authNavigation, ...(content?.authNavigation || {}) },
+  join: { ...DEFAULT_CMS.join, ...(content?.join || {}) },
+  hero: {
+    ...DEFAULT_CMS.hero,
+    ...(content?.hero || {}),
+    responsive: normaliseHeroResponsive(content?.hero?.responsive || DEFAULT_CMS.hero.responsive, content?.hero || DEFAULT_CMS.hero)
+  },
   process: { ...DEFAULT_CMS.process, ...(content?.process || {}), steps: content?.process?.steps || DEFAULT_CMS.process.steps },
   pricing: { ...DEFAULT_CMS.pricing, ...(content?.pricing || {}) },
   about: { ...DEFAULT_CMS.about, ...(content?.about || {}) },
@@ -100,7 +110,7 @@ export default function AdminCMS() {
   const [baseline, setBaseline] = useState('');
   const [versions, setVersions] = useState([]);
   const [meta, setMeta] = useState({ draftVersion: 1, publishedVersion: 1, publishedAt: null });
-  const [activeTab, setActiveTab] = useState('pages');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [portal, setPortal] = useState('public');
   const [selectedButton, setSelectedButton] = useState('heroPrimary');
   const [previewTheme, setPreviewTheme] = useState('dark');
@@ -460,9 +470,9 @@ export default function AdminCMS() {
     <div className="phase12-shell">
       <div className="phase12-topbar">
         <div>
-          <div className="phase12-eyebrow">Ultimate MVP · Phase 11</div>
-          <h2>Visual Builder 2.0</h2>
-          <p>Edit every registered page, responsive position, visual layer, media asset, portal layout, and brand style from one governed workspace.</p>
+          <div className="phase12-eyebrow">IPS CONTROL CENTRE</div>
+          <h2>Platform Studio</h2>
+          <p>Manage the public website, service catalogue, pricing, navigation, media, feature controls and publishing from one governed workspace.</p>
         </div>
         <div className="phase12-actions">
           <span className={`phase12-dirty ${dirty ? 'is-dirty' : ''}`}>{dirty ? 'Unsaved changes' : 'Draft saved'}</span>
@@ -482,6 +492,55 @@ export default function AdminCMS() {
           <button key={id} type="button" className={activeTab === id ? 'active' : ''} onClick={() => setActiveTab(id)}>{label}</button>
         ))}
       </div>
+
+      {activeTab === 'dashboard' && (() => {
+        const categories = draft.serviceCatalog?.categories || [];
+        const services = draft.serviceCatalog?.services || [];
+        const pages = draft.pageDesigns ? Object.values(draft.pageDesigns) : [];
+        const activeCategories = categories.filter(item => item.active).length;
+        const activeServices = services.filter(item => item.active).length;
+        const featuredServices = services.filter(item => item.active && item.featured).length;
+        const enabledPages = pages.filter(item => item.enabled !== false).length;
+        const visibleSections = (draft.homeSections || []).filter(item => item.visible).length;
+        const enabledFeatures = Object.values(draft.features || {}).filter(Boolean).length;
+        const totalFeatures = Object.keys(draft.features || {}).length;
+        return (
+          <div className="platform-studio-dashboard">
+            <section className="platform-studio-welcome">
+              <div>
+                <span>Platform overview</span>
+                <h3>Build and control the IPS experience</h3>
+                <p>Academic services remain the flagship while every active category, service, price and marketing section can be managed here.</p>
+              </div>
+              <button className="btn btn-primary" type="button" onClick={() => setActiveTab('services')}>Manage services</button>
+            </section>
+
+            <div className="platform-studio-kpis">
+              <button type="button" onClick={() => setActiveTab('services')}><small>Active categories</small><strong>{activeCategories}</strong><span>{categories.length} configured</span></button>
+              <button type="button" onClick={() => setActiveTab('services')}><small>Published services</small><strong>{activeServices}</strong><span>{featuredServices} featured</span></button>
+              <button type="button" onClick={() => setActiveTab('pages')}><small>Editable pages</small><strong>{enabledPages}</strong><span>{pages.length} registered</span></button>
+              <button type="button" onClick={() => setActiveTab('builder')}><small>Homepage sections</small><strong>{visibleSections}</strong><span>Visible in current draft</span></button>
+              <button type="button" onClick={() => setActiveTab('features')}><small>Features enabled</small><strong>{enabledFeatures}</strong><span>of {totalFeatures} controls</span></button>
+              <button type="button" onClick={() => setActiveTab('versions')}><small>Live version</small><strong>v{meta.publishedVersion}</strong><span>Draft v{meta.draftVersion}</span></button>
+            </div>
+
+            <div className="platform-studio-modules">
+              {[
+                ['pages', 'Website', 'Edit every registered page, hero and visual layer.'],
+                ['services', 'Services & Pricing', 'Manage categories, services, pricing and quote availability.'],
+                ['navigation', 'Navigation', 'Control public, client, provider and admin menus.'],
+                ['media', 'Media Library', 'Manage reusable images, videos and documents.'],
+                ['features', 'Feature Controls', 'Enable or disable major platform capabilities.'],
+                ['versions', 'Publishing', 'Review, publish, export and restore platform versions.']
+              ].map(([id, title, description]) => (
+                <button key={id} type="button" onClick={() => setActiveTab(id)}>
+                  <strong>{title}</strong><span>{description}</span><b>Open module →</b>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {activeTab === 'pages' && <PageDesignerV2 draft={draft} setDraft={setDraft} />}
 
@@ -579,7 +638,7 @@ export default function AdminCMS() {
                 <Field label="Icon or short symbol" value={button.icon} onChange={value => updateButton('icon', value)} />
                 <label className="phase12-field"><span>Destination</span><select className="form-select" value={button.target} onChange={event => updateButton('target', event.target.value)}>{SAFE_ROUTE_OPTIONS[portal].map(([target, label]) => <option key={target} value={target}>{label}</option>)}</select></label>
                 <label className="phase12-field"><span>Style</span><select className="form-select" value={button.variant} onChange={event => updateButton('variant', event.target.value)}><option value="primary">Primary</option><option value="secondary">Secondary</option><option value="ghost">Outline</option><option value="gold">Gold</option></select></label>
-                <label className="phase12-field"><span>Device visibility</span><select className="form-select" value={button.showOn} onChange={event => updateButton('showOn', event.target.value)}><option value="all">All devices</option><option value="desktop">Desktop only</option><option value="mobile">Mobile only</option></select></label>
+                <label className="phase12-field"><span>Device visibility</span><select className="form-select" value={button.showOn} onChange={event => updateButton('showOn', event.target.value)}><option value="all">All devices</option><option value="desktop">Desktop only</option><option value="tablet">Tablet only</option><option value="mobile">Mobile only</option></select></label>
                 <div className="phase12-inline-fields"><ColorField label="Custom background" value={button.backgroundColor || '#A305A6'} onChange={value => updateButton('backgroundColor', value)} /><ColorField label="Custom text" value={button.textColor || '#FFFFFF'} onChange={value => updateButton('textColor', value)} /></div>
                 <div className="phase12-reorder-buttons"><button type="button" onClick={() => moveButton(-1)}>Move earlier</button><button type="button" onClick={() => moveButton(1)}>Move later</button><label><input type="checkbox" checked={button.visible} onChange={event => updateButton('visible', event.target.checked)} /> Visible</label></div>
                 <button type="button" className="phase12-clear-colors" onClick={() => setDraft(previous => ({ ...previous, buttons: { ...previous.buttons, [selectedButton]: { ...previous.buttons[selectedButton], backgroundColor: '', textColor: '' } } }))}>Use theme colors</button>
@@ -648,6 +707,57 @@ export default function AdminCMS() {
         </section>
       )}
 
+
+      {activeTab === 'services' && (
+        <div className="phase12-content-grid">
+          <section className="phase12-panel phase12-content-wide">
+            <div className="phase12-panel-heading"><span>Service Explorer</span><small>Controls homepage discovery and marketplace categories</small></div>
+            <Field label="Section heading" value={draft.serviceCatalog?.heading} onChange={value => setDraft(previous => ({...previous,serviceCatalog:{...previous.serviceCatalog,heading:value}}))} />
+            <Field label="Section description" value={draft.serviceCatalog?.subheading} onChange={value => setDraft(previous => ({...previous,serviceCatalog:{...previous.serviceCatalog,subheading:value}}))} multiline />
+            <Field label="Search placeholder" value={draft.serviceCatalog?.searchPlaceholder} onChange={value => setDraft(previous => ({...previous,serviceCatalog:{...previous.serviceCatalog,searchPlaceholder:value}}))} />
+          </section>
+          <section className="phase12-panel phase12-content-wide">
+            <div className="phase12-panel-heading"><span>Service categories</span><button className="btn btn-primary btn-sm" onClick={()=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:[...(previous.serviceCatalog.categories||[]),{id:`category-${Date.now()}`,name:'New category',shortName:'Category',icon:'◆',description:'',family:'professional',featured:true,active:true,order:(previous.serviceCatalog.categories||[]).length}]}}))}>Add category</button></div>
+            <div className="phase12-repeaters two">{(draft.serviceCatalog?.categories||[]).map((category,index)=><div key={category.id}>
+              <div className="phase12-inline-fields"><Field label="Icon" value={category.icon} onChange={value=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:previous.serviceCatalog.categories.map((entry,i)=>i===index?{...entry,icon:value}:entry)}}))}/><Field label="Name" value={category.name} onChange={value=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:previous.serviceCatalog.categories.map((entry,i)=>i===index?{...entry,name:value}:entry)}}))}/></div>
+              <Field label="Short tab label" value={category.shortName} onChange={value=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:previous.serviceCatalog.categories.map((entry,i)=>i===index?{...entry,shortName:value}:entry)}}))}/>
+              <Field label="Description" value={category.description} onChange={value=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:previous.serviceCatalog.categories.map((entry,i)=>i===index?{...entry,description:value}:entry)}}))} multiline/>
+              <div className="phase12-inline-fields"><label className="page-designer-check"><input type="checkbox" checked={category.active} onChange={e=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:previous.serviceCatalog.categories.map((entry,i)=>i===index?{...entry,active:e.target.checked}:entry)}}))}/> Active</label><label className="page-designer-check"><input type="checkbox" checked={category.featured} onChange={e=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:previous.serviceCatalog.categories.map((entry,i)=>i===index?{...entry,featured:e.target.checked}:entry)}}))}/> Featured</label><select className="form-select" value={category.family} onChange={e=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:previous.serviceCatalog.categories.map((entry,i)=>i===index?{...entry,family:e.target.value}:entry)}}))}><option value="professional">Professional</option><option value="odd_job">Practical assistance</option></select></div>
+              <div className="phase12-row-actions"><button onClick={()=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:move(previous.serviceCatalog.categories,index,index-1)}}))} disabled={index===0}>↑</button><button onClick={()=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:move(previous.serviceCatalog.categories,index,index+1)}}))} disabled={index===(draft.serviceCatalog.categories.length-1)}>↓</button><button className="danger" onClick={()=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,categories:previous.serviceCatalog.categories.filter((_,i)=>i!==index),services:previous.serviceCatalog.services.filter(item=>item.categoryId!==category.id)}}))}>Remove</button></div>
+            </div>)}</div>
+          </section>
+          <section className="phase12-panel phase12-content-wide">
+            <div className="phase12-panel-heading"><span>Services and pricing</span><button className="btn btn-primary btn-sm" onClick={()=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:[...(previous.serviceCatalog.services||[]),{id:`service-${Date.now()}`,categoryId:previous.serviceCatalog.categories?.[0]?.id||'academic',name:'New service',description:'',pricingType:'quote',startingPrice:0,unit:'custom quote',featured:false,active:true,quoteEnabled:true,order:(previous.serviceCatalog.services||[]).length}]}}))}>Add service</button></div>
+            <div className="phase12-repeaters two">{(draft.serviceCatalog?.services||[]).map((service,index)=><div key={service.id}>
+              <Field label="Service name" value={service.name} onChange={value=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,name:value}:entry)}}))}/>
+              <Field label="Description" value={service.description} onChange={value=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,description:value}:entry)}}))} multiline/>
+              <div className="phase12-inline-fields"><label className="phase12-field"><span>Category</span><select className="form-select" value={service.categoryId} onChange={e=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,categoryId:e.target.value}:entry)}}))}>{(draft.serviceCatalog.categories||[]).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label><label className="phase12-field"><span>Pricing model</span><select className="form-select" value={service.pricingType} onChange={e=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,pricingType:e.target.value}:entry)}}))}><option value="quote">Custom quote</option><option value="per_page">Per page</option><option value="fixed">Fixed</option><option value="hourly">Hourly</option></select></label></div>
+              <div className="phase12-inline-fields"><Field label="Starting price (USD)" type="number" min={0} value={service.startingPrice} onChange={value=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,startingPrice:value}:entry)}}))}/><Field label="Unit label" value={service.unit} onChange={value=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,unit:value}:entry)}}))}/></div>
+              <div className="phase12-inline-fields"><label className="page-designer-check"><input type="checkbox" checked={service.active} onChange={e=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,active:e.target.checked}:entry)}}))}/> Active</label><label className="page-designer-check"><input type="checkbox" checked={service.featured} onChange={e=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,featured:e.target.checked}:entry)}}))}/> Featured</label><label className="page-designer-check"><input type="checkbox" checked={service.quoteEnabled} onChange={e=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.map((entry,i)=>i===index?{...entry,quoteEnabled:e.target.checked}:entry)}}))}/> Quote enabled</label></div>
+              <button type="button" className="phase12-remove" onClick={()=>setDraft(previous=>({...previous,serviceCatalog:{...previous.serviceCatalog,services:previous.serviceCatalog.services.filter((_,i)=>i!==index)}}))}>Remove service</button>
+            </div>)}</div>
+          </section>
+        </div>
+      )}
+
+
+      {activeTab === 'features' && (
+        <div className="phase12-content-grid">
+          <section className="phase12-panel phase12-content-wide">
+            <div className="phase12-panel-heading"><span>Super Admin feature controls</span><small>Published changes apply platform-wide</small></div>
+            <p className="phase12-help">Turn public entry points and portal capabilities on or off without changing application code. Protected backend enforcement will be expanded feature by feature.</p>
+            <div className="phase12-repeaters two">
+              {Object.entries(draft.features || {}).map(([key, enabled]) => (
+                <label key={key} className="page-designer-check" style={{ justifyContent: 'space-between', padding: '1rem', border: '1px solid var(--border)', borderRadius: 12 }}>
+                  <span><strong style={{ display: 'block' }}>{key.replace(/([A-Z])/g, ' $1').replace(/^./, value => value.toUpperCase())}</strong><small style={{ color: 'var(--text-muted)' }}>{enabled ? 'Currently enabled' : 'Currently disabled'}</small></span>
+                  <input type="checkbox" checked={Boolean(enabled)} onChange={event => setDraft(previous => ({ ...previous, features: { ...previous.features, [key]: event.target.checked } }))} />
+                </label>
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
+
       {activeTab === 'content' && (
         <div className="phase12-content-grid">
           <section className="phase12-panel">
@@ -656,6 +766,40 @@ export default function AdminCMS() {
             <Field label="Tagline" value={draft.content.brand?.tagline} onChange={value => updateContentSection('brand', { tagline: value })} />
             <Field label="Support email" type="email" value={draft.content.brand?.email} onChange={value => updateContentSection('brand', { email: value })} />
             <Field label="WhatsApp" value={draft.content.brand?.whatsapp} onChange={value => updateContentSection('brand', { whatsapp: value })} />
+          </section>
+          <section className="phase12-panel phase12-content-wide">
+            <div className="phase12-panel-heading"><span>Authentication navigation</span><small>Header sign-in and sign-up menus</small></div>
+            <div className="phase12-inline-fields">
+              <Field label="Sign-in menu label" value={draft.content.authNavigation?.signInLabel} onChange={value => updateContentSection('authNavigation', { signInLabel: value })} />
+              <Field label="Sign-up menu label" value={draft.content.authNavigation?.signUpLabel} onChange={value => updateContentSection('authNavigation', { signUpLabel: value })} />
+              <Field label="Client sign-in label" value={draft.content.authNavigation?.clientLoginLabel} onChange={value => updateContentSection('authNavigation', { clientLoginLabel: value })} />
+              <Field label="Provider sign-in label" value={draft.content.authNavigation?.providerLoginLabel} onChange={value => updateContentSection('authNavigation', { providerLoginLabel: value })} />
+              <Field label="Client sign-up label" value={draft.content.authNavigation?.clientSignupLabel} onChange={value => updateContentSection('authNavigation', { clientSignupLabel: value })} />
+              <Field label="Provider sign-up label" value={draft.content.authNavigation?.providerSignupLabel} onChange={value => updateContentSection('authNavigation', { providerSignupLabel: value })} />
+            </div>
+            <Field label="Client sign-in description" value={draft.content.authNavigation?.clientLoginDescription} onChange={value => updateContentSection('authNavigation', { clientLoginDescription: value })} />
+            <Field label="Provider sign-in description" value={draft.content.authNavigation?.providerLoginDescription} onChange={value => updateContentSection('authNavigation', { providerLoginDescription: value })} />
+            <Field label="Client sign-up description" value={draft.content.authNavigation?.clientSignupDescription} onChange={value => updateContentSection('authNavigation', { clientSignupDescription: value })} />
+            <Field label="Provider sign-up description" value={draft.content.authNavigation?.providerSignupDescription} onChange={value => updateContentSection('authNavigation', { providerSignupDescription: value })} />
+          </section>
+          <section className="phase12-panel phase12-content-wide">
+            <div className="phase12-panel-heading"><span>Join page</span><small>/join account-type selection</small></div>
+            <div className="phase12-inline-fields">
+              <Field label="Badge" value={draft.content.join?.badge} onChange={value => updateContentSection('join', { badge: value })} />
+              <Field label="Headline" value={draft.content.join?.headline} onChange={value => updateContentSection('join', { headline: value })} />
+            </div>
+            <Field label="Subheadline" value={draft.content.join?.subheadline} onChange={value => updateContentSection('join', { subheadline: value })} multiline />
+            <div className="phase12-inline-fields">
+              <Field label="Client eyebrow" value={draft.content.join?.clientEyebrow} onChange={value => updateContentSection('join', { clientEyebrow: value })} />
+              <Field label="Client title" value={draft.content.join?.clientTitle} onChange={value => updateContentSection('join', { clientTitle: value })} />
+              <Field label="Client button" value={draft.content.join?.clientButton} onChange={value => updateContentSection('join', { clientButton: value })} />
+              <Field label="Provider eyebrow" value={draft.content.join?.providerEyebrow} onChange={value => updateContentSection('join', { providerEyebrow: value })} />
+              <Field label="Provider title" value={draft.content.join?.providerTitle} onChange={value => updateContentSection('join', { providerTitle: value })} />
+              <Field label="Provider button" value={draft.content.join?.providerButton} onChange={value => updateContentSection('join', { providerButton: value })} />
+            </div>
+            <Field label="Client description" value={draft.content.join?.clientDescription} onChange={value => updateContentSection('join', { clientDescription: value })} multiline />
+            <Field label="Provider description" value={draft.content.join?.providerDescription} onChange={value => updateContentSection('join', { providerDescription: value })} multiline />
+            <Field label="Closed option message" value={draft.content.join?.closedMessage} onChange={value => updateContentSection('join', { closedMessage: value })} />
           </section>
           <section className="phase12-panel">
             <div className="phase12-panel-heading"><span>Homepage hero</span><small>First impression</small></div>

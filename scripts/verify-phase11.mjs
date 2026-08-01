@@ -22,7 +22,7 @@ const projectDir = path.resolve(scriptsDir, '..');
 const read = relative => readFile(path.join(projectDir, relative), 'utf8');
 
 const validated = normalisePlatformConfig(DEFAULT_PLATFORM_CONFIG);
-assert.equal(validated.schemaVersion, 3);
+assert.equal(validated.schemaVersion, 5);
 assert.ok(PAGE_CATALOG.length >= 35);
 assert.equal(Object.keys(validated.pageDesigns).length, PAGE_CATALOG.length);
 assert.equal(resolvePageDefinition('/client/orders/ORDER-1').id, 'client.order-detail');
@@ -98,7 +98,8 @@ assert.match(app, /VisualPageLayer/);
 assert.match(app, /mustChangePassword/);
 assert.match(accessManager, /Custom roles/);
 assert.match(accessManager, /Reset password/);
-assert.match(designer, /Drag a block anywhere/);
+assert.match(designer, /ResponsivePreviewFrame/);
+assert.match(designer, /responsive issue/);
 assert.match(designer, /Looping video/);
 assert.match(visualLayer, /resolvePageDefinition/);
 assert.match(mediaModel, /video\/webm/);

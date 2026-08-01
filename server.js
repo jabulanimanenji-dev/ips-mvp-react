@@ -490,7 +490,7 @@ app.post('/api/writers', async (req, res) => {
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const count = await Writer.countDocuments();
     const newId = `WID-${String(count + 1).padStart(3, '0')}`;
-    const writer = new Writer({ ...req.body, password: hashPassword(req.body.password), writer_id: newId });
+    const writer = new Writer({ ...req.body, password: hashPassword(req.body.password), writer_id: newId, application_status: 'approved', application_source: 'admin', status: req.body.status || 'Active', reviewed_at: new Date(), reviewed_by: session.id });
     await writer.save();
     const safeWriter = writer.toObject();
     delete safeWriter.password;
@@ -566,24 +566,155 @@ app.patch('/api/writers/:id', async (req, res) => {
   }
 });
 
+// Public service-provider application
+app.post('/api/provider/register', async (req, res) => {
+  let writtenCvKey = '';
+  try {
+    const required = ['full_name', 'email', 'password', 'phone', 'country', 'motivation'];
+    const missing = required.filter(field => !String(req.body?.[field] || '').trim());
+    if (missing.length) return res.status(400).json({ success: false, error: `Missing required fields: ${missing.join(', ')}` });
+    if (String(req.body.password).length < 8) return res.status(400).json({ success: false, error: 'Password must contain at least 8 characters.' });
+
+    const email = String(req.body.email).trim().toLowerCase();
+    if (await Writer.exists({ email })) return res.status(409).json({ success: false, error: 'A provider account or application already exists for this email.' });
+
+    const count = await Writer.countDocuments();
+    const writer_id = `WID-${String(count + 1).padStart(3, '0')}`;
+    const list = value => Array.isArray(value) ? value.map(item => String(item).trim()).filter(Boolean) : String(value || '').split(',').map(item => item.trim()).filter(Boolean);
+    const experienceLevel = ['entry-level', 'experienced', 'student-trainee'].includes(String(req.body.experience_level))
+      ? String(req.body.experience_level)
+      : 'entry-level';
+
+    let cvRecord = {};
+    const cv = req.body?.cv;
+    if (cv?.data) {
+      const extension = path.extname(String(cv.name || '')).toLowerCase();
+      const cvTypes = new Map([
+        ['.pdf', 'application/pdf'],
+        ['.doc', 'application/msword'],
+        ['.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+      ]);
+      if (!cvTypes.has(extension)) return res.status(400).json({ success: false, error: 'CV must be a PDF, DOC or DOCX file.' });
+      const buffer = decodeBase64File(cv.data, 5 * 1024 * 1024);
+      if (!buffer || !matchesFileSignature(buffer, extension)) return res.status(400).json({ success: false, error: 'The attached CV is invalid or exceeds 5 MB.' });
+      if (Number(cv.size) && Number(cv.size) !== buffer.length) return res.status(400).json({ success: false, error: 'The attached CV has an invalid size.' });
+      const storedName = `${crypto.randomUUID()}${extension}`;
+      writtenCvKey = storageKey('provider-cvs', storedName);
+      const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
+      await objectStorage.write(writtenCvKey, buffer, {
+        contentType: cvTypes.get(extension),
+        metadata: { sha256: checksum, scope: 'provider-cv', writer_id }
+      });
+      cvRecord = {
+        cv_original_name: normaliseUploadName(cv.name, `cv${extension}`),
+        cv_stored_name: storedName,
+        cv_mime_type: cvTypes.get(extension),
+        cv_size: buffer.length,
+        cv_uploaded_at: new Date(),
+        cv_url: `/api/provider/applications/${writer_id}/cv`
+      };
+    }
+
+    const writer = await Writer.create({
+      writer_id,
+      full_name: String(req.body.full_name).trim(),
+      email,
+      password: hashPassword(req.body.password),
+      phone: String(req.body.phone).trim(),
+      country: String(req.body.country).trim(),
+      city: String(req.body.city || '').trim(),
+      experience_level: experienceLevel,
+      has_professional_experience: Boolean(req.body.has_professional_experience),
+      professional_title: String(req.body.professional_title || '').trim(),
+      bio: String(req.body.bio || '').trim(),
+      motivation: String(req.body.motivation).trim(),
+      primary_expertise: String(req.body.primary_expertise || '').trim(),
+      secondary_expertise: String(req.body.secondary_expertise || '').trim(),
+      services: list(req.body.services),
+      skills: list(req.body.skills),
+      languages: list(req.body.languages),
+      academic_level: String(req.body.academic_level || ''),
+      years_of_experience: Math.max(0, Number(req.body.years_of_experience || 0)),
+      availability: String(req.body.availability || 'Flexible'),
+      portfolio_url: String(req.body.portfolio_url || '').trim(),
+      linkedin_url: String(req.body.linkedin_url || '').trim(),
+      ...cvRecord,
+      application_status: 'pending',
+      application_source: 'self-service',
+      status: 'Inactive'
+    });
+    res.status(201).json({ success: true, application: { writer_id: writer.writer_id, full_name: writer.full_name, email: writer.email, application_status: writer.application_status, cv_attached: Boolean(writer.cv_stored_name) } });
+  } catch (err) {
+    if (writtenCvKey) await objectStorage.remove(writtenCvKey).catch(() => {});
+    if (respondWithStorageError(res, err)) return;
+    res.status(500).json({ success: false, error: err.code === 11000 ? 'This email is already registered.' : err.message });
+  }
+});
+
+app.get('/api/provider/applications/:id/cv', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin' && !(session.role === 'writer' && session.id === req.params.id)) {
+      return res.status(403).json({ success: false, error: 'You cannot access this CV.' });
+    }
+    const writer = await Writer.findOne({ writer_id: req.params.id }).select('cv_original_name cv_stored_name cv_mime_type');
+    if (!writer?.cv_stored_name) return res.status(404).json({ success: false, error: 'No CV is attached to this application.' });
+    const storedObject = await objectStorage.read(storageKey('provider-cvs', writer.cv_stored_name));
+    res.setHeader('Content-Type', writer.cv_mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${String(writer.cv_original_name || 'provider-cv').replace(/["\\]/g, '_')}"`);
+    res.send(storedObject.body);
+  } catch (err) {
+    if (respondWithStorageError(res, err, 'The attached CV is not available.')) return;
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin provider-application review
+app.patch('/api/provider/applications/:id', async (req, res) => {
+  try {
+    const session = requireSession(req, res);
+    if (!session) return;
+    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    const decision = String(req.body.decision || '').toLowerCase();
+    if (!['approved', 'rejected', 'more_information'].includes(decision)) return res.status(400).json({ success: false, error: 'Invalid review decision.' });
+    const updates = {
+      application_status: decision,
+      status: decision === 'approved' ? 'Active' : 'Inactive',
+      reviewed_at: new Date(),
+      reviewed_by: session.id,
+      admin_notes: String(req.body.admin_notes || ''),
+      rejection_reason: decision === 'rejected' ? String(req.body.rejection_reason || '') : ''
+    };
+    const writer = await Writer.findOneAndUpdate({ writer_id: req.params.id }, updates, { returnDocument: 'after', runValidators: true }).select('-password');
+    if (!writer) return res.status(404).json({ success: false, error: 'Provider application not found.' });
+    res.json({ success: true, writer });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Writer login
 app.post('/api/writer/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const writer = await Writer.findOne({ email, status: 'Active' });
-    if (writer && verifyPassword(password, writer.password)) {
-      if (!writer.password.startsWith('scrypt$')) {
-        writer.password = hashPassword(password);
-        await writer.save();
-      }
-      const safeWriter = writer.toObject();
-      delete safeWriter.password;
-      const token = signSession({ id: writer.writer_id, role: 'writer' });
-      setSessionCookie(res, token);
-      res.json({ success: true, writer: safeWriter, token });
-    } else {
-      res.status(401).json({ success: false, message: 'Invalid credentials' });
+    const email = String(req.body?.email || '').trim().toLowerCase();
+    const password = String(req.body?.password || '');
+    const writer = await Writer.findOne({ email });
+    if (!writer || !verifyPassword(password, writer.password)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    const applicationStatus = writer.application_status || 'approved';
+    if (applicationStatus === 'pending') return res.status(403).json({ success: false, message: 'Your service-provider application is awaiting review.' });
+    if (applicationStatus === 'more_information') return res.status(403).json({ success: false, message: 'IPS needs more information before your application can be approved. Please contact administration.' });
+    if (applicationStatus === 'rejected') return res.status(403).json({ success: false, message: writer.rejection_reason || 'Your service-provider application was not approved.' });
+    if (applicationStatus !== 'approved' || writer.status !== 'Active') return res.status(403).json({ success: false, message: 'Your provider account is not active.' });
+    if (!writer.password.startsWith('scrypt$')) {
+      writer.password = hashPassword(password);
+      await writer.save();
     }
+    const safeWriter = writer.toObject();
+    delete safeWriter.password;
+    const token = signSession({ id: writer.writer_id, role: 'writer' });
+    setSessionCookie(res, token);
+    res.json({ success: true, writer: safeWriter, token });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -626,7 +757,7 @@ app.post('/api/admin/login', async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     const adminEmail = String(process.env.ADMIN_EMAIL || 'admin@ipsglobal.com').trim().toLowerCase();
-    
+
     if (email === adminEmail && password === process.env.ADMIN_PASSWORD) {
       const token = signSession({
         id: email,
@@ -661,7 +792,7 @@ app.post('/api/admin/login', async (req, res) => {
       });
       return;
     }
-    
+
     const admin = await Admin.findOne({ email });
     if (admin && (admin.status || 'Active') === 'Active' && verifyPassword(password, admin.password)) {
       if (!admin.password.startsWith('scrypt$')) {

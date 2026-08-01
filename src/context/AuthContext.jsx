@@ -332,7 +332,7 @@ export function AuthProvider({ children }) {
           return {
             success:false,
             error:
-              data.message ||
+              data.message || data.error ||
               'Invalid credentials'
           };
 
@@ -428,7 +428,7 @@ export function AuthProvider({ children }) {
           return {
             success:false,
             error:
-              data.message ||
+              data.message || data.error ||
               'Invalid credentials'
           };
 
@@ -580,6 +580,61 @@ export function AuthProvider({ children }) {
 
   );
 
+}
+
+const PREVIEW_CLIENT = {
+  _id: 'preview-client-001',
+  client_id: 'preview-client-001',
+  full_name: 'Preview Client',
+  email: 'client.preview@ips.local',
+  token: 'preview-client-token'
+};
+
+const PREVIEW_WRITER = {
+  _id: 'preview-provider-001',
+  writer_id: 'preview-provider-001',
+  full_name: 'Preview Service Provider',
+  email: 'provider.preview@ips.local',
+  applicationStatus: 'approved',
+  status: 'Active',
+  token: 'preview-provider-token'
+};
+
+const PREVIEW_ADMIN = {
+  _id: 'preview-admin-001',
+  id: 'preview-admin-001',
+  adminId: 'preview-admin-001',
+  name: 'Preview Super Admin',
+  full_name: 'Preview Super Admin',
+  email: 'admin.preview@ips.local',
+  role: 'superadmin',
+  isSuperAdmin: true,
+  permissions: ['*'],
+  mustChangePassword: false,
+  token: 'preview-admin-token'
+};
+
+export function PreviewAuthProvider({ children, pageId = 'public.home' }) {
+  const portal = pageId.split('.')[0];
+  const previewResult = async () => ({ success: false, preview: true, error: 'Actions are disabled in preview mode.' });
+  return (
+    <AuthContext.Provider value={{
+      user: portal === 'client' ? PREVIEW_CLIENT : null,
+      writer: portal === 'writer' && pageId !== 'writer.login' ? PREVIEW_WRITER : null,
+      admin: portal === 'admin' && pageId !== 'admin.login' ? PREVIEW_ADMIN : null,
+      loading: false,
+      loginClient: previewResult,
+      signupClient: previewResult,
+      loginAdmin: previewResult,
+      loginWriter: previewResult,
+      updateClientProfile: previewResult,
+      changeAdminPassword: previewResult,
+      logout: () => {},
+      hasAdminPermission: () => true
+    }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 

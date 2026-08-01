@@ -130,7 +130,7 @@ h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
    Append to end of global styles file
    ============================================ */
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .config-desktop-only { display: none !important; }
   .config-mobile-only { display: inline-flex !important; }
   /* Layout */
@@ -262,7 +262,7 @@ h1, h2, h3, h4 { font-weight: 700; line-height: 1.2; letter-spacing: -0.02em; }
 .hidden-mobile { display: block; }
 .mobile-only { display: none; }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   .hidden-mobile { display: none !important; }
   .mobile-only { display: block !important; }
 }

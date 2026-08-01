@@ -39,22 +39,22 @@ const FloatingElement = ({ element }) => {
 
   const className = `visual-page-element visual-page-element-${element.type} visual-show-${element.showOn}`;
   if (element.type === 'image' || element.type === 'video') {
-    return <div className={className} style={style}><Media assetId={element.assetId} type={element.type} alt={element.alt} /></div>;
+    return <div className={className} style={style} data-preview-element-id={element.id}><Media assetId={element.assetId} type={element.type} alt={element.alt} /></div>;
   }
   if (element.type === 'button') {
     return (
-      <Link className={`${className} btn btn-primary`} style={style} to={element.target || '/'}>
+      <Link className={`${className} btn btn-primary`} style={style} to={element.target || '/'} data-preview-element-id={element.id}>
         {element.text}
       </Link>
     );
   }
-  return <div className={className} style={style}>{element.text}</div>;
+  return <div className={className} style={style} data-preview-element-id={element.id}>{element.text}</div>;
 };
 
-export default function VisualPageLayer({ children }) {
+export default function VisualPageLayer({ children, pageId, suppressElements = false }) {
   const location = useLocation();
   const { config } = useCMS();
-  const page = resolvePageDefinition(location.pathname, ADMIN_ENTRY_PATH);
+  const page = pageId ? { id: pageId } : resolvePageDefinition(location.pathname, ADMIN_ENTRY_PATH);
   const design = page ? config.pageDesigns?.[page.id] : null;
 
   if (!design?.enabled) return children;
@@ -85,9 +85,9 @@ export default function VisualPageLayer({ children }) {
         <div className="visual-page-background-overlay" style={{ background: background.overlayColor, opacity: background.overlayOpacity }} />
       )}
       <div className="visual-page-content" style={contentStyle}>{children}</div>
-      <div className="visual-page-elements" aria-label="Page content blocks">
+      {!suppressElements && <div className="visual-page-elements" aria-label="Page content blocks">
         {(design.elements || []).map(element => <FloatingElement key={element.id} element={element} />)}
-      </div>
+      </div>}
     </div>
   );
 }

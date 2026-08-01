@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function WriterLogin() {
@@ -124,8 +124,9 @@ export default function WriterLogin() {
         </form>
 
         <p style={{ textAlign: 'center', marginTop: '1.25rem', color: '#748B91', fontSize: '0.8rem' }}>
-          Contact IPS administration to activate provider access
+          Applications must be approved before provider access is activated
         </p>
+        <Link to="/become-a-provider" className="btn btn-secondary" style={{ width: '100%', marginTop: '.75rem' }}>Apply to become a provider</Link>
       </div>
     </div>
   );

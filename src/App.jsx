@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { useCMS } from './context/CMSContext';
 
 import PublicLayout from './pages/PublicLayout';
 import HomePage from './pages/HomePage';
@@ -8,6 +9,8 @@ import QuotePage from './pages/QuotePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ServiceMarketplacePage from './pages/ServiceMarketplacePage';
+import ProviderApplicationPage from './pages/ProviderApplicationPage';
+import JoinPage from './pages/JoinPage';
 
 import ClientLayout from './pages/ClientLayout';
 import ClientOverview from './components/client/ClientOverviewMongo';
@@ -48,6 +51,21 @@ import VisualPageLayer from './components/common/VisualPageLayer';
 const ADMIN_ENTRY_PATH = (import.meta.env.VITE_ADMIN_ENTRY_PATH || '/ips-mission-control')
   .trim()
   .replace(/\/+$/, '');
+
+function FeatureGate({ feature, children }) {
+  const { config } = useCMS();
+  if (config.features?.[feature] !== false) return children;
+  return (
+    <section style={{ minHeight: '65vh', display: 'grid', placeItems: 'center', padding: '2rem' }}>
+      <div className="card" style={{ width: 'min(620px, 100%)', textAlign: 'center' }}>
+        <div className="badge badge-review">Temporarily unavailable</div>
+        <h1>This IPS feature is currently turned off</h1>
+        <p style={{ color: 'var(--text-muted)' }}>A Super Admin has temporarily disabled this part of the platform. Please return to the homepage or contact IPS support.</p>
+        <a href="/" className="btn btn-primary">Return home</a>
+      </div>
+    </section>
+  );
+}
 
 
 function ProtectedClientRoute({ children }) {
@@ -178,19 +196,21 @@ export default function App() {
 
         <Route
           path="/quote"
-          element={<QuotePage />}
+          element={<FeatureGate feature="quoteRequests"><QuotePage /></FeatureGate>}
         />
 
-        <Route path="/services" element={<ServiceMarketplacePage />} />
+        <Route path="/services" element={<FeatureGate feature="serviceMarketplace"><ServiceMarketplacePage /></FeatureGate>} />
+        <Route path="/join" element={<JoinPage />} />
+        <Route path="/become-a-provider" element={<FeatureGate feature="providerApplications"><ProviderApplicationPage /></FeatureGate>} />
 
         <Route
           path="/login"
-          element={<LoginPage />}
+          element={<FeatureGate feature="clientLogin"><LoginPage /></FeatureGate>}
         />
 
         <Route
           path="/signup"
-          element={<SignupPage />}
+          element={<FeatureGate feature="clientRegistration"><SignupPage /></FeatureGate>}
         />
 
       </Route>
@@ -276,7 +296,7 @@ export default function App() {
 
       <Route
         path="/writer/login"
-        element={<WriterLogin />}
+        element={<FeatureGate feature="providerLogin"><WriterLogin /></FeatureGate>}
       />
 
 

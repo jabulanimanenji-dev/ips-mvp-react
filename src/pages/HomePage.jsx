@@ -25,7 +25,7 @@ export default function HomePage() {
       {(config.homeSections || [])
         .filter(section => section.visible && sections[section.id])
         .sort((a, b) => a.order - b.order)
-        .map(section => <React.Fragment key={section.id}>{sections[section.id]}</React.Fragment>)}
+        .map(section => <div key={section.id} data-builder-section={section.id} className="builder-section-boundary">{sections[section.id]}</div>)}
     </>
   );
 }

@@ -1,41 +1,29 @@
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useCMS } from '../context/CMSContext';
 import './service-marketplace.css';
-
-const professional = [
-  ['Business & Admin', 'Plans, proposals, research, virtual assistance', '◆'],
-  ['Career Studio', 'CVs, cover letters, LinkedIn and interviews', '↗'],
-  ['Writing & Editing', 'Editing, web copy, technical and creative work', '✦'],
-  ['Research & Data', 'Research, analysis, reports and visualization', '⌁'],
-  ['Design & Digital', 'Branding, presentations, websites and content', '◈'],
-  ['Technology Support', 'Setup, troubleshooting, automation and data', '⌘']
-];
-const oddJobs = [
-  ['Accommodation & Relocation', 'Property searches, viewing coordination and moving', '⌂'],
-  ['Personal Administration', 'Appointments, forms, travel and reservations', '✓'],
-  ['Local Errands', 'Collection, delivery, printing and local assistance', '→'],
-  ['Events & Personal Support', 'Venues, vendors, itineraries and planning', '✺'],
-  ['Remote Assistance', 'Research, purchasing, accounts and organization', '◎'],
-  ['Skilled Local Tasks', 'Verified cleaning, assembly, repairs and tutoring', '◇']
-];
 
 export default function ServiceMarketplacePage() {
   const { user } = useAuth();
+  const { config } = useCMS();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const initialFamily = searchParams.get('type') === 'odd_job' ? 'odd_job' : 'professional';
   const [family, setFamily] = useState(initialFamily);
-  const categories = family === 'professional' ? professional : oddJobs;
-  const [form, setForm] = useState({ category: categories[0][0], title: '', description: '', desired_outcome: '', delivery_mode: 'remote', location: '', deadline: '', budget_min: '', budget_max: '', urgency: 'standard' });
+  const categoryRecords = (config.serviceCatalog?.categories || []).filter(item => item.active && item.family === family).sort((a,b)=>a.order-b.order);
+  const categories = categoryRecords.map(item => [item.name, item.description, item.icon, item.id]);
+  const initialCategory = searchParams.get('category');
+  const initialRecord = categoryRecords.find(item => item.id === initialCategory) || categoryRecords[0];
+  const [form, setForm] = useState({ category: initialRecord?.name || '', title: '', description: '', desired_outcome: '', delivery_mode: 'remote', location: '', deadline: '', budget_min: '', budget_max: '', urgency: 'standard' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const selected = useMemo(() => categories.find(item => item[0] === form.category) || categories[0], [categories, form.category]);
   const switchFamily = value => {
     setFamily(value);
-    const next = value === 'professional' ? professional : oddJobs;
-    setForm(current => ({ ...current, category: next[0][0], delivery_mode: value === 'professional' ? 'remote' : 'in_person' }));
+    const next = (config.serviceCatalog?.categories || []).filter(item => item.active && item.family === value).sort((a,b)=>a.order-b.order);
+    setForm(current => ({ ...current, category: next[0]?.name || '', delivery_mode: value === 'professional' ? 'remote' : 'in_person' }));
   };
   const submit = async event => {
     event.preventDefault();
@@ -78,7 +66,7 @@ export default function ServiceMarketplacePage() {
         </div>
         <div className="market-heading"><div><span>CURATED CAPABILITIES</span><h2>{family === 'professional' ? 'Expertise without the overhead.' : 'Practical help, precisely coordinated.'}</h2></div><p>Select a category to shape your request. Every job is reviewed by an IPS administrator before assignment.</p></div>
         <div className="service-card-grid">
-          {categories.map(([name, text, icon]) => <button key={name} className={`service-market-card ${form.category === name ? 'selected' : ''}`} onClick={() => setForm(current => ({ ...current, category: name }))}><b>{icon}</b><h3>{name}</h3><p>{text}</p><span>Explore request →</span></button>)}
+          {categories.map(([name, text, icon, id]) => <button key={id || name} className={`service-market-card ${form.category === name ? 'selected' : ''}`} onClick={() => setForm(current => ({ ...current, category: name }))}><b>{icon}</b><h3>{name}</h3><p>{text}</p><span>Explore request →</span></button>)}
         </div>
       </section>
 
