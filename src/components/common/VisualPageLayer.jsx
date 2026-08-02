@@ -1,19 +1,20 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCMS } from '../../context/CMSContext';
-import { resolvePageDefinition } from '../../../shared/platformConfig';
+import { PAGE_CATALOG, resolvePageDefinition } from '../../../shared/platformConfig';
+import useNativeEditingRuntime from './NativeEditingRuntime';
 import './visual-page-layer.css';
 
 const ADMIN_ENTRY_PATH = (import.meta.env.VITE_ADMIN_ENTRY_PATH || '/ips-mission-control')
   .trim()
   .replace(/\/+$/, '');
 
-const Media = ({ assetId, type, alt, className }) => {
+const Media = ({ assetId, type, alt, className, style, posterAssetId }) => {
   if (!assetId) return null;
   const src = `/api/media/${encodeURIComponent(assetId)}`;
   return type === 'video'
-    ? <video className={className} src={src} muted autoPlay loop playsInline preload="metadata" aria-label={alt || 'Decorative video'} />
-    : <img className={className} src={src} alt={alt || ''} loading="lazy" />;
+    ? <video className={className} src={src} poster={posterAssetId ? `/api/media/${encodeURIComponent(posterAssetId)}` : undefined} style={style} muted autoPlay loop playsInline preload="metadata" aria-label={alt || 'Decorative video'} />
+    : <img className={className} src={src} alt={alt || ''} style={style} loading="lazy" />;
 };
 
 const FloatingElement = ({ element }) => {
@@ -53,39 +54,88 @@ const FloatingElement = ({ element }) => {
 
 export default function VisualPageLayer({ children, pageId, suppressElements = false }) {
   const location = useLocation();
-  const { config } = useCMS();
-  const page = pageId ? { id: pageId } : resolvePageDefinition(location.pathname, ADMIN_ENTRY_PATH);
+  const { config, previewDevice } = useCMS();
+  const page = pageId ? PAGE_CATALOG.find(item => item.id === pageId) || { id: pageId, label: 'IPS' } : resolvePageDefinition(location.pathname, ADMIN_ENTRY_PATH);
   const design = page ? config.pageDesigns?.[page.id] : null;
+  const contentRef = useRef(null);
+  const designEnabled = design?.enabled !== false;
+  const studioPreview = Boolean(previewDevice);
+  const { device: activeDevice } = useNativeEditingRuntime({
+    rootRef: contentRef,
+    pageId: page?.id || 'unregistered',
+    editing: {
+      version: 1,
+      overrides: designEnabled || studioPreview ? {
+        ...(config.globalNativeEditing?.overrides || {}),
+        ...(design?.nativeEditing?.overrides || {})
+      } : {}
+    },
+    previewDevice
+  });
 
-  if (!design?.enabled) return children;
+  useEffect(() => {
+    if (!page || previewDevice) return;
+    const seo = design?.seo || {};
+    document.title = seo.title || `${page.label || 'IPS'} | IPS`;
+    const setMeta = (selector, attributes, value) => {
+      let node = document.head.querySelector(selector);
+      if (!node) {
+        node = document.createElement('meta');
+        Object.entries(attributes).forEach(([name, attributeValue]) => node.setAttribute(name, attributeValue));
+        document.head.appendChild(node);
+      }
+      node.setAttribute('content', value || '');
+    };
+    setMeta('meta[name="description"]', { name: 'description' }, seo.description || '');
+    setMeta('meta[name="robots"]', { name: 'robots' }, seo.indexable === false ? 'noindex, nofollow' : 'index, follow');
+    setMeta('meta[property="og:title"]', { property: 'og:title' }, seo.title || page.label || 'IPS');
+    setMeta('meta[property="og:description"]', { property: 'og:description' }, seo.description || '');
+    setMeta('meta[property="og:image"]', { property: 'og:image' }, seo.socialImageAssetId ? `/api/media/${encodeURIComponent(seo.socialImageAssetId)}` : '');
+  }, [design?.seo, page, previewDevice]);
 
-  const background = design.background || {};
-  const backgroundStyle = background.type === 'color'
+  if (!design || (!designEnabled && !studioPreview)) return children;
+
+  const background = designEnabled ? design.background || {} : { type: 'theme', responsive: {} };
+  const responsiveBackground = background.responsive?.[activeDevice] || {};
+  const backgroundType = responsiveBackground.type && responsiveBackground.type !== 'inherit' ? responsiveBackground.type : background.type;
+  const backgroundAssetId = responsiveBackground.assetId || background.assetId;
+  const usesResponsiveBackground = responsiveBackground.type && responsiveBackground.type !== 'inherit';
+  const backgroundPosterAssetId = usesResponsiveBackground ? responsiveBackground.posterAssetId || background.posterAssetId : background.posterAssetId;
+  const backgroundPositionX = usesResponsiveBackground ? responsiveBackground.positionX ?? 50 : background.positionX ?? 50;
+  const backgroundPositionY = usesResponsiveBackground ? responsiveBackground.positionY ?? 50 : background.positionY ?? 50;
+  const backgroundStyle = backgroundType === 'color'
     ? { background: background.color }
-    : background.type === 'gradient'
+    : backgroundType === 'gradient'
       ? { background: `linear-gradient(135deg, ${background.gradientStart}, ${background.gradientEnd})` }
       : {};
   const contentStyle = {
-    '--vb-padding-desktop': `${design.padding?.desktop || 0}px`,
-    '--vb-padding-tablet': `${design.padding?.tablet || 0}px`,
-    '--vb-padding-mobile': `${design.padding?.mobile || 0}px`,
-    ...(design.contentMaxWidth ? { maxWidth: `${design.contentMaxWidth}px`, marginInline: 'auto' } : {})
+    '--vb-padding-desktop': `${designEnabled ? design.padding?.desktop || 0 : 0}px`,
+    '--vb-padding-tablet': `${designEnabled ? design.padding?.tablet || 0 : 0}px`,
+    '--vb-padding-mobile': `${designEnabled ? design.padding?.mobile || 0 : 0}px`,
+    ...(designEnabled && design.contentMaxWidth ? { maxWidth: `${design.contentMaxWidth}px`, marginInline: 'auto' } : {})
   };
 
   return (
     <div
-      className={`visual-page-layer visual-page-${page.id.replaceAll('.', '-')}`}
-      style={{ minHeight: design.minHeight ? `${design.minHeight}px` : '100vh', ...backgroundStyle }}
+      className={`visual-page-layer visual-page-${page.id.replaceAll('.', '-')} ${backgroundType !== 'theme' ? 'visual-page-has-custom-background' : ''} ${previewDevice ? 'is-studio-preview' : ''}`}
+      style={{ minHeight: designEnabled && design.minHeight ? `${design.minHeight}px` : '100vh', ...backgroundStyle }}
       data-visual-page={page.id}
     >
-      {(background.type === 'image' || background.type === 'video') && (
-        <Media assetId={background.assetId} type={background.type} alt="" className="visual-page-background-media" />
+      {designEnabled && (backgroundType === 'image' || backgroundType === 'video') && (
+        <Media
+          assetId={backgroundAssetId}
+          posterAssetId={backgroundPosterAssetId}
+          type={backgroundType}
+          alt=""
+          className="visual-page-background-media"
+          style={{ objectPosition: `${backgroundPositionX}% ${backgroundPositionY}%` }}
+        />
       )}
-      {background.overlayOpacity > 0 && (
+      {designEnabled && background.overlayOpacity > 0 && (
         <div className="visual-page-background-overlay" style={{ background: background.overlayColor, opacity: background.overlayOpacity }} />
       )}
-      <div className="visual-page-content" style={contentStyle}>{children}</div>
-      {!suppressElements && <div className="visual-page-elements" aria-label="Page content blocks">
+      <div ref={contentRef} className="visual-page-content" style={contentStyle}>{children}</div>
+      {designEnabled && !suppressElements && <div className="visual-page-elements" aria-label="Page content blocks">
         {(design.elements || []).map(element => <FloatingElement key={element.id} element={element} />)}
       </div>}
     </div>

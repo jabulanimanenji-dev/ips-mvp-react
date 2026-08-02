@@ -10,7 +10,7 @@ export default function Footer() {
   const navigation = (config.navigation?.public || []).filter(item => item.visible);
 
   return (
-    <footer style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)', padding: '3rem 0 1.5rem' }}>
+    <footer data-studio-global="public-footer" data-studio-label="Public website footer" style={{ background: 'var(--bg-surface)', borderTop: '1px solid var(--border)', padding: '3rem 0 1.5rem' }}>
       <div className="container">
         <div className="grid grid-4 gap-6" style={{ marginBottom: '2rem' }}>
           <div className="flex flex-col gap-2">

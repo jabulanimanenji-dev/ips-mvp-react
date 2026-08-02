@@ -42,6 +42,8 @@ export default function AdminSidebar() {
       <button type="button" className="btn btn-ghost admin-menu-toggle" onClick={() => setMobileOpen(previous => !previous)}>Menu</button>
       {mobileOpen && <div className="admin-sidebar-overlay" onClick={() => setMobileOpen(false)} />}
       <aside
+        data-studio-global="admin-sidebar"
+        data-studio-label="Admin portal navigation"
         className={`admin-sidebar ${mobileOpen ? 'sidebar-open' : ''}`}
         style={{
           width: sidebarWidth,

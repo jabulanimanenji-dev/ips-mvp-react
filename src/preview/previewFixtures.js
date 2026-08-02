@@ -229,9 +229,26 @@ const jsonResponse = (payload = basePayload, status = 200) => new Response(JSON.
   headers: { 'Content-Type': 'application/json', 'X-IPS-Preview': 'true' }
 });
 
+const emptyPayload = {
+  ...basePayload,
+  orders: [], requests: [], services: [], writers: [], clients: [], tickets: [], conversations: [], messages: [],
+  actions: [], files: [], quotes: [], decisions: [], expenses: [], payments: [], audit: [], jobs: [],
+  order: null, request: null, writer: null, client: null, ticket: null, conversation: null,
+  summary: { total: 0, urgent: 0, overdue: 0, in_progress: 0 },
+  analytics: {
+    counts: { academicOrders: 0, serviceRequests: 0, activeWork: 0, newSignups30d: 0, openTickets: 0, clients: 0, providers: 0 },
+    finance: { paidAcademic: 0, outstandingAcademic: 0, acceptedServiceValue: 0, trackedValue: 0 },
+    attention: [], recentActivity: [], outstandingAcademicOrders: [], byService: [], byCountry: []
+  },
+  directory: { clients: [], writers: [], providers: [], admins: [], jobs: [] }
+};
+
 const responseFor = rawUrl => {
   const url = new URL(typeof rawUrl === 'string' ? rawUrl : rawUrl.url, window.location.origin);
   const path = url.pathname;
+  const previewState = window.__IPS_PREVIEW_STATE__ || 'normal';
+  if (previewState === 'error') return jsonResponse({ success: false, preview: true, error: 'Sample preview error. Edit this state without affecting live data.' }, 503);
+  if (previewState === 'empty') return jsonResponse(emptyPayload);
   if (/\/api\/orders\/[^/]+\/workspace$/.test(path)) {
     return jsonResponse({ ...basePayload, order: previewOrder, files: [], messages: previewMessages, audit: [], expenses: [], direct_contact_enabled: false });
   }
@@ -267,6 +284,7 @@ export function installPreviewSafetyRuntime() {
   window.fetch = (input, options) => {
     const url = new URL(typeof input === 'string' ? input : input.url, window.location.origin);
     if (!url.pathname.startsWith('/api/')) return nativeFetch(input, options);
+    if (window.__IPS_PREVIEW_STATE__ === 'loading') return new Promise(() => {});
     return Promise.resolve(responseFor(input));
   };
   window.confirm = () => false;

@@ -128,7 +128,14 @@ function PreviewRoutes() {
 function PreviewInteractionGuard({ children, pageId }) {
   const guard = event => {
     const element = event.target.closest?.('[data-preview-element-id]');
-    if (element) window.parent.postMessage({ type: 'ips-preview-element', pageId, elementId: element.getAttribute('data-preview-element-id') }, window.location.origin);
+    if (element) {
+      window.parent.postMessage({ type: 'ips-preview-element', pageId, elementId: element.getAttribute('data-preview-element-id') }, window.location.origin);
+      return;
+    }
+    const nativeElement = event.target.closest?.('[data-studio-key]');
+    if (nativeElement) {
+      window.parent.postMessage({ type: 'ips-preview-native-element', pageId, key: nativeElement.getAttribute('data-studio-key') }, window.location.origin);
+    }
     const section = event.target.closest?.('[data-builder-section]');
     if (section) window.parent.postMessage({ type: 'ips-preview-section', pageId, section: section.getAttribute('data-builder-section') }, window.location.origin);
     const interactive = event.target.closest?.('a,button,[role="button"],input[type="submit"],input[type="file"]');
@@ -153,17 +160,20 @@ function PreviewInteractionGuard({ children, pageId }) {
 }
 
 export default function PlatformPreviewApp() {
-  const [state, setState] = useState({ config: DEFAULT_PLATFORM_CONFIG, pageId: 'public.home', device: 'desktop', selectedElementId: '' });
+  const [state, setState] = useState({ config: DEFAULT_PLATFORM_CONFIG, pageId: 'public.home', device: 'desktop', previewState: 'normal', selectedElementId: '', selectedNativeKey: '' });
   const root = useRef(null);
 
   useEffect(() => {
     const receive = event => {
       if (event.origin !== window.location.origin || event.data?.type !== 'ips-preview-update') return;
+      window.__IPS_PREVIEW_STATE__ = ['normal', 'empty', 'error', 'loading'].includes(event.data.previewState) ? event.data.previewState : 'normal';
       setState(previous => ({
         config: event.data.config || previous.config,
         pageId: PREVIEW_RENDERED_PAGE_IDS.includes(event.data.pageId) ? event.data.pageId : previous.pageId,
         device: ['desktop', 'tablet', 'mobile'].includes(event.data.device) ? event.data.device : previous.device,
-        selectedElementId: typeof event.data.selectedElementId === 'string' ? event.data.selectedElementId : previous.selectedElementId
+        previewState: ['normal', 'empty', 'error', 'loading'].includes(event.data.previewState) ? event.data.previewState : previous.previewState,
+        selectedElementId: typeof event.data.selectedElementId === 'string' ? event.data.selectedElementId : previous.selectedElementId,
+        selectedNativeKey: typeof event.data.selectedNativeKey === 'string' ? event.data.selectedNativeKey : previous.selectedNativeKey
       }));
     };
     window.addEventListener('message', receive);
@@ -191,13 +201,20 @@ export default function PlatformPreviewApp() {
     });
   }, [state.config, state.pageId, state.device, state.selectedElementId]);
 
+  useEffect(() => {
+    if (!root.current) return;
+    root.current.querySelectorAll('[data-studio-key]').forEach(node => {
+      node.classList.toggle('is-studio-selected', node.getAttribute('data-studio-key') === state.selectedNativeKey);
+    });
+  }, [state.config, state.pageId, state.device, state.selectedNativeKey]);
+
   const previewPath = useMemo(() => resolvePreviewPath(state.pageId, ADMIN_ENTRY_PATH), [state.pageId]);
 
   return (
     <div ref={root} style={{ minHeight: '100vh', background: 'var(--bg-body)', color: 'var(--text-primary)' }}>
       <CMSPreviewProvider config={state.config} previewDevice={state.device}>
         <PreviewAuthProvider pageId={state.pageId}>
-          <MemoryRouter key={previewPath} initialEntries={[previewPath]}>
+          <MemoryRouter key={`${previewPath}:${state.previewState}`} initialEntries={[previewPath]}>
             <PreviewInteractionGuard pageId={state.pageId}>
               <VisualPageLayer pageId={state.pageId}>
                 <PreviewRoutes />

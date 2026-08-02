@@ -38,6 +38,8 @@ export default function WriterLayout() {
       {mobileOpen && <div className="writer-sidebar-overlay" onClick={() => setMobileOpen(false)} />}
 
       <aside
+        data-studio-global="provider-sidebar"
+        data-studio-label="Provider portal navigation"
         className={`writer-sidebar ${mobileOpen ? 'sidebar-open' : ''}`}
         style={{
           width: layout.sidebarWidth || 240,

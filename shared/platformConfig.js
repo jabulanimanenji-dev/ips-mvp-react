@@ -1,4 +1,5 @@
 import { normaliseHeroResponsive } from './heroResponsive.js';
+import { emptyNativeEditing, normaliseNativeEditing } from './nativeEditing.js';
 
 export const HOME_SECTION_CATALOG = [
   { id: 'hero', label: 'Hero', description: 'Headline and primary calls to action.' },
@@ -100,8 +101,18 @@ const defaultPageDesign = page => ({
     gradientStart: '#321A6B',
     gradientEnd: '#A305A6',
     assetId: '',
+    posterAssetId: '',
+    positionX: 50,
+    positionY: 50,
     overlayColor: '#00010D',
-    overlayOpacity: 0
+    overlayOpacity: 0,
+    responsive: Object.fromEntries(['desktop', 'tablet', 'mobile'].map(device => [device, {
+      type: 'inherit',
+      assetId: '',
+      posterAssetId: '',
+      positionX: 50,
+      positionY: 50
+    }]))
   },
   minHeight: 0,
   contentMaxWidth: 0,
@@ -110,7 +121,14 @@ const defaultPageDesign = page => ({
     tablet: 0,
     mobile: 0
   },
-  elements: []
+  elements: [],
+  nativeEditing: emptyNativeEditing(),
+  seo: {
+    title: '',
+    description: '',
+    socialImageAssetId: '',
+    indexable: true
+  }
 });
 
 const routeMatches = (pattern, pathname) => {
@@ -243,7 +261,7 @@ const navigation = {
 };
 
 export const DEFAULT_PLATFORM_CONFIG = {
-  schemaVersion: 5,
+  schemaVersion: 6,
   theme: {
     light: {
       primary: '#A305A6',
@@ -440,6 +458,7 @@ export const DEFAULT_PLATFORM_CONFIG = {
     }
   },
   pageDesigns: Object.fromEntries(PAGE_CATALOG.map(page => [page.id, defaultPageDesign(page)])),
+  globalNativeEditing: emptyNativeEditing(),
   content: {}
 };
 
@@ -502,8 +521,21 @@ const normalisePageDesign = (input, page) => {
       gradientStart: cleanColor(background.gradientStart, fallback.background.gradientStart),
       gradientEnd: cleanColor(background.gradientEnd, fallback.background.gradientEnd),
       assetId: cleanId(background.assetId),
+      posterAssetId: cleanId(background.posterAssetId),
+      positionX: clamp(background.positionX, 0, 100, 50),
+      positionY: clamp(background.positionY, 0, 100, 50),
       overlayColor: cleanColor(background.overlayColor, fallback.background.overlayColor),
-      overlayOpacity: clamp(background.overlayOpacity, 0, 0.95, 0)
+      overlayOpacity: clamp(background.overlayOpacity, 0, 0.95, 0),
+      responsive: Object.fromEntries(['desktop', 'tablet', 'mobile'].map(device => {
+        const source = background.responsive?.[device] || {};
+        return [device, {
+          type: ['inherit', 'image', 'video'].includes(source.type) ? source.type : 'inherit',
+          assetId: cleanId(source.assetId),
+          posterAssetId: cleanId(source.posterAssetId),
+          positionX: clamp(source.positionX, 0, 100, 50),
+          positionY: clamp(source.positionY, 0, 100, 50)
+        }];
+      }))
     },
     minHeight: clamp(input?.minHeight, 0, 6000, 0),
     contentMaxWidth: clamp(input?.contentMaxWidth, 0, 2400, 0),
@@ -514,7 +546,14 @@ const normalisePageDesign = (input, page) => {
     },
     elements: Array.isArray(input?.elements)
       ? input.elements.slice(0, 40).map(normalisePageElement)
-      : []
+      : [],
+    nativeEditing: normaliseNativeEditing(input?.nativeEditing),
+    seo: {
+      title: cleanText(input?.seo?.title, 120),
+      description: cleanText(input?.seo?.description, 320),
+      socialImageAssetId: cleanId(input?.seo?.socialImageAssetId),
+      indexable: input?.seo?.indexable !== false
+    }
   };
 };
 
@@ -709,6 +748,7 @@ export function normalisePlatformConfig(input = {}) {
     page.id,
     normalisePageDesign(source.pageDesigns?.[page.id], page)
   ]));
+  result.globalNativeEditing = normaliseNativeEditing(source.globalNativeEditing);
 
   result.content = safeJson(source.content || {}) || {};
   result.content.hero = {
