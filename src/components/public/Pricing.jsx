@@ -6,9 +6,9 @@ import { fmtCur } from '../../utils/formatters';
 export default function Pricing() {
   const { config } = useCMS();
   const catalog=config.serviceCatalog||{categories:[],services:[]};
-  const categories=useMemo(()=> (catalog.categories||[]).filter(c=>c.active && (catalog.services||[]).some(s=>s.active&&s.categoryId===c.id)),[catalog]);
+  const categories=useMemo(()=> (catalog.categories||[]).filter(c=>c.active&&c.homepageVisible!==false&&(catalog.services||[]).some(s=>s.active&&s.homepageVisible!==false&&s.publicPricingAllowed!==false&&s.categoryId===c.id)),[catalog]);
   const [selected,setSelected]=useState(categories.find(c=>c.id==='academic')?.id || categories[0]?.id || 'academic');
-  const items=(catalog.services||[]).filter(s=>s.active&&s.categoryId===selected).sort((a,b)=>Number(b.featured)-Number(a.featured)||a.order-b.order).slice(0,8);
+  const items=(catalog.services||[]).filter(s=>s.active&&s.homepageVisible!==false&&s.publicPricingAllowed!==false&&s.categoryId===selected).sort((a,b)=>Number(b.featured)-Number(a.featured)||a.order-b.order).slice(0,8);
   return <section id="pricing" className="section"><div className="container">
     <div className="section-header"><div className="label">Services & Pricing</div><h2 className="section-title">Start with academics. Explore everything IPS can deliver.</h2><p className="section-subtitle">Academic rates remain transparent. Broader professional services receive a tailored quote based on scope and deadline.</p></div>
     <div style={{display:'flex',gap:10,justifyContent:'center',flexWrap:'wrap',marginBottom:'2rem'}}>{categories.map(c=><button key={c.id} className={`btn ${selected===c.id?'btn-primary':'btn-ghost'}`} onClick={()=>setSelected(c.id)}>{c.icon} {c.shortName||c.name}</button>)}</div>

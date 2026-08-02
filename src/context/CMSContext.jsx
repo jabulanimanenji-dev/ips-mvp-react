@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { DEFAULT_CMS } from '../utils/constants';
 import { DEFAULT_PLATFORM_CONFIG, normalisePlatformConfig } from '../../shared/platformConfig';
 import { normaliseHeroResponsive } from '../../shared/heroResponsive.js';
+import { serviceSlug } from '../../shared/serviceEngine.js';
 import { useTheme } from './ThemeContext';
 
 const CMSContext = createContext();
@@ -61,6 +62,68 @@ const themeVariables = (config, theme) => {
   };
 };
 
+const serviceCatalogFromEngine = (currentCatalog = {}, payload = {}) => {
+  const engineCatalog = payload?.catalog || payload;
+  if (!Array.isArray(engineCatalog?.categories) || !Array.isArray(engineCatalog?.services)) return currentCatalog;
+
+  const categoryIds = new Map();
+  const usedCategoryIds = new Set();
+  const categories = engineCatalog.categories.map((item, index) => {
+    const sourceId = String(item?.categoryId || item?.id || item?.slug || `category-${index + 1}`);
+    const baseId = serviceSlug(sourceId) || `category-${index + 1}`;
+    let id = baseId;
+    while (usedCategoryIds.has(id)) id = `${baseId}-${index + 1}`;
+    usedCategoryIds.add(id);
+    categoryIds.set(sourceId, id);
+    if (item?.categoryId) categoryIds.set(String(item.categoryId), id);
+    if (item?.id) categoryIds.set(String(item.id), id);
+
+    const toggles = item?.effectiveToggles || {};
+    return {
+      id,
+      name: item?.name,
+      shortName: item?.shortName || item?.name,
+      icon: item?.icon,
+      description: item?.description,
+      family: item?.family,
+      featured: item?.featured,
+      active: item?.status ? item.status === 'published' : item?.active !== false,
+      homepageVisible: toggles.homepageVisible ?? item?.homepageVisible ?? true,
+      navigationVisible: toggles.navigationVisible ?? item?.navigationVisible ?? true,
+      searchVisible: toggles.searchVisible ?? item?.searchVisible ?? true,
+      acceptingRequests: toggles.acceptingRequests ?? item?.acceptingRequests ?? true,
+      publicPricingAllowed: toggles.publicPricingAllowed ?? item?.publicPricingAllowed ?? true,
+      order: item?.order ?? index
+    };
+  });
+
+  const defaultCategoryId = categories[0]?.id || 'academic';
+  const services = engineCatalog.services.map((item, index) => {
+    const sourceCategoryId = String(item?.categoryId || '');
+    const toggles = item?.effectiveToggles || {};
+    return {
+      id: serviceSlug(item?.serviceId || item?.id || item?.slug) || `service-${index + 1}`,
+      categoryId: categoryIds.get(sourceCategoryId) || serviceSlug(sourceCategoryId) || defaultCategoryId,
+      name: item?.name,
+      description: item?.description,
+      pricingType: item?.pricingType,
+      startingPrice: item?.startingPrice,
+      unit: item?.unit,
+      featured: item?.featured,
+      active: item?.status ? item.status === 'published' : item?.active !== false,
+      homepageVisible: toggles.homepageVisible ?? item?.homepageVisible ?? true,
+      navigationVisible: toggles.navigationVisible ?? item?.navigationVisible ?? true,
+      searchVisible: toggles.searchVisible ?? item?.searchVisible ?? true,
+      acceptingRequests: toggles.acceptingRequests ?? item?.acceptingRequests ?? true,
+      publicPricingAllowed: toggles.publicPricingAllowed ?? item?.publicPricingAllowed ?? true,
+      quoteEnabled: toggles.manualQuotesAllowed ?? item?.quoteEnabled ?? true,
+      order: item?.order ?? index
+    };
+  });
+
+  return { ...currentCatalog, categories, services };
+};
+
 export function CMSProvider({ children }) {
   const { theme } = useTheme();
   const [config, setConfig] = useState(() => normalisePlatformConfig(DEFAULT_PLATFORM_CONFIG));
@@ -72,7 +135,20 @@ export function CMSProvider({ children }) {
       const response = await fetch('/api/platform-config', { cache: 'no-store' });
       const data = await response.json();
       if (response.ok && data.success) {
-        setConfig(normalisePlatformConfig(data.config));
+        let nextConfig = data.config;
+        try {
+          const catalogResponse = await fetch('/api/service-catalog', { cache: 'no-store' });
+          const catalogData = await catalogResponse.json();
+          if (catalogResponse.ok && catalogData.success) {
+            nextConfig = {
+              ...nextConfig,
+              serviceCatalog: serviceCatalogFromEngine(nextConfig?.serviceCatalog, catalogData)
+            };
+          }
+        } catch {
+          // Older deployments can continue using the published Studio catalogue.
+        }
+        setConfig(normalisePlatformConfig(nextConfig));
         setPublishedVersion(data.version || 1);
       }
     } catch {

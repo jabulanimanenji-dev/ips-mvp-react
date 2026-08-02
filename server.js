@@ -31,6 +31,7 @@ import PlatformConfig from './models/PlatformConfig.js';
 import ConfigRevision from './models/ConfigRevision.js';
 import MediaAsset from './models/MediaAsset.js';
 import SupportTicket from './models/SupportTicket.js';
+import { serviceEngineHandlers, respondWithServiceEngineError } from './services/serviceEngineApi.js';
 import { DEFAULT_PLATFORM_CONFIG, clonePlatformConfig, normalisePlatformConfig } from './shared/platformConfig.js';
 import {
   ADMIN_PERMISSION_CATALOG,
@@ -2830,6 +2831,47 @@ const getOrCreatePlatformConfig = async () => {
     throw error;
   }
 };
+
+// ========== PHASE 17A: UNIVERSAL SERVICE ENGINE ==========
+
+const serviceEngineAdmin = handler => async (req, res) => {
+  const session = requireSession(req, res);
+  if (!session) return;
+  if (session.role !== 'admin' || !req.adminAccess) return res.status(403).json({ success: false, error: 'Admin access required.' });
+  if (!databaseIsReady()) return res.status(503).json({ success: false, error: 'The database must be connected to use the Service Engine.' });
+  try { await handler(req, res); } catch (error) { respondWithServiceEngineError(res, error); }
+};
+const serviceEnginePublic = handler => async (req, res) => {
+  try { await handler(req, res); } catch (error) { respondWithServiceEngineError(res, error); }
+};
+
+app.get('/api/service-catalog', serviceEnginePublic(serviceEngineHandlers.publicCatalog));
+app.get('/api/admin/service-engine', serviceEngineAdmin(serviceEngineHandlers.bootstrap));
+app.put('/api/admin/service-engine/settings', serviceEngineAdmin(serviceEngineHandlers.updateSettings));
+
+app.post('/api/admin/service-engine/categories', serviceEngineAdmin(serviceEngineHandlers.createCategory));
+app.patch('/api/admin/service-engine/categories/:id', serviceEngineAdmin(serviceEngineHandlers.updateCategory));
+app.delete('/api/admin/service-engine/categories/:id', serviceEngineAdmin(serviceEngineHandlers.deleteCategory));
+app.post('/api/admin/service-engine/categories/:id/:action', serviceEngineAdmin(serviceEngineHandlers.categoryAction));
+
+app.post('/api/admin/service-engine/services', serviceEngineAdmin(serviceEngineHandlers.createService));
+app.patch('/api/admin/service-engine/services/:id', serviceEngineAdmin(serviceEngineHandlers.updateService));
+app.delete('/api/admin/service-engine/services/:id', serviceEngineAdmin(serviceEngineHandlers.deleteService));
+app.post('/api/admin/service-engine/services/:id/apply-template', serviceEngineAdmin(serviceEngineHandlers.applyTemplate));
+app.put('/api/admin/service-engine/services/:id/questions', serviceEngineAdmin(serviceEngineHandlers.saveQuestions));
+app.post('/api/admin/service-engine/services/:id/questions/copy', serviceEngineAdmin(serviceEngineHandlers.copyQuestions));
+app.post('/api/admin/service-engine/services/:id/apply-question-set', serviceEngineAdmin(serviceEngineHandlers.applyQuestionSet));
+app.post('/api/admin/service-engine/services/:id/:action', serviceEngineAdmin(serviceEngineHandlers.serviceAction));
+
+app.post('/api/admin/service-engine/templates', serviceEngineAdmin(serviceEngineHandlers.createTemplate));
+app.patch('/api/admin/service-engine/templates/:id', serviceEngineAdmin(serviceEngineHandlers.updateTemplate));
+app.delete('/api/admin/service-engine/templates/:id', serviceEngineAdmin(serviceEngineHandlers.deleteTemplate));
+
+app.post('/api/admin/service-engine/question-sets/from-service', serviceEngineAdmin(serviceEngineHandlers.questionSetFromService));
+app.post('/api/admin/service-engine/question-sets', serviceEngineAdmin(serviceEngineHandlers.createQuestionSet));
+app.patch('/api/admin/service-engine/question-sets/:id', serviceEngineAdmin(serviceEngineHandlers.updateQuestionSet));
+app.delete('/api/admin/service-engine/question-sets/:id', serviceEngineAdmin(serviceEngineHandlers.deleteQuestionSet));
+app.get('/api/admin/service-engine/audit', serviceEngineAdmin(serviceEngineHandlers.getAudit));
 
 const allowedMediaTypes = {
   'image/jpeg': { extension: '.jpg', mediaType: 'image' },

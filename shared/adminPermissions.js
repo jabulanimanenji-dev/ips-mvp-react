@@ -135,6 +135,11 @@ export const permissionForAdminRequest = (method, path) => {
     if (path.includes('/publish') || path.includes('/rollback')) return 'design.publish';
     return 'design.edit';
   }
+  if (path.startsWith('/api/admin/service-engine')) {
+    if (method === 'GET') return 'design.view';
+    if (/\/(publish|pause|archive|restore)$/.test(path)) return 'design.publish';
+    return 'design.edit';
+  }
   if (path.startsWith('/api/admin/media')) return method === 'GET' ? 'design.view' : 'media.manage';
   if (path.startsWith('/api/admin/audit-logs')) return 'audit.view';
   if (path.startsWith('/api/admin/export')) return 'data.export';

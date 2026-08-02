@@ -11,7 +11,7 @@ export default function ServiceMarketplacePage() {
   const [searchParams] = useSearchParams();
   const initialFamily = searchParams.get('type') === 'odd_job' ? 'odd_job' : 'professional';
   const [family, setFamily] = useState(initialFamily);
-  const categoryRecords = (config.serviceCatalog?.categories || []).filter(item => item.active && item.family === family).sort((a,b)=>a.order-b.order);
+  const categoryRecords = (config.serviceCatalog?.categories || []).filter(item => item.active && item.searchVisible !== false && item.acceptingRequests !== false && item.family === family).sort((a,b)=>a.order-b.order);
   const categories = categoryRecords.map(item => [item.name, item.description, item.icon, item.id]);
   const initialCategory = searchParams.get('category');
   const initialRecord = categoryRecords.find(item => item.id === initialCategory) || categoryRecords[0];
@@ -22,7 +22,7 @@ export default function ServiceMarketplacePage() {
   const selected = useMemo(() => categories.find(item => item[0] === form.category) || categories[0], [categories, form.category]);
   const switchFamily = value => {
     setFamily(value);
-    const next = (config.serviceCatalog?.categories || []).filter(item => item.active && item.family === value).sort((a,b)=>a.order-b.order);
+    const next = (config.serviceCatalog?.categories || []).filter(item => item.active && item.searchVisible !== false && item.acceptingRequests !== false && item.family === value).sort((a,b)=>a.order-b.order);
     setForm(current => ({ ...current, category: next[0]?.name || '', delivery_mode: value === 'professional' ? 'remote' : 'in_person' }));
   };
   const submit = async event => {
