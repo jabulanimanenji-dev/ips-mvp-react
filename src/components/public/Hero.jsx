@@ -31,9 +31,9 @@ export default function Hero() {
     .filter(button => ['heroPrimary', 'heroSecondary'].includes(button.id) && button.visible !== false)
     .filter(button => button.showOn === 'all' || button.showOn === device)
     .sort((a, b) => a.position - b.position);
-  const background = mediaUrl(hero.backgroundMedia || '/images/hero-bg.jpg');
-  const poster = mediaUrl(hero.posterMedia || hero.fallbackImage || '/images/hero-bg.jpg');
-  const isVideo = hero.backgroundType === 'video';
+  const background = mediaUrl(settings.backgroundMedia || hero.backgroundMedia || '/images/hero-bg.jpg');
+  const poster = mediaUrl(settings.posterMedia || hero.posterMedia || hero.fallbackImage || '/images/hero-bg.jpg');
+  const isVideo = (settings.backgroundType === 'inherit' ? hero.backgroundType : settings.backgroundType) === 'video';
   const trustItems = Array.isArray(hero.trustItems) ? hero.trustItems : [];
   const popular = Array.isArray(hero.popularSearches) ? hero.popularSearches : [];
   const orderFor = id => settings.elementOrder.indexOf(id);
@@ -55,8 +55,8 @@ export default function Hero() {
       data-builder-section="hero"
       data-responsive-device={device}
       style={{
-        background: isVideo ? 'var(--grad-hero)' : undefined,
-        backgroundImage: !isVideo ? `url('${background}')` : undefined,
+        backgroundColor: isVideo ? 'var(--primary-dark)' : undefined,
+        backgroundImage: isVideo ? 'var(--grad-hero)' : `url('${background}')`,
         backgroundSize: 'cover',
         backgroundPosition: `${settings.backgroundPositionX}% ${settings.backgroundPositionY}%`,
         backgroundRepeat: 'no-repeat',

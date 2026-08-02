@@ -29,6 +29,29 @@
   z-index: 1;
 }
 
+.visual-page-has-custom-background > .visual-page-content > * {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+.visual-page-layer.is-studio-preview [data-studio-editable="true"] {
+  cursor: pointer;
+}
+
+.visual-page-layer.is-studio-preview [data-studio-editable="true"]:hover {
+  outline: 2px dashed rgba(237, 158, 111, 0.9);
+  outline-offset: 2px;
+}
+
+.visual-page-layer.is-studio-preview [data-studio-key].is-studio-selected {
+  outline: 3px solid #ed9e6f !important;
+  outline-offset: 3px;
+}
+
+.visual-page-layer.is-studio-preview [data-studio-editable="false"] {
+  cursor: not-allowed;
+}
+
 .visual-page-elements {
   position: absolute;
   inset: 0;

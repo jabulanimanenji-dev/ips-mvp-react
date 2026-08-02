@@ -22,7 +22,7 @@ const projectDir = path.resolve(scriptsDir, '..');
 const read = relative => readFile(path.join(projectDir, relative), 'utf8');
 
 const validated = normalisePlatformConfig(DEFAULT_PLATFORM_CONFIG);
-assert.equal(validated.schemaVersion, 5);
+assert.equal(validated.schemaVersion, 6);
 assert.ok(PAGE_CATALOG.length >= 35);
 assert.equal(Object.keys(validated.pageDesigns).length, PAGE_CATALOG.length);
 assert.equal(resolvePageDefinition('/client/orders/ORDER-1').id, 'client.order-detail');

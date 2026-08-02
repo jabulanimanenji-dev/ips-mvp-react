@@ -142,7 +142,7 @@ export default function Navbar() {
   ];
 
   return (
-    <header className="site-navbar" data-responsive-device={activeDevice}>
+    <header className="site-navbar" data-responsive-device={activeDevice} data-studio-global="public-header" data-studio-label="Public website header">
       <div className="site-navbar-inner">
         <Link to="/" className="site-navbar-brand" onClick={event => previewMode && event.preventDefault()}>
           <img src="/images/my-icon.png" alt="IPS" />

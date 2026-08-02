@@ -45,6 +45,8 @@ export default function AdminLayout() {
       <div className="admin-layout-content" style={{ marginLeft: layout.sidebarWidth || 260, flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Topbar */}
         <header
+          data-studio-global="admin-topbar"
+          data-studio-label="Admin portal top bar"
           style={{
             height: 72,
             position: 'sticky',

@@ -11,7 +11,7 @@ const projectDir = path.resolve(scriptsDir, '..');
 const read = relative => readFile(path.join(projectDir, relative), 'utf8');
 
 const defaults = normalisePlatformConfig(DEFAULT_PLATFORM_CONFIG);
-assert.equal(defaults.schemaVersion, 5);
+assert.equal(defaults.schemaVersion, 6);
 assert.equal(defaults.content.hero.responsive.desktop.headlineFontSize, 74);
 assert.equal(defaults.content.hero.responsive.tablet.headlineFontSize, 58);
 assert.equal(defaults.content.hero.responsive.mobile.headlineFontSize, 42);

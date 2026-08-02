@@ -542,7 +542,7 @@ export default function AdminCMS() {
         );
       })()}
 
-      {activeTab === 'pages' && <PageDesignerV2 draft={draft} setDraft={setDraft} />}
+      {activeTab === 'pages' && <PageDesignerV2 draft={draft} setDraft={setDraft} onOpenMedia={() => setActiveTab('media')} />}
 
       {activeTab === 'media' && <MediaLibrary canManage={canManageMedia} />}
 

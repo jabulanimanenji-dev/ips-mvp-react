@@ -44,6 +44,8 @@ export default function ClientSidebar() {
       {mobileOpen && <div className="client-sidebar-overlay" onClick={() => setMobileOpen(false)} />}
 
       <aside
+        data-studio-global="client-sidebar"
+        data-studio-label="Client portal navigation"
         className={`client-sidebar ${mobileOpen ? 'sidebar-open' : ''}`}
         style={{
           width: sidebarWidth,

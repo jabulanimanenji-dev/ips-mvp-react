@@ -8,6 +8,7 @@ import {
 } from '../../../shared/heroResponsive.js';
 import { deviceForWidth } from '../../../shared/responsiveDevices.js';
 import { isDynamicPreviewPage, resolvePreviewPath } from '../../../shared/platformPreview.js';
+import { createNativeOverride, NATIVE_DEVICE_IDS } from '../../../shared/nativeEditing.js';
 import { DEFAULT_CMS } from '../../utils/constants';
 import { addToast } from '../common/Toast';
 import ResponsivePreviewFrame from './ResponsivePreviewFrame';
@@ -73,17 +74,42 @@ function NumberField({ label, value, min, max, step = 1, onChange, suffix = 'px'
   );
 }
 
-export default function PageDesignerV2({ draft, setDraft }) {
+function OptionalNumberField({ label, value, min, max, step = 1, onChange, suffix = 'px' }) {
+  return (
+    <label className="phase12-field">
+      <span>{label}{value != null && suffix ? ` · ${value}${suffix}` : ''}</span>
+      <input
+        className="form-input"
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={value ?? ''}
+        placeholder="Inherit"
+        onChange={event => onChange(event.target.value === '' ? null : Number(event.target.value))}
+      />
+    </label>
+  );
+}
+
+const mediaReference = assetId => assetId ? `media:${assetId}` : '';
+const referencedAssetId = value => String(value || '').startsWith('media:') ? String(value).slice(6) : '';
+
+export default function PageDesignerV2({ draft, setDraft, onOpenMedia }) {
   const [portal, setPortal] = useState('public');
   const pages = useMemo(() => PAGE_CATALOG.filter(page => page.portal === portal), [portal]);
   const [pageId, setPageId] = useState('public.home');
   const [device, setDevice] = useState('desktop');
+  const [previewState, setPreviewState] = useState('normal');
   const [viewportSize, setViewportSize] = useState({ width: 1440, height: 900 });
   const [fitPreview, setFitPreview] = useState(true);
   const [zoom, setZoom] = useState(100);
   const [stageWidth, setStageWidth] = useState(900);
   const [assets, setAssets] = useState([]);
   const [selectedElementId, setSelectedElementId] = useState('');
+  const [selectedNativeKey, setSelectedNativeKey] = useState('');
+  const [nativeCatalog, setNativeCatalog] = useState([]);
+  const [nativeSearch, setNativeSearch] = useState('');
   const [newType, setNewType] = useState('button');
   const [draggingId, setDraggingId] = useState('');
   const [selectedSection, setSelectedSection] = useState('hero');
@@ -115,6 +141,14 @@ export default function PageDesignerV2({ draft, setDraft }) {
   const design = draft.pageDesigns?.[pageId];
   const elements = design?.elements || [];
   const selectedElement = elements.find(element => element.id === selectedElementId);
+  const selectedNativeDescriptor = nativeCatalog.find(element => element.key === selectedNativeKey) || null;
+  const selectedNativeIsGlobal = selectedNativeKey.startsWith('global:');
+  const selectedNativeOverrides = selectedNativeIsGlobal
+    ? draft.globalNativeEditing?.overrides || {}
+    : design?.nativeEditing?.overrides || {};
+  const selectedNativeOverride = selectedNativeKey
+    ? selectedNativeOverrides[selectedNativeKey] || createNativeOverride(selectedNativeDescriptor)
+    : null;
   const rawHero = draft.content?.hero || {};
   const hero = {
     ...DEFAULT_CMS.hero,
@@ -183,6 +217,85 @@ export default function PageDesignerV2({ draft, setDraft }) {
     background: { ...design.background, ...patch }
   });
 
+  const updateResponsiveBackground = patch => updateBackground({
+    responsive: {
+      ...(design.background.responsive || {}),
+      [device]: { ...(design.background.responsive?.[device] || {}), ...patch }
+    }
+  });
+
+  const updateSeo = patch => updateDesign({
+    seo: { ...(design.seo || {}), ...patch }
+  });
+
+  const updateNativeOverride = patch => {
+    if (!selectedNativeKey || !selectedNativeDescriptor?.editable) return;
+    const current = selectedNativeOverrides[selectedNativeKey] || createNativeOverride(selectedNativeDescriptor);
+    if (selectedNativeIsGlobal) {
+      setDraft(previous => ({
+        ...previous,
+        globalNativeEditing: {
+          version: 1,
+          overrides: {
+            ...(previous.globalNativeEditing?.overrides || {}),
+            [selectedNativeKey]: { ...current, ...patch }
+          }
+        }
+      }));
+      return;
+    }
+    updateDesign({
+      nativeEditing: {
+        version: 1,
+        overrides: {
+          ...(design.nativeEditing?.overrides || {}),
+          [selectedNativeKey]: { ...current, ...patch }
+        }
+      }
+    });
+  };
+
+  const updateNativeContent = patch => updateNativeOverride({
+    content: { ...(selectedNativeOverride?.content || {}), ...patch }
+  });
+
+  const updateNativeStyle = patch => updateNativeOverride({
+    styles: {
+      ...(selectedNativeOverride?.styles || {}),
+      [device]: { ...(selectedNativeOverride?.styles?.[device] || {}), ...patch }
+    }
+  });
+
+  const updateNativeVisibility = visible => updateNativeOverride({
+    visibility: { ...(selectedNativeOverride?.visibility || {}), [device]: visible }
+  });
+
+  const updateNativeOrder = value => updateNativeOverride({
+    order: { ...(selectedNativeOverride?.order || {}), [device]: value }
+  });
+
+  const resetNativeOverride = () => {
+    if (!selectedNativeKey) return;
+    setDraft(previous => {
+      if (selectedNativeIsGlobal) {
+        const overrides = { ...(previous.globalNativeEditing?.overrides || {}) };
+        delete overrides[selectedNativeKey];
+        return { ...previous, globalNativeEditing: { version: 1, overrides } };
+      }
+      const currentDesign = previous.pageDesigns?.[pageId] || {};
+      const overrides = { ...(currentDesign.nativeEditing?.overrides || {}) };
+      delete overrides[selectedNativeKey];
+      return {
+        ...previous,
+        pageDesigns: {
+          ...previous.pageDesigns,
+          [pageId]: { ...currentDesign, nativeEditing: { version: 1, overrides } }
+        }
+      };
+    });
+    addToast('This element now inherits its original application design.', 'success');
+  };
+
   const updateElement = (id, patch) => updateDesign({
     elements: elements.map(element => element.id === id ? { ...element, ...patch } : element)
   });
@@ -202,6 +315,7 @@ export default function PageDesignerV2({ draft, setDraft }) {
     const element = newElement(newType);
     updateDesign({ elements: [...elements, element] });
     setSelectedElementId(element.id);
+    setSelectedNativeKey('');
   };
 
   const removeElement = id => {
@@ -213,12 +327,18 @@ export default function PageDesignerV2({ draft, setDraft }) {
     const targets = PAGE_CATALOG.filter(page => page.portal === portal && page.id !== pageId);
     const targetId = window.prompt(`Copy this design to which page ID?\n${targets.map(page => `${page.id} — ${page.label}`).join('\n')}`);
     if (!targets.some(page => page.id === targetId)) return;
+    const copied = JSON.parse(JSON.stringify(design));
+    copied.id = targetId;
+    copied.nativeEditing = {
+      version: 1,
+      overrides: Object.fromEntries(Object.entries(copied.nativeEditing?.overrides || {}).map(([key, override]) => {
+        const nextKey = key.startsWith(`${pageId}:`) ? `${targetId}${key.slice(pageId.length)}` : key;
+        return [nextKey, { ...override, key: nextKey }];
+      }))
+    };
     setDraft(previous => ({
       ...previous,
-      pageDesigns: {
-        ...previous.pageDesigns,
-        [targetId]: { ...JSON.parse(JSON.stringify(design)), id: targetId }
-      }
+      pageDesigns: { ...previous.pageDesigns, [targetId]: copied }
     }));
     addToast(`Design copied to ${targetId}.`, 'success');
   };
@@ -287,6 +407,7 @@ export default function PageDesignerV2({ draft, setDraft }) {
   };
 
   const handlePreviewDocument = useCallback(documentValue => setPreviewDocument(documentValue), []);
+  const handleNativeCatalog = useCallback(catalog => setNativeCatalog(Array.isArray(catalog) ? catalog : []), []);
 
   const runDiagnostics = useCallback(() => {
     const issues = [];
@@ -360,6 +481,48 @@ export default function PageDesignerV2({ draft, setDraft }) {
         navbar.setAttribute('data-builder-issue', 'true');
         addIssue({ id: 'navbar-clipped', type: 'clipped', message: 'Navigation content is wider than the selected device.' });
       }
+
+      const configuredNativeKeys = new Set([
+        ...Object.keys(design?.nativeEditing?.overrides || {}),
+        ...Object.keys(draft.globalNativeEditing?.overrides || {})
+      ]);
+      const configuredNativeNodes = [...previewDocument.querySelectorAll('[data-studio-key]')]
+        .filter(node => configuredNativeKeys.has(node.getAttribute('data-studio-key')))
+        .filter(node => node.getClientRects().length > 0);
+      configuredNativeNodes.forEach((node, index) => {
+        const rect = node.getBoundingClientRect();
+        const clipped = node.scrollWidth > node.clientWidth + 2 || node.scrollHeight > node.clientHeight + 2;
+        const outside = rect.right > documentWidth + 2 || rect.left < -2;
+        if (clipped || outside) {
+          node.setAttribute('data-builder-issue', 'true');
+          addIssue({ id: `native-clipped-${index}`, type: 'clipped', message: `${node.getAttribute('data-studio-kind') || 'Edited element'} “${node.getAttribute('aria-label') || node.textContent?.trim().slice(0, 45) || node.tagName.toLowerCase()}” is clipped or outside the viewport.` });
+        }
+      });
+      configuredNativeNodes.forEach((node, index) => {
+        configuredNativeNodes.slice(index + 1).forEach(other => {
+          if (node.parentElement !== other.parentElement) return;
+          if (rectsOverlap(node.getBoundingClientRect(), other.getBoundingClientRect())) {
+            node.setAttribute('data-builder-issue', 'true');
+            other.setAttribute('data-builder-issue', 'true');
+            addIssue({ id: `native-overlap-${index}-${configuredNativeNodes.indexOf(other)}`, type: 'overlap', message: 'Two customized sibling elements overlap. Adjust their movement, width, order, or parent layout.' });
+          }
+        });
+      });
+
+      [...previewDocument.querySelectorAll('img')].forEach((image, index) => {
+        if (!image.hasAttribute('alt')) addIssue({ id: `image-alt-${index}`, type: 'accessibility', message: 'A visible image is missing an accessibility description.' });
+      });
+      [...previewDocument.querySelectorAll('input,textarea,select')].forEach((field, index) => {
+        const labelled = field.getAttribute('aria-label') || field.getAttribute('aria-labelledby') || field.id && previewDocument.querySelector(`label[for="${field.id}"]`) || field.closest('label');
+        if (!labelled) addIssue({ id: `field-label-${index}`, type: 'accessibility', message: `A ${field.tagName.toLowerCase()} field has no accessible label.` });
+      });
+      const headings = [...previewDocument.querySelectorAll('h1,h2,h3,h4,h5,h6')].filter(node => node.getClientRects().length > 0);
+      headings.forEach((heading, index) => {
+        if (!index) return;
+        const previousLevel = Number(headings[index - 1].tagName.slice(1));
+        const level = Number(heading.tagName.slice(1));
+        if (level > previousLevel + 1) addIssue({ id: `heading-order-${index}`, type: 'accessibility', message: `Heading hierarchy skips from H${previousLevel} to H${level}.` });
+      });
     }
 
     const canvasRect = canvas.current?.getBoundingClientRect();
@@ -406,7 +569,7 @@ export default function PageDesignerV2({ draft, setDraft }) {
     });
 
     setDiagnostics(issues);
-  }, [previewDocument, viewportSize, elements, device, design?.enabled, overlayHeight]);
+  }, [previewDocument, viewportSize, elements, device, design?.enabled, design?.nativeEditing, draft.globalNativeEditing, overlayHeight]);
 
   useEffect(() => {
     const timer = window.setTimeout(runDiagnostics, 180);
@@ -458,6 +621,17 @@ export default function PageDesignerV2({ draft, setDraft }) {
   const imageAssets = assets.filter(asset => asset.media_type === 'image');
   const videoAssets = assets.filter(asset => asset.media_type === 'video');
   const backgroundAssets = design.background.type === 'video' ? videoAssets : imageAssets;
+  const responsivePageBackground = design.background.responsive?.[device] || { type: 'inherit', assetId: '', posterAssetId: '', positionX: 50, positionY: 50 };
+  const responsiveBackgroundAssets = responsivePageBackground.type === 'video' ? videoAssets : imageAssets;
+  const filteredNativeCatalog = nativeCatalog
+    .filter(element => !nativeSearch.trim() || `${element.label} ${element.kind} ${element.tag}`.toLowerCase().includes(nativeSearch.trim().toLowerCase()))
+    .slice(0, 200);
+  const nativeStyle = selectedNativeOverride?.styles?.[device] || {};
+  const nativeContent = selectedNativeOverride?.content || {};
+  const nativeContentValue = field => Object.prototype.hasOwnProperty.call(nativeContent, field)
+    ? nativeContent[field]
+    : selectedNativeDescriptor?.current?.[field] || '';
+  const nativeMediaAssets = selectedNativeDescriptor?.video ? videoAssets : imageAssets;
   const backgroundStyle = design.background.type === 'color'
     ? { background: design.background.color }
     : design.background.type === 'gradient'
@@ -518,14 +692,19 @@ export default function PageDesignerV2({ draft, setDraft }) {
   return (
     <div className="page-designer-shell">
       <section className="phase12-panel page-designer-controls">
-        <div className="phase12-panel-heading"><span>Page registry</span><small>{PAGE_CATALOG.length} live-preview screens</small></div>
-        <label className="phase12-field"><span>Portal</span><select className="form-select" value={portal} onChange={event => setPortal(event.target.value)}>{Object.entries(PORTAL_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
-        <label className="phase12-field"><span>Page</span><select className="form-select" value={pageId} onChange={event => { setPageId(event.target.value); setSelectedElementId(''); }}>{pages.map(page => <option key={page.id} value={page.id}>{page.label}</option>)}</select></label>
-        <label className="page-designer-check"><input type="checkbox" checked={design.enabled} onChange={event => updateDesign({ enabled: event.target.checked })} /> Enable custom page design</label>
+        <div className="phase12-panel-heading"><span>Page registry</span><small>{PAGE_CATALOG.length} editable interfaces</small></div>
+        <label className="phase12-field"><span>Portal</span><select className="form-select" value={portal} onChange={event => { setPortal(event.target.value); setSelectedElementId(''); setSelectedNativeKey(''); setNativeCatalog([]); }}>{Object.entries(PORTAL_LABELS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select></label>
+        <label className="phase12-field"><span>Page</span><select className="form-select" value={pageId} onChange={event => { setPageId(event.target.value); setSelectedElementId(''); setSelectedNativeKey(''); setNativeCatalog([]); }}>{pages.map(page => <option key={page.id} value={page.id}>{page.label}</option>)}</select></label>
+        <label className="page-designer-check"><input type="checkbox" checked={design.enabled} onChange={event => updateDesign({ enabled: event.target.checked })} /> Apply this page's Studio design on the live site</label>
+        <p className="phase12-preview-note">The canvas stays editable either way. Turn this on when this page's background, native edits and custom blocks are ready to be published.</p>
+        <div className="page-designer-coverage-summary">
+          <strong>{nativeCatalog.filter(element => element.editable).length}</strong><span>editable elements detected</span>
+          <strong>{Object.keys(design.nativeEditing?.overrides || {}).length + Object.keys(draft.globalNativeEditing?.overrides || {}).length}</strong><span>saved presentation overrides</span>
+        </div>
 
         <div className="page-designer-section">
-          <h4>Background</h4>
-          <select className="form-select" value={design.background.type} onChange={event => updateBackground({ type: event.target.value, assetId: '' })}>
+          <div className="phase12-panel-heading"><h4>Background</h4><button type="button" className="btn btn-ghost btn-sm" onClick={onOpenMedia}>Media Library</button></div>
+          <select className="form-select" value={design.background.type} onChange={event => updateBackground({ type: event.target.value, assetId: '', posterAssetId: '' })}>
             <option value="theme">Theme default</option><option value="color">Solid colour</option><option value="gradient">Gradient</option><option value="image">Image</option><option value="video">Looping video</option>
           </select>
           {design.background.type === 'color' && <input type="color" value={design.background.color} onChange={event => updateBackground({ color: event.target.value })} />}
@@ -535,6 +714,15 @@ export default function PageDesignerV2({ draft, setDraft }) {
               <option value="">Select media…</option>{backgroundAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}
             </select>
           )}
+          {design.background.type === 'video' && <label className="phase12-field"><span>Video poster / fallback</span><select className="form-select" value={design.background.posterAssetId || ''} onChange={event => updateBackground({ posterAssetId: event.target.value })}><option value="">No poster</option>{imageAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>}
+          {['image', 'video'].includes(design.background.type) && <><label className="phase12-field"><span>Main horizontal focal point Â· {design.background.positionX ?? 50}%</span><input type="range" min="0" max="100" value={design.background.positionX ?? 50} onChange={event => updateBackground({ positionX: Number(event.target.value) })} /></label><label className="phase12-field"><span>Main vertical focal point Â· {design.background.positionY ?? 50}%</span><input type="range" min="0" max="100" value={design.background.positionY ?? 50} onChange={event => updateBackground({ positionY: Number(event.target.value) })} /></label></>}
+          <details className="page-designer-background-responsive">
+            <summary>{device} background override</summary>
+            <label className="phase12-field"><span>Media type</span><select className="form-select" value={responsivePageBackground.type} onChange={event => updateResponsiveBackground({ type: event.target.value, assetId: '', posterAssetId: '' })}><option value="inherit">Inherit page background</option><option value="image">Device-specific image</option><option value="video">Device-specific looping video</option></select></label>
+            {responsivePageBackground.type !== 'inherit' && <label className="phase12-field"><span>{device} media</span><select className="form-select" value={responsivePageBackground.assetId} onChange={event => updateResponsiveBackground({ assetId: event.target.value })}><option value="">Use main page media</option>{responsiveBackgroundAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>}
+            {responsivePageBackground.type === 'video' && <label className="phase12-field"><span>Video poster</span><select className="form-select" value={responsivePageBackground.posterAssetId} onChange={event => updateResponsiveBackground({ posterAssetId: event.target.value })}><option value="">No poster</option>{imageAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>}
+            {responsivePageBackground.type !== 'inherit' && <><label className="phase12-field"><span>Horizontal focal point · {responsivePageBackground.positionX}%</span><input type="range" min="0" max="100" value={responsivePageBackground.positionX} onChange={event => updateResponsiveBackground({ positionX: Number(event.target.value) })} /></label><label className="phase12-field"><span>Vertical focal point · {responsivePageBackground.positionY}%</span><input type="range" min="0" max="100" value={responsivePageBackground.positionY} onChange={event => updateResponsiveBackground({ positionY: Number(event.target.value) })} /></label></>}
+          </details>
           <label className="phase12-field"><span>Overlay opacity · {Math.round(design.background.overlayOpacity * 100)}%</span><input type="range" min="0" max=".95" step=".05" value={design.background.overlayOpacity} onChange={event => updateBackground({ overlayOpacity: Number(event.target.value) })} /></label>
           <input type="color" value={design.background.overlayColor} onChange={event => updateBackground({ overlayColor: event.target.value })} title="Overlay colour" />
         </div>
@@ -545,6 +733,14 @@ export default function PageDesignerV2({ draft, setDraft }) {
           <label className="phase12-field"><span>Content max width (0 = full)</span><input className="form-input" type="number" min="0" max="2400" value={design.contentMaxWidth} onChange={event => updateDesign({ contentMaxWidth: Number(event.target.value) })} /></label>
           {HERO_DEVICE_IDS.map(screen => <label className="phase12-field" key={screen}><span>{screen} page padding</span><input className="form-input" type="number" min="0" max="240" value={design.padding[screen]} onChange={event => updateDesign({ padding: { ...design.padding, [screen]: Number(event.target.value) } })} /></label>)}
         </div>
+
+        <details className="page-designer-section page-designer-page-seo">
+          <summary>Search & sharing</summary>
+          <label className="phase12-field"><span>SEO title</span><input className="form-input" maxLength="120" value={design.seo?.title || ''} onChange={event => updateSeo({ title: event.target.value })} placeholder={`${pageLabel} | IPS`} /></label>
+          <label className="phase12-field"><span>Meta description</span><textarea className="form-textarea" maxLength="320" value={design.seo?.description || ''} onChange={event => updateSeo({ description: event.target.value })} /></label>
+          <label className="phase12-field"><span>Social sharing image</span><select className="form-select" value={design.seo?.socialImageAssetId || ''} onChange={event => updateSeo({ socialImageAssetId: event.target.value })}><option value="">Use platform default</option>{imageAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>
+          <label className="page-designer-check"><input type="checkbox" checked={design.seo?.indexable !== false} onChange={event => updateSeo({ indexable: event.target.checked })} /> Include this page in search engines</label>
+        </details>
 
         <button type="button" className="btn btn-secondary" onClick={duplicatePage}>Copy design to another page</button>
       </section>
@@ -564,6 +760,7 @@ export default function PageDesignerV2({ draft, setDraft }) {
         </div>
 
         <div className="page-designer-device-controls">
+          <label><span>Preview state</span><select value={previewState} onChange={event => { setPreviewState(event.target.value); setSelectedNativeKey(''); setNativeCatalog([]); }}><option value="normal">Populated</option><option value="empty">Empty</option><option value="error">Error</option><option value="loading">Loading</option></select></label>
           <label><span>Device preset</span><select value={matchingPreset?.id || 'custom'} onChange={event => { const preset = DEVICE_PRESETS.find(item => item.id === event.target.value); if (preset) applyPreset(preset); }}><option value="custom">Custom size</option>{DEVICE_PRESETS.map(preset => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label>
           <label><span>Width</span><input type="number" min="280" max="1600" value={viewportSize.width} onChange={event => { const width = clamp(event.target.value, 280, 1600); setViewportSize(previous => ({ ...previous, width })); setDevice(deviceForWidth(width)); }} /></label>
           <label><span>Height</span><input type="number" min="480" max="1400" value={viewportSize.height} onChange={event => setViewportSize(previous => ({ ...previous, height: clamp(event.target.value, 480, 1400) }))} /></label>
@@ -585,11 +782,15 @@ export default function PageDesignerV2({ draft, setDraft }) {
               config={draft}
               pageId={pageId}
               device={device}
+              previewState={previewState}
               selectedElementId={selectedElementId}
+              selectedNativeKey={selectedNativeKey}
               onDocument={handlePreviewDocument}
               onHeight={height => setPreviewPageHeight(Math.max(viewportSize.height, height))}
               onSection={section => setSelectedSection(section || pageId)}
-              onElement={elementId => setSelectedElementId(elementId || '')}
+              onElement={elementId => { setSelectedElementId(elementId || ''); setSelectedNativeKey(''); }}
+              onNativeElement={key => { setSelectedNativeKey(key || ''); setSelectedElementId(''); }}
+              onNativeCatalog={handleNativeCatalog}
             />
             <button type="button" className="page-designer-resize-handle" aria-label="Drag to resize preview width" onPointerDown={startWidthResize}><span /></button>
           </div>
@@ -604,18 +805,117 @@ export default function PageDesignerV2({ draft, setDraft }) {
       </section>
 
       <section className="phase12-panel page-designer-inspector">
-        <div className="phase12-panel-heading"><span>Layers & inspector</span><small>{elements.length}/40 blocks</small></div>
+        <div className="phase12-panel-heading"><span>Layers & inspector</span><small>{nativeCatalog.length} interface elements · {elements.length}/40 blocks</small></div>
+        <details className="page-designer-native-layers" open>
+          <summary>Native page interface</summary>
+          <label className="phase12-field"><span>Find text, field, media or container</span><input className="form-input" value={nativeSearch} onChange={event => setNativeSearch(event.target.value)} placeholder="Search this page…" /></label>
+          <div className="page-designer-native-layer-list">
+            {filteredNativeCatalog.map(element => (
+              <button
+                type="button"
+                key={element.key}
+                className={selectedNativeKey === element.key ? 'selected' : ''}
+                onClick={() => { setSelectedNativeKey(element.key); setSelectedElementId(''); }}
+              >
+                <span>{element.kind}</span><strong>{element.label}</strong><small>{element.tag}{element.editable ? '' : ' · protected'}</small>
+              </button>
+            ))}
+            {!filteredNativeCatalog.length && <p className="phase12-preview-note">The preview is loading its editable interface. If this remains empty, reload Platform Studio once.</p>}
+          </div>
+        </details>
+        <div className="phase12-panel-heading page-designer-custom-layer-heading"><span>Custom overlay blocks</span><small>Optional additions</small></div>
         <div className="page-designer-add">
           <select className="form-select" value={newType} onChange={event => setNewType(event.target.value)}>{['button', 'text', 'image', 'video', 'banner', 'card'].map(type => <option key={type}>{type}</option>)}</select>
           <button className="btn btn-primary" type="button" onClick={addElement} disabled={elements.length >= 40}>Add block</button>
         </div>
         <div className="page-designer-layer-list">
           {elements.map(element => (
-            <button type="button" key={element.id} className={selectedElementId === element.id ? 'selected' : ''} onClick={() => setSelectedElementId(element.id)}>
+            <button type="button" key={element.id} className={selectedElementId === element.id ? 'selected' : ''} onClick={() => { setSelectedElementId(element.id); setSelectedNativeKey(''); }}>
               <span>{element.type}</span><strong>{element.text || element.alt || element.id}</strong><small>z{element.zIndex}</small>
             </button>
           ))}
         </div>
+
+        {selectedNativeDescriptor && (
+          <div className="page-designer-native-editor">
+            <div className="phase12-panel-heading"><span>Selected interface element</span><small>{selectedNativeDescriptor.kind} · {selectedNativeDescriptor.tag}</small></div>
+            <div className="page-designer-selected-header">
+              <strong className="page-designer-selected-label">{selectedNativeDescriptor.label}{selectedNativeIsGlobal ? ' · Global component' : ''}</strong>
+              {selectedNativeDescriptor.editable && <button type="button" className="btn btn-ghost btn-sm" onClick={resetNativeOverride}>Reset selected element</button>}
+            </div>
+            {!selectedNativeDescriptor.editable ? (
+              <div className="page-designer-protected-note">
+                <strong>Protected application element</strong>
+                <p>{selectedNativeDescriptor.protectedReason || 'Its operational value or behaviour is controlled by the application. Presentation can only be changed from its owning system setting.'}</p>
+              </div>
+            ) : (
+              <>
+                <details className="page-designer-inspector-group" open>
+                  <summary>Content & media</summary>
+                  {selectedNativeDescriptor.textEditable && <label className="phase12-field"><span>Visible text</span><textarea className="form-textarea" value={nativeContentValue('text')} onChange={event => updateNativeContent({ text: event.target.value })} /></label>}
+                  {selectedNativeDescriptor.placeholderEditable && <label className="phase12-field"><span>Placeholder</span><input className="form-input" value={nativeContentValue('placeholder')} onChange={event => updateNativeContent({ placeholder: event.target.value })} /></label>}
+                  {selectedNativeDescriptor.altEditable && <label className="phase12-field"><span>Image description (alt text)</span><input className="form-input" value={nativeContentValue('alt')} onChange={event => updateNativeContent({ alt: event.target.value })} /></label>}
+                  <label className="phase12-field"><span>Tooltip / accessible title</span><input className="form-input" value={nativeContentValue('title')} onChange={event => updateNativeContent({ title: event.target.value })} /></label>
+                  {selectedNativeDescriptor.linkEditable && <label className="phase12-field"><span>Safe link destination</span><input className="form-input" value={nativeContentValue('href')} onChange={event => updateNativeContent({ href: event.target.value })} placeholder="/page or https://…" /></label>}
+                  {selectedNativeDescriptor.mediaEditable && <label className="phase12-field"><span>{selectedNativeDescriptor.kind === 'media' ? 'Replace media' : 'Background image'}</span><select className="form-select" value={nativeContent.assetId || ''} onChange={event => updateNativeContent({ assetId: event.target.value })}><option value="">Use original / none</option>{nativeMediaAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>}
+                  {selectedNativeDescriptor.mediaEditable && <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenMedia}>Upload or manage media</button>}
+                  {selectedNativeDescriptor.video && <label className="phase12-field"><span>Video poster / fallback</span><select className="form-select" value={nativeContent.posterAssetId || ''} onChange={event => updateNativeContent({ posterAssetId: event.target.value })}><option value="">Use original / none</option>{imageAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>}
+                  {!selectedNativeDescriptor.textEditable && selectedNativeDescriptor.kind === 'text' && <p className="phase12-preview-note">This item contains nested formatted content. Select its visible child text in the canvas to edit it without destroying formatting.</p>}
+                </details>
+
+                <details className="page-designer-inspector-group" open>
+                  <summary>{device} visibility, position & order</summary>
+                  <div className="page-designer-device-pills">{NATIVE_DEVICE_IDS.map(screen => <button type="button" key={screen} className={device === screen ? 'active' : ''} onClick={() => switchDevice(screen)}>{screen}</button>)}</div>
+                  <label className="page-designer-check"><input type="checkbox" checked={selectedNativeOverride?.visibility?.[device] !== false} onChange={event => updateNativeVisibility(event.target.checked)} /> Show on {device}</label>
+                  <OptionalNumberField label="Order within its layout" min={-99} max={99} suffix="" value={selectedNativeOverride?.order?.[device]} onChange={updateNativeOrder} />
+                  <div className="page-designer-number-grid">
+                    <OptionalNumberField label="Move horizontally" min={-1200} max={1200} value={nativeStyle.translateX} onChange={value => updateNativeStyle({ translateX: value })} />
+                    <OptionalNumberField label="Move vertically" min={-1200} max={1200} value={nativeStyle.translateY} onChange={value => updateNativeStyle({ translateY: value })} />
+                    <OptionalNumberField label="Scale" min={.2} max={4} step={.05} suffix="×" value={nativeStyle.scale} onChange={value => updateNativeStyle({ scale: value })} />
+                  </div>
+                </details>
+
+                <details className="page-designer-inspector-group">
+                  <summary>Typography & colour</summary>
+                  <div className="page-designer-number-grid">
+                    <OptionalNumberField label="Font size" min={8} max={180} value={nativeStyle.fontSize} onChange={value => updateNativeStyle({ fontSize: value })} />
+                    <OptionalNumberField label="Line height" min={.6} max={3} step={.05} suffix="" value={nativeStyle.lineHeight} onChange={value => updateNativeStyle({ lineHeight: value })} />
+                    <OptionalNumberField label="Letter spacing" min={-8} max={30} step={.1} value={nativeStyle.letterSpacing} onChange={value => updateNativeStyle({ letterSpacing: value })} />
+                  </div>
+                  <label className="phase12-field"><span>Font weight</span><select className="form-select" value={nativeStyle.fontWeight || ''} onChange={event => updateNativeStyle({ fontWeight: event.target.value || null })}><option value="">Inherit</option>{['300', '400', '500', '600', '700', '800', '900'].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+                  <label className="phase12-field"><span>Text alignment</span><select className="form-select" value={nativeStyle.textAlign || ''} onChange={event => updateNativeStyle({ textAlign: event.target.value || null })}><option value="">Inherit</option><option value="left">Left</option><option value="center">Centre</option><option value="right">Right</option><option value="justify">Justify</option></select></label>
+                  <label className="phase12-field"><span>Text colour</span><input className="form-input" value={nativeStyle.color || ''} onChange={event => updateNativeStyle({ color: event.target.value })} placeholder="#FFFFFF (blank = inherit)" /></label>
+                  <label className="phase12-field"><span>Background colour</span><input className="form-input" value={nativeStyle.backgroundColor || ''} onChange={event => updateNativeStyle({ backgroundColor: event.target.value })} placeholder="#00010D (blank = inherit)" /></label>
+                </details>
+
+                <details className="page-designer-inspector-group">
+                  <summary>Size & layout</summary>
+                  <label className="phase12-field"><span>Layout</span><select className="form-select" value={nativeStyle.layout || 'inherit'} onChange={event => updateNativeStyle({ layout: event.target.value })}><option value="inherit">Inherit</option><option value="block">Block</option><option value="flex-row">Flex row</option><option value="flex-column">Flex column</option><option value="grid">Grid</option></select></label>
+                  {nativeStyle.layout === 'grid' && <OptionalNumberField label="Grid columns" min={1} max={12} suffix="" value={nativeStyle.columns} onChange={value => updateNativeStyle({ columns: value })} />}
+                  <div className="page-designer-number-grid">
+                    <OptionalNumberField label="Width" min={20} max={2400} value={nativeStyle.width} onChange={value => updateNativeStyle({ width: value })} />
+                    <OptionalNumberField label="Maximum width" min={20} max={2400} value={nativeStyle.maxWidth} onChange={value => updateNativeStyle({ maxWidth: value })} />
+                    <OptionalNumberField label="Minimum height" min={0} max={3000} value={nativeStyle.minHeight} onChange={value => updateNativeStyle({ minHeight: value })} />
+                    <OptionalNumberField label="Gap" min={0} max={240} value={nativeStyle.gap} onChange={value => updateNativeStyle({ gap: value })} />
+                    <OptionalNumberField label="Corner radius" min={0} max={300} value={nativeStyle.borderRadius} onChange={value => updateNativeStyle({ borderRadius: value })} />
+                  </div>
+                  <label className="phase12-field"><span>Horizontal distribution</span><select className="form-select" value={nativeStyle.justifyContent || 'inherit'} onChange={event => updateNativeStyle({ justifyContent: event.target.value })}>{['inherit', 'start', 'center', 'end', 'space-between', 'space-around', 'space-evenly'].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+                  <label className="phase12-field"><span>Vertical alignment</span><select className="form-select" value={nativeStyle.alignItems || 'inherit'} onChange={event => updateNativeStyle({ alignItems: event.target.value })}>{['inherit', 'start', 'center', 'end', 'stretch'].map(value => <option key={value} value={value}>{value}</option>)}</select></label>
+                </details>
+
+                <details className="page-designer-inspector-group">
+                  <summary>Spacing</summary>
+                  <h5>Padding</h5>
+                  <div className="page-designer-number-grid">{['Top', 'Right', 'Bottom', 'Left'].map(side => { const key = `padding${side}`; return <OptionalNumberField key={key} label={side} min={0} max={500} value={nativeStyle[key]} onChange={value => updateNativeStyle({ [key]: value })} />; })}</div>
+                  <h5>Margin</h5>
+                  <div className="page-designer-number-grid">{['Top', 'Right', 'Bottom', 'Left'].map(side => { const key = `margin${side}`; return <OptionalNumberField key={key} label={side} min={-500} max={500} value={nativeStyle[key]} onChange={value => updateNativeStyle({ [key]: value })} />; })}</div>
+                  {(selectedNativeDescriptor.kind === 'media' || nativeContent.assetId) && <><h5>Media crop & focal point</h5><label className="phase12-field"><span>Fit</span><select className="form-select" value={nativeStyle.objectFit || 'inherit'} onChange={event => updateNativeStyle({ objectFit: event.target.value })}>{['inherit', 'cover', 'contain', 'fill', 'none'].map(value => <option key={value} value={value}>{value}</option>)}</select></label><label className="phase12-field"><span>Horizontal focal point · {nativeStyle.objectPositionX ?? 50}%</span><input type="range" min="0" max="100" value={nativeStyle.objectPositionX ?? 50} onChange={event => updateNativeStyle({ objectPositionX: Number(event.target.value) })} /></label><label className="phase12-field"><span>Vertical focal point · {nativeStyle.objectPositionY ?? 50}%</span><input type="range" min="0" max="100" value={nativeStyle.objectPositionY ?? 50} onChange={event => updateNativeStyle({ objectPositionY: Number(event.target.value) })} /></label></>}
+                </details>
+                <p className="phase12-preview-note">Only presentation and safe copy are editable. Authentication, permissions, record values and action behaviour remain protected application logic.</p>
+              </>
+            )}
+          </div>
+        )}
 
         {isHomePage && (
           <div className="page-designer-hero-editor">
@@ -636,10 +936,13 @@ export default function PageDesignerV2({ draft, setDraft }) {
 
               <details className="page-designer-inspector-group">
                 <summary>Media & overlay</summary>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenMedia}>Upload or manage media</button>
                 <div className="page-designer-color-row"><label>Highlight <input type="color" value={hero.highlightColor || '#F3B37C'} onChange={event => updateHero({ highlightColor: event.target.value })} /></label><label>Overlay <input type="color" value={hero.overlayColor || '#35124C'} onChange={event => updateHero({ overlayColor: event.target.value })} /></label></div>
                 <label className="phase12-field"><span>Background type</span><select className="form-select" value={hero.backgroundType || 'image'} onChange={event => updateHero({ backgroundType: event.target.value })}><option value="image">Image</option><option value="video">Looping video</option></select></label>
-                <label className="phase12-field"><span>Background media URL or media:ASSET_ID</span><input className="form-input" value={hero.backgroundMedia || ''} onChange={event => updateHero({ backgroundMedia: event.target.value })} /></label>
-                <label className="phase12-field"><span>Poster / fallback image</span><input className="form-input" value={hero.posterMedia || ''} onChange={event => updateHero({ posterMedia: event.target.value })} /></label>
+                <label className="phase12-field"><span>Choose background from Media Library</span><select className="form-select" value={referencedAssetId(hero.backgroundMedia)} onChange={event => updateHero({ backgroundMedia: mediaReference(event.target.value) })}><option value="">Use URL / default</option>{(hero.backgroundType === 'video' ? videoAssets : imageAssets).map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>
+                <label className="phase12-field"><span>Background URL or media reference</span><input className="form-input" value={hero.backgroundMedia || ''} onChange={event => updateHero({ backgroundMedia: event.target.value })} placeholder="media:ASSET_ID or /path/file.mp4" /></label>
+                <label className="phase12-field"><span>Choose poster / fallback image</span><select className="form-select" value={referencedAssetId(hero.posterMedia)} onChange={event => updateHero({ posterMedia: mediaReference(event.target.value) })}><option value="">Use URL / none</option>{imageAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>
+                <label className="phase12-field"><span>Poster URL or media reference</span><input className="form-input" value={hero.posterMedia || ''} onChange={event => updateHero({ posterMedia: event.target.value })} /></label>
                 <label className="phase12-field"><span>Overlay opacity · {Math.round((hero.overlayOpacity ?? .72) * 100)}%</span><input type="range" min="0" max=".95" step=".05" value={hero.overlayOpacity ?? .72} onChange={event => updateHero({ overlayOpacity: Number(event.target.value) })} /></label>
               </details>
 
@@ -666,6 +969,9 @@ export default function PageDesignerV2({ draft, setDraft }) {
                 <label className="phase12-field"><span>Vertical alignment</span><select className="form-select" value={heroSettings.verticalAlignment} onChange={event => updateHeroDevice({ verticalAlignment: event.target.value })}><option value="start">Top</option><option value="center">Centre</option><option value="end">Bottom</option></select></label>
 
                 <h5>Background focal point</h5>
+                <label className="phase12-field"><span>{device} background type</span><select className="form-select" value={heroSettings.backgroundType || 'inherit'} onChange={event => updateHeroDevice({ backgroundType: event.target.value })}><option value="inherit">Inherit main hero media</option><option value="image">Device-specific image</option><option value="video">Device-specific looping video</option></select></label>
+                {heroSettings.backgroundType !== 'inherit' && <label className="phase12-field"><span>{device} background media</span><select className="form-select" value={referencedAssetId(heroSettings.backgroundMedia)} onChange={event => updateHeroDevice({ backgroundMedia: mediaReference(event.target.value) })}><option value="">Use main hero media</option>{(heroSettings.backgroundType === 'video' ? videoAssets : imageAssets).map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>}
+                {heroSettings.backgroundType === 'video' && <label className="phase12-field"><span>{device} video poster</span><select className="form-select" value={referencedAssetId(heroSettings.posterMedia)} onChange={event => updateHeroDevice({ posterMedia: mediaReference(event.target.value) })}><option value="">Use main poster</option>{imageAssets.map(asset => <option key={asset.asset_id} value={asset.asset_id}>{asset.original_name}</option>)}</select></label>}
                 <label className="phase12-field"><span>Horizontal · {heroSettings.backgroundPositionX}%</span><input type="range" min="0" max="100" value={heroSettings.backgroundPositionX} onChange={event => updateHeroDevice({ backgroundPositionX: Number(event.target.value) })} /></label>
                 <label className="phase12-field"><span>Vertical · {heroSettings.backgroundPositionY}%</span><input type="range" min="0" max="100" value={heroSettings.backgroundPositionY} onChange={event => updateHeroDevice({ backgroundPositionY: Number(event.target.value) })} /></label>
 
@@ -689,7 +995,7 @@ export default function PageDesignerV2({ draft, setDraft }) {
                 </div>
               </details>
               <p className="phase12-preview-note">Each device keeps its own typography, spacing, focal point, visibility and order. Hero button labels and destinations remain editable under Navigation / Buttons.</p>
-            </> : <p style={{ color: 'var(--text-muted)' }}>The selected section is visible in the live canvas. Its dedicated inspector will be added as each homepage section is converted.</p>}
+            </> : <p className="phase12-preview-note">{selectedSection} is selected. Click its visible text, media, button or container in the canvas to edit it with the universal inspector above.</p>}
           </div>
         )}
 
