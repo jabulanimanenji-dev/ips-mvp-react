@@ -1,0 +1,68 @@
+PHASE 17A.1 + 17A.2 — WINDOWS CMD MANUAL TEST
+
+1. Extract the ZIP
+
+mkdir "%USERPROFILE%\Desktop\ips-phase17-test"
+tar -xf "C:\PATH\TO\ips-mvp-react-phase17a1-a2.zip" -C "%USERPROFILE%\Desktop\ips-phase17-test"
+cd /d "%USERPROFILE%\Desktop\ips-phase17-test\ips-mvp-react-phase17a1-a2"
+
+2. Configure a disposable/non-production MongoDB database
+
+copy .env.example .env
+notepad .env
+
+Set at least these values, save, and close Notepad:
+
+PORT=8080
+MONGODB_URI=mongodb+srv://YOUR_USER:YOUR_PASSWORD@YOUR_CLUSTER/ips_phase17a_manual_test?retryWrites=true&w=majority
+ADMIN_EMAIL=admin@example.test
+ADMIN_PASSWORD=Phase17Local123
+SESSION_SECRET=phase17-local-session-secret-change-this-123456789
+VITE_ADMIN_ENTRY_PATH=/phase17a-admin
+STORAGE_PROVIDER=local
+
+Never point this manual CRUD test at production data.
+
+3. Install dependencies
+
+npm ci
+
+4. Start the backend in CMD window 1
+
+cd /d "%USERPROFILE%\Desktop\ips-phase17-test\ips-mvp-react-phase17a1-a2"
+npm run dev:server
+
+5. Confirm backend health in a separate CMD window
+
+curl.exe http://127.0.0.1:8080/api/health
+
+Confirm the response says database "connected".
+
+6. Start the frontend in CMD window 2
+
+cd /d "%USERPROFILE%\Desktop\ips-phase17-test\ips-mvp-react-phase17a1-a2"
+npm run dev
+
+7. Open and sign in
+
+http://127.0.0.1:3000/phase17a-admin
+
+Use the ADMIN_EMAIL and ADMIN_PASSWORD from .env, then open:
+
+Admin Dashboard -> Platform Studio -> Service Engine
+
+8. Manual acceptance test
+
+- Confirm Dashboard, Categories, Services, Templates, Question Builder, Settings, and Audit load.
+- Confirm the six starter templates: Academic, Cleaning, Delivery, Digital, Consultation, and Other.
+- Create a category and a service. Reuse either slug on a second record and confirm it is rejected.
+- Publish, pause, archive, and restore both records.
+- Change a global setting, then confirm category and service controls offer Inherit, On, and Off and show the effective source.
+- Add required and optional questions; use several types including file and image.
+- Drag questions into a new order, assign questions to multiple steps, add validation and a conditional rule, save, reload, and confirm persistence.
+- Copy questions from one service to another.
+- Save a service's questions as a reusable set, apply it to another service, and apply a starter template.
+- Open Audit and confirm the mutations appear.
+- Reopen /admin/services and confirm the existing Service Operations screen still works.
+
+Stop each server with Ctrl+C when finished.

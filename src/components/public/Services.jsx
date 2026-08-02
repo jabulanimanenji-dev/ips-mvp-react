@@ -5,11 +5,11 @@ import { useCMS } from '../../context/CMSContext';
 export default function Services() {
   const { config } = useCMS();
   const catalog = config.serviceCatalog || { categories: [], services: [] };
-  const categories = useMemo(() => (catalog.categories || []).filter(item => item.active).sort((a,b) => a.order-b.order), [catalog.categories]);
+  const categories = useMemo(() => (catalog.categories || []).filter(item => item.active && item.homepageVisible !== false).sort((a,b) => a.order-b.order), [catalog.categories]);
   const [query, setQuery] = useState('');
   const services = useMemo(() => {
     const term = query.trim().toLowerCase();
-    return (catalog.services || []).filter(item => item.active && (!term || `${item.name} ${item.description}`.toLowerCase().includes(term)));
+    return (catalog.services || []).filter(item => item.active && item.homepageVisible !== false && item.searchVisible !== false && item.acceptingRequests !== false && (!term || `${item.name} ${item.description}`.toLowerCase().includes(term)));
   }, [catalog.services, query]);
 
   return <section className="section" id="services">
@@ -24,7 +24,7 @@ export default function Services() {
       </div>
       {!query && <div className="grid grid-4 gap-6">
         {categories.map((category, idx) => {
-          const count=(catalog.services||[]).filter(s=>s.active&&s.categoryId===category.id).length;
+          const count=(catalog.services||[]).filter(s=>s.active&&s.homepageVisible!==false&&s.acceptingRequests!==false&&s.categoryId===category.id).length;
           return <Link key={category.id} to={`/services?category=${encodeURIComponent(category.id)}`} className="card text-center animate-fade-in-up" style={{animationDelay:`${idx*.06}s`,textDecoration:'none',border:category.id==='academic'?'1px solid var(--primary)':'1px solid var(--border)'}}>
             <div style={{fontSize:'2.5rem',marginBottom:'1rem'}}>{category.icon}</div>
             {category.id==='academic' && <div className="label" style={{marginBottom:8}}>Flagship category</div>}

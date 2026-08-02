@@ -648,6 +648,11 @@ export function normalisePlatformConfig(input = {}) {
         family: item?.family === 'odd_job' ? 'odd_job' : 'professional',
         featured: item?.featured !== false,
         active: item?.active !== false,
+        homepageVisible: item?.homepageVisible !== false,
+        navigationVisible: item?.navigationVisible !== false,
+        searchVisible: item?.searchVisible !== false,
+        acceptingRequests: item?.acceptingRequests !== false,
+        publicPricingAllowed: item?.publicPricingAllowed !== false,
         order: clamp(item?.order, 0, 999, index)
       };
     }).sort((a, b) => a.order - b.order).map((item, order) => ({ ...item, order })),
@@ -666,6 +671,11 @@ export function normalisePlatformConfig(input = {}) {
     unit: cleanText(item?.unit || 'custom quote', 60),
     featured: item?.featured === true,
     active: item?.active !== false,
+    homepageVisible: item?.homepageVisible !== false,
+    navigationVisible: item?.navigationVisible !== false,
+    searchVisible: item?.searchVisible !== false,
+    acceptingRequests: item?.acceptingRequests !== false,
+    publicPricingAllowed: item?.publicPricingAllowed !== false,
     quoteEnabled: item?.quoteEnabled !== false,
     order: clamp(item?.order, 0, 999, index)
   }));

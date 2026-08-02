@@ -108,6 +108,28 @@ try {
     ['GET', '/api/admin/audit-logs'],
     ['GET', '/api/admin/media'],
     ['POST', '/api/admin/media'],
+    ['GET', '/api/admin/service-engine'],
+    ['PUT', '/api/admin/service-engine/settings'],
+    ['POST', '/api/admin/service-engine/categories'],
+    ['PATCH', '/api/admin/service-engine/categories/test-category'],
+    ['DELETE', '/api/admin/service-engine/categories/test-category'],
+    ['POST', '/api/admin/service-engine/categories/test-category/pause'],
+    ['POST', '/api/admin/service-engine/services'],
+    ['PATCH', '/api/admin/service-engine/services/test-service'],
+    ['DELETE', '/api/admin/service-engine/services/test-service'],
+    ['POST', '/api/admin/service-engine/services/test-service/publish'],
+    ['POST', '/api/admin/service-engine/templates'],
+    ['PATCH', '/api/admin/service-engine/templates/test-template'],
+    ['DELETE', '/api/admin/service-engine/templates/test-template'],
+    ['POST', '/api/admin/service-engine/services/test-service/apply-template'],
+    ['PUT', '/api/admin/service-engine/services/test-service/questions'],
+    ['POST', '/api/admin/service-engine/services/test-service/questions/copy'],
+    ['POST', '/api/admin/service-engine/question-sets'],
+    ['PATCH', '/api/admin/service-engine/question-sets/test-set'],
+    ['DELETE', '/api/admin/service-engine/question-sets/test-set'],
+    ['POST', '/api/admin/service-engine/question-sets/from-service'],
+    ['POST', '/api/admin/service-engine/services/test-service/apply-question-set'],
+    ['GET', '/api/admin/service-engine/audit'],
     ['GET', '/api/support-tickets'],
     ['POST', '/api/support-tickets']
   ];
@@ -128,9 +150,18 @@ try {
   const healthPayload = await health.json();
   assert.equal(healthPayload.server, 'online');
   assert.equal(healthPayload.ready, true);
+
+  const publicCatalog = await fetch(`http://127.0.0.1:${port}/api/service-catalog`);
+  assert.equal(publicCatalog.status, 200, 'The public service catalogue must remain available without MongoDB in development.');
+  const publicCatalogPayload = await publicCatalog.json();
+  const catalog = publicCatalogPayload.catalog || publicCatalogPayload;
+  assert.equal(publicCatalogPayload.success, true);
+  assert.equal(publicCatalogPayload.fallback, true);
+  assert.ok(Array.isArray(catalog.categories), 'The public catalogue fallback must include categories.');
+  assert.ok(Array.isArray(catalog.services), 'The public catalogue fallback must include services.');
   assert.equal(server.exitCode, null, `Server crashed during unauthorized request checks.\n${stderr}`);
 
-  console.log(`Session guard verification passed for ${protectedRequests.length} protected requests.`);
+  console.log(`Session guard verification passed for ${protectedRequests.length} protected requests and the public catalogue fallback.`);
 } finally {
   try {
     await stopServer(server);
