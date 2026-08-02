@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useCMS } from '../context/CMSContext';
 import './service-marketplace.css';
+import DynamicServiceRequestForm from '../components/public/DynamicServiceRequestForm';
 
 export default function ServiceMarketplacePage() {
   const { user } = useAuth();
@@ -73,18 +74,7 @@ export default function ServiceMarketplacePage() {
       <section className="market-request-wrap">
         <div className="container market-request-grid">
           <div className="request-intro"><span>CONCIERGE REQUEST</span><h2>Describe the result.<br />We’ll design the route.</h2><p>Your request is privately reviewed, clarified where necessary, priced transparently and assigned to the best available provider.</p><ol><li><b>01</b> Submit your outcome</li><li><b>02</b> Review a tailored quote</li><li><b>03</b> Track delivery in your portal</li></ol></div>
-          <form className="market-form" onSubmit={submit}>
-            <div className="market-form-top"><div className="service-symbol">{selected[2]}</div><div><small>{family === 'professional' ? 'PROFESSIONAL SERVICE' : 'ODD JOB'}</small><h3>{selected[0]}</h3></div></div>
-            <label>What do you need?<input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Give your request a clear title" /></label>
-            <label>Brief and context<textarea required value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="What needs to happen? Include the important details." /></label>
-            <label>Successful outcome<textarea value={form.desired_outcome} onChange={e => setForm({ ...form, desired_outcome: e.target.value })} placeholder="What should a successful result look like?" /></label>
-            <div className="market-form-row"><label>Delivery<select value={form.delivery_mode} onChange={e => setForm({ ...form, delivery_mode: e.target.value })}><option value="remote">Remote</option><option value="in_person">In person</option><option value="hybrid">Hybrid</option></select></label><label>Urgency<select value={form.urgency} onChange={e => setForm({ ...form, urgency: e.target.value })}><option value="standard">Standard</option><option value="priority">Priority</option><option value="urgent">Urgent</option></select></label></div>
-            <div className="market-form-row"><label>Location<input value={form.location} onChange={e => setForm({ ...form, location: e.target.value })} placeholder="City or remote" /></label><label>Deadline<input type="date" value={form.deadline} onChange={e => setForm({ ...form, deadline: e.target.value })} /></label></div>
-            <div className="market-form-row"><label>Budget from<input type="number" value={form.budget_min} onChange={e => setForm({ ...form, budget_min: e.target.value })} placeholder="$0" /></label><label>Budget to<input type="number" value={form.budget_max} onChange={e => setForm({ ...form, budget_max: e.target.value })} placeholder="$500" /></label></div>
-            {error && <div className="market-error">{error}</div>}
-            <button className="market-submit" disabled={submitting}>{submitting ? 'Submitting securely…' : user ? 'Submit private request →' : 'Sign in to submit →'}</button>
-            <small className="market-fine">No payment is taken now. An administrator reviews every request before quoting.</small>
-          </form>
+          <DynamicServiceRequestForm user={user} navigate={navigate} onSubmitted={() => navigate('/client/services')} />
         </div>
       </section>
       <section className="container market-final"><span>Not sure which category fits?</span><h2>Start with the outcome. IPS handles the complexity.</h2><Link to={user ? '/client/services' : '/signup'}>{user ? 'Open my service hub' : 'Create your private account'} →</Link></section>
