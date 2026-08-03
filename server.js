@@ -1623,7 +1623,7 @@ const canAccessWork = (session, work) => session.role === 'admin'
   || (session.role === 'client' && work.record.client_id === session.id)
   || (session.role === 'writer' && (work.record.writer_id === session.id || work.record.provider_id === session.id));
 const serviceTransitions = {
-  'New Request': ['Under Review', 'Clarification Required', 'Cancelled'],
+  'New Request': ['Under Review', 'Clarification Required', 'Awaiting Assignment', 'Assigned', 'Cancelled'],
   'Under Review': ['Clarification Required', 'Quoted', 'Cancelled', 'On Hold'],
   'Clarification Required': ['Under Review', 'Quoted', 'Cancelled'],
   'Quoted': ['Quote Accepted', 'Under Review', 'Cancelled'],
@@ -2266,6 +2266,28 @@ app.patch('/api/services/:id', async (req, res) => {
         currency: quoteData.currency || 'USD', notes: quoteData.notes || 'Quote issued',
         expires_at: quoteData.expires_at || null, issued_by: session.id
       });
+    }
+    const isAdminAssignmentUpdate = session.role === 'admin'
+      && Object.prototype.hasOwnProperty.call(req.body, 'provider_id');
+    if (isAdminAssignmentUpdate) {
+      const providerId = String(req.body.provider_id || '').trim();
+      if (providerId) {
+        const provider = await Writer.findOne({
+          writer_id: providerId,
+          status: 'Active',
+          application_status: 'approved'
+        }).select('writer_id full_name');
+        if (!provider) {
+          return res.status(400).json({ success: false, error: 'Select an active, approved provider.' });
+        }
+        req.body.provider_id = provider.writer_id;
+        req.body.provider_name = provider.full_name;
+        req.body.status = req.body.status || 'Assigned';
+      } else {
+        req.body.provider_id = '';
+        req.body.provider_name = '';
+        req.body.status = req.body.status || 'Awaiting Assignment';
+      }
     }
     if (req.body.status && !canTransitionService(existing.status, req.body.status, session.role)) {
       return res.status(409).json({ success: false, error: `Status cannot move from "${existing.status}" to "${req.body.status}" for this role.` });

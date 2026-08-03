@@ -73,7 +73,7 @@ export default function ActionCenter({ role }) {
   };
 
   const assign = item => {
-    const assigned_to = window.prompt('Administrator name or ID:', item.assigned_to || '') || '';
+    const assigned_to = window.prompt('Administrative owner name or ID:', item.assigned_to || '') || '';
     if (!assigned_to.trim()) return;
     update(item, { assigned_to, status: 'in_progress' });
   };
@@ -137,7 +137,7 @@ export default function ActionCenter({ role }) {
             <div className="flex gap-1" style={{ alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', maxWidth: 440 }}>
               <Link className="btn btn-primary btn-sm" to={hrefFor(item)}>Open job</Link>
               {role === 'admin' && item.source === 'file' && <select className="form-select" defaultValue="" disabled={busy === item.key} onChange={e => { if (e.target.value) releaseFile(item, e.target.value); }} style={{ maxWidth: 170 }}><option value="">Release file to…</option><option value="admin_client">Client</option><option value="admin_writer">Provider</option><option value="all">Client + provider</option></select>}
-              {role === 'admin' && <button className="btn btn-ghost btn-sm" disabled={busy === item.key} onClick={() => assign(item)}>{item.assigned_to ? `Assigned: ${item.assigned_to}` : 'Assign admin'}</button>}
+              {role === 'admin' && <button className="btn btn-ghost btn-sm" disabled={busy === item.key} onClick={() => assign(item)}>{item.assigned_to ? `Admin owner: ${item.assigned_to}` : 'Set admin owner'}</button>}
               {role === 'admin' && <select className="form-select" value={item.priority} disabled={busy === item.key} onChange={e => update(item, { priority: e.target.value })} style={{ maxWidth: 110 }}><option value="low">Low</option><option value="normal">Normal</option><option value="high">High</option><option value="urgent">Urgent</option></select>}
               {item.status !== 'in_progress' && <button className="btn btn-secondary btn-sm" disabled={busy === item.key} onClick={() => update(item, { status: 'in_progress' })}>Start</button>}
               <button className="btn btn-ghost btn-sm" disabled={busy === item.key} onClick={() => snooze(item)}>Snooze</button>
