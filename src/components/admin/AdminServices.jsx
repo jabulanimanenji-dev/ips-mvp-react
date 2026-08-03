@@ -17,10 +17,11 @@ export default function AdminServices() {
   useEffect(() => { load(); }, []);
 
   const patch = async (id, updates) => {
+    setError('');
     const res = await fetch(`/api/services/${id}`, { method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...updates, actor_id:'admin', actor_role:'admin'}) });
     const data = await res.json();
     if (!res.ok) return setError(data.error || 'Update failed.');
-    load();
+    await load();
   };
   const openQuote = job => {
     setQuoteJob(job);

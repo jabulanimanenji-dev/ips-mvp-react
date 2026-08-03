@@ -20,6 +20,9 @@ import Message from './models/Message.js';
 import AuditLog from './models/AuditLog.js';
 import Notification from './models/Notification.js';
 import ServiceRequest from './models/ServiceRequest.js';
+import ServiceDefinition from './models/ServiceDefinition.js';
+import ServiceCategory from './models/ServiceCategory.js';
+import ServiceEngineSettings from './models/ServiceEngineSettings.js';
 import WorkDecision from './models/WorkDecision.js';
 import WorkExpense from './models/WorkExpense.js';
 import QuoteVersion from './models/QuoteVersion.js';
@@ -33,6 +36,7 @@ import MediaAsset from './models/MediaAsset.js';
 import SupportTicket from './models/SupportTicket.js';
 import { serviceEngineHandlers, respondWithServiceEngineError } from './services/serviceEngineApi.js';
 import { DEFAULT_PLATFORM_CONFIG, clonePlatformConfig, normalisePlatformConfig } from './shared/platformConfig.js';
+import { buildServiceRequestSnapshot, resolveEffectiveToggles, validateServiceRuntimeAnswers } from './shared/serviceEngine.js';
 import {
   ADMIN_PERMISSION_CATALOG,
   BUILT_IN_ADMIN_ROLES,
@@ -1619,7 +1623,7 @@ const canAccessWork = (session, work) => session.role === 'admin'
   || (session.role === 'client' && work.record.client_id === session.id)
   || (session.role === 'writer' && (work.record.writer_id === session.id || work.record.provider_id === session.id));
 const serviceTransitions = {
-  'New Request': ['Under Review', 'Clarification Required', 'Cancelled'],
+  'New Request': ['Under Review', 'Clarification Required', 'Awaiting Assignment', 'Assigned', 'Cancelled'],
   'Under Review': ['Clarification Required', 'Quoted', 'Cancelled', 'On Hold'],
   'Clarification Required': ['Under Review', 'Quoted', 'Cancelled'],
   'Quoted': ['Quote Accepted', 'Under Review', 'Cancelled'],
@@ -2132,6 +2136,53 @@ app.patch('/api/work/:workId/decisions/:decisionId', async (req, res) => {
   }
 });
 
+app.get('/api/service-catalog/:slug/runtime', async (req, res) => {
+  try {
+    if (mongoose.connection.readyState !== 1) return res.status(503).json({ success: false, error: 'The dynamic service catalogue requires a database connection.' });
+    const settings = await ServiceEngineSettings.findOne({ key: 'service-engine' }).lean();
+    const service = await ServiceDefinition.findOne({ slug: req.params.slug, status: 'published' }).lean();
+    if (!service) return res.status(404).json({ success: false, error: 'Published service not found.' });
+    const category = await ServiceCategory.findOne({ categoryId: service.categoryId, status: 'published' }).lean();
+    if (!category) return res.status(404).json({ success: false, error: 'Published service category not found.' });
+    const resolved = resolveEffectiveToggles(settings || {}, category, service);
+    if (!resolved.effectiveToggles.acceptingRequests) return res.status(409).json({ success: false, error: 'This service is not accepting requests.' });
+    res.json({ success: true, runtime: { service: { ...service, effectiveToggles: resolved.effectiveToggles }, category, steps: service.steps || [], questions: service.questions || [], pricing: { mode: resolved.effectiveToggles.instantQuotesAllowed ? 'hook' : 'manual', currency: 'USD' } } });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
+app.post('/api/service-catalog/:slug/requests', async (req, res) => {
+  try {
+    const session = requireSession(req, res); if (!session) return;
+    if (session.role !== 'client') return res.status(403).json({ success: false, error: 'A client session is required.' });
+    const client = await Client.findOne({ client_id: session.id }).select('-password');
+    if (!client) return res.status(404).json({ success: false, error: 'Client account not found.' });
+    const settings = await ServiceEngineSettings.findOne({ key: 'service-engine' }).lean();
+    const service = await ServiceDefinition.findOne({ slug: req.params.slug, status: 'published' }).lean();
+    if (!service) return res.status(404).json({ success: false, error: 'Published service not found.' });
+    const category = await ServiceCategory.findOne({ categoryId: service.categoryId, status: 'published' }).lean();
+    if (!category) return res.status(404).json({ success: false, error: 'Published service category not found.' });
+    const resolved = resolveEffectiveToggles(settings || {}, category, service);
+    if (!resolved.effectiveToggles.acceptingRequests) return res.status(409).json({ success: false, error: 'This service is not accepting requests.' });
+    const validation = validateServiceRuntimeAnswers(service.questions || [], req.body?.answers || {});
+    if (!validation.valid) return res.status(400).json({ success: false, error: 'Please correct the highlighted service questions.', fieldErrors: validation.errors });
+    const count = await ServiceRequest.countDocuments(); const requestId = `SRV-${String(count + 1).padStart(5, '0')}`;
+    const snapshot = buildServiceRequestSnapshot({ service, category, answers: validation.answers });
+    const request = await ServiceRequest.create({
+      request_id: requestId, client_id: session.id, client_name: client.full_name, client_email: client.email,
+      family: category.family === 'odd_job' ? 'odd_job' : 'professional', category: category.name,
+      title: String(req.body?.title || service.name).trim().slice(0, 180), description: String(req.body?.description || `Dynamic request for ${service.name}`).trim(),
+      desired_outcome: String(req.body?.desired_outcome || '').trim(), delivery_mode: req.body?.delivery_mode || 'remote', location: String(req.body?.location || ''),
+      deadline: req.body?.deadline || null, budget_min: Number(req.body?.budget_min || 0), budget_max: Number(req.body?.budget_max || 0), urgency: req.body?.urgency || 'standard',
+      service_definition_id: service.serviceId, service_slug: service.slug, service_revision: service.revision || 1,
+      intake_answers: validation.answers, intake_snapshot: snapshot, source: 'service_engine',
+      status_history: [{ status: 'New Request', actor_id: session.id, actor_role: 'client', reason: 'Dynamic service request submitted' }]
+    });
+    await recordAudit({ order_id: requestId, actor_id: session.id, actor_role: 'client', action: 'service_engine_request_created', details: { serviceId: service.serviceId, revision: service.revision || 1 } });
+    await Notification.create({ recipient_id: 'admin', recipient_role: 'admin', order_id: requestId, type: 'service_request', message: `New ${service.name} request from ${client.full_name}` }).catch(() => {});
+    res.status(201).json({ success: true, request });
+  } catch (err) { res.status(500).json({ success: false, error: err.message }); }
+});
+
 app.get('/api/services/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
@@ -2215,6 +2266,28 @@ app.patch('/api/services/:id', async (req, res) => {
         currency: quoteData.currency || 'USD', notes: quoteData.notes || 'Quote issued',
         expires_at: quoteData.expires_at || null, issued_by: session.id
       });
+    }
+    const isAdminAssignmentUpdate = session.role === 'admin'
+      && Object.prototype.hasOwnProperty.call(req.body, 'provider_id');
+    if (isAdminAssignmentUpdate) {
+      const providerId = String(req.body.provider_id || '').trim();
+      if (providerId) {
+        const provider = await Writer.findOne({
+          writer_id: providerId,
+          status: 'Active',
+          application_status: 'approved'
+        }).select('writer_id full_name');
+        if (!provider) {
+          return res.status(400).json({ success: false, error: 'Select an active, approved provider.' });
+        }
+        req.body.provider_id = provider.writer_id;
+        req.body.provider_name = provider.full_name;
+        req.body.status = req.body.status || 'Assigned';
+      } else {
+        req.body.provider_id = '';
+        req.body.provider_name = '';
+        req.body.status = req.body.status || 'Awaiting Assignment';
+      }
     }
     if (req.body.status && !canTransitionService(existing.status, req.body.status, session.role)) {
       return res.status(409).json({ success: false, error: `Status cannot move from "${existing.status}" to "${req.body.status}" for this role.` });
