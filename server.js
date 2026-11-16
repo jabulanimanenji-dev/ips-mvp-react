@@ -86,7 +86,14 @@ const storageKey = (scope, storedName) => {
 const app = express();
 app.disable('x-powered-by');
 if (isProduction) app.set('trust proxy', 1);
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      // Academic storefront photographs are sourced from the Unsplash CDN.
+      'img-src': ["'self'", 'data:', 'https://images.unsplash.com']
+    }
+  }
+}));
 // Signature verification must see the unmodified request bytes, before the JSON parser.
 registerStudentWebhook(app, express, { StudentPayment, ServiceRequest });
 app.use(express.json({ limit: '35mb' }));
