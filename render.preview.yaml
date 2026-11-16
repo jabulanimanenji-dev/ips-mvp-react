@@ -1,0 +1,26 @@
+# Isolated read-only design preview for IPS Academic Services.
+# This does NOT deploy the API, database, Stripe Checkout or production IPS.
+# Render Blueprint Path: render.preview.yaml
+services:
+  - type: web
+    runtime: static
+    name: ips-academic-v1-preview
+    repo: https://github.com/jabulanimanenji-dev/ips-mvp-react
+    branch: commercial/student-support-v1
+    buildCommand: npm ci --include=dev && VITE_STUDENT_LAUNCH=true VITE_DESIGN_PREVIEW=true npm run build
+    staticPublishPath: dist
+    autoDeployTrigger: commit
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
