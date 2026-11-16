@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 
 const base = process.env.BROWSER_BASE_URL || 'http://127.0.0.1:4173';
-const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
+const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--no-sandbox'] });
 const failures = [];
 let warnings = [];
 await mkdir('browser-evidence', {recursive:true});
