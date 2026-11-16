@@ -72,11 +72,11 @@ export default function ClientServices() {
               <p style={{ color: 'var(--text-muted)', margin: '.25rem 0' }}>{r.status} · {r.progress || 0}% complete · {r.provider_name || 'Provider not assigned'}</p>
               <div style={{ height: 7, background: 'var(--bg-surface-2)', borderRadius: 8, maxWidth: 600 }}><i style={{ display: 'block', height: '100%', width: `${r.progress || 0}%`, background: 'linear-gradient(90deg,#660273,#ee7b54)', borderRadius: 8 }} /></div>
               {r.status === 'Quoted' && !r.quote?.accepted && <div style={{ display: 'flex', gap: 8, marginTop: '1rem', flexWrap: 'wrap' }}>
-                <button disabled={busy === r.request_id} className="btn btn-primary btn-sm" onClick={() => decideQuote(r, true)}>Accept ${r.quote.total}</button>
+                <button disabled={busy === r.request_id} className="btn btn-primary btn-sm" onClick={() => decideQuote(r, true)}>Accept ${r.quote.currency || 'USD'} ${r.quote.total}</button>
                 <Link className="btn btn-ghost btn-sm" to={`/client/services/${r.request_id}`}>Request changes with reason</Link>
               </div>}
             </div>
-            <div style={{ textAlign: 'right' }}><strong>{r.request_id}</strong><div style={{ marginTop: 4 }}>{r.quote?.total ? `$${r.quote.total}` : 'Quote pending'}</div><small style={{ color: 'var(--text-muted)' }}>{r.deadline ? `Due ${new Date(r.deadline).toLocaleDateString()}` : 'Deadline TBD'}</small></div>
+            <div style={{ textAlign: 'right' }}><strong>{r.request_id}</strong><div style={{ marginTop: 4 }}>{r.quote?.total ? `${r.quote.currency || 'USD'} ${r.quote.total}` : 'Quote pending'}</div><small style={{ color: 'var(--text-muted)' }}>{r.deadline ? `Due ${new Date(r.deadline).toLocaleDateString()}` : 'Deadline TBD'}</small></div>
           </article>
         ))}
       </section>
