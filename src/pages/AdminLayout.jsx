@@ -13,6 +13,7 @@ const PAGE_TITLES = {
   '/admin/payments': 'Payments',
   '/admin/cms': 'CMS',
   '/admin/messages': 'Messages',
+  '/admin/external-chats': 'WhatsApp & Telegram inbox',
   '/admin/reports': 'Reports',
   '/admin/settings': 'Settings',
 };
