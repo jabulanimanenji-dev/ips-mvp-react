@@ -21,6 +21,7 @@ import AuditLog from './models/AuditLog.js';
 import Notification from './models/Notification.js';
 import ServiceRequest from './models/ServiceRequest.js';
 import StudentPayment from './models/StudentPayment.js';
+import { getStudentOffer } from './shared/studentOffers.js';
 import { registerStudentWebhook, registerStudentPaymentRoutes } from './services/studentPayments.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
 import ServiceCategory from './models/ServiceCategory.js';
@@ -2210,14 +2211,40 @@ app.post('/api/services', async (req, res) => {
     if (session.role !== 'client') return res.status(403).json({ success: false, error: 'A client session is required.' });
     const client = await Client.findOne({ client_id: session.id }).select('-password');
     if (!client) return res.status(404).json({ success: false, error: 'Client account not found.' });
+    const body = req.body || {};
+    const family = ['professional','odd_job'].includes(body.family) ? body.family : null;
+    const category = String(body.category || '').trim().slice(0, 120);
+    const title = String(body.title || '').trim().slice(0, 180);
+    const description = String(body.description || '').trim().slice(0, 10000);
+    if (!family || !category || title.length < 3 || description.length < 10) {
+      return res.status(400).json({ success: false, error: 'A valid family, category, title and description are required.' });
+    }
+    if (category === 'Academic Support' && (family !== 'professional' || !getStudentOffer(body.service_slug))) {
+      return res.status(400).json({ success: false, error: 'Select a valid student-support service.' });
+    }
     const count = await ServiceRequest.countDocuments();
-    const requestId = `SRV-${String(count + 1).padStart(5, '0')}`;
+    const requestId = 'SRV-' + String(count + 1).padStart(5, '0');
     const request = await ServiceRequest.create({
-      ...req.body,
+      family, category, title, description,
+      desired_outcome: String(body.desired_outcome || '').slice(0, 600),
+      delivery_mode: ['remote','in_person','hybrid'].includes(body.delivery_mode) ? body.delivery_mode : 'remote',
+      location: String(body.location || '').slice(0, 160),
+      deadline: body.deadline || undefined,
+      urgency: ['standard','priority','urgent'].includes(body.urgency) ? body.urgency : 'standard',
+      budget_min: Math.max(0, Number(body.budget_min || 0) || 0),
+      budget_max: Math.max(0, Number(body.budget_max || 0) || 0),
+      service_slug: category === 'Academic Support' ? body.service_slug : '',
+      intake_answers: category === 'Academic Support' ? {
+        academic_level: String(body.intake_answers?.academic_level || '').slice(0, 80),
+        subject: String(body.intake_answers?.subject || '').slice(0, 160),
+        service: body.service_slug
+      } : {},
       client_id: session.id,
       client_name: client.full_name,
       client_email: client.email,
       request_id: requestId,
+      payment_status: 'unpaid',
+      status: 'New Request',
       status_history: [{
         status: 'New Request',
         actor_id: session.id,
@@ -2300,6 +2327,8 @@ app.patch('/api/services/:id', async (req, res) => {
     }
     const updates = { ...req.body };
     delete updates.request_id;
+    // Only a verified payment webhook may advance payment status.
+    delete updates.payment_status;
     if (updates.status) {
       updates.$push = {
         status_history: {
