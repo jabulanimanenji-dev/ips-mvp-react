@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function SignupPage() {
   const { signupClient } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = String(location.state?.returnTo || '');
+  const next = returnTo.startsWith('/student-support') ? returnTo : '/client/overview';
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,7 +35,7 @@ export default function SignupPage() {
       );
 
       if (result.success) {
-        navigate('/client/overview');
+        navigate(next);
       } else {
         setError(result.error || 'Signup failed. Please try again.');
       }
@@ -138,7 +141,7 @@ export default function SignupPage() {
           <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             Already have an account?{' '}
           </span>
-          <Link to="/login" style={{ color: 'var(--text-link)', fontWeight: 600, textDecoration: 'none' }}>
+          <Link to="/login" state={{ returnTo: next }} style={{ color: 'var(--text-link)', fontWeight: 600, textDecoration: 'none' }}>
             Log in
           </Link>
         </div>
