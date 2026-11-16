@@ -1,0 +1,54 @@
+name: IPS Student Full Backend Integration
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mongodb-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mongodb:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: ci_admin
+          MONGO_INITDB_ROOT_PASSWORD: ci_password_test_only
+        ports:
+          - 27017:27017
+    env:
+      NODE_ENV: development
+      PORT: '8080'
+      STORAGE_PROVIDER: local
+      ADMIN_EMAIL: owner-ci@example.invalid
+      ADMIN_PASSWORD: LocalOnlyAdminPassword123!
+      SESSION_SECRET: ci-session-secret-nothing-production-1234567890-abcdefgh
+      MONGODB_URI: mongodb://ci_admin:ci_password_test_only@127.0.0.1:27017/ips_ci?authSource=admin
+      TELEGRAM_WEBHOOK_SECRET: ci_telegram_secret_random_123
+      WHATSAPP_APP_SECRET: ci_whatsapp_app_secret_123
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Build frontend and server syntax
+        run: |
+          npm run build
+          node --check server.js
+          node --check services/contactChannels.js
+      - name: Start genuine MongoDB-backed IPS API
+        run: |
+          node server.js > /tmp/ips_ci_server.log 2>&1 &
+          echo $! > /tmp/ips_ci_server.pid
+      - name: End-to-end authenticated order, quote, webhook and messaging assertions
+        run: node scripts/verify-student-integration.mjs
+      - name: Print server diagnostics on failure
+        if: failure()
+        run: tail -100 /tmp/ips_ci_server.log || true
+      - name: Stop isolated API
+        if: always()
+        run: |
+          if [ -f /tmp/ips_ci_server.pid ]; then kill "$(cat /tmp/ips_ci_server.pid)" || true; fi
