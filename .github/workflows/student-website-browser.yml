@@ -1,0 +1,33 @@
+name: Student Academic Website Browser QA
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Build student storefront
+        run: VITE_STUDENT_LAUNCH=true npm run build
+      - name: Install browser harness
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Start preview and exercise actual UI
+        run: |
+          npm run preview -- --host 127.0.0.1 > /tmp/ips-student-preview.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          node scripts/verify-student-browser.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ips-student-desktop-mobile
+          path: browser-evidence/
+          if-no-files-found: warn
