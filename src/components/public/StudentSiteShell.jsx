@@ -22,7 +22,7 @@ export function StudentSiteHeader() {
     <div className="ipsa-topbar"><div className="ipsa-wrap"><span>IPS · Professional academic services & research support</span><a href="mailto:admin@ipsglobalservice.com">Contact our support desk <span aria-hidden="true">↗</span></a></div></div>
     <div className="ipsa-navbar ipsa-wrap">
       <Link className="ipsa-brand" to="/" aria-label="IPS Academic Services home"><span className="ipsa-logo-symbol">IPS<span>.</span></span><span className="ipsa-brand-descriptor">ACADEMIC<br/>SERVICES</span></Link>
-      <nav aria-label="Primary navigation" className={'ipsa-header-links'+(menu?' ipsa-open':'')}>{links.map(([label,url])=><a key={label} href={url} onClick={()=>setMenu(false)}>{label}</a>)}
+      <nav id="ipsa-main-navigation" aria-label="Primary navigation" className={'ipsa-header-links'+(menu?' ipsa-open':'')}>{links.map(([label,url])=><a key={label} href={url} onClick={()=>setMenu(false)}>{label}</a>)}
         <div className="ipsa-mobile-actions">{user?<Link to="/client/services">My workspace</Link>:<Link to="/login">Student sign in</Link>}</div>
       </nav>
       <div className="ipsa-header-actions">
