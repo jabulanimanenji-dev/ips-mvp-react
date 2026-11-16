@@ -27,6 +27,7 @@ jobs:
       MONGODB_URI: mongodb://ci_admin:ci_password_test_only@127.0.0.1:27017/ips_ci?authSource=admin
       TELEGRAM_WEBHOOK_SECRET: ci_telegram_secret_random_123
       WHATSAPP_APP_SECRET: ci_whatsapp_app_secret_123
+      STRIPE_WEBHOOK_SECRET: whsec_ci_local_signed_fixture_secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
