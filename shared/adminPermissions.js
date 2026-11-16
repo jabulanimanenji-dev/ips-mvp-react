@@ -114,6 +114,7 @@ export const ADMIN_NAV_PERMISSIONS = {
   '/admin/payments': 'payments.view',
   '/admin/cms': 'design.view',
   '/admin/messages': 'messages.view',
+  '/admin/external-chats': 'messages.view',
   '/admin/support': 'support.view',
   '/admin/actions': 'actions.view',
   '/admin/reports': 'reports.view',
@@ -155,6 +156,7 @@ export const permissionForAdminRequest = (method, path) => {
   if (path.startsWith('/api/services')) return mutationPermission(method, 'services.view', 'services.manage');
   if (path.startsWith('/api/support-tickets')) return mutationPermission(method, 'support.view', 'support.manage');
   if (path.startsWith('/api/actions')) return mutationPermission(method, 'actions.view', 'actions.manage');
+  if (path.startsWith('/api/contact-channels/admin/')) return mutationPermission(method, 'messages.view', 'messages.manage');
   if (path.startsWith('/api/conversations') || path.startsWith('/api/direct-') || path.startsWith('/api/admin/inbox')) {
     return mutationPermission(method, 'messages.view', 'messages.manage');
   }
