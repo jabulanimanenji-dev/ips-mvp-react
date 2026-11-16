@@ -82,6 +82,12 @@ For GDPR/privacy readiness, finalize a truthful privacy policy, messaging data r
 - Complete live backend tests, production account/role tests, email notifications, file security, dispute/refund/invoice policy, and lifecycle acceptance.
 - Audit existing dependency vulnerabilities (last CI install reported 13 vulnerabilities) before public production authorization.
 
+## Verified CI evidence
+
+The complete MongoDB-backed HTTP integration suite runs in a disposable GitHub Actions `mongo:7` service container, not on the user's host or against production Atlas. It has passed **20/20** assertions, including signed sessions, client isolation, student intake, administrator quotation, forged quote rejection, simulated correctly signed Stripe webhook, exactly-once paid status, paid quote immutability, duplicate Telegram/WhatsApp events, redacted linking codes, admin inbox permissions and customer unlinking.
+
+The three CI workflows must remain green: full repository checks, real Chrome desktop/mobile qualification, and real MongoDB-backed integration. These prove implementation correctness in the CI sandbox, **not** provider onboarding, live message delivery, a real bank payout, or an authorized customer purchase.
+
 ## Test instructions
 
 ```sh
