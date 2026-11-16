@@ -2269,6 +2269,10 @@ app.patch('/api/services/:id', async (req, res) => {
     const existing = await ServiceRequest.findOne({ request_id: req.params.id });
     if (!existing) return res.status(404).json({ success: false, error: 'Service request not found.' });
     if (!canAccessWork(session, { record: existing, kind: 'service' })) return res.status(403).json({ success: false, error: 'You do not have access to update this service.' });
+    if (existing.category === 'Academic Support' && existing.payment_status === 'paid' &&
+        Object.prototype.hasOwnProperty.call(req.body || {}, 'quote')) {
+      return res.status(409).json({ success: false, error: 'Paid quotations are locked; create a separate approved change order.' });
+    }
     if (session.role === 'client' && req.body.quote?.accepted) {
       if (existing.quote?.expires_at && new Date(existing.quote.expires_at) < new Date()) {
         return res.status(409).json({ success: false, error: 'This quote has expired. Request a new quote from admin.' });
@@ -2376,6 +2380,12 @@ app.delete('/api/services/:id', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Only an administrator can delete services.' });
+    const current = await ServiceRequest.findOne({ request_id: req.params.id });
+    if (current?.category === 'Academic Support' &&
+        (current.payment_status === 'paid' ||
+          await StudentPayment.exists({ request_id: req.params.id, status: { $in: ['paid','review_required'] } }))) {
+      return res.status(409).json({ success: false, error: 'Paid student support records require formal retention and refund handling, not deletion.' });
+    }
     await ServiceRequest.findOneAndDelete({ request_id: req.params.id });
     res.json({ success: true });
   } catch (err) {
