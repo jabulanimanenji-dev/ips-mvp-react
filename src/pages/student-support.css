@@ -312,3 +312,27 @@
   .ipsa-form-row{grid-template-columns:1fr;gap:0}
 }
 @media(prefers-reduced-motion:reduce){.ipsa *,.ipsa-site-header *,.ipsa-footer *{transition:none!important;scroll-behavior:auto!important}}
+
+/* Opt-in external business messaging: source of truth remains in the authenticated IPS workspace. */
+.ipsa-contacts{background:#f7f8f9;border-top:1px solid #e3e8ed}
+.ipsa-contact-layout{display:grid;grid-template-columns:1.15fr .85fr;gap:min(8vw,100px);align-items:center}
+.ipsa-contact-layout h2{font-size:clamp(2.1rem,3.2vw,3.5rem);color:#18334c;margin:0 0 22px}
+.ipsa-contact-layout h2 em{color:#9b7751}
+.ipsa-contact-layout>div:first-child>p{font-size:1rem;color:#576b7e;line-height:1.85;max-width:680px}
+.ipsa-contact-layout .ipsa-contact-disclosure{font-size:.78rem!important;color:#66798a!important;margin-top:17px;padding:13px 16px;border-left:2px solid #bd9871;background:#ebeef0}
+.ipsa-contact-card{padding:clamp(25px,3vw,44px);background:#fff;border:1px solid #e1e6eb;box-shadow:0 18px 65px #152e4410}
+.ipsa-contact-card>strong{font-size:1.45rem;color:#233b53}
+.ipsa-contact-card>p{font-size:.88rem;line-height:1.65;color:#6e7f8f;margin:13px 0 20px}
+.ipsa-contact-card>small{display:block;color:#80909d;font-size:.7rem;line-height:1.6;margin-top:20px}
+.ipsa-contact-link{display:flex;gap:16px;align-items:center;border:1px solid #e3e8ed;padding:17px;margin-bottom:10px;text-decoration:none;color:#24405c;transition:background .2s}
+.ipsa-contact-link:hover{background:#f8f8f4;border-color:#c8ac84}
+.ipsa-contact-symbol{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#dfefe7;color:#33705d;font-size:1.2rem}
+.ipsa-contact-link:nth-of-type(2) .ipsa-contact-symbol{background:#e4edf9;color:#38668c}
+.ipsa-contact-link b{display:block;font-size:.88rem}
+.ipsa-contact-link small{display:block;margin-top:3px;color:#6a7c8f;font-size:.75rem;line-height:1.5}
+.ipsa-contact-link>span:last-child{margin-left:auto;color:#aa8865}
+.ipsa-contact-unavailable{background:#f8f7f4;border:1px dashed #ded6c8;padding:18px;color:#6b7483!important}
+@media(max-width:700px){
+  .ipsa-contact-layout{grid-template-columns:1fr;gap:20px}
+  .ipsa-contact-card{padding:23px}
+}
