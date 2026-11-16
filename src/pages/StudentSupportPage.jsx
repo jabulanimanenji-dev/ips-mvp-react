@@ -96,6 +96,9 @@ export default function StudentSupportPage() {
   }
 
   return <div className="ipsa">
+    {import.meta.env.VITE_DESIGN_PREVIEW === 'true' && <div role="status" style={{ background: '#fff0c9', color: '#44331b', textAlign: 'center', padding: '10px 16px', fontSize: '.82rem', fontWeight: 650 }}>
+      Website design preview — service search and navigation are interactive; accounts, actual orders and payments are not connected here.
+    </div>}
     <section className="ipsa-hero" id="top">
       <div className="ipsa-hero-copy">
         <div className="ipsa-kicker"><span className="ipsa-kicker-dot" /> ACADEMIC SERVICES · PERSONALIZED SUPPORT</div>
@@ -225,7 +228,12 @@ export default function StudentSupportPage() {
         </div>
         <div className="ipsa-request-card">
           <div className="ipsa-request-header"><span>PERSONALIZED REQUEST</span><h3>Tell us about your study.</h3><p>Choose a service and we'll start with the right questions.</p></div>
-          {!user ? <div className="ipsa-login-prompt">
+          {import.meta.env.VITE_DESIGN_PREVIEW === 'true' ? <div className="ipsa-login-prompt">
+            <div className="ipsa-login-symbol" aria-hidden="true">✧</div>
+            <h4>Review the proposed order experience</h4>
+            <p>This is a read-only, hosted website design preview. Explore the services and sections above; secure accounts, quotations and payments remain in the protected application under qualification.</p>
+            <a className="ipsa-btn ipsa-btn-dark" href="/#services">Browse all academic services <span>↗</span></a>
+          </div> : !user ? <div className="ipsa-login-prompt">
             <div className="ipsa-login-symbol" aria-hidden="true">↗</div>
             <h4>Start in your private account.</h4>
             <p>Sign in or create a student account first. Your selected service will be ready when you return.</p>
