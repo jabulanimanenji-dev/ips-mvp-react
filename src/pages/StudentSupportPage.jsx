@@ -1,15 +1,41 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { STUDENT_OFFERS, getStudentOffer } from '../../shared/studentOffers.js';
+import { STUDENT_DEPARTMENTS, STUDENT_OFFERS, getStudentOffer } from '../../shared/studentOffers.js';
+import './student-support.css';
 
-const box = { border: '1px solid var(--border)', borderRadius: 18, padding: '1.4rem', background: 'var(--bg-card)' };
+const photos = Object.freeze({
+  hero: 'https://images.unsplash.com/photo-1758270705317-3ef6142d306f?auto=format&fit=crop&w=1300&q=82',
+  library: 'https://images.unsplash.com/photo-1741699427799-3fbb70fce948?auto=format&fit=crop&w=1200&q=78',
+  research: 'https://images.unsplash.com/photo-1776571661811-c311d42634d9?auto=format&fit=crop&w=950&q=78',
+  collaboration: 'https://images.unsplash.com/photo-1758691737467-fe12934ddc58?auto=format&fit=crop&w=1200&q=78'
+});
+const subjects = ['Nursing & Health Sciences', 'Economics & Finance', 'Business & Management', 'Computer Science', 'Engineering & Technology', 'Social Sciences', 'Education & Psychology', 'Humanities & Languages', 'Law & Public Policy', 'Natural Sciences', 'Other disciplines'];
+const faqs = [
+  ['Can I request help on a full thesis or large project?', 'Yes. You can request an extended support plan covering the complete research journey, or comprehensive editing, formatting and analysis assistance. Your assessed academic work must remain your own. We review the brief and agree the permitted deliverables privately.'],
+  ['How much does academic support cost?', 'Pricing depends on the type of support, subject, length, complexity and deadline. Submit a free request and review the itemized quotation before deciding whether to pay.'],
+  ['Who will support my project?', 'Requests are reviewed and scoped before any work is assigned. The specialist and review arrangement depends on the discipline and verified availability. We will not imply a named expert is assigned until that is confirmed.'],
+  ['Can I share my assignment instructions or existing draft?', 'Yes. After submitting a request you can use your private workspace and its controlled file-upload functionality. Do not upload personal information or research participant data unless its handling has been agreed.'],
+  ['Can someone complete my graded work for me?', 'IPS provides coaching, consultation, editorial work, data services and independently commissioned deliverables where appropriate. We do not offer work intended to be falsely submitted as your own assessed assignment or thesis.'],
+  ['How do payment and delivery work?', 'An administrator reviews your scope and issues a quotation. You decide whether to accept; the payment provider confirms a successful transaction. Agreed deliverables and updates then appear in your private workspace.']
+];
+const subjectIcons = ['✦','◇','◈','⌘','⌁','◉','✧','▦','◊','∿','＋'];
+
+function SectionTitle({ eyebrow, title, copy, inverse = false }) {
+  return <div className={'ipsa-section-head' + (inverse ? ' ipsa-inverse' : '')}>
+    <span className="ipsa-eyebrow">{eyebrow}</span>
+    <h2>{title}</h2>
+    {copy && <p>{copy}</p>}
+  </div>;
+}
 
 export default function StudentSupportPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const offer = getStudentOffer(params.get('service')) || STUDENT_OFFERS[0];
+  const [department, setDepartment] = useState('all');
+  const [search, setSearch] = useState('');
   const [subject, setSubject] = useState('');
   const [level, setLevel] = useState('Undergraduate');
   const [deadline, setDeadline] = useState('');
@@ -17,21 +43,41 @@ export default function StudentSupportPage() {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
   const [agree, setAgree] = useState(false);
+  const [notice, setNotice] = useState('');
+
+  const visibleOffers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return STUDENT_OFFERS.filter(item => (department === 'all' || item.department === department) &&
+      (!q || [item.title, item.summary, item.short, item.department, ...item.deliverables].join(' ').toLowerCase().includes(q)));
+  }, [department, search]);
+
+  const select = (id, jump = false) => {
+    if (!getStudentOffer(id)) return;
+    setParams({ service: id });
+    setError('');
+    if (jump) window.requestAnimationFrame(() => document.getElementById('request-support')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash && /^#[a-z-]+$/.test(hash)) {
+      const task = setTimeout(() => document.querySelector(hash)?.scrollIntoView({ block: 'start' }), 60);
+      return () => clearTimeout(task);
+    }
+  }, []);
 
   async function submit(event) {
     event.preventDefault();
-    setError('');
+    setError(''); setNotice('');
     if (!user) {
       navigate('/login', { state: { returnTo: '/student-support?service=' + encodeURIComponent(offer.id) } });
       return;
     }
-    if (!agree) return setError('Please confirm that this request is for legitimate academic support.');
-    if (subject.trim().length < 3 || brief.trim().length < 20) return setError('Provide a subject and at least 20 characters of requirements.');
+    if (!agree) return setError('Confirm that your request is for permitted academic assistance.');
+    if (subject.trim().length < 3 || brief.trim().length < 20) return setError('Add a subject and at least 20 characters describing your request.');
     setWorking(true);
     try {
       const response = await fetch('/api/services', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           family: 'professional', category: 'Academic Support', service_slug: offer.id,
           title: offer.title + ' — ' + subject.trim().slice(0, 100),
@@ -42,59 +88,173 @@ export default function StudentSupportPage() {
         })
       });
       const result = await response.json();
-      if (!response.ok || !result.request?.request_id) throw new Error(result.error || 'We could not create your request.');
+      if (!response.ok || !result.request?.request_id) throw new Error(result.error || 'Your request could not be saved.');
+      setNotice('Request created. Opening your private workspace.');
       navigate('/client/services/' + encodeURIComponent(result.request.request_id));
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setWorking(false);
-    }
+    } catch (err) { setError(err.message); }
+    finally { setWorking(false); }
   }
 
-  return <main className="container" style={{ padding: '3rem 1rem 5rem', maxWidth: 1180 }}>
-    <section style={{ padding: '2.5rem', borderRadius: 26, background: 'linear-gradient(135deg,#091b35,#542062)', color: '#fff', marginBottom: '2rem' }}>
-      <small style={{ letterSpacing: '.12em', fontWeight: 800 }}>IPS STUDENT SUPPORT</small>
-      <h1 style={{ color: '#fff', fontSize: 'clamp(2rem, 4vw, 3.4rem)', margin: '1rem 0' }}>Support for assignments, theses and research projects</h1>
-      <p style={{ maxWidth: 760, color: '#eef0f7' }}>Coaching, draft feedback, research-method guidance, editing and data assistance. You remain responsible for your own assessed work.</p>
+  return <div className="ipsa">
+    <section className="ipsa-hero" id="top">
+      <div className="ipsa-hero-copy">
+        <div className="ipsa-kicker"><span className="ipsa-kicker-dot" /> ACADEMIC SERVICES · PERSONALIZED SUPPORT</div>
+        <h1>Exceptional academic work starts with <em>the right guidance.</em></h1>
+        <p>Assignments, dissertations, research projects, academic editing and data analysis — structured support for every stage of your academic journey.</p>
+        <div className="ipsa-hero-actions">
+          <a className="ipsa-btn ipsa-btn-gold" href="/#services">Explore academic services <span aria-hidden="true">↗</span></a>
+          <a className="ipsa-btn ipsa-btn-outline-light" href="/#request-support">Request a consultation <span aria-hidden="true">→</span></a>
+        </div>
+        <div className="ipsa-hero-trust" aria-label="Service principles">
+          <span><b>01</b> Dedicated project workspace</span>
+          <span><b>02</b> Individual scope & quotation</span>
+          <span><b>03</b> Documented review process</span>
+        </div>
+      </div>
+      <div className="ipsa-hero-media">
+        <img src={photos.hero} alt="University students collaborating around a laptop" fetchPriority="high" />
+        <div className="ipsa-hero-media-overlay"/>
+        <div className="ipsa-hero-media-tag"><span className="ipsa-tag-icon">✧</span><div><strong>Built around your academic goals</strong><small>From coursework to research milestones</small></div></div>
+      </div>
     </section>
-    <h2>Choose your study support</h2>
-    <div className="grid grid-3 gap-4" style={{ margin: '1rem 0 2rem' }}>
-      {STUDENT_OFFERS.map(item => <button key={item.id} type="button" aria-pressed={offer.id === item.id} onClick={() => { setParams({ service: item.id }); setError(''); }} style={{ ...box, cursor: 'pointer', textAlign: 'left', border: offer.id === item.id ? '2px solid var(--primary)' : '1px solid var(--border)' }}>
-        <strong style={{ fontSize: '1.1rem' }}>{item.title}</strong>
-        <p style={{ color: 'var(--text-secondary)', lineHeight: 1.55 }}>{item.summary}</p>
-        <span style={{ color: 'var(--primary)', fontWeight: 700 }}>Request tailored quote →</span>
-      </button>)}
-    </div>
-    <div className="grid grid-2 gap-4">
-      <section style={box}>
-        <h2>What's included</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>{offer.questions}</p>
-        <ul>{offer.deliverables.map(line => <li key={line} style={{ marginBottom: 8 }}>{line}</li>)}</ul>
-        <h3>How it works</h3>
-        <ol>
-          <li>Choose the support and describe your requirements.</li>
-          <li>Sign in, submit the request and upload relevant files in your private workspace.</li>
-          <li>Review the scope, deadline and formal quotation.</li>
-          <li>Accept the quote, pay securely and track your support request.</li>
-          <li>Receive agreed feedback or learning materials and request an eligible revision.</li>
-        </ol>
-        <p style={{ fontSize: '.87rem', color: 'var(--text-secondary)' }}>Pricing is quoted after reviewing the scope. An order is not paid until the payment provider confirms it. We do not sell ready-to-submit assessed work or impersonate students.</p>
-      </section>
-      <section style={box}>
-        <h2>Tell us what you need</h2>
-        {!user ? <div><p>Sign in or create your student account before entering your requirements. Your selected service will stay available when you return.</p><Link className="btn btn-primary" to="/login" state={{ returnTo: '/student-support?service=' + encodeURIComponent(offer.id) }}>Sign in</Link> <Link className="btn btn-secondary" to="/signup" state={{ returnTo: '/student-support?service=' + encodeURIComponent(offer.id) }}>Create account</Link></div> : <form onSubmit={submit}>
-          <label className="form-group"><span className="form-label">Subject or discipline *</span><input required className="form-input" value={subject} onChange={e=>setSubject(e.target.value)} placeholder="Nursing, economics, engineering…" /></label>
-          <label className="form-group"><span className="form-label">Academic level *</span>
-            <select className="form-select" value={level} onChange={e=>setLevel(e.target.value)}><option>Undergraduate</option><option>Master's</option><option>Doctoral</option><option>Other</option></select>
-          </label>
-          <label className="form-group"><span className="form-label">Requested deadline</span><input className="form-input" type="date" value={deadline} min={new Date().toISOString().slice(0,10)} onChange={e=>setDeadline(e.target.value)} /></label>
-          <label className="form-group"><span className="form-label">Your requirements *</span><textarea className="form-textarea" rows={6} required minLength={20} value={brief} onChange={e=>setBrief(e.target.value)} placeholder="Explain your assignment, chapter or project and what you'd like help understanding or improving." /></label>
-          <label style={{ display: 'flex', alignItems: 'start', gap: 10, margin: '1rem 0', fontSize: '.9rem' }}><input type="checkbox" checked={agree} onChange={e=>setAgree(e.target.checked)} /> I am seeking study support, feedback, editing or coaching—not work to submit falsely as my own.</label>
-          {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
-          <button className="btn btn-primary w-full" type="submit" disabled={working}>{working ? 'Submitting request…' : user ? 'Submit support request' : 'Sign in to continue'}</button>
-          {!user && <p style={{ marginTop: 12, fontSize: '.9rem' }}>New student? <Link to="/signup" state={{ returnTo: '/student-support?service=' + encodeURIComponent(offer.id) }}>Create an account</Link> first.</p>}
-        </form>}
-      </section>
-    </div>
-  </main>;
+
+    <section className="ipsa-intro-strip" aria-label="Key service assurances">
+      <div className="ipsa-wrap ipsa-intro-inner">
+        <div><span className="ipsa-intro-symbol">◈</span><p><strong>Discipline-aware</strong><small>Help tailored to subject and study level</small></p></div>
+        <div><span className="ipsa-intro-symbol">▤</span><p><strong>Clear project structure</strong><small>Requirements, quotations and milestones</small></p></div>
+        <div><span className="ipsa-intro-symbol">⌁</span><p><strong>Private workspace</strong><small>Files, messages and agreed deliveries</small></p></div>
+        <div><span className="ipsa-intro-symbol">◎</span><p><strong>Transparent process</strong><small>Review scope before making a payment</small></p></div>
+      </div>
+    </section>
+
+    <section className="ipsa-section ipsa-catalogue" id="services">
+      <div className="ipsa-wrap">
+        <div className="ipsa-section-title-row">
+          <SectionTitle eyebrow="OUR ACADEMIC PRACTICE" title={<>Whatever the academic challenge, <em>find your next step.</em></>} copy="Explore focused support across coursework, research, data, editing and presentation. Every service begins with a clear, individually reviewed request." />
+          <a href="/#request-support" className="ipsa-simple-link">Not sure where to start? <span>↗</span></a>
+        </div>
+        <div className="ipsa-feature-grid">
+          <article className="ipsa-feature ipsa-feature-primary">
+            <img src={photos.library} alt="Student working in a historic university library" loading="lazy" />
+            <div className="ipsa-feature-shade" />
+            <div className="ipsa-feature-text"><span className="ipsa-feature-label">01 / RESEARCH & WRITING</span><h3>Theses & dissertations</h3><p>Research planning, chapter support, methodology coaching and comprehensive editing.</p><button type="button" onClick={() => select('thesis-support', true)}>Explore this service <span>↗</span></button></div>
+          </article>
+          <article className="ipsa-feature ipsa-feature-secondary">
+            <div className="ipsa-feature-top"><span>02 / COURSEWORK</span><span className="ipsa-feature-stamp">IPS <small>ACADEMIC</small></span></div>
+            <h3>Clarity for your assignments.</h3><p>Work through your brief, improve your drafts and build stronger academic arguments.</p>
+            <button type="button" onClick={() => select('assignment-support', true)}>View assignment support <span>↗</span></button>
+            <div className="ipsa-feature-art" aria-hidden="true"><div className="ipsa-paper"><span /><span /><span /><span /></div><div className="ipsa-art-circle">✳</div></div>
+          </article>
+          <article className="ipsa-feature ipsa-feature-tertiary">
+            <img src={photos.research} alt="Students studying together in a university library" loading="lazy" />
+            <div><span>03 / METHODS & DATA</span><h3>Research that makes sense.</h3><p>Statistical consultation, data organization and interpretation support.</p><button type="button" onClick={() => select('statistics-support', true)}>Explore research support <span>↗</span></button></div>
+          </article>
+        </div>
+        <div className="ipsa-explore-head">
+          <div><span className="ipsa-eyebrow">EXPLORE THE FULL CATALOGUE</span><h3>Find the support you need.</h3></div>
+          <label className="ipsa-search"><span className="ipsa-search-symbol" aria-hidden="true">⌕</span><span className="ipsa-sr-only">Search services</span><input type="search" placeholder="Search services, topics, methods…" value={search} onChange={e=>setSearch(e.target.value)} /></label>
+        </div>
+        <div className="ipsa-tabs" role="group" aria-label="Filter by academic department">
+          {STUDENT_DEPARTMENTS.map(item=><button key={item.id} type="button" className={department===item.id?'ipsa-tab ipsa-tab-active':'ipsa-tab'} aria-pressed={department===item.id} onClick={()=>setDepartment(item.id)}>{item.label}</button>)}
+        </div>
+        <div className="ipsa-offer-count" role="status">{visibleOffers.length} service{visibleOffers.length===1?'':'s'} available to explore</div>
+        <div className="ipsa-service-grid">
+          {visibleOffers.map((item,i) => <article className="ipsa-service-card" key={item.id}>
+            <div className="ipsa-service-number">{String(i+1).padStart(2,'0')} <span>↗</span></div>
+            <h4>{item.title}</h4><p>{item.short}</p>
+            <button type="button" aria-label={'Request '+item.title} onClick={() => select(item.id,true)}>Explore service <span aria-hidden="true">↗</span></button>
+          </article>)}
+        </div>
+        {!visibleOffers.length && <div className="ipsa-empty"><h4>No exact matches</h4><p>Try a different keyword or browse all our services.</p><button type="button" onClick={()=>{setSearch('');setDepartment('all');}}>Show all services</button></div>}
+      </div>
+    </section>
+
+    <section className="ipsa-disciplines" id="disciplines">
+      <div className="ipsa-wrap ipsa-disciplines-grid">
+        <div className="ipsa-disciplines-intro">
+          <SectionTitle eyebrow="ACROSS DISCIPLINES" title={<>Every discipline is different. <em>So is the support.</em></>} copy="From health sciences to engineering, we begin with your field, study level and institutional requirements. Availability and specialist fit are confirmed during review." />
+          <a className="ipsa-btn ipsa-btn-dark" href="/#request-support">Discuss your subject <span>↗</span></a>
+        </div>
+        <div className="ipsa-subject-list">
+          {subjects.map((sub,i)=><button type="button" key={sub} onClick={()=>{setSubject(sub);document.getElementById('request-support')?.scrollIntoView({behavior:'smooth'});}}>
+            <span className="ipsa-subject-glyph">{subjectIcons[i]}</span><span>{sub}</span><span className="ipsa-subject-arrow">↗</span>
+          </button>)}
+        </div>
+      </div>
+    </section>
+
+    <section className="ipsa-section ipsa-people" id="approach">
+      <div className="ipsa-wrap ipsa-people-layout">
+        <div className="ipsa-people-media">
+          <img src={photos.collaboration} alt="Professionals collaborating at a computer in an illustrative workplace photograph" loading="lazy"/>
+          <div className="ipsa-media-caption">Illustrative photography — not IPS personnel</div>
+        </div>
+        <div className="ipsa-people-content">
+          <SectionTitle eyebrow="A COORDINATED APPROACH" title={<>Good academic support is <em>thoughtfully organized.</em></>} copy="Different requests need different skills. Rather than assuming every project is the same, we build the workflow around what the work actually requires." />
+          <div className="ipsa-role-list">
+            <div><span>01</span><p><strong>Intake & scope review</strong><small>Clarify the brief, requirements, boundaries and quotation.</small></p></div>
+            <div><span>02</span><p><strong>Subject-matched consultation</strong><small>Determine the relevant disciplinary knowledge and available support.</small></p></div>
+            <div><span>03</span><p><strong>Methods or editorial review</strong><small>Apply the appropriate checks to the agreed coaching or deliverables.</small></p></div>
+            <div><span>04</span><p><strong>Client delivery & follow-up</strong><small>Use the workspace to share outcomes and manage agreed revisions.</small></p></div>
+          </div>
+          <p className="ipsa-honesty">This describes the service workflow, not a claim that every role is currently staffed by a separate person. Individual expertise and availability are confirmed before assignment.</p>
+        </div>
+      </div>
+    </section>
+
+    <section className="ipsa-process" id="how-it-works">
+      <div className="ipsa-wrap">
+        <SectionTitle inverse eyebrow="SIMPLE & TRANSPARENT" title={<>From first question to <em>finished support.</em></>} copy="Know what happens next, what you're paying for, and where to find your project updates." />
+        <div className="ipsa-process-grid">
+          {[
+            ['01','Tell us what you need','Choose a service, describe the brief and share your academic stage.'],
+            ['02','We review your request','Your requirements and available support are assessed before a quotation is issued.'],
+            ['03','Approve the scope & pay','Accept the quote and complete secure checkout once payment is configured.'],
+            ['04','Follow your project','Use the private workspace for messages, relevant files, progress and delivery.']
+          ].map(row => <article key={row[0]}><span>{row[0]}</span><div className="ipsa-process-rule"/><h3>{row[1]}</h3><p>{row[2]}</p></article>)}
+        </div>
+      </div>
+    </section>
+
+    <section className="ipsa-section ipsa-request-section" id="request-support">
+      <div className="ipsa-wrap ipsa-request-grid">
+        <div className="ipsa-request-intro">
+          <SectionTitle eyebrow="START HERE" title={<>Let's give your project <em>a clear direction.</em></>} copy="Tell us where you are academically and what you need help with. We will review the brief and prepare an individual quotation — there is no checkout charge for submitting a request."/>
+          <div className="ipsa-request-assurances"><p><span>✓</span> No payment until you approve a quotation</p><p><span>✓</span> Private order workspace after sign-in</p><p><span>✓</span> Defined scope, outcomes and deadlines</p></div>
+          <div className="ipsa-request-photo"><img src={photos.library} alt="Quiet university library study space" loading="lazy" /></div>
+        </div>
+        <div className="ipsa-request-card">
+          <div className="ipsa-request-header"><span>PERSONALIZED REQUEST</span><h3>Tell us about your study.</h3><p>Choose a service and we'll start with the right questions.</p></div>
+          {!user ? <div className="ipsa-login-prompt">
+            <div className="ipsa-login-symbol" aria-hidden="true">↗</div>
+            <h4>Start in your private account.</h4>
+            <p>Sign in or create a student account first. Your selected service will be ready when you return.</p>
+            <Link className="ipsa-btn ipsa-btn-dark" to="/signup" state={{returnTo:'/student-support?service='+encodeURIComponent(offer.id)}}>Create an account <span>↗</span></Link>
+            <Link className="ipsa-quiet-link" to="/login" state={{returnTo:'/student-support?service='+encodeURIComponent(offer.id)}}>Already have an account? Sign in →</Link>
+          </div> : <form className="ipsa-request-form" onSubmit={submit}>
+            <label>What kind of support?<select value={offer.id} onChange={e=>select(e.target.value)}>{STUDENT_OFFERS.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
+            <p className="ipsa-selected-help">{offer.questions}</p>
+            <label>Subject or discipline <span>*</span><input required value={subject} onChange={e=>setSubject(e.target.value)} minLength={3} maxLength={160} placeholder="e.g. Nursing, economics, computer science" /></label>
+            <div className="ipsa-form-row">
+              <label>Study level<select value={level} onChange={e=>setLevel(e.target.value)}><option>Undergraduate</option><option>Master's</option><option>Doctoral</option><option>Other</option></select></label>
+              <label>Preferred deadline<input type="date" value={deadline} min={new Date().toISOString().slice(0,10)} onChange={e=>setDeadline(e.target.value)}/></label>
+            </div>
+            <label>How can we help? <span>*</span><textarea required minLength={20} maxLength={10000} rows={6} value={brief} onChange={e=>setBrief(e.target.value)} placeholder="Tell us about your brief, current stage, requirements, and the guidance or editing you need." /></label>
+            <label className="ipsa-checkbox"><input type="checkbox" checked={agree} onChange={e=>setAgree(e.target.checked)} required/> <span>I am requesting permitted academic assistance, not work to submit deceptively as my own.</span></label>
+            {error && <p className="ipsa-form-error" role="alert">{error}</p>}
+            {notice && <p className="ipsa-form-success" role="status">{notice}</p>}
+            <button className="ipsa-btn ipsa-btn-dark ipsa-submit" type="submit" disabled={working}>{working?'Saving your request…':'Submit for a quotation'} <span aria-hidden="true">↗</span></button>
+            <small className="ipsa-legal">A request is not a payment or an agreement to begin fulfillment.</small>
+          </form>}
+        </div>
+      </div>
+    </section>
+
+    <section className="ipsa-section ipsa-faq" id="questions">
+      <div className="ipsa-wrap ipsa-faq-layout"><SectionTitle eyebrow="BEFORE YOU BEGIN" title={<>Your questions, <em>answered.</em></>} copy="Straightforward answers about services, privacy, academic integrity and the process."/>
+        <div className="ipsa-faq-list">{faqs.map(([q,a])=><details key={q}><summary>{q}<span aria-hidden="true">＋</span></summary><p>{a}</p></details>)}</div>
+      </div>
+    </section>
+    <section className="ipsa-final-cta"><div className="ipsa-wrap"><div><span>READY WHEN YOU ARE</span><h2>Let's make the next chapter <em>more manageable.</em></h2><p>Get a tailored academic-support quotation with a clear scope and timeline.</p></div><a className="ipsa-btn ipsa-btn-gold" href="/#request-support">Start your request <span>↗</span></a></div></section>
+  </div>;
 }
