@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
   const { loginClient } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnTo = String(location.state?.returnTo || '');
+  const next = returnTo.startsWith('/student-support') ? returnTo : '/client/overview';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -19,7 +22,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (result.success) {
-      navigate('/client/overview');
+      navigate(next);
     } else {
       setError(result.error || 'Invalid email or password.');
     }
@@ -117,7 +120,7 @@ export default function LoginPage() {
           <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
             Don't have an account?{' '}
           </span>
-          <Link to="/signup" style={{ color: 'var(--text-link)', fontWeight: 600, textDecoration: 'none' }}>
+          <Link to="/signup" state={{ returnTo: next }} style={{ color: 'var(--text-link)', fontWeight: 600, textDecoration: 'none' }}>
             Sign up
           </Link>
         </div>
