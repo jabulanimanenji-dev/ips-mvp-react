@@ -65,7 +65,7 @@ export function registerStudentWebhook(app, express, { StudentPayment, ServiceRe
       } else if (event.type === 'checkout.session.completed') {
         await StudentPayment.updateOne({ _id: payment._id, status: { $nin: ['paid', 'review_required'] } }, { $set: { status: 'processing', last_event_id: event.id } });
       } else {
-        await StudentPayment.updateOne({ _id: payment._id, status: { $nin: ['paid', 'review_required'] } }, { $set: { status: event.type.endsWith('expired') ? 'expired' : 'failed', last_event_id: event.id } });
+        await StudentPayment.updateOne({ _id: payment._id, status: { $nin: ['paid', 'review_required'] } }, { $set: { status: event.type.endsWith('expired') ? 'expired' : 'failed', last_event_id: event.id }, $unset: { active_checkout_key: 1 } });
       }
       res.json({ received: true });
     } catch (error) {
@@ -122,11 +122,24 @@ export function registerStudentPaymentRoutes(app, { requireSession, StudentPayme
       if (!['https:', 'http:'].includes(appUrl.protocol) || (process.env.NODE_ENV === 'production' && appUrl.protocol !== 'https:')) {
         return res.status(503).json({ success: false, error: 'Secure checkout URL is misconfigured.' });
       }
-      const previous = await StudentPayment.findOne({ request_id: order.request_id, quote_version: quoteVersion, status: 'pending', checkout_expires_at: { $gt: new Date(Date.now() + 60000) } }).sort({ createdAt: -1 });
-      if (previous?.checkout_url) return res.json({ success: true, checkout_url: previous.checkout_url });
+      const activeKey = order.request_id + ':v' + quoteVersion;
+      const previous = await StudentPayment.findOne({ active_checkout_key: activeKey });
+      if (previous) {
+        if (previous.status === 'processing' || previous.status === 'review_required') {
+          return res.status(409).json({ success: false, error: 'Payment is being processed or reviewed. Do not pay again.' });
+        }
+        if (previous.status === 'paid') return res.status(409).json({ success: false, error: 'This quotation was already paid.' });
+        if (previous.checkout_url && previous.checkout_expires_at > new Date()) {
+          return res.json({ success: true, checkout_url: previous.checkout_url });
+        }
+        if (!previous.checkout_url && previous.createdAt > new Date(Date.now() - 30000)) {
+          return res.status(409).json({ success: false, error: 'Checkout is being prepared. Try again shortly.' });
+        }
+        await StudentPayment.updateOne({ _id: previous._id, status: 'pending' }, { $set: { status: 'expired' }, $unset: { active_checkout_key: 1 } });
+      }
       const payment = await StudentPayment.create({
-        payment_id: crypto.randomUUID(), request_id: order.request_id, client_id: session.id,
-        quote_version: quoteVersion, amount_minor: amountMinor, currency, status: 'pending'
+        payment_id: crypto.randomUUID(), request_id: order.request_id, active_checkout_key: activeKey,
+        client_id: session.id, quote_version: quoteVersion, amount_minor: amountMinor, currency, status: 'pending'
       });
       const params = new URLSearchParams();
       params.set('mode', 'payment');
@@ -149,12 +162,12 @@ export function registerStudentPaymentRoutes(app, { requireSession, StudentPayme
           signal: AbortSignal.timeout(15000)
         });
       } catch (error) {
-        await StudentPayment.updateOne({ _id: payment._id }, { $set: { status: 'failed', problem: safeError(error).slice(0, 160) } });
+        await StudentPayment.updateOne({ _id: payment._id }, { $set: { status: 'failed', problem: safeError(error).slice(0, 160) }, $unset: { active_checkout_key: 1 } });
         return res.status(502).json({ success: false, error: 'Payment provider is unavailable.' });
       }
       const provider = await response.json();
       if (!response.ok || !provider.id || !provider.url) {
-        await StudentPayment.updateOne({ _id: payment._id }, { $set: { status: 'failed', problem: 'Provider session creation failed' } });
+        await StudentPayment.updateOne({ _id: payment._id }, { $set: { status: 'failed', problem: 'Provider session creation failed' }, $unset: { active_checkout_key: 1 } });
         return res.status(502).json({ success: false, error: 'Could not start secure checkout.' });
       }
       payment.provider_session_id = provider.id;
