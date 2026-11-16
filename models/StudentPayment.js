@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 const StudentPaymentSchema = new mongoose.Schema({
   payment_id: { type: String, required: true, unique: true },
   request_id: { type: String, required: true, index: true },
+  active_checkout_key: { type: String, unique: true, sparse: true },
   client_id: { type: String, required: true, index: true },
   quote_version: { type: Number, required: true },
   amount_minor: { type: Number, required: true, min: 1 },
