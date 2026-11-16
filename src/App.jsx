@@ -1,3 +1,4 @@
+import StudentSupportPage from './pages/StudentSupportPage.jsx';
 import React, { useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
@@ -200,6 +201,7 @@ export default function App() {
         />
 
         <Route path="/services" element={<FeatureGate feature="serviceMarketplace"><ServiceMarketplacePage /></FeatureGate>} />
+        <Route path="/student-support" element={<FeatureGate feature="serviceMarketplace"><StudentSupportPage /></FeatureGate>} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/become-a-provider" element={<FeatureGate feature="providerApplications"><ProviderApplicationPage /></FeatureGate>} />
 
