@@ -269,7 +269,7 @@ export default function App() {
 
         <Route
           path="order"
-          element={<ClientOrderForm />}
+          element={import.meta.env.VITE_STUDENT_LAUNCH === 'true' ? <Navigate to="/student-support" replace /> : <ClientOrderForm />}
         />
 
 
