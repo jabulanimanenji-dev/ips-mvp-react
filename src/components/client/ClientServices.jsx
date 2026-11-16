@@ -50,7 +50,7 @@ export default function ClientServices() {
       <div className="grid grid-3 gap-4" style={{ marginBottom: '1.5rem' }}>
         <Link to="/services?type=professional" className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #a305a6' }}><strong>Professional service</strong><p style={{ color: 'var(--text-muted)' }}>Business, digital, research, career and technical support.</p><span style={{ color: 'var(--primary)', fontWeight: 800 }}>Create request →</span></Link>
         <Link to="/services?type=odd_job" className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #ee7b54' }}><strong>Odd job</strong><p style={{ color: 'var(--text-muted)' }}>Local errands, moving, personal admin, events and practical help.</p><span style={{ color: '#b54627', fontWeight: 800 }}>Create request →</span></Link>
-        <Link to="/client/order" className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #2868d8' }}><strong>Academic & writing</strong><p style={{ color: 'var(--text-muted)' }}>Use the specialist order form for structured writing work.</p><span style={{ color: '#2868d8', fontWeight: 800 }}>Create order →</span></Link>
+        <Link to={import.meta.env.VITE_STUDENT_LAUNCH === 'true' ? '/student-support' : '/client/order'} className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #2868d8' }}><strong>Academic & writing</strong><p style={{ color: 'var(--text-muted)' }}>Use the specialist order form for structured writing work.</p><span style={{ color: '#2868d8', fontWeight: 800 }}>Create order →</span></Link>
       </div>
 
       <section className="card">
