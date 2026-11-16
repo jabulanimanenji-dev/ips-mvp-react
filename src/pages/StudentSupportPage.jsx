@@ -82,7 +82,7 @@ export default function StudentSupportPage() {
       </section>
       <section style={box}>
         <h2>Tell us what you need</h2>
-        <form onSubmit={submit}>
+        {!user ? <div><p>Sign in or create your student account before entering your requirements. Your selected service will stay available when you return.</p><Link className="btn btn-primary" to="/login" state={{ returnTo: '/student-support?service=' + encodeURIComponent(offer.id) }}>Sign in</Link> <Link className="btn btn-secondary" to="/signup" state={{ returnTo: '/student-support?service=' + encodeURIComponent(offer.id) }}>Create account</Link></div> : <form onSubmit={submit}>
           <label className="form-group"><span className="form-label">Subject or discipline *</span><input required className="form-input" value={subject} onChange={e=>setSubject(e.target.value)} placeholder="Nursing, economics, engineering…" /></label>
           <label className="form-group"><span className="form-label">Academic level *</span>
             <select className="form-select" value={level} onChange={e=>setLevel(e.target.value)}><option>Undergraduate</option><option>Master's</option><option>Doctoral</option><option>Other</option></select>
@@ -93,7 +93,7 @@ export default function StudentSupportPage() {
           {error && <p role="alert" style={{ color: 'var(--danger)' }}>{error}</p>}
           <button className="btn btn-primary w-full" type="submit" disabled={working}>{working ? 'Submitting request…' : user ? 'Submit support request' : 'Sign in to continue'}</button>
           {!user && <p style={{ marginTop: 12, fontSize: '.9rem' }}>New student? <Link to="/signup" state={{ returnTo: '/student-support?service=' + encodeURIComponent(offer.id) }}>Create an account</Link> first.</p>}
-        </form>
+        </form>}
       </section>
     </div>
   </main>;
