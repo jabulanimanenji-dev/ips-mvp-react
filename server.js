@@ -2322,6 +2322,10 @@ app.patch('/api/services/:id', async (req, res) => {
         req.body.status = req.body.status || 'Awaiting Assignment';
       }
     }
+    if (existing.category === 'Academic Support' && existing.payment_status !== 'paid' &&
+        ['Assigned','Scheduled','In Progress','Submitted for Review','Ready for Client','Completed'].includes(req.body.status)) {
+      return res.status(409).json({ success: false, error: 'Verified payment is required before academic-support fulfillment.' });
+    }
     if (req.body.status && !canTransitionService(existing.status, req.body.status, session.role)) {
       return res.status(409).json({ success: false, error: `Status cannot move from "${existing.status}" to "${req.body.status}" for this role.` });
     }
