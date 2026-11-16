@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import { STUDENT_OFFERS, getStudentOffer, isStudentSupportRequest } from '../shared/studentOffers.js';
+import { STUDENT_DEPARTMENTS, STUDENT_OFFERS, getStudentOffer, isStudentSupportRequest } from '../shared/studentOffers.js';
 import { validateStudentQuote, verifyStripeSignature } from '../services/studentPayments.js';
 
 const approved = (overrides={}) => ({
@@ -11,7 +11,9 @@ const approved = (overrides={}) => ({
 });
 
 test('exact student catalogue is unique and restricted to support', () => {
-  assert.equal(STUDENT_OFFERS.length, 3);
+  assert.equal(STUDENT_OFFERS.length, 16);
+  assert.equal(STUDENT_DEPARTMENTS.length, 6);
+  assert.ok(STUDENT_OFFERS.every(item => STUDENT_DEPARTMENTS.some(dept => dept.id === item.department)));
   assert.equal(new Set(STUDENT_OFFERS.map(offer => offer.id)).size, 3);
   assert.ok(getStudentOffer('thesis-support'));
   assert.equal(getStudentOffer('unsupported'), null);
