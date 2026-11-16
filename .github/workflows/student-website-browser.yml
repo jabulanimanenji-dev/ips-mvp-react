@@ -19,7 +19,7 @@ jobs:
       - name: Install browser harness
         run: |
           npm install --no-save --ignore-scripts playwright@1.56.1
-          npx playwright install --with-deps chromium
+          which google-chrome || which google-chrome-stable || true
       - name: Start preview and exercise actual UI
         run: |
           npm run preview -- --host 127.0.0.1 > /tmp/ips-student-preview.log 2>&1 &
