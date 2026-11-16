@@ -197,10 +197,10 @@ export default function App() {
 
         <Route
           path="/quote"
-          element={<FeatureGate feature="quoteRequests"><QuotePage /></FeatureGate>}
+          element={<FeatureGate feature="quoteRequests">{import.meta.env.VITE_STUDENT_LAUNCH === 'true' ? <StudentSupportPage /> : <QuotePage />}</FeatureGate>}
         />
 
-        <Route path="/services" element={<FeatureGate feature="serviceMarketplace"><ServiceMarketplacePage /></FeatureGate>} />
+        <Route path="/services" element={<FeatureGate feature="serviceMarketplace">{import.meta.env.VITE_STUDENT_LAUNCH === 'true' ? <StudentSupportPage /> : <ServiceMarketplacePage />}</FeatureGate>} />
         <Route path="/student-support" element={<FeatureGate feature="serviceMarketplace"><StudentSupportPage /></FeatureGate>} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/become-a-provider" element={<FeatureGate feature="providerApplications"><ProviderApplicationPage /></FeatureGate>} />
