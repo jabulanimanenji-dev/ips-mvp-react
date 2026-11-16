@@ -20,6 +20,8 @@ import Message from './models/Message.js';
 import AuditLog from './models/AuditLog.js';
 import Notification from './models/Notification.js';
 import ServiceRequest from './models/ServiceRequest.js';
+import StudentPayment from './models/StudentPayment.js';
+import { registerStudentWebhook, registerStudentPaymentRoutes } from './services/studentPayments.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
 import ServiceCategory from './models/ServiceCategory.js';
 import ServiceEngineSettings from './models/ServiceEngineSettings.js';
@@ -84,6 +86,8 @@ const app = express();
 app.disable('x-powered-by');
 if (isProduction) app.set('trust proxy', 1);
 app.use(helmet());
+// Signature verification must see the unmodified request bytes, before the JSON parser.
+registerStudentWebhook(app, express, { StudentPayment, ServiceRequest });
 app.use(express.json({ limit: '35mb' }));
 
 const sessionSecret = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'local-development-change-me';
@@ -128,6 +132,8 @@ const requireSession = (req, res) => {
   }
   return session;
 };
+
+registerStudentPaymentRoutes(app, { requireSession, StudentPayment, ServiceRequest });
 
 // Production waits for MongoDB before accepting traffic. Development can still
 // launch without a database so the interface and verification tools remain usable.
