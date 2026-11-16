@@ -47,6 +47,7 @@ import ProviderServices from './components/writer/ProviderServices';
 import ServiceJobDetail from './components/common/ServiceJobDetail';
 import ActionCenter from './components/common/ActionCenter';
 import DirectMessaging from './components/common/DirectMessaging';
+import ChannelInbox from './components/admin/ChannelInbox.jsx';
 import VisualPageLayer from './components/common/VisualPageLayer';
 
 const ADMIN_ENTRY_PATH = (import.meta.env.VITE_ADMIN_ENTRY_PATH || '/ips-mission-control')
@@ -404,6 +405,7 @@ export default function App() {
           element={<DirectMessaging role="admin" />}
         />
         <Route path="job-messages" element={<AdminMessages />} />
+        <Route path="external-chats" element={<ChannelInbox />} />
         <Route path="actions" element={<ActionCenter role="admin" />} />
         <Route path="support" element={<AdminSupportTickets />} />
 
