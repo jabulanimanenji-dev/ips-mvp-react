@@ -14,7 +14,7 @@ test('exact student catalogue is unique and restricted to support', () => {
   assert.equal(STUDENT_OFFERS.length, 16);
   assert.equal(STUDENT_DEPARTMENTS.length, 6);
   assert.ok(STUDENT_OFFERS.every(item => STUDENT_DEPARTMENTS.some(dept => dept.id === item.department)));
-  assert.equal(new Set(STUDENT_OFFERS.map(offer => offer.id)).size, 3);
+  assert.equal(new Set(STUDENT_OFFERS.map(offer => offer.id)).size, 16);
   assert.ok(getStudentOffer('thesis-support'));
   assert.equal(getStudentOffer('unsupported'), null);
   assert.ok(isStudentSupportRequest(approved()));
