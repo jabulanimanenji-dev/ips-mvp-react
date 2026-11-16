@@ -2232,8 +2232,8 @@ app.post('/api/services', async (req, res) => {
     if (category === 'Academic Support' && (family !== 'professional' || !getStudentOffer(body.service_slug))) {
       return res.status(400).json({ success: false, error: 'Select a valid student-support service.' });
     }
-    const count = await ServiceRequest.countDocuments();
-    const requestId = 'SRV-' + String(count + 1).padStart(5, '0');
+    // Random IDs prevent concurrent requests colliding on countDocuments()+1.
+    const requestId = 'SRV-' + crypto.randomBytes(9).toString('hex').toUpperCase();
     const request = await ServiceRequest.create({
       family, category, title, description,
       desired_outcome: String(body.desired_outcome || '').slice(0, 600),
@@ -2279,6 +2279,12 @@ app.patch('/api/services/:id', async (req, res) => {
     const existing = await ServiceRequest.findOne({ request_id: req.params.id });
     if (!existing) return res.status(404).json({ success: false, error: 'Service request not found.' });
     if (!canAccessWork(session, { record: existing, kind: 'service' })) return res.status(403).json({ success: false, error: 'You do not have access to update this service.' });
+    if (session.role === 'client' &&
+        Object.prototype.hasOwnProperty.call(req.body || {}, 'quote') &&
+        (req.body?.quote?.accepted !== true ||
+          (req.body?.status && req.body.status !== 'Quote Accepted'))) {
+      return res.status(403).json({ success: false, error: 'Only the administrator may set quotation amounts or terms. Clients can accept the existing quote.' });
+    }
     if (existing.category === 'Academic Support' && existing.payment_status === 'paid' &&
         Object.prototype.hasOwnProperty.call(req.body || {}, 'quote')) {
       return res.status(409).json({ success: false, error: 'Paid quotations are locked; create a separate approved change order.' });
@@ -2304,7 +2310,21 @@ app.patch('/api/services/:id', async (req, res) => {
         latest.superseded_at = new Date();
         await latest.save();
       }
-      const quoteData = { ...req.body.quote, version, accepted: false, accepted_by: '', accepted_at: null };
+      const q = req.body.quote;
+      const values = [q.labor, q.service_fee, q.expenses].map(value => Number(value || 0));
+      const exactTotal = values.reduce((sum, value) => sum + value, 0);
+      const validMoney = n => Number.isFinite(n) && n >= 0 && n <= 100000 && Math.abs(Math.round(n * 100) - n * 100) < 0.000001;
+      if (!values.every(validMoney) || !validMoney(exactTotal) || exactTotal <= 0) {
+        return res.status(400).json({ success: false, error: 'The quotation breakdown must contain valid non-negative amounts with a positive total.' });
+      }
+      if (existing.category === 'Academic Support' && String(q.currency || 'PLN').toUpperCase() !== 'PLN') {
+        return res.status(400).json({ success: false, error: 'Student support quotations must use the configured PLN currency.' });
+      }
+      const quoteData = {
+        ...q, labor: values[0], service_fee: values[1], expenses: values[2],
+        total: Math.round(exactTotal * 100) / 100, currency: existing.category === 'Academic Support' ? 'PLN' : String(q.currency || 'USD').toUpperCase(),
+        version, accepted: false, accepted_by: '', accepted_at: null
+      };
       req.body.quote = quoteData;
       await QuoteVersion.create({
         work_id: existing.request_id, work_kind: 'service', version,
