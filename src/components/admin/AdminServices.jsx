@@ -35,7 +35,7 @@ export default function AdminServices() {
     e.preventDefault();
     const labor = Number(quote.labor), fee = Number(quote.service_fee), expenses = Number(quote.expenses);
     await patch(quoteJob.request_id, {
-      quote: { ...quote, labor, service_fee: fee, expenses, total: labor + fee + expenses, currency:'USD', accepted:false },
+      quote: { ...quote, labor, service_fee: fee, expenses, total: labor + fee + expenses, currency: quoteJob.category === 'Academic Support' ? 'PLN' : 'USD', accepted:false },
       status:'Quoted', reason:'New or revised quote issued'
     });
     setQuoteJob(null);
@@ -56,7 +56,7 @@ export default function AdminServices() {
         <td><select className="form-select" value={r.status} onChange={e=>patch(r.request_id,{status:e.target.value,reason:`Admin changed status to ${e.target.value}`})}>{statuses.map(s=><option key={s}>{s}</option>)}</select></td>
         <td><select className="form-select" value={r.provider_id||''} onChange={e=>{const w=writers.find(x=>x.writer_id===e.target.value);patch(r.request_id,{provider_id:e.target.value,provider_name:w?.full_name||'',status:e.target.value?'Assigned':'Awaiting Assignment',reason:e.target.value?'Provider assigned':'Provider unassigned'})}}><option value="">Unassigned</option>{writers.map(w=><option key={w.writer_id} value={w.writer_id}>{w.full_name}</option>)}</select></td>
         <td>{r.progress || 0}%</td>
-        <td><button className="btn btn-primary btn-sm" onClick={()=>openQuote(r)}>{r.quote?.total?`$${r.quote.total}`:'Create quote'}</button></td>
+        <td><button className="btn btn-primary btn-sm" onClick={()=>openQuote(r)}>{r.quote?.total?`${r.quote.currency || 'USD'} ${r.quote.total}`:'Create quote'}</button></td>
       </tr>)}
     </tbody></table></div>
 
