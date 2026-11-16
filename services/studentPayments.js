@@ -76,6 +76,19 @@ export function registerStudentWebhook(app, express, { StudentPayment, ServiceRe
 }
 
 export function registerStudentPaymentRoutes(app, { requireSession, StudentPayment, ServiceRequest }) {
+  app.get('/api/student-payments/admin', async (req, res) => {
+    try {
+      const session = requireSession(req, res);
+      if (!session) return;
+      if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+      const payments = await StudentPayment.find().sort({ createdAt: -1 }).limit(100).select('request_id client_id status currency amount_minor createdAt paid_at provider_payment_intent').lean();
+      res.json({ success: true, payments });
+    } catch (error) {
+      console.error('Student payment admin ledger failed:', safeError(error));
+      res.status(500).json({ success: false, error: 'Payment ledger is unavailable.' });
+    }
+  });
+
   app.get('/api/student-payments/status/:requestId', async (req, res) => {
     try {
       const session = requireSession(req, res);
