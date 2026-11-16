@@ -23,6 +23,7 @@ const ServiceRequestSchema = new mongoose.Schema({
   budget_max: { type: Number, default: 0 },
   urgency: { type: String, enum: ['standard', 'priority', 'urgent'], default: 'standard' },
   status: { type: String, default: 'New Request' },
+  payment_status: { type: String, enum: ['unpaid', 'processing', 'paid', 'partially_refunded', 'refunded', 'disputed'], default: 'unpaid' },
   quote: {
     labor: { type: Number, default: 0 },
     service_fee: { type: Number, default: 0 },
