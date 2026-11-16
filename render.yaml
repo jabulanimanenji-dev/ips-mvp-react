@@ -12,6 +12,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: VITE_STUDENT_LAUNCH
+        value: 'true'
       - key: MONGODB_URI
         sync: false
       - key: ADMIN_EMAIL
