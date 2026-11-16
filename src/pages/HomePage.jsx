@@ -1,4 +1,5 @@
 import React from 'react';
+import StudentSupportPage from './StudentSupportPage.jsx';
 import { Link } from 'react-router-dom';
 import Hero from '../components/public/Hero';
 import Services from '../components/public/Services';
@@ -11,6 +12,7 @@ import { useCMS } from '../context/CMSContext';
 
 export default function HomePage() {
   const { config } = useCMS();
+  if (import.meta.env.VITE_STUDENT_LAUNCH === 'true') return <StudentSupportPage />;
   const sections = {
     hero: <Hero />,
     services: <Services />,
