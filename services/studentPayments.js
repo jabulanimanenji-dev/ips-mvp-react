@@ -11,7 +11,7 @@ export function validateStudentQuote(order, now = new Date()) {
   if (order.quote.expires_at && new Date(order.quote.expires_at) <= now) throw new Error('This quotation has expired.');
   const total = Number(order.quote.total);
   const currency = String(order.quote.currency || '').toLowerCase();
-  if (!Number.isFinite(total) || total < 1 || total > 100000 || Math.round(total * 100) !== total * 100) {
+  if (!Number.isFinite(total) || total < 1 || total > 100000 || Math.abs(Math.round(total * 100) - total * 100) > 0.000001) {
     throw new Error('The quotation amount is invalid.');
   }
   if (!allowedCurrencies.has(currency)) throw new Error('This quotation currency is not supported.');
