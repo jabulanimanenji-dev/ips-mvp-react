@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import OrderWorkspace from './OrderWorkspace';
 import StudentCheckout from '../client/StudentCheckout.jsx';
+import ChannelLinkControls from '../client/ChannelLinkControls.jsx';
 
 export default function ServiceJobDetail({ role }) {
   const { requestId } = useParams();
@@ -71,6 +72,7 @@ export default function ServiceJobDetail({ role }) {
       </section>}
 
       {role === 'client' && job.category === 'Academic Support' && <StudentCheckout job={job} onRefresh={load} />}
+      {role === 'client' && job.category === 'Academic Support' && <ChannelLinkControls />}
 
       {!!quotes.length && <section className="card" style={{ marginTop: '1rem' }}>
         <h3>Quote history</h3>
