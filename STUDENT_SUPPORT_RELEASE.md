@@ -5,16 +5,16 @@ Status: **release candidate only — NOT production approved**.
 
 ## What is in scope
 
-Three eligible service families:
+Six academic departments with 16 individually scoped services, grouped around these core areas:
 1. Assignments and Coursework Support — tutoring, planning, student draft feedback, references.
 2. Thesis and Dissertation Support — research planning, methods coaching, chapter editing, formatting.
 3. Research Project and Data Support — study design, data interpretation coaching and presentation feedback.
 
-This product does not sell ready-to-submit assessed work or impersonation. Students retain responsibility for academic authorship.
+Additional services include proposals, literature reviews, research methods, statistics, qualitative analysis, data cleaning, proofreading, citation checking, academic presentations, viva preparation, technical project mentoring and academic translation. The design uses academic photography under a documented image license; the imagery is illustrative, not IPS staff portraits.\n\nThis product does not sell ready-to-submit assessed work or impersonation. Students retain responsibility for academic authorship.
 
 ## End-to-end intended journey
 
-1. Visit `/student-support` and select one of the three service packages.
+1. Visit `/student-support` and select one of the 16 available support services, or search/filter by department.
 2. Create account or log in; login/signup returns to the selected package.
 3. Fill in course, level, deadline and specific legitimate support request.
 4. Server creates a validated `ServiceRequest` with an immutable client identity, `payment_status=unpaid`, and no client-supplied quotation or staff status.
