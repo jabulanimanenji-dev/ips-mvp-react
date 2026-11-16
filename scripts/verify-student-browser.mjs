@@ -18,6 +18,7 @@ try {
   desktop.on('console', msg => { if (msg.type()==='error') warnings.push('desktop console: ' + msg.text()); });
   await desktop.goto(base, { waitUntil:'domcontentloaded', timeout:30000 });
   await desktop.getByRole('heading', { name: /Exceptional academic work starts/i }).waitFor({timeout:15000});
+  await desktop.evaluate(async () => { const images = [...document.querySelectorAll('.ipsa img')]; images.forEach(img => { img.loading = 'eager'; }); await Promise.all(images.map(img => img.decode().catch(() => {}))); });
   await desktop.screenshot({path:'browser-evidence/desktop-home.png', fullPage:true, animations:'disabled'});
 
   await caseRun('hero and editorial photography', async () => {
@@ -66,6 +67,7 @@ try {
     assert.ok(await mobile.locator('body').evaluate(n=>n.scrollWidth<=window.innerWidth+2));
   });
   await mobile.getByRole('button',{name:'Close navigation'}).click();
+  await mobile.evaluate(async () => { const images = [...document.querySelectorAll('.ipsa img')]; images.forEach(img => { img.loading = 'eager'; }); await Promise.all(images.map(img => img.decode().catch(() => {}))); });
   await mobile.screenshot({path:'browser-evidence/mobile-home.png',fullPage:true,animations:'disabled'});
   // image failures are evidence to investigate; external CDN availability may vary by environment.
   const imageState=await desktop.locator('.ipsa img').evaluateAll(images=>images.map(img=>({src:img.currentSrc,loaded:img.complete&&img.naturalWidth>0})));
