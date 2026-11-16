@@ -2303,13 +2303,10 @@ app.patch('/api/services/:id', async (req, res) => {
         { accepted: true, accepted_by: session.id, accepted_at: new Date() }
       );
     }
+    if (req.body.status && !canTransitionService(existing.status, req.body.status, session.role)) {
+      return res.status(409).json({ success: false, error: 'This service status transition is not permitted.' });
+    }
     if (session.role === 'admin' && req.body.quote) {
-      const latest = await QuoteVersion.findOne({ work_id: existing.request_id }).sort({ version: -1 });
-      const version = (latest?.version || 0) + 1;
-      if (latest) {
-        latest.superseded_at = new Date();
-        await latest.save();
-      }
       const q = req.body.quote;
       const values = [q.labor, q.service_fee, q.expenses].map(value => Number(value || 0));
       const exactTotal = values.reduce((sum, value) => sum + value, 0);
@@ -2319,6 +2316,12 @@ app.patch('/api/services/:id', async (req, res) => {
       }
       if (existing.category === 'Academic Support' && String(q.currency || 'PLN').toUpperCase() !== 'PLN') {
         return res.status(400).json({ success: false, error: 'Student support quotations must use the configured PLN currency.' });
+      }
+      const latest = await QuoteVersion.findOne({ work_id: existing.request_id }).sort({ version: -1 });
+      const version = (latest?.version || 0) + 1;
+      if (latest) {
+        latest.superseded_at = new Date();
+        await latest.save();
       }
       const quoteData = {
         ...q, labor: values[0], service_fee: values[1], expenses: values[2],
