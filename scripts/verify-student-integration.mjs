@@ -95,6 +95,51 @@ async function go(){
   assert.equal(payment.status,503,JSON.stringify(payment.body));
   pass('Missing merchant credentials fail closed; no fake checkout');
 
+  // CI-only signed Stripe fixture against a real MongoDB payment record. No provider or live charge.
+  const mongoose=(await import('mongoose')).default;
+  const {default:StudentPayment}=await import('../models/StudentPayment.js');
+  const {default:ServiceRequest}=await import('../models/ServiceRequest.js');
+  await mongoose.connect(process.env.MONGODB_URI);
+  const awaiting=await ServiceRequest.findOne({request_id:requestId}).lean();
+  assert.ok(awaiting?.quote?.accepted);
+  const sessionId='cs_test_ci_123456';
+  await StudentPayment.create({
+    payment_id:crypto.randomUUID(),request_id:requestId,client_id:aliceId,
+    quote_version:awaiting.quote.version,amount_minor:21900,currency:'pln',
+    provider:'stripe',status:'pending',provider_session_id:sessionId
+  });
+  await mongoose.disconnect();
+  const fakeEvent={id:'evt_ci_1',type:'checkout.session.completed',data:{object:{
+    id:sessionId,client_reference_id:requestId,amount_total:21900,currency:'pln',
+    payment_status:'paid',payment_intent:'pi_ci_123'
+  }}};
+  const signedPayload=JSON.stringify(fakeEvent);
+  const timestamp=Math.floor(Date.now()/1000);
+  const signedHeader='t='+timestamp+',v1='+crypto.createHmac('sha256',process.env.STRIPE_WEBHOOK_SECRET)
+    .update(timestamp+'.'+signedPayload).digest('hex');
+  const wrongStripe=await call('/api/student-payments/stripe-webhook',{method:'POST',raw:signedPayload,
+    headers:{'content-type':'application/json','stripe-signature':'t='+timestamp+',v1=bad'}});
+  assert.equal(wrongStripe.status,400);
+  const paidCallback=await call('/api/student-payments/stripe-webhook',{method:'POST',raw:signedPayload,
+    headers:{'content-type':'application/json','stripe-signature':signedHeader}});
+  assert.equal(paidCallback.status,200,JSON.stringify(paidCallback.body));
+  const paidReplay=await call('/api/student-payments/stripe-webhook',{method:'POST',raw:signedPayload,
+    headers:{'content-type':'application/json','stripe-signature':signedHeader}});
+  assert.equal(paidReplay.status,200);
+  const paidOrder=await call('/api/services/'+requestId,{session:alice.cookie});
+  assert.equal(paidOrder.body.request.payment_status,'paid');
+  assert.equal(paidOrder.body.request.status_history.filter(v=>v.reason==='Verified payment received').length,1);
+  pass('Provider-signed payment fixture marks correct persisted order paid exactly once');
+
+  const staleEdit=await call('/api/services/'+requestId,{method:'PATCH',session:admin.cookie,json:{
+    quote:{labor:1,service_fee:0,expenses:0,currency:'PLN'},status:'Quoted'}});
+  assert.equal(staleEdit.status,409);
+  const forbiddenDelete=await call('/api/services/'+requestId,{method:'DELETE',session:admin.cookie});
+  assert.equal(forbiddenDelete.status,409);
+  const assigned=await call('/api/services/'+requestId,{method:'PATCH',session:admin.cookie,json:{status:'Awaiting Assignment'}});
+  assert.equal(assigned.status,200,JSON.stringify(assigned.body));
+  pass('Paid quote locked; paid order cannot be deleted and can advance to assignment queue');
+
   const link=await call('/api/contact-channels/link-code',{method:'POST',session:alice.cookie});
   assert.equal(link.status,200,JSON.stringify(link.body));
   assert.match(link.body.command,/^\/link [A-Za-z0-9_-]{20}$/);
