@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import OrderWorkspace from './OrderWorkspace';
+import StudentCheckout from '../client/StudentCheckout.jsx';
 
 export default function ServiceJobDetail({ role }) {
   const { requestId } = useParams();
@@ -68,6 +69,8 @@ export default function ServiceJobDetail({ role }) {
         <p>Review the final delivery and completion evidence below. Approve only when the agreed outcome has been delivered.</p>
         <button className="btn btn-primary" onClick={() => patch({ status: 'Completed', reason: 'Client approved final completion' })}>Approve completed work</button>
       </section>}
+
+      {role === 'client' && job.category === 'Academic Support' && <StudentCheckout job={job} onRefresh={load} />}
 
       {!!quotes.length && <section className="card" style={{ marginTop: '1rem' }}>
         <h3>Quote history</h3>
