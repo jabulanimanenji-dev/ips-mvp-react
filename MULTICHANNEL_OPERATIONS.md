@@ -8,6 +8,14 @@ The existing IPS Express/Mongoose application remains the **single order authori
 
 The Vercel `ips-academic-design-preview` is a static website demonstration built with `VITE_DESIGN_PREVIEW=true`, NOT the Express backend. It shows only safe public content and cannot receive webhooks or fulfill orders.
 
+## Public communication identities (2026-11-17)
+
+- WhatsApp Business public number: **+48 794 088 714**, click-to-chat `https://wa.me/48794088714`.
+- Telegram bot public username: **@IPScontactBot**, eventual link `https://t.me/IPScontactBot`.
+- **Telegram contact is deliberately disabled in the public preview until its exposed token is revoked and replaced in a secure runtime secret store.** Never use or check in the token that was shared in conversation.
+- WhatsApp click-to-chat can open without Meta Cloud API provisioning. That does not mean messages are received by the IPS administrator inbox or automatically replied to; Cloud API setup is separate.
+- Neither identity is a basis for customer authentication. Keep authoritative orders and files in IPS.
+
 ## Customer lifecycle
 
 1. Student browses 16 supported services and creates an account.
