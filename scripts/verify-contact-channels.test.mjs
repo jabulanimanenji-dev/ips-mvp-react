@@ -77,6 +77,8 @@ test('Whatsapp parser ingests customer texts but ignores delivery statuses and m
 test('public links use configured business identities without exposing secrets',()=>{
   assert.equal(PUBLIC_CONTACTS.whatsapp.url,'https://wa.me/48794088714');
   assert.equal(PUBLIC_CONTACTS.telegram.url,'https://t.me/IPScontactBot');
+  assert.equal(PUBLIC_CONTACTS.whatsapp.available,true);
+  assert.equal(PUBLIC_CONTACTS.telegram.available,false);
   assert.equal(PUBLIC_CONTACTS.whatsapp.connected,false);
   assert.equal(PUBLIC_CONTACTS.telegram.connected,false);
   assert.equal(JSON.stringify(PUBLIC_CONTACTS).includes('token'),false);
