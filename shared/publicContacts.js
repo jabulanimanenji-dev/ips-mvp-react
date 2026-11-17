@@ -12,8 +12,9 @@ export const PUBLIC_CONTACTS = Object.freeze({
     username: 'IPScontactBot',
     display: '@IPScontactBot',
     url: 'https://t.me/IPScontactBot',
-    // Bot token was exposed; do not direct customers there until rotated and signed webhook active.
-    available: false,
+    // Public user-initiated link is safe after the owner confirmed token rotation.
+    // Bot webhook and automated replies are not yet configured.
+    available: true,
     connected: false
   })
 });
