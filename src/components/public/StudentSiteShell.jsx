@@ -38,7 +38,7 @@ export function StudentSiteFooter() {
   return <footer className="ipsa-footer">
     <div className="ipsa-wrap">
       <div className="ipsa-footer-columns">
-        <div className="ipsa-footer-about"><Link className="ipsa-brand" to="/"><span className="ipsa-logo-symbol">IPS<span>.</span></span><span className="ipsa-brand-descriptor">ACADEMIC<br/>SERVICES</span></Link><p>Structured academic assistance, research support and professional editing — with clear scope, transparent quotations and private workspaces.</p><a href="mailto:admin@ipsglobalservice.com">Ask IPS to contact you ↗</a></div>
+        <div className="ipsa-footer-about"><Link className="ipsa-brand" to="/"><span className="ipsa-logo-symbol">IPS<span>.</span></span><span className="ipsa-brand-descriptor">ACADEMIC<br/>SERVICES</span></Link><p>Structured academic assistance, research support and professional editing — with clear scope, transparent quotations and private workspaces.</p><a href="/#contact-ips">Ask IPS to contact you ↗</a></div>
         <div><h4>Explore</h4><a href="/#services">All services</a><a href="/#disciplines">Disciplines</a><a href="/#approach">Our process</a><a href="/#questions">Questions & answers</a><a href="/#direct-contact">WhatsApp & Telegram</a><a href="/#contact-ips">Ask for a callback</a></div>
         <div><h4>Student area</h4><Link to="/signup">Create account</Link><Link to="/login">Sign in</Link><Link to="/client/services">Service workspace</Link><a href="/#request-support">Request a quotation</a></div>
         <div><h4>About our service</h4><p>Academic work must follow your institution's policies. IPS does not supply assessed work for deceptive submission. Specialist assignment and availability are confirmed during review.</p></div>
