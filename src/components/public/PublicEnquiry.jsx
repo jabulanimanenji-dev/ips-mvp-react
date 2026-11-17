@@ -65,7 +65,7 @@ export default function PublicEnquiry(){
           </div>
           <div className="ipsa-form-row">
             <label>Email {form.preferred_channel==='email'?'*':'(optional)'}<input type="email" required={form.preferred_channel==='email'||form.preferred_channel==='telegram'&&!form.phone} maxLength={254} autoComplete="email" value={form.email} onChange={e=>set('email',e.target.value)} placeholder="you@example.com"/></label>
-            <label>Phone {needsPhone?'*':'(optional)'}<input type="tel" required={needsPhone} autoComplete="tel" pattern="\+[1-9][0-9]{7,14}" maxLength={16} value={form.phone} onChange={e=>set('phone',e.target.value)} placeholder="+48 794 088 714" title="International format without spaces, e.g. +48794088714"/></label>
+            <label>Phone {needsPhone?'*':'(optional)'}<input type="tel" required={needsPhone} autoComplete="tel" pattern="\+[0-9 ()-]{7,23}" maxLength={24} value={form.phone} onChange={e=>set('phone',e.target.value)} placeholder="+48 794 088 714" title="Include your country code, e.g. +48 794 088 714"/></label>
           </div>
           <label>Subject *<input required minLength={4} maxLength={140} value={form.subject} onChange={e=>set('subject',e.target.value)} placeholder="What would you like help with?"/></label>
           <label>Message *<textarea required minLength={15} maxLength={3000} rows={5} value={form.message} onChange={e=>set('message',e.target.value)} placeholder="Explain what you need and when IPS should contact you."/></label>
