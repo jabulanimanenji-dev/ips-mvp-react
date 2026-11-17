@@ -103,6 +103,7 @@ export default function AdminSidebar() {
               </Link>
             );
           })}
+          {hasAdminPermission('support.view') && <Link to="/admin/enquiries" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Contact & callbacks</Link>}
           {hasAdminPermission('messages.view') && <Link to="/admin/external-chats" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ WhatsApp & Telegram inbox</Link>}
         </nav>
 
