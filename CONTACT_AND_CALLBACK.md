@@ -22,9 +22,9 @@ This feature is built on the isolated `commercial/student-support-v1` branch and
 
 Store these on the secure Express hosting service, **never** GitHub or `VITE_*`:
 
-- `CONTACT_RESEND_API_KEY`: production email provider API credential
-- `CONTACT_FROM_EMAIL`: sender address on a verified owned domain
-- `CONTACT_REPLY_TO_EMAIL` (optional): an actual monitored inbox students can reply to
+- `CONTACT_RESEND_API_KEY`: production email provider API credential (stored on the backend only)
+- `CONTACT_FROM_EMAIL=support@ipsglobalservice.com`: verified IPS-only sender address
+- `CONTACT_REPLY_TO_EMAIL=contact@ipsglobalservice.com`: monitored Cloudflare routing alias; required before IPS email sending activates
 
 No provider credentials are required for the public click-to-chat links. SMS and automated telephone calls are **not** included without a verified communications provider and explicit customer permission.
 
