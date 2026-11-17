@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { PUBLIC_CONTACTS } from '../shared/publicContacts.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {validTelegramUsername,validWhatsappNumber,verifyWhatsappSignature,verifyTelegramSecret,parseTelegramUpdate,parseWhatsappUpdate,publicContactConfig} from '../services/contactChannels.js';
@@ -70,4 +71,13 @@ test('Whatsapp parser ingests customer texts but ignores delivery statuses and m
   assert.equal(messages[0].display_name,'Student');
   assert.equal(messages[0].body,'Please help with my research');
   assert.equal(parseWhatsappUpdate({...payload,object:'bad'}).length,0);
+});
+
+
+test('public links use configured business identities without exposing secrets',()=>{
+  assert.equal(PUBLIC_CONTACTS.whatsapp.url,'https://wa.me/48794088714');
+  assert.equal(PUBLIC_CONTACTS.telegram.url,'https://t.me/IPScontactBot');
+  assert.equal(PUBLIC_CONTACTS.whatsapp.connected,false);
+  assert.equal(PUBLIC_CONTACTS.telegram.connected,false);
+  assert.equal(JSON.stringify(PUBLIC_CONTACTS).includes('token'),false);
 });
