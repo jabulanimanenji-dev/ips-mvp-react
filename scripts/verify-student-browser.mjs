@@ -27,6 +27,11 @@ try {
     assert.equal(await desktop.locator('.ipsa-site-header').count(),1);
     assert.equal(await desktop.locator('.ipsa-footer').count(),1);
   });
+  await caseRun('public WhatsApp contact works while exposed-token Telegram stays disabled', async () => {
+    assert.equal(await desktop.locator('.ipsa-contact-link[href="https://wa.me/48794088714"]').count(),1);
+    assert.equal(await desktop.locator('.ipsa-contact-link[href="https://t.me/IPScontactBot"]').count(),0);
+    assert.ok(await desktop.getByText(/Telegram @IPScontactBot is temporarily unavailable/i).isVisible());
+  });
   await caseRun('six category filters and sixteen service products', async () => {
     assert.equal(await desktop.locator('.ipsa-tabs button').count(),6);
     assert.equal(await desktop.locator('.ipsa-service-card').count(),16);
