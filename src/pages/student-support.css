@@ -336,3 +336,31 @@
   .ipsa-contact-layout{grid-template-columns:1fr;gap:20px}
   .ipsa-contact-card{padding:23px}
 }
+
+/* Guest contact and callback desk — available without signing in. */
+.ipsa-enquiry{background:#f1f2ef;border-top:1px solid #e0e3e2}
+.ipsa-enquiry-columns{display:grid;grid-template-columns:minmax(0,43%) minmax(0,57%);gap:8%;align-items:start}
+.ipsa-enquiry-intro{padding-top:18px}
+.ipsa-enquiry-intro h2{font-size:clamp(2rem,3.2vw,3.7rem);line-height:1.12;color:#18324b;letter-spacing:-.04em;margin:0 0 24px}
+.ipsa-enquiry-intro h2 em{font-weight:400;color:#a58153}
+.ipsa-enquiry-intro>p{color:#64768a;line-height:1.9;max-width:620px}
+.ipsa-enquiry-assurances{border-top:1px solid #d8dfdf;margin:35px 0 25px}
+.ipsa-enquiry-assurances p{border-bottom:1px solid #d8dfdf;padding:15px 3px;font-size:.89rem;color:#344d62;line-height:1.6}
+.ipsa-enquiry-assurances strong{font-size:.78rem;color:#a48663;margin-right:12px}
+.ipsa-enquiry-fine{font-size:.79rem!important;line-height:1.8!important;color:#70808d!important}
+.ipsa-enquiry-card{background:#fff;border:1px solid #e0e6e9;padding:clamp(24px,3.7vw,48px);box-shadow:0 23px 60px #233d5020}
+.ipsa-enquiry-card-heading h3{font-size:1.8rem;color:#1a3047;margin:0 0 12px}
+.ipsa-enquiry-card-heading p{font-size:.88rem;color:#6d7d8d;margin:0 0 25px}
+.ipsa-enquiry-form>label,.ipsa-enquiry-form .ipsa-form-row label{display:block;font-size:.8rem;font-weight:750;color:#344e62;margin:0 0 18px}
+.ipsa-enquiry-form input:not([type=checkbox]),.ipsa-enquiry-form select,.ipsa-enquiry-form textarea{width:100%;display:block;margin-top:8px;border:1px solid #d9e2e7;border-radius:4px;background:#fbfbfc;padding:13px 13px;font:inherit;font-size:.86rem;color:#17314a}
+.ipsa-enquiry-form input:focus,.ipsa-enquiry-form textarea:focus,.ipsa-enquiry-form select:focus{outline:2px solid #d7b885;outline-offset:1px}
+.ipsa-enquiry-form .ipsa-form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ipsa-enquiry-consent{display:flex!important;align-items:start;gap:10px;color:#667887!important;font-weight:500!important;line-height:1.65!important;font-size:.79rem!important}
+.ipsa-enquiry-consent input{flex:none;margin-top:4px;accent-color:#173c53}
+.ipsa-enquiry-trap{position:absolute!important;left:-10000px;width:1px;height:1px;overflow:hidden}
+.ipsa-enquiry-preview,.ipsa-enquiry-fallback{padding:14px 16px;background:#f9f4e8;border-left:3px solid #bf9d69;color:#5c5949;font-size:.82rem;line-height:1.7;margin-bottom:15px}
+.ipsa-enquiry-fallback .ipsa-btn{margin-top:12px;max-width:100%}
+.ipsa-enquiry-send{width:100%;justify-content:space-between}
+.ipsa-enquiry-form>small{display:block;color:#7d8b97;font-size:.72rem;margin-top:14px;line-height:1.7}
+@media(max-width:900px){.ipsa-enquiry-columns{grid-template-columns:1fr;gap:35px}.ipsa-enquiry-intro{padding-top:0}}
+@media(max-width:570px){.ipsa-enquiry-card{padding:24px 20px}.ipsa-enquiry-form .ipsa-form-row{grid-template-columns:1fr;gap:0}}
