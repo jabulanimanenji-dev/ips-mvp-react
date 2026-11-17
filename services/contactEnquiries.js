@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import mongoose from 'mongoose';
 import ContactEnquiry from '../models/ContactEnquiry.js';
 
 export const PUBLIC_REPLY_METHODS=Object.freeze(['email','phone','whatsapp','telegram']);
@@ -6,12 +7,13 @@ const isText=x=>typeof x==='string';
 const within=(x,min,max)=>isText(x)&&x.trim().length>=min&&x.trim().length<=max;
 export const validEmail=x=>isText(x)&&x.length<=254&&/^[^\s@\x00-\x1f]+@[^\s@\x00-\x1f]+\.[a-zA-Z]{2,}$/i.test(x);
 export const validTelephone=x=>isText(x)&&/^\+[1-9][0-9]{7,14}$/.test(x);
+export const normalizePhone=x=>isText(x)?x.trim().replace(/[\s().-]/g,''):'';
 
 export function validatePublicEnquiry(data){
   if(!data || typeof data!=='object'||Array.isArray(data))return {error:'An enquiry is required.'};
   const name=String(data.name||'').trim().slice(0,101);
   const email=String(data.email||'').trim().toLowerCase().slice(0,255);
-  const phone=String(data.phone||'').trim().slice(0,25);
+  const phone=normalizePhone(String(data.phone||'').slice(0,40));
   const subject=String(data.subject||'').trim().slice(0,141);
   const message=String(data.message||'').trim().slice(0,3001);
   const method=data.preferred_channel;
@@ -78,11 +80,12 @@ const createId=()=> 'ENQ-'+crypto.randomBytes(9).toString('hex').toUpperCase();
 export function registerEnquiryRoutes(app,{requireSession}){
   app.get('/api/contact-enquiries/config',(_req,res)=>{
     res.set('Cache-Control','no-store');
-    res.json({success:true,accepting_requests:true,email_replies_configured:senderEnabled(process.env),
+    res.json({success:true,accepting_requests:mongoose.connection.readyState===1,email_replies_configured:senderEnabled(process.env),
       notice:'An enquiry stores your contact details for an IPS reply. No payment or account is required.'});
   });
   app.post('/api/contact-enquiries',async(req,res)=>{
     if(!matchesOrigin(req))return res.status(403).json({success:false,error:'Submit from the IPS website.'});
+    if(mongoose.connection.readyState!==1)return res.status(503).json({success:false,error:'Enquiries are temporarily unavailable. Contact IPS on WhatsApp instead.'});
     if(requestLimited(req))return res.status(429).json({success:false,error:'Too many requests. Please try again later.'});
     const checked=validatePublicEnquiry(req.body);
     if(checked.error)return res.status(400).json({success:false,error:checked.error});
