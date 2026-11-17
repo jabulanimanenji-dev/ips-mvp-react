@@ -1,10 +1,9 @@
 import React,{useEffect,useState} from 'react';
 
 function ContactActions({lead}){
-  const {email,phone,preferred_channel,subject,enquiry_id}=lead;
-  const manualBody='Hello '+lead.name+',\n\nThank you for contacting IPS about "'+subject+'".\n\nReference: '+enquiry_id+'\n\n';
+  const {email,phone,preferred_channel,enquiry_id}=lead;
   return <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:14}}>
-    {email&&<a className="btn btn-ghost" href={'mailto:'+email+'?subject='+encodeURIComponent('IPS: '+subject+' · '+enquiry_id)+'&body='+encodeURIComponent(manualBody)}>Open email app ↗</a>}
+    {email&&<small>Email replies are sent from the IPS business address using the verified email service below—not your personal mail app.</small>}
     {phone&&preferred_channel==='phone'&&<a className="btn btn-ghost" href={'tel:'+phone}>Call {phone} ↗</a>}
     {phone&&preferred_channel==='whatsapp'&&<a className="btn btn-ghost" href={'https://wa.me/'+phone.replace('+','')+'?text='+encodeURIComponent('Hello '+lead.name+', this is IPS following up about your enquiry '+enquiry_id+'.') } target="_blank" rel="noopener noreferrer">Open WhatsApp ↗</a>}
     {preferred_channel==='telegram'&&<small>Telegram bot messages require the customer to start @IPScontactBot first. Request email or phone follow-up if needed.</small>}
@@ -107,7 +106,7 @@ export default function AdminEnquiries(){
             <textarea className="form-textarea" maxLength={2400} minLength={3} rows={5} required value={message} onChange={e=>setMessage(e.target.value)} placeholder="Write a response to this customer" />
             <button type="submit" className="btn btn-primary" disabled={busy||!emailReady||!current.email||current.status==='closed'} style={{marginTop:12}}>{busy?'Sending…':'Send verified email'}</button>
           </form>
-          {!emailReady&&<p style={{fontSize:'.8rem',color:'var(--text-muted)',marginTop:10}}>Automated email requires a verified sending domain and backend Resend key. You can use the manual email/phone/WhatsApp links above in the meantime.</p>}
+          {!emailReady&&<p style={{fontSize:'.8rem',color:'var(--text-muted)',marginTop:10}}>Automated email requires a verified sending domain and backend Resend key. You can use the phone/WhatsApp contact links above in the meantime. Do not reply using a personal email address.</p>}
         </>}
       </section>
     </div>
