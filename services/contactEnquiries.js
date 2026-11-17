@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import ContactEnquiry from '../models/ContactEnquiry.js';
-import { IPS_EMAILS, IPS_MAIL_SENDER_NAME, isIPSEmail } from '../shared/businessEmails.js';
+import { IPS_EMAILS, IPS_MAIL_SENDER_NAME } from '../shared/businessEmails.js';
 
 export const PUBLIC_REPLY_METHODS=Object.freeze(['email','phone','whatsapp','telegram']);
 const isText=x=>typeof x==='string';
