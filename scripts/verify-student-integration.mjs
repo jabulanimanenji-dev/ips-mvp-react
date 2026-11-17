@@ -37,6 +37,37 @@ async function go(){
   assert.equal(admin.status,200,JSON.stringify(admin.body));
   pass('Actual administrator authentication');
 
+  const publicContact={name:'Guest Student',email:'guest@example.org',phone:'+48794088714',
+    preferred_channel:'phone',subject:'Please call me about research coaching',
+    message:'I would like to discuss your research coaching service and get a callback.',contact_consent:true};
+  const invalidContact=await call('/api/contact-enquiries',{method:'POST',json:{...publicContact,contact_consent:false}});
+  assert.equal(invalidContact.status,400);
+  const submitted=await call('/api/contact-enquiries',{method:'POST',json:publicContact});
+  assert.equal(submitted.status,201,JSON.stringify(submitted.body));
+  const reference=submitted.body.enquiry_id;
+  assert.match(reference,/^ENQ-[A-F0-9]{18}$/);
+  pass('Guest enquiry and callback saved without signup or payment');
+
+  const guestQueue=await call('/api/contact-enquiries/admin');
+  assert.equal(guestQueue.status,401);
+  const clientQueue=await call('/api/contact-enquiries/admin',{session:alice.cookie});
+  assert.equal(clientQueue.status,403);
+  const ownerQueue=await call('/api/contact-enquiries/admin',{session:admin.cookie});
+  assert.equal(ownerQueue.status,200,JSON.stringify(ownerQueue.body));
+  assert.equal(ownerQueue.body.enquiries.find(x=>x.enquiry_id===reference)?.phone,'+48794088714');
+  pass('Only IPS administrators see guest contact details and explicit reply consent');
+
+  const noEmail=await call('/api/contact-enquiries/admin/'+reference+'/email-reply',{
+    method:'POST',session:admin.cookie,json:{message:'We will call you to discuss the enquiry.'}});
+  assert.equal(noEmail.status,503,JSON.stringify(noEmail.body));
+  const moved=await call('/api/contact-enquiries/admin/'+reference,{
+    method:'PATCH',session:admin.cookie,json:{status:'in_progress',admin_note:'Callback requested by student'}});
+  assert.equal(moved.status,200);
+  assert.equal(moved.body.enquiry.status,'in_progress');
+  const ownerQueueAfter=await call('/api/contact-enquiries/admin',{session:admin.cookie});
+  assert.equal(ownerQueueAfter.body.enquiries.find(x=>x.enquiry_id===reference)?.messages.length,1);
+  pass('Owner manages callback queue; unconfigured email never pretends to send');
+
   const unauthorized=await call('/api/contact-channels/admin/threads');
   assert.equal(unauthorized.status,401);
   pass('Guest cannot list external chat inbox');
