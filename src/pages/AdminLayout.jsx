@@ -14,6 +14,7 @@ const PAGE_TITLES = {
   '/admin/cms': 'CMS',
   '/admin/messages': 'Messages',
   '/admin/external-chats': 'WhatsApp & Telegram inbox',
+  '/admin/enquiries': 'Contact & callback requests',
   '/admin/reports': 'Reports',
   '/admin/settings': 'Settings',
 };
