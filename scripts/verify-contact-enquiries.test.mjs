@@ -21,6 +21,7 @@ test('callback requires a full international phone number',()=>{
   assert.ok(validatePublicEnquiry({...enquiry,preferred_channel:'phone',phone:''}).error);
   assert.ok(validatePublicEnquiry({...enquiry,preferred_channel:'whatsapp',phone:'794 088 714'}).error);
   assert.equal(validatePublicEnquiry({...enquiry,preferred_channel:'phone',email:''}).value.phone,'+48794088714');
+  assert.equal(validatePublicEnquiry({...enquiry,preferred_channel:'phone',phone:'+48 794 088 714'}).value.phone,'+48794088714');
 });
 test('no unsolicited contact without explicit enquiry consent',()=>{
   assert.ok(validatePublicEnquiry({...enquiry,contact_consent:false}).error);
