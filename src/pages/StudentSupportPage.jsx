@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { STUDENT_DEPARTMENTS, STUDENT_OFFERS, getStudentOffer } from '../../shared/studentOffers.js';
 import './student-support.css';
 import ContactOptions from '../components/public/ContactOptions.jsx';
+import PublicEnquiry from '../components/public/PublicEnquiry.jsx';
 
 const photos = Object.freeze({
   hero: 'https://images.unsplash.com/photo-1758270705317-3ef6142d306f?auto=format&fit=crop&w=1300&q=82',
@@ -260,6 +261,7 @@ export default function StudentSupportPage() {
     </section>
 
     <ContactOptions />
+    <PublicEnquiry />
     <section className="ipsa-section ipsa-faq" id="questions">
       <div className="ipsa-wrap ipsa-faq-layout"><SectionTitle eyebrow="BEFORE YOU BEGIN" title={<>Your questions, <em>answered.</em></>} copy="Straightforward answers about services, privacy, academic integrity and the process."/>
         <div className="ipsa-faq-list">{faqs.map(([q,a])=><details key={q}><summary>{q}<span aria-hidden="true">＋</span></summary><p>{a}</p></details>)}</div>
