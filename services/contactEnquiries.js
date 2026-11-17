@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import ContactEnquiry from '../models/ContactEnquiry.js';
+import { IPS_EMAILS, IPS_MAIL_SENDER_NAME, isIPSEmail } from '../shared/businessEmails.js';
 
 export const PUBLIC_REPLY_METHODS=Object.freeze(['email','phone','whatsapp','telegram']);
 const isText=x=>typeof x==='string';
@@ -55,18 +56,23 @@ function matchesOrigin(req){
       parsed.protocol==='http:'&&/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(parsed.host)&&parsed.host===req.get('host');
   }catch{return false;}
 }
-const senderEnabled=env=>Boolean(env.CONTACT_RESEND_API_KEY && validEmail(env.CONTACT_FROM_EMAIL||''));
+// Prevent accidentally exposing a personal sender or reply-to identity.
+const senderEnabled=env=>Boolean(
+  env.CONTACT_RESEND_API_KEY &&
+  String(env.CONTACT_FROM_EMAIL||'').trim().toLowerCase() === IPS_EMAILS.support &&
+  String(env.CONTACT_REPLY_TO_EMAIL||'').trim().toLowerCase() === IPS_EMAILS.contact
+);
 export function canSendContactEmail(env=process.env){return senderEnabled(env);}
 export async function sendEmailReply({to,subject,body,reference,env=process.env,request=fetch}){
   if(!senderEnabled(env))throw Object.assign(new Error('Email delivery is not configured.'),{status:503});
   const response=await request('https://api.resend.com/emails',{
     method:'POST',headers:{Authorization:'Bearer '+env.CONTACT_RESEND_API_KEY,'Content-Type':'application/json'},
     body:JSON.stringify({
-      from:env.CONTACT_FROM_EMAIL,
+      from:IPS_MAIL_SENDER_NAME+' <'+IPS_EMAILS.support+'>',
       to:[to],
       subject:'IPS: '+String(subject).slice(0,125)+' · '+reference,
       text:body+'\n\nReference: '+reference+'\nThis is a reply to your IPS enquiry.',
-      reply_to:validEmail(env.CONTACT_REPLY_TO_EMAIL||'')?env.CONTACT_REPLY_TO_EMAIL:undefined
+      reply_to:IPS_EMAILS.contact
     }),
     signal:AbortSignal.timeout(15000)
   });
