@@ -12,7 +12,7 @@ The Vercel `ips-academic-design-preview` is a static website demonstration built
 
 - WhatsApp Business public number: **+48 794 088 714**, click-to-chat `https://wa.me/48794088714`.
 - Telegram bot public username: **@IPScontactBot**, eventual link `https://t.me/IPScontactBot`.
-- **Telegram contact is deliberately disabled in the public preview until its exposed token is revoked and replaced in a secure runtime secret store.** Never use or check in the token that was shared in conversation.
+- The owner reported the Telegram token was rotated on 2026-11-17. The **public link is enabled**, but automated bot replies and webhook integration are still unverified; no token has been supplied to the secure runtime. Do not use or check in the previously exposed token.
 - WhatsApp click-to-chat can open without Meta Cloud API provisioning. That does not mean messages are received by the IPS administrator inbox or automatically replied to; Cloud API setup is separate.
 - Neither identity is a basis for customer authentication. Keep authoritative orders and files in IPS.
 
