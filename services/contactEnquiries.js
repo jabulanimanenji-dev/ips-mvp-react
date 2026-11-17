@@ -87,8 +87,7 @@ export function registerEnquiryRoutes(app,{requireSession}){
     const checked=validatePublicEnquiry(req.body);
     if(checked.error)return res.status(400).json({success:false,error:checked.error});
     try{
-      const session=req.headers?.authorization?null:null; // Public enquiries never trust caller-supplied client_id.
-      void session;
+      // Public enquiries never trust caller-supplied client_id or role.
       const c=checked.value;
       const id=createId(), now=new Date();
       await ContactEnquiry.create({
