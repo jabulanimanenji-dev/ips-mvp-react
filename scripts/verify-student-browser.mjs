@@ -32,6 +32,21 @@ try {
     assert.equal(await desktop.locator('.ipsa-contact-link[href="https://t.me/IPScontactBot"]').count(),1);
     assert.ok(await desktop.getByText(/Telegram @IPScontactBot can be opened/i).isVisible());
   });
+  await caseRun('guest callback form is available without an account and preview never fakes saved lead', async()=>{
+    const form=desktop.locator('.ipsa-enquiry-form');
+    assert.equal(await form.count(),1);
+    await form.locator('input[autocomplete="name"]').fill('Visitor Test');
+    await form.locator('input[type="email"]').fill('visitor@example.org');
+    await form.locator('input[placeholder="What would you like help with?"]').fill('Research planning question');
+    await form.locator('textarea').fill('Please contact me about research planning consultations.');
+    await form.locator('input[type="checkbox"]').check();
+    await form.getByRole('button',{name:/Prepare message for WhatsApp/i}).click();
+    const link=form.locator('.ipsa-enquiry-fallback a[href^="https://wa.me/48794088714?text="]');
+    assert.equal(await link.count(),1);
+    const message=new URL(await link.getAttribute('href')).searchParams.get('text');
+    assert.ok(message.includes('Visitor Test')&&message.includes('Research planning question'));
+    assert.ok(await form.getByText(/not sent until you confirm in WhatsApp/i).isVisible());
+  });
   await caseRun('six category filters and sixteen service products', async () => {
     assert.equal(await desktop.locator('.ipsa-tabs button').count(),6);
     assert.equal(await desktop.locator('.ipsa-service-card').count(),16);
