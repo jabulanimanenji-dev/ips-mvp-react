@@ -68,7 +68,7 @@ try {
     await desktop.getByRole('button',{name:'Request Statistics & SPSS / R / Python'}).click();
     assert.ok(desktop.url().includes('service=statistics-support'));
     assert.ok(await desktop.locator('.ipsa-login-prompt').isVisible());
-    assert.equal(await desktop.getByRole('link',{name:/Create an account/}).count()>=1,true);
+    assert.ok(await desktop.getByText('Review the proposed order experience').isVisible());
   });
   await caseRun('functional FAQ and subject navigation', async () => {
     await desktop.locator('.ipsa-faq summary').first().click();
