@@ -24,6 +24,7 @@ import StudentPayment from './models/StudentPayment.js';
 import { getStudentOffer } from './shared/studentOffers.js';
 import { registerStudentWebhook, registerStudentPaymentRoutes } from './services/studentPayments.js';
 import { registerContactWebhooks, registerContactApi } from './services/contactChannels.js';
+import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
 import ServiceCategory from './models/ServiceCategory.js';
 import ServiceEngineSettings from './models/ServiceEngineSettings.js';
@@ -224,6 +225,8 @@ app.use(async (req, res, next) => {
     res.status(503).json({ success: false, error: `Administrator access could not be verified: ${error.message}` });
   }
 });
+
+registerEnquiryRoutes(app, { requireSession });
 
 app.get('/api/health', (req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
