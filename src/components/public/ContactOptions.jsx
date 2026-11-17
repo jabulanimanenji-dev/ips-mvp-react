@@ -38,6 +38,7 @@ export default function ContactOptions(){
             <span><b>{label}</b><small>{description}</small></span><span aria-hidden="true">↗</span>
           </a>)
           : <p role="status" className="ipsa-contact-unavailable">WhatsApp and Telegram will appear here when our verified business channels are activated. For now, use your IPS workspace to contact us.</p>}
+        {!config?.telegram?.available && <p className="ipsa-contact-unavailable">Telegram @IPScontactBot is temporarily unavailable while its exposed API token is revoked and replaced securely.</p>}
         {options.length>0 && integrated!==options.length && <p className="ipsa-contact-unavailable" role="status">Direct chat links are available. Automatic replies and synchronization with the IPS inbox are not active until provider setup is completed.</p>}
         <small>We will never ask for account passwords or card numbers in a chat.</small>
       </div>
