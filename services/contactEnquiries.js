@@ -1,7 +1,9 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import ContactEnquiry from '../models/ContactEnquiry.js';
-import { IPS_EMAILS, IPS_MAIL_SENDER_NAME } from '../shared/businessEmails.js';
+import { canSendContactEmail,sendEmailReply } from './businessEmailTransport.js';
+import { enqueueContactEmailJobs } from './contactEmailQueue.js';
+export { canSendContactEmail,sendEmailReply } from './businessEmailTransport.js';
 
 export const PUBLIC_REPLY_METHODS=Object.freeze(['email','phone','whatsapp','telegram']);
 const isText=x=>typeof x==='string';
@@ -56,37 +58,13 @@ function matchesOrigin(req){
       parsed.protocol==='http:'&&/^(127\.0\.0\.1|localhost)(:\d+)?$/.test(parsed.host)&&parsed.host===req.get('host');
   }catch{return false;}
 }
-// Prevent accidentally exposing a personal sender or reply-to identity.
-const senderEnabled=env=>Boolean(
-  env.CONTACT_RESEND_API_KEY &&
-  String(env.CONTACT_FROM_EMAIL||'').trim().toLowerCase() === IPS_EMAILS.support &&
-  String(env.CONTACT_REPLY_TO_EMAIL||'').trim().toLowerCase() === IPS_EMAILS.contact
-);
-export function canSendContactEmail(env=process.env){return senderEnabled(env);}
-export async function sendEmailReply({to,subject,body,reference,env=process.env,request=fetch}){
-  if(!senderEnabled(env))throw Object.assign(new Error('Email delivery is not configured.'),{status:503});
-  const response=await request('https://api.resend.com/emails',{
-    method:'POST',headers:{Authorization:'Bearer '+env.CONTACT_RESEND_API_KEY,'Content-Type':'application/json'},
-    body:JSON.stringify({
-      from:IPS_MAIL_SENDER_NAME+' <'+IPS_EMAILS.support+'>',
-      to:[to],
-      subject:'IPS: '+String(subject).slice(0,125)+' · '+reference,
-      text:body+'\n\nReference: '+reference+'\nThis is a reply to your IPS enquiry.',
-      reply_to:IPS_EMAILS.contact
-    }),
-    signal:AbortSignal.timeout(15000)
-  });
-  const result=await response.json().catch(()=>({}));
-  if(!response.ok||!result.id)throw Object.assign(new Error('The email provider did not confirm delivery acceptance.'),{status:502});
-  return result.id;
-}
 const safeBody=s=>String(s||'').trim().slice(0,3000);
 const createId=()=> 'ENQ-'+crypto.randomBytes(9).toString('hex').toUpperCase();
 
 export function registerEnquiryRoutes(app,{requireSession}){
   app.get('/api/contact-enquiries/config',(_req,res)=>{
     res.set('Cache-Control','no-store');
-    res.json({success:true,accepting_requests:mongoose.connection.readyState===1,email_replies_configured:senderEnabled(process.env),
+    res.json({success:true,accepting_requests:mongoose.connection.readyState===1,email_replies_configured:canSendContactEmail(process.env),
       notice:'An enquiry stores your contact details for an IPS reply. No payment or account is required.'});
   });
   app.post('/api/contact-enquiries',async(req,res)=>{
@@ -99,14 +77,25 @@ export function registerEnquiryRoutes(app,{requireSession}){
       // Public enquiries never trust caller-supplied client_id or role.
       const c=checked.value;
       const id=createId(), now=new Date();
-      await ContactEnquiry.create({
+      const lead=await ContactEnquiry.create({
         enquiry_id:id,name:c.name,email:c.email,phone:c.phone,
         preferred_channel:c.preferred_channel,subject:c.subject,contact_consent:true,consent_at:now,
         messages:[{direction:'inbound',channel:'website',body:c.message,delivery_status:'received',created_at:now}],
         last_activity_at:now
       });
+      // The enquiry is already durable. A mail-provider or outbox failure must
+      // not make the client retry and accidentally submit a second enquiry.
+      let email_notification='disabled';
+      try{
+        const result=await enqueueContactEmailJobs(lead);
+        email_notification=result.enabled?'queued':'disabled';
+      }catch(error){
+        email_notification='unavailable';
+        console.error('IPS email outbox enqueue failed:',error?.name||'error');
+      }
       res.set('Cache-Control','no-store');
-      return res.status(201).json({success:true,enquiry_id:id,message:'Your enquiry was received by IPS. Keep this reference for follow-up.'});
+      return res.status(201).json({success:true,enquiry_id:id,email_notification,
+        message:'Your enquiry was saved by IPS. Keep this reference for follow-up.'});
     }catch(error){console.error('Public enquiry storage failed:',error?.name||'error');return res.status(503).json({success:false,error:'Your enquiry was not saved. Please use WhatsApp instead.'});}
   });
   app.get('/api/contact-enquiries/admin',async(req,res)=>{
@@ -137,7 +126,7 @@ export function registerEnquiryRoutes(app,{requireSession}){
     if(session.role!=='admin')return res.sendStatus(403);
     const body=safeBody(req.body?.message);
     if(body.length<3||body.length>2400)return res.status(400).json({success:false,error:'Reply must contain 3–2400 characters.'});
-    if(!senderEnabled(process.env))return res.status(503).json({success:false,error:'Verified email delivery has not been configured.'});
+    if(!canSendContactEmail(process.env))return res.status(503).json({success:false,error:'Verified email delivery has not been configured.'});
     // Reserve a reply slot to avoid accidental double-click / parallel sends.
     const lock=crypto.randomUUID();
     const lead=await ContactEnquiry.findOneAndUpdate({
