@@ -27,6 +27,7 @@ import { registerContactWebhooks, registerContactApi } from './services/contactC
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import { registerContactEmailWebhooks } from './services/contactEmailWebhooks.js';
+import { registerPrivateQuoteRoutes } from './services/quoteRequests.js';
 import { usernameValid,usernameKey,normalizeUsername,passwordValid,emailValid,normalizeEmail } from './shared/privacyIdentity.js';
 import { verificationAvailable,issueEmailChallenge,confirmEmailChallenge,publicAccount,validateVerificationRequest } from './services/accountVerification.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
@@ -232,6 +233,7 @@ app.use(async (req, res, next) => {
 });
 
 registerEnquiryRoutes(app, { requireSession });
+registerPrivateQuoteRoutes(app, { readSession });
 
 app.get('/api/health', (req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
