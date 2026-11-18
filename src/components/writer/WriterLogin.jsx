@@ -1,133 +1,41 @@
-import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import React,{useState} from 'react';
+import {Link,useNavigate} from 'react-router-dom';
+import {useAuth} from '../../context/AuthContext';
+import AcademicAuthShell,{isAcademicDesignPreview} from '../public/AcademicAuthShell.jsx';
 
-export default function WriterLogin() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const { loginWriter } = useAuth();
-  const navigate = useNavigate();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    
-    const result = await loginWriter(email, password);
-    
-    if (result.success) {
-      navigate('/writer', { replace: true });
-    } else {
-      setError(result.error || 'Invalid credentials');
-    }
-    
-    setLoading(false);
-  };
-
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0B1C3B 0%, #2D1F44 50%, #512F5C 100%)',
-        padding: '1.5rem',
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 420,
-          background: 'rgba(12,17,31,0.85)',
-          border: '1px solid rgba(185,205,238,0.12)',
-          borderRadius: 16,
-          padding: '2.5rem',
-          backdropFilter: 'blur(12px)',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 14,
-              background: 'linear-gradient(135deg, #660273 0%, #A305A6 100%)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '1.5rem',
-              fontWeight: 800,
-              color: '#fff',
-              marginBottom: '1rem',
-              boxShadow: '0 0 24px rgba(163,5,166,0.3)',
-            }}
-          >
-            ✍️
-          </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#F8F4E9', marginBottom: 4 }}>
-            Service Provider Portal
-          </h1>
-          <p style={{ color: '#748B91', fontSize: '0.875rem' }}>Professional, local and writing specialists</p>
-        </div>
-
-        {error && (
-          <div
-            style={{
-              padding: '0.75rem 1rem',
-              borderRadius: 10,
-              background: 'rgba(239,68,68,0.12)',
-              color: '#ef4444',
-              fontSize: '0.85rem',
-              marginBottom: '1rem',
-              border: '1px solid rgba(239,68,68,0.2)',
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label className="form-label" style={{ color: '#B9CDEE' }}>Email</label>
-            <input
-              type="email"
-              className="form-input"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              style={{ background: '#131F38', borderColor: 'rgba(185,205,238,0.12)', color: '#F8F4E9' }}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label" style={{ color: '#B9CDEE' }}>Password</label>
-            <input
-              type="password"
-              className="form-input"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              style={{ background: '#131F38', borderColor: 'rgba(185,205,238,0.12)', color: '#F8F4E9' }}
-            />
-          </div>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading}
-            style={{ width: '100%', marginTop: '0.5rem' }}
-          >
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
-
-        <p style={{ textAlign: 'center', marginTop: '1.25rem', color: '#748B91', fontSize: '0.8rem' }}>
-          Applications must be approved before provider access is activated
-        </p>
-        <Link to="/become-a-provider" className="btn btn-secondary" style={{ width: '100%', marginTop: '.75rem' }}>Apply to become a provider</Link>
-      </div>
-    </div>
-  );
+export default function WriterLogin(){
+  const [email,setEmail]=useState(''),[password,setPassword]=useState('');
+  const [error,setError]=useState(''),[loading,setLoading]=useState(false);
+  const {loginWriter}=useAuth();
+  const navigate=useNavigate();
+  async function submit(e){
+    e.preventDefault();if(isAcademicDesignPreview)return;
+    setError('');setLoading(true);
+    try{
+      const result=await loginWriter(email,password);
+      if(result.success)navigate('/writer',{replace:true});
+      else setError(result.error||'Invalid email or password.');
+    }catch{setError('Provider sign-in is temporarily unavailable.');}
+    finally{setLoading(false);}
+  }
+  return <AcademicAuthShell standalone eyebrow="PROVIDER ACCESS" title="Your expertise." italicTitle="Our platform." intro="Sign in to review assigned services, client communications and your professional workspace."
+    asideTitle="Work with" asideItalic="clarity." asideCopy="A structured space for assigned requests, project updates and communication between approved providers and IPS.">
+    <nav className="ipsa-auth-roles" aria-label="Choose account type">
+      <Link to="/login">Client</Link><span className="active" aria-current="page">Service provider</span>
+    </nav>
+    {error&&<div className="ipsa-auth-alert" role="alert">{error}</div>}
+    <form onSubmit={submit} aria-label="Provider sign in">
+      <label className="ipsa-auth-field"><span>Email address</span>
+        <input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="you@example.com"/>
+      </label>
+      <label className="ipsa-auth-field"><span>Password</span>
+        <input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} required placeholder="Enter your password"/>
+      </label>
+      <button className="ipsa-auth-submit" type="submit" disabled={loading||isAcademicDesignPreview}>
+        <span>{loading?'Signing in…':'Open provider workspace'}</span><span aria-hidden="true">↗</span>
+      </button>
+    </form>
+    <p className="ipsa-auth-help">Access is available only after your provider application is approved.</p>
+    <div className="ipsa-auth-after">Interested in joining IPS? <Link className="ipsa-auth-link" to="/become-a-provider">Apply as a provider</Link>.</div>
+  </AcademicAuthShell>;
 }
