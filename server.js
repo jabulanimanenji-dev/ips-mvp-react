@@ -566,9 +566,12 @@ app.post('/api/writers', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    const count = await Writer.countDocuments();
-    const newId = `WID-${String(count + 1).padStart(3, '0')}`;
-    const writer = new Writer({ ...req.body, password: hashPassword(req.body.password), writer_id: newId, application_status: 'approved', application_source: 'admin', status: req.body.status || 'Active', reviewed_at: new Date(), reviewed_by: session.id });
+    if(!passwordValid(req.body?.password)||!emailValid(normalizeEmail(req.body?.email))||String(req.body?.full_name||'').trim().length<2)
+      return res.status(400).json({success:false,error:'Specialists must supply a full name, a valid email and a strong password.'});
+    const newId='WID-'+crypto.randomBytes(8).toString('hex').toUpperCase();
+    const writer = new Writer({ ...req.body,email:normalizeEmail(req.body.email),password:hashPassword(req.body.password),
+      writer_id:newId,email_verified_at:null,application_status:'approved',application_source:'admin',
+      status:req.body.status||'Active',reviewed_at:new Date(),reviewed_by:session.id });
     await writer.save();
     const safeWriter = writer.toObject();
     delete safeWriter.password;
@@ -629,7 +632,15 @@ app.patch('/api/writers/:id', async (req, res) => {
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => (session.role === 'admin' ? allowedUpdates : providerUpdates).includes(key))
     );
-    if (updates.password) updates.password = hashPassword(updates.password);
+    if(updates.password!==undefined){
+      if(!passwordValid(updates.password))return res.status(400).json({success:false,error:'Passwords need at least 8 characters, a capital, number and symbol.'});
+      updates.password=hashPassword(updates.password);
+    }
+    if(updates.email!==undefined){
+      updates.email=normalizeEmail(updates.email);
+      if(!emailValid(updates.email))return res.status(400).json({success:false,error:'Invalid specialist email.'});
+      updates.email_verified_at=null;
+    }
     const writer = await Writer.findOneAndUpdate(
       { writer_id: req.params.id },
       updates,
@@ -648,16 +659,16 @@ app.patch('/api/writers/:id', async (req, res) => {
 app.post('/api/provider/register', async (req, res) => {
   let writtenCvKey = '';
   try {
-    const required = ['full_name', 'email', 'password', 'phone', 'country', 'motivation'];
+    const required = ['full_name', 'email', 'password', 'country', 'motivation'];
     const missing = required.filter(field => !String(req.body?.[field] || '').trim());
     if (missing.length) return res.status(400).json({ success: false, error: `Missing required fields: ${missing.join(', ')}` });
-    if (String(req.body.password).length < 8) return res.status(400).json({ success: false, error: 'Password must contain at least 8 characters.' });
+    if(!passwordValid(req.body.password)||!emailValid(normalizeEmail(req.body.email))||!verificationAvailable(process.env))
+      return res.status(verificationAvailable(process.env)?400:503).json({success:false,error:'A strong password, valid email and working email verification are required.'});
 
-    const email = String(req.body.email).trim().toLowerCase();
+    const email = normalizeEmail(req.body.email);
     if (await Writer.exists({ email })) return res.status(409).json({ success: false, error: 'A provider account or application already exists for this email.' });
 
-    const count = await Writer.countDocuments();
-    const writer_id = `WID-${String(count + 1).padStart(3, '0')}`;
+    const writer_id='WID-'+crypto.randomBytes(8).toString('hex').toUpperCase();
     const list = value => Array.isArray(value) ? value.map(item => String(item).trim()).filter(Boolean) : String(value || '').split(',').map(item => item.trim()).filter(Boolean);
     const experienceLevel = ['entry-level', 'experienced', 'student-trainee'].includes(String(req.body.experience_level))
       ? String(req.body.experience_level)
@@ -698,7 +709,8 @@ app.post('/api/provider/register', async (req, res) => {
       full_name: String(req.body.full_name).trim(),
       email,
       password: hashPassword(req.body.password),
-      phone: String(req.body.phone).trim(),
+      email_verified_at:null,
+      phone: String(req.body.phone||'').trim(),
       country: String(req.body.country).trim(),
       city: String(req.body.city || '').trim(),
       experience_level: experienceLevel,
@@ -721,7 +733,11 @@ app.post('/api/provider/register', async (req, res) => {
       application_source: 'self-service',
       status: 'Inactive'
     });
-    res.status(201).json({ success: true, application: { writer_id: writer.writer_id, full_name: writer.full_name, email: writer.email, application_status: writer.application_status, cv_attached: Boolean(writer.cv_stored_name) } });
+    try{await issueEmailChallenge(writer);}
+    catch(error){return res.status(503).json({success:false,verification_required:true,error:'Application saved, but a verification code could not be sent. Request a new code later.'});}
+    res.status(202).json({ success:true,verification_required:true,
+      application:{writer_id:writer.writer_id,email:writer.email,application_status:writer.application_status,cv_attached:Boolean(writer.cv_stored_name)},
+      message:'Application saved. Verify the email address to complete this step; IPS will review your application.'});
   } catch (err) {
     if (writtenCvKey) await objectStorage.remove(writtenCvKey).catch(() => {});
     if (respondWithStorageError(res, err)) return;
@@ -772,6 +788,30 @@ app.patch('/api/provider/applications/:id', async (req, res) => {
   }
 });
 
+app.post('/api/writer/verify-email',async(req,res)=>{
+  const input=validateVerificationRequest(req.body);
+  if(!input)return res.status(400).json({success:false,error:'Enter the email and eight-digit verification code.'});
+  try{
+    const account=await Writer.findOne({email:input.email}).select('+verification_hash +verification_expires_at +verification_sent_at +verification_attempts');
+    if(!account)return res.status(400).json({success:false,error:'Invalid or expired verification code.'});
+    const result=await confirmEmailChallenge(account,input.code);
+    if(result.error)return res.status(result.status||400).json({success:false,error:result.error});
+    res.set('Cache-Control','no-store');
+    return res.json({success:true,message:'Email verified. IPS will review the specialist application before allowing workspace access.'});
+  }catch{return res.status(503).json({success:false,error:'Email verification is temporarily unavailable.'});}
+});
+app.post('/api/writer/resend-verification',async(req,res)=>{
+  const email=normalizeEmail(req.body?.email);
+  if(!emailValid(email))return res.status(400).json({success:false,error:'Enter a valid email.'});
+  if(!verificationAvailable(process.env))return res.status(503).json({success:false,error:'Email verification is unavailable.'});
+  try{
+    const account=await Writer.findOne({email,email_verified_at:null}).select('+verification_hash +verification_expires_at +verification_sent_at +verification_attempts');
+    if(account)await issueEmailChallenge(account);
+    res.set('Cache-Control','no-store');
+    res.json({success:true,message:'If verification is pending, check your mailbox for a new code.'});
+  }catch(err){return res.status(err.status===429?429:503).json({success:false,error:err.status===429?'Please wait before requesting another code.':'Verification email unavailable.'});}
+});
+
 // Writer login
 app.post('/api/writer/login', async (req, res) => {
   try {
@@ -779,6 +819,7 @@ app.post('/api/writer/login', async (req, res) => {
     const password = String(req.body?.password || '');
     const writer = await Writer.findOne({ email });
     if (!writer || !verifyPassword(password, writer.password)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    if(!writer.email_verified_at)return res.status(403).json({success:false,verification_required:true,message:'Verify your specialist email address first.'});
     const applicationStatus = writer.application_status || 'approved';
     if (applicationStatus === 'pending') return res.status(403).json({ success: false, message: 'Your service-provider application is awaiting review.' });
     if (applicationStatus === 'more_information') return res.status(403).json({ success: false, message: 'IPS needs more information before your application can be approved. Please contact administration.' });
@@ -790,7 +831,7 @@ app.post('/api/writer/login', async (req, res) => {
     }
     const safeWriter = writer.toObject();
     delete safeWriter.password;
-    const token = signSession({ id: writer.writer_id, role: 'writer' });
+    const token = signSession({ id: writer.writer_id, role: 'writer', email_verified:true });
     setSessionCookie(res, token);
     res.json({ success: true, writer: safeWriter, token });
   } catch (err) {
