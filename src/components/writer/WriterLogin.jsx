@@ -2,10 +2,11 @@ import React,{useState} from 'react';
 import {Link,useNavigate} from 'react-router-dom';
 import {useAuth} from '../../context/AuthContext';
 import AcademicAuthShell,{isAcademicDesignPreview} from '../public/AcademicAuthShell.jsx';
+import VerifyEmailPanel from '../public/VerifyEmailPanel.jsx';
 
 export default function WriterLogin(){
   const [email,setEmail]=useState(''),[password,setPassword]=useState('');
-  const [error,setError]=useState(''),[loading,setLoading]=useState(false);
+  const [error,setError]=useState(''),[loading,setLoading]=useState(false),[verificationNeeded,setVerificationNeeded]=useState(false);
   const {loginWriter}=useAuth();
   const navigate=useNavigate();
   async function submit(e){
@@ -14,7 +15,7 @@ export default function WriterLogin(){
     try{
       const result=await loginWriter(email,password);
       if(result.success)navigate('/writer',{replace:true});
-      else setError(result.error||'Invalid email or password.');
+      else{setError(result.error||'Invalid email or password.');setVerificationNeeded(Boolean(result.verification_required));}
     }catch{setError('IPS specialist sign-in is temporarily unavailable.');}
     finally{setLoading(false);}
   }
@@ -24,6 +25,7 @@ export default function WriterLogin(){
       <Link to="/login">Seeking support</Link><span className="active" aria-current="page">Working with IPS</span>
     </nav>
     {error&&<div className="ipsa-auth-alert" role="alert">{error}</div>}
+    {verificationNeeded?<VerifyEmailPanel kind="writer" email={email} onSuccess={()=>{setError('Your email is verified. If your application has been approved, sign in to open your specialist workspace.');setVerificationNeeded(false);}} onCancel={()=>{setVerificationNeeded(false);setError('');}}/>:null}
     <form onSubmit={submit} aria-label="Sign in to work with IPS">
       <label className="ipsa-auth-field"><span>Email address</span>
         <input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)} required placeholder="you@example.com"/>
