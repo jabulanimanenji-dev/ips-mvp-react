@@ -25,6 +25,7 @@ import { getStudentOffer } from './shared/studentOffers.js';
 import { registerStudentWebhook, registerStudentPaymentRoutes } from './services/studentPayments.js';
 import { registerContactWebhooks, registerContactApi } from './services/contactChannels.js';
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
+import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
 import ServiceCategory from './models/ServiceCategory.js';
 import ServiceEngineSettings from './models/ServiceEngineSettings.js';
@@ -3437,10 +3438,14 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
 
+// Operational delivery is opt-in and requires verified server-side IPS credentials.
+const stopEmailWorker=startContactEmailWorker();
+
 let shuttingDown = false;
 const shutDown = signal => {
   if (shuttingDown) return;
   shuttingDown = true;
+  stopEmailWorker?.();
   console.log(`${signal} received. Closing the HTTP server and database connection.`);
 
   const forcedExit = setTimeout(() => {
