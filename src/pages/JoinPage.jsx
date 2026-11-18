@@ -9,18 +9,18 @@ export default function JoinPage(){
   const options=[
     {
       id:'client',enabled:features.clientRegistration!==false,
-      eyebrow:join.clientEyebrow||'FOR STUDENTS & RESEARCHERS',
+      eyebrow:join.clientEyebrow||'STUDENTS, RESEARCHERS & PROFESSIONALS',
       title:join.clientTitle||'I need academic support',
       description:join.clientDescription||'Create a private account to request support, review quotations and manage project communication.',
-      button:join.clientButton||'Create a student account',
+      button:join.clientButton||'Create an account',
       target:'/signup'
     },
     {
       id:'provider',enabled:features.providerApplications!==false,
-      eyebrow:join.providerEyebrow||'FOR SERVICE PROVIDERS',
-      title:join.providerTitle||'I offer professional expertise',
-      description:join.providerDescription||'Apply to work with IPS. We review provider capabilities and confirm opportunities according to service needs.',
-      button:join.providerButton||'Apply to become a provider',
+      eyebrow:join.providerEyebrow||'SPECIALISTS & COLLABORATORS',
+      title:join.providerTitle||'I’d like to work with IPS',
+      description:join.providerDescription||'Share your skills and interests. IPS reviews applications and discusses suitable opportunities when available.',
+      button:join.providerButton||'Apply to work with IPS',
       target:'/become-a-provider'
     }
   ];
