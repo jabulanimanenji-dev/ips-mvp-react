@@ -86,6 +86,29 @@ try {
     await desktop.getByRole('button',{name:'Nursing & Health Sciences'}).click();
     assert.ok(await desktop.locator('#request-support').isVisible());
   });
+  await caseRun('secondary entry pages share IPS academic interior design',async()=>{
+    const pages=[
+      ['/login','/Client sign in/i,'client-login'],
+      ['/signup','/Create student account/i,'client-signup'],
+      ['/writer/login','/Provider sign in/i,'provider-login']
+    ];
+    for(const [route,formLabel,suffix] of pages){
+      await desktop.goto(base+route,{waitUntil:'domcontentloaded'});
+      await desktop.locator('.ipsa-auth-shell').waitFor();
+      assert.equal(await desktop.locator('.ipsa-auth-aside').count(),1);
+      assert.equal(await desktop.locator('.ipsa-auth .ipsa-auth-field').count(),route==='/signup'?3:2);
+      assert.equal(await desktop.getByRole('form',{name:formLabel}).count(),1);
+      assert.ok(await desktop.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+2));
+      assert.equal(await desktop.locator('.ipsa-auth-submit').count(),1);
+      assert.ok(await desktop.getByText(/Website design preview: account access is not active here/i).isVisible());
+      await desktop.screenshot({path:'browser-evidence/'+suffix+'-desktop.png',fullPage:true,animations:'disabled'});
+    }
+    await desktop.goto(base+'/join',{waitUntil:'domcontentloaded'});
+    assert.equal(await desktop.locator('.ipsa-journey-card').count(),2);
+    assert.equal(await desktop.locator('.ipsa-interior-header').count(),1);
+    assert.ok(await desktop.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+2));
+    await desktop.screenshot({path:'browser-evidence/choose-account-desktop.png',fullPage:true,animations:'disabled'});
+  });
   const mobile = await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
   mobile.on('console', msg => { if(msg.type()==='error') warnings.push('mobile console: '+msg.text()); });
   await mobile.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
@@ -99,6 +122,19 @@ try {
   await mobile.getByRole('button',{name:'Close navigation'}).click();
   await mobile.evaluate(async () => { const images = [...document.querySelectorAll('.ipsa img')]; images.forEach(img => { img.loading = 'eager'; }); await Promise.all(images.map(img => img.decode().catch(() => {}))); });
   await mobile.screenshot({path:'browser-evidence/mobile-home.png',fullPage:true,animations:'disabled'});
+  await caseRun('responsive student entry pages fit small viewports without clipped forms',async()=>{
+    for(const route of ['/login','/signup','/writer/login','/join']){
+      await mobile.goto(base+route,{waitUntil:'domcontentloaded'});
+      await mobile.locator(route==='/join'?'.ipsa-journeys':'.ipsa-auth-shell').waitFor();
+      assert.ok(await mobile.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+2),route+' horizontal overflow');
+      if(route!=='/join'){
+        assert.ok(await mobile.locator('.ipsa-auth-field').last().isVisible());
+        assert.equal(await mobile.locator('.ipsa-auth-aside').isVisible(),false);
+      }
+    }
+    await mobile.goto(base+'/login',{waitUntil:'domcontentloaded'});
+    await mobile.screenshot({path:'browser-evidence/client-login-mobile.png',fullPage:true,animations:'disabled'});
+  });
   // image failures are evidence to investigate; external CDN availability may vary by environment.
   const imageState=await desktop.locator('.ipsa img').evaluateAll(images=>images.map(img=>({src:img.currentSrc,loaded:img.complete&&img.naturalWidth>0})));
   console.log('IMAGE_STATUS '+JSON.stringify(imageState));
