@@ -2,6 +2,9 @@ import crypto from 'node:crypto';
 import ChannelContact from '../models/ChannelContact.js';
 import ChannelMessage from '../models/ChannelMessage.js';
 import ChannelLinkToken from '../models/ChannelLinkToken.js';
+import {quoteReferenceFromMessage,confirmQuoteMessengerContact} from './quoteRequests.js';
+import ContactEnquiry from '../models/ContactEnquiry.js';
+import {enqueueContactEmailJobs} from './contactEmailQueue.js';
 
 const maxBodyLength = 3000;
 const safeText = input => typeof input === 'string' ? input.trim().slice(0,maxBodyLength) : '';
@@ -33,7 +36,9 @@ export function parseTelegramUpdate(payload){
   return [{
     channel:'telegram',external_id:String(msg.chat.id),
     external_message_id:'tg:'+String(payload.update_id),
-    display_name:safeText([msg.from?.first_name,msg.from?.last_name].filter(Boolean).join(' ')).slice(0,120),
+    // Avoid retaining Telegram profile legal names for anonymous academic enquiries.
+    display_name:msg.from?.username?'@'+String(msg.from.username).slice(0,32):'Telegram visitor',
+    telegram_username:String(msg.from?.username||'').toLowerCase(),
     body,provider_at:new Date((Number(msg.date)||Date.now()/1000)*1000)
   }];
 }
@@ -49,7 +54,7 @@ export function parseWhatsappUpdate(payload){
         const body=safeText(msg.text?.body);
         if(!body)continue;
         result.push({channel:'whatsapp',external_id:msg.from,external_message_id:'wa:'+msg.id.slice(0,200),
-          display_name:safeText(contacts.get(msg.from)||'').slice(0,120),body,
+          display_name:'WhatsApp visitor',body,
           provider_at:new Date((Number(msg.timestamp)||Date.now()/1000)*1000)});
       }
     }
@@ -95,6 +100,15 @@ async function storeInbound(event){
     throw error;
   }
   await ChannelContact.updateOne({_id:contact._id},{$inc:{unread_count:1}});
+  // A signed, customer-initiated chat containing the exact quote reference and
+  // matching channel identity proves control of that reply route.
+  if(quoteReferenceFromMessage(event.body)){
+    const verified=await confirmQuoteMessengerContact(event);
+    if(verified){
+      const lead=await ContactEnquiry.findOne({enquiry_id:quoteReferenceFromMessage(event.body)}).lean();
+      if(lead)try{await enqueueContactEmailJobs(lead);}catch{}
+    }
+  }
   return {duplicate:false};
 }
 async function safeEventBatch(events){
