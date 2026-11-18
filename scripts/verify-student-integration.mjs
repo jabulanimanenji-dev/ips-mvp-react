@@ -108,6 +108,30 @@ async function go(){
   assert.equal(mailCalls.length,2);
   const jobs=await ContactEmailJob.find({enquiry_id:reference}).lean();
   assert.equal(jobs.filter(x=>x.status==='accepted').length,2);
+  const firstProviderId=jobs[0].provider_id;
+  const unsignedDelivery=await call('/api/contact-email/resend-webhook',{method:'POST',
+    raw:JSON.stringify({type:'email.delivered',data:{email_id:firstProviderId}}),
+    headers:{'Content-Type':'application/json'}});
+  assert.equal(unsignedDelivery.status,403);
+  const resendEvent={type:'email.delivered',data:{email_id:firstProviderId}};
+  const resendRaw=JSON.stringify(resendEvent);
+  const svixId='msg_ci_email_delivered',svixTimestamp=String(Math.floor(Date.now()/1000));
+  const svixKey=Buffer.from(process.env.CONTACT_RESEND_WEBHOOK_SECRET.slice(6),'base64');
+  const svixSignature='v1,'+crypto.createHmac('sha256',svixKey)
+    .update(svixId+'.'+svixTimestamp+'.'+resendRaw).digest('base64');
+  const webhookHeaders={'Content-Type':'application/json','svix-id':svixId,
+    'svix-timestamp':svixTimestamp,'svix-signature':svixSignature};
+  const confirmedDelivery=await call('/api/contact-email/resend-webhook',{method:'POST',raw:resendRaw,headers:webhookHeaders});
+  assert.equal(confirmedDelivery.status,200,JSON.stringify(confirmedDelivery.body));
+  const webhookReplay=await call('/api/contact-email/resend-webhook',{method:'POST',raw:resendRaw,headers:webhookHeaders});
+  assert.equal(webhookReplay.status,200);
+  const staffJobs=await call('/api/contact-enquiries/admin/'+reference+'/email-status',{session:admin.cookie});
+  assert.equal(staffJobs.status,200,JSON.stringify(staffJobs.body));
+  assert.equal(staffJobs.body.notifications.find(x=>x.provider_id===firstProviderId)?.status,'delivered');
+  const studentJobs=await call('/api/contact-enquiries/admin/'+reference+'/email-status',{session:alice.cookie});
+  assert.equal(studentJobs.status,403);
+  pass('Signed Resend webhook updates persisted delivery, replays safely and hides statuses from students');
+
   await mongooseForMail.disconnect();
   pass('Provider accepts both IPS-authenticated notifications once; repeated queue processing sends zero duplicates');
 
