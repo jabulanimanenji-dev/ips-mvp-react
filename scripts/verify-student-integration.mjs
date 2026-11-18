@@ -129,7 +129,7 @@ async function go(){
   assert.equal(webhookReplay.status,200);
   const staffJobs=await call('/api/contact-enquiries/admin/'+reference+'/email-status',{session:admin.cookie});
   assert.equal(staffJobs.status,200,JSON.stringify(staffJobs.body));
-  assert.equal(staffJobs.body.notifications.find(x=>x.provider_id===firstProviderId)?.status,'delivered');
+  assert.equal(staffJobs.body.notifications.find(x=>x.kind===jobs[0].kind)?.status,'delivered');
   const studentJobs=await call('/api/contact-enquiries/admin/'+reference+'/email-status',{session:alice.cookie});
   assert.equal(studentJobs.status,403);
   pass('Signed Resend webhook updates persisted delivery, replays safely and hides statuses from students');
