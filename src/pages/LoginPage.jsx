@@ -21,13 +21,13 @@ export default function LoginPage(){
     }catch{setError('The secure account service is not available. Please try again later.');}
     finally{setLoading(false);}
   }
-  return <AcademicAuthShell eyebrow="STUDENT ACCESS" title="Welcome" italicTitle="back." intro="Access your IPS requests, quotations and conversations in one secure workspace.">
+  return <AcademicAuthShell eyebrow="YOUR IPS WORKSPACE" title="Welcome" italicTitle="back." intro="Access your IPS requests, quotations and conversations in one secure workspace.">
     <nav className="ipsa-auth-roles" aria-label="Choose account type">
-      <span className="active" aria-current="page">Client</span>
-      <Link to="/writer/login">Service provider</Link>
+      <span className="active" aria-current="page">Seeking support</span>
+      <Link to="/writer/login">Working with IPS</Link>
     </nav>
     {error&&<div className="ipsa-auth-alert" role="alert">{error}</div>}
-    <form onSubmit={submit} aria-label="Client sign in">
+    <form onSubmit={submit} aria-label="Sign in to request support">
       <label className="ipsa-auth-field"><span>Email address</span>
         <input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}
           placeholder="you@example.com" required/>
@@ -37,7 +37,7 @@ export default function LoginPage(){
           placeholder="Enter your password" required/>
       </label>
       <button type="submit" className="ipsa-auth-submit" disabled={loading||isAcademicDesignPreview}>
-        <span>{loading?'Signing in…':'Sign in to your workspace'}</span><span aria-hidden="true">↗</span>
+        <span>{loading?'Signing in…':'Open my workspace'}</span><span aria-hidden="true">↗</span>
       </button>
     </form>
     <p className="ipsa-auth-help">Need help accessing your account? <a className="ipsa-auth-link"
