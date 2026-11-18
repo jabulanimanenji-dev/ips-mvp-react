@@ -48,7 +48,7 @@ export async function processContactEmailJobs({env=process.env,model=ContactEmai
         {status:'sending',lease_until:{$lte:at}}
       ]
     },{$set:{status:'sending',lease_until:new Date(at.getTime()+45000)},
-       $inc:{attempts:1}},{sort:{createdAt:1},new:true});
+       $inc:{attempts:1}},{sort:{createdAt:1},returnDocument:'after'});
     if(!job)break;
     processed++;
     try{
