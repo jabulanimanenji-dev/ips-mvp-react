@@ -1,81 +1,63 @@
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React,{useEffect,useState} from 'react';
+import {useAuth} from '../../context/AuthContext';
+import {usernameValid,passwordValid} from '../../../shared/privacyIdentity.js';
 
-export default function ClientProfile() {
-  const { user, updateClientProfile } = useAuth();
-  const [form, setForm] = useState({ full_name: '', country: '', phone: '', password: '' });
-  const [state, setState] = useState({ saving: false, success: '', error: '' });
-
-  useEffect(() => {
-    setForm({
-      full_name: user?.full_name || '',
-      country: user?.country || '',
-      phone: user?.phone || '',
-      password: ''
-    });
-  }, [user]);
-
-  const submit = async event => {
+export default function ClientProfile(){
+  const {user,updateClientProfile}=useAuth();
+  const [form,setForm]=useState({username:'',country:'',phone:'',password:''});
+  const [state,setState]=useState({saving:false,success:'',error:''});
+  useEffect(()=>setForm({
+    username:user?.username||'',country:user?.country||'',phone:user?.phone||'',password:''
+  }),[user]);
+  const submit=async event=>{
     event.preventDefault();
-    setState({ saving: true, success: '', error: '' });
-    const updates = {
-      full_name: form.full_name.trim(),
-      country: form.country.trim(),
-      phone: form.phone.trim(),
-      ...(form.password ? { password: form.password } : {})
-    };
-    const result = await updateClientProfile(updates);
-    setState({
-      saving: false,
-      success: result.success ? 'Your MongoDB profile has been updated.' : '',
-      error: result.success ? '' : result.error
-    });
-    if (result.success) setForm(previous => ({ ...previous, password: '' }));
+    if(!usernameValid(form.username.trim()))return setState({saving:false,success:'',error:'Choose a valid available username.'});
+    if(form.password&&!passwordValid(form.password))return setState({saving:false,success:'',error:'Use at least 8 characters, a capital letter, a number and a symbol.'});
+    setState({saving:true,success:'',error:''});
+    const updates={username:form.username.trim(),country:form.country.trim(),phone:form.phone.trim(),
+      ...(form.password?{password:form.password}:{})};
+    const result=await updateClientProfile(updates);
+    setState({saving:false,success:result.success?'Profile updated.':'',error:result.success?'':result.error});
+    if(result.success)setForm(p=>({...p,password:''}));
   };
-
-  return (
-    <div>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>Account centre</div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '.35rem 0' }}>My Profile</h2>
-        <p style={{ color: 'var(--text-muted)', margin: 0 }}>These details are saved securely to your IPS account and used across every service.</p>
-      </div>
-
-      <div className="card" style={{ maxWidth: 720 }}>
-        <form onSubmit={submit}>
-          <div className="grid grid-2 gap-4">
-            <div className="form-group">
-              <label className="form-label">Full Name</label>
-              <input className="form-input" value={form.full_name} onChange={event => setForm({ ...form, full_name: event.target.value })} required />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Client ID</label>
-              <input className="form-input" value={user?.client_id || ''} readOnly style={{ opacity: .7 }} />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Email</label>
-              <input className="form-input" value={user?.email || ''} readOnly style={{ opacity: .7 }} />
-              <small style={{ color: 'var(--text-muted)' }}>Ask admin to change your account email.</small>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Phone</label>
-              <input className="form-input" type="tel" value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} placeholder="+263..." />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Country</label>
-              <input className="form-input" value={form.country} onChange={event => setForm({ ...form, country: event.target.value })} placeholder="Country of residence" />
-            </div>
-            <div className="form-group">
-              <label className="form-label">New Password (optional)</label>
-              <input className="form-input" type="password" minLength={8} value={form.password} onChange={event => setForm({ ...form, password: event.target.value })} placeholder="Leave blank to keep current password" />
-            </div>
-          </div>
-
-          {state.error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{state.error}</div>}
-          {state.success && <div className="toast success" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{state.success}</div>}
-          <button className="btn btn-primary" disabled={state.saving}>{state.saving ? 'Saving…' : 'Save Profile'}</button>
-        </form>
-      </div>
+  return <div>
+    <header style={{marginBottom:26}}>
+      <p style={{color:'var(--primary)',fontSize:'.72rem',fontWeight:800,letterSpacing:'.14em'}}>MY PRIVATE ACCOUNT</p>
+      <h1 className="section-title">My Profile</h1>
+      <p className="section-subtitle">Your legal name is not needed for normal IPS account access. Only your username and verified email identify this account.</p>
+    </header>
+    <div className="card" style={{maxWidth:760}}>
+      <form onSubmit={submit}>
+        <div className="grid grid-2 gap-4">
+          <label className="form-group"><span className="form-label">Username</span>
+            <input className="form-input" autoComplete="username" required minLength={3} maxLength={32}
+              value={form.username} onChange={e=>setForm(p=>({...p,username:e.target.value}))}/>
+          </label>
+          <label className="form-group"><span className="form-label">Account reference</span>
+            <input className="form-input" readOnly value={user?.client_id||''}/>
+          </label>
+          <label className="form-group"><span className="form-label">Verified email address</span>
+            <input className="form-input" readOnly value={user?.email||''}/>
+            <small style={{color:'var(--text-muted)'}}>Changing your email requires verifying the new address. Contact IPS support for account recovery.</small>
+          </label>
+          <label className="form-group"><span className="form-label">Country (optional)</span>
+            <input className="form-input" value={form.country} onChange={e=>setForm(p=>({...p,country:e.target.value}))} placeholder="Country"/>
+          </label>
+          <label className="form-group"><span className="form-label">WhatsApp number (optional)</span>
+            <input className="form-input" type="tel" value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))} placeholder="Only if you want written WhatsApp contact"/>
+            <small style={{color:'var(--text-muted)'}}>IPS never makes phone or voice calls.</small>
+          </label>
+          <label className="form-group"><span className="form-label">New password (optional)</span>
+            <input className="form-input" type="password" autoComplete="new-password" minLength={8}
+              value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))}
+              placeholder="Leave blank to keep your current password"/>
+          </label>
+        </div>
+        <p style={{color:'var(--text-muted)',fontSize:'.84rem'}}>We will not request your legal name for browsing, quotes or ordinary academic support. If a paid engagement requires verified billing details, IPS will explain why before requesting them.</p>
+        {state.error&&<p className="toast error" role="alert" style={{position:'static'}}>{state.error}</p>}
+        {state.success&&<p className="toast success" role="status" style={{position:'static'}}>{state.success}</p>}
+        <button className="btn btn-primary" disabled={state.saving}>{state.saving?'Saving…':'Save Changes'}</button>
+      </form>
     </div>
-  );
+  </div>;
 }
