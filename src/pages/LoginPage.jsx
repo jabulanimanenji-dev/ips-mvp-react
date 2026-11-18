@@ -2,14 +2,15 @@ import React,{useState} from 'react';
 import {Link,useNavigate,useLocation} from 'react-router-dom';
 import {useAuth} from '../context/AuthContext';
 import AcademicAuthShell,{isAcademicDesignPreview} from '../components/public/AcademicAuthShell.jsx';
+import VerifyEmailPanel from '../components/public/VerifyEmailPanel.jsx';
 
 export default function LoginPage(){
-  const {loginClient}=useAuth();
+  const {loginClient,verifyClientEmail}=useAuth();
   const navigate=useNavigate(),location=useLocation();
   const returnTo=String(location.state?.returnTo||'');
   const next=returnTo.startsWith('/student-support')?returnTo:'/client/overview';
   const [email,setEmail]=useState(''),[password,setPassword]=useState('');
-  const [error,setError]=useState(''),[loading,setLoading]=useState(false);
+  const [error,setError]=useState(''),[loading,setLoading]=useState(false),[verificationNeeded,setVerificationNeeded]=useState(false);
   async function submit(event){
     event.preventDefault();
     if(isAcademicDesignPreview)return;
@@ -17,7 +18,7 @@ export default function LoginPage(){
     try{
       const result=await loginClient(email,password);
       if(result.success)navigate(next);
-      else setError(result.error||'Invalid email or password.');
+      else {setError(result.error||'Invalid email or password.');setVerificationNeeded(Boolean(result.verification_required));}
     }catch{setError('The secure account service is not available. Please try again later.');}
     finally{setLoading(false);}
   }
@@ -27,6 +28,8 @@ export default function LoginPage(){
       <Link to="/writer/login">Working with IPS</Link>
     </nav>
     {error&&<div className="ipsa-auth-alert" role="alert">{error}</div>}
+    {verificationNeeded?<VerifyEmailPanel email={email} verify={verifyClientEmail}
+      onSuccess={()=>navigate(next,{replace:true})} onCancel={()=>{setVerificationNeeded(false);setError('');}}/>:null}
     <form onSubmit={submit} aria-label="Sign in to request support">
       <label className="ipsa-auth-field"><span>Email address</span>
         <input type="email" autoComplete="username" value={email} onChange={e=>setEmail(e.target.value)}
