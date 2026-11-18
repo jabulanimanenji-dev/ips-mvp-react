@@ -77,7 +77,7 @@ export default function ProviderApplicationPage() {
         <h1 style={{ marginTop: '1rem' }}>Thank you for applying</h1>
         <p style={{ color: 'var(--text-muted)' }}>Your reference is <strong>{state.id}</strong>. IPS reviews every applicant fairly, including beginners without a professional profile or CV.</p>
         <div className="flex gap-2 justify-center" style={{ flexWrap: 'wrap', marginTop: '1.5rem' }}>
-          <Link className="btn btn-primary" to="/writer/login">Provider sign in</Link>
+          <Link className="btn btn-primary" to="/writer/login">Sign in to my workspace</Link>
           <Link className="btn btn-secondary" to="/">Return home</Link>
         </div>
       </div>
@@ -88,8 +88,8 @@ export default function ProviderApplicationPage() {
   return (
     <main className="container ipsa-interior ipsa-provider-onboarding" style={{ padding: '3rem 1rem 5rem', maxWidth: 980 }}>
       <div className="ipsa-interior-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <span className="ipsa-interior-label">JOIN THE IPS PROVIDER NETWORK</span>
-        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.4rem)', margin: '1rem 0 .75rem' }}>Become an IPS <em>service provider.</em></h1>
+        <span className="ipsa-interior-label">WORK WITH IPS</span>
+        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.4rem)', margin: '1rem 0 .75rem' }}>Contribute your <em>expertise.</em></h1>
         <p style={{ color: 'var(--text-muted)', maxWidth: 760, margin: '0 auto' }}>Professional experience, a portfolio and a CV are optional. Tell us what you can do and why you want to join.</p>
       </div>
       {state.error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem' }}>{state.error}</div>}
@@ -130,7 +130,7 @@ export default function ProviderApplicationPage() {
           <label className="form-group provider-wide"><span className="form-label">Why do you want to join IPS? *</span><textarea className="form-textarea" rows="5" name="motivation" value={form.motivation} onChange={update} required placeholder="Tell us what you hope to contribute and learn." /></label>
         </div>
         <label style={{ display: 'flex', gap: '.65rem', alignItems: 'flex-start', margin: '1rem 0' }}><input type="checkbox" required style={{ marginTop: 4 }} /><span style={{ color: 'var(--text-muted)' }}>I confirm that the information supplied is accurate and understand that submission does not guarantee approval.</span></label>
-        <button className="btn btn-primary" disabled={state.working}>{state.working ? 'Submitting application…' : 'Submit provider application'}</button>
+        <button className="btn btn-primary" disabled={state.working}>{state.working ? 'Submitting application…' : 'Submit my application'}</button>
       </form>
       <style>{`.provider-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}.provider-wide{grid-column:1/-1}@media(max-width:700px){.provider-grid{grid-template-columns:1fr}.provider-wide{grid-column:auto}}`}</style>
     </main>
