@@ -6,7 +6,7 @@
 
 1. A guest submits the public IPS enquiry form and consents to enquiry-related contact.
 2. The Express backend saves the enquiry to MongoDB before attempting notifications. The response returns an `ENQ-...` reference, never a false "email delivered" claim.
-3. When an authorized owner enables notifications on the **real backend**, two outbox records are created transactionally with the enquiry workflow:
+3. When an authorized owner enables notifications on the **real backend**, up to two outbox records are created after the enquiry is durably saved. If queuing fails, the enquiry remains saved and the API does not falsely promise email delivery:
    - `staff_notice`: a minimal new-enquiry notification to `contact@ipsglobalservice.com`, forwarded by Cloudflare to the monitored inbox.
    - `client_receipt`: a brief plain-text acknowledgement to the customer's email if provided with consent. A phone/WhatsApp-only enquiry does not trigger a customer email.
 4. A 20-second opt-in worker processes persisted outbox jobs with atomic leases, stable Resend `Idempotency-Key` values and bounded retries. It **never** sends marketing messages or reproduces original enquiry attachments or sensitive text.
