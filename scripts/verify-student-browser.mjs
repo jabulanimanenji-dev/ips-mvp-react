@@ -88,9 +88,9 @@ try {
   });
   await caseRun('secondary entry pages share IPS academic interior design',async()=>{
     const pages=[
-      ['/login',/Client sign in/i,'client-login'],
-      ['/signup',/Create student account/i,'client-signup'],
-      ['/writer/login',/Provider sign in/i,'provider-login']
+      ['/login',/Sign in to request support/i,'client-login'],
+      ['/signup',/Create your IPS account/i,'client-signup'],
+      ['/writer/login',/Sign in to work with IPS/i,'provider-login']
     ];
     for(const [route,formLabel,suffix] of pages){
       await desktop.goto(base+route,{waitUntil:'domcontentloaded'});
@@ -103,8 +103,16 @@ try {
       assert.ok(await desktop.getByText(/Website design preview: account access is not active here/i).isVisible());
       await desktop.screenshot({path:'browser-evidence/'+suffix+'-desktop.png',fullPage:true,animations:'disabled'});
     }
+    await desktop.goto(base+'/login',{waitUntil:'domcontentloaded'});
+    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Seeking support').count(),1);
+    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Working with IPS').count(),1);
+    await desktop.goto(base+'/writer/login',{waitUntil:'domcontentloaded'});
+    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Seeking support').count(),1);
+    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Working with IPS').count(),1);
     await desktop.goto(base+'/join',{waitUntil:'domcontentloaded'});
     assert.equal(await desktop.locator('.ipsa-journey-card').count(),2);
+    assert.ok(await desktop.getByText('I need academic support').isVisible());
+    assert.ok(await desktop.getByText('I’d like to work with IPS').isVisible());
     assert.equal(await desktop.locator('.ipsa-interior-header').count(),1);
     assert.ok(await desktop.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+2));
     await desktop.screenshot({path:'browser-evidence/choose-account-desktop.png',fullPage:true,animations:'disabled'});
