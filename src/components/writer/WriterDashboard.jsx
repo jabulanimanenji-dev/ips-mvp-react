@@ -60,8 +60,8 @@ export default function WriterDashboard() {
     <div style={{ display: 'flex', flexDirection: 'column' }}>
       <DashboardZone portal="writer" id="hero">
       <section style={{ padding: '2rem', borderRadius: 24, color: '#fff', background: 'var(--grad-hero)', marginBottom: '1.5rem', boxShadow: '0 24px 60px rgba(11,28,59,.2)' }}>
-        <small style={{ fontWeight: 800, letterSpacing: '.14em', opacity: .7 }}>PROVIDER COMMAND CENTER</small>
-        <h1 style={{ color: '#fff', fontSize: 'clamp(1.8rem,4vw,3rem)', margin: '.4rem 0' }}>Good to see you, {writer?.full_name?.split(' ')[0] || 'Provider'}.</h1>
+        <small style={{ fontWeight: 800, letterSpacing: '.14em', opacity: .7 }}>MY IPS WORKSPACE</small>
+        <h1 style={{ color: '#fff', fontSize: 'clamp(1.8rem,4vw,3rem)', margin: '.4rem 0' }}>Good to see you, {writer?.full_name?.split(' ')[0] || 'there'}.</h1>
         <p style={{ color: 'rgba(255,255,255,.75)', maxWidth: 650 }}>Review priorities, manage every assignment and keep clients informed from one workspace.</p>
         <ConfigurableActionGroup portal="writer" area="hero" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: '1.25rem' }} />
       </section>
