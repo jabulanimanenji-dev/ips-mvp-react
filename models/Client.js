@@ -2,7 +2,16 @@ import mongoose from 'mongoose';
 
 const ClientSchema = new mongoose.Schema({
   client_id: { type: String, required: true, unique: true },
-  full_name: { type: String, required: true },
+  // Academic visitors use a chosen private username; legal names are not
+  // collected for registration or ordinary quotation requests.
+  username: { type: String, trim: true, maxlength: 32 },
+  username_key: { type: String, lowercase: true, trim: true },
+  full_name: { type: String, default: '' },
+  email_verified_at: { type: Date, default: null },
+  verification_hash: { type: String, select: false },
+  verification_expires_at: { type: Date, select: false },
+  verification_sent_at: { type: Date, select: false },
+  verification_attempts: { type: Number, default: 0, select: false },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   phone: { type: String, default: '' },
@@ -14,4 +23,5 @@ const ClientSchema = new mongoose.Schema({
   notes: { type: String, default: '' }
 }, { timestamps: true });
 
+ClientSchema.index({username_key:1},{unique:true,partialFilterExpression:{username_key:{$type:'string'}}});
 export default mongoose.model('Client', ClientSchema);
