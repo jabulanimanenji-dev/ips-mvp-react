@@ -27,8 +27,6 @@ jobs:
       MONGODB_URI: mongodb://ci_admin:ci_password_test_only@127.0.0.1:27017/ips_ci?authSource=admin
       TELEGRAM_WEBHOOK_SECRET: ci_telegram_secret_random_123
       WHATSAPP_APP_SECRET: ci_whatsapp_app_secret_123
-      STRIPE_WEBHOOK_SECRET: whsec_ci_local_signed_fixture_secret
-      CONTACT_RESEND_WEBHOOK_SECRET: whsec_Y2ktc2lnbmF0dXJlLWtleS1vbmx5LWRvLW5vdC11c2U=
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,6 +34,14 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Generate short-lived CI-only webhook signing keys
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            printf 'STRIPE_WEBHOOK_SECRET=ci_%s\n' "$(openssl rand -hex 32)"
+            printf 'CONTACT_RESEND_WEBHOOK_SECRET=whsec_%s\n' "$(openssl rand -base64 32 | tr -d '\\n')"
+          } >> "$GITHUB_ENV"
       - name: Build frontend and server syntax
         run: |
           npm run build
