@@ -30,7 +30,7 @@ export function validatePrivateQuote(input,{signedIn=false,verifiedChannels=[]}=
   const contact=String(input.preferred_channel||'').trim();
   const email=normalizeEmail(input.email);
   const phone=String(input.phone||'').trim().replace(/[\s().-]/g,'');
-  const telegram=String(input.telegram_username||'').trim().replace(/^@/,'');
+  const telegram=String(input.telegram_username||'').trim().replace(/^@/,'').toLowerCase();
   if(!usernameValid(username))return {error:'Choose a username of 3–32 letters, numbers, periods, underscores or hyphens.'};
   if(!service||service.length>100||!subject||subject.length>160||
     brief.length<20||brief.length>3000)return {error:'Choose a service and describe your project (at least 20 characters).'};
