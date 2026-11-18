@@ -68,6 +68,49 @@ async function go(){
   assert.equal(ownerQueueAfter.body.enquiries.find(x=>x.enquiry_id===reference)?.messages.length,1);
   pass('Owner manages callback queue; unconfigured email never pretends to send');
 
+  // Real MongoDB outbox with a fake provider: no external emails or credentials.
+  const mailEnv={
+    CONTACT_EMAIL_NOTIFICATIONS_ENABLED:'true',
+    CONTACT_RESEND_API_KEY:'ci-mock-not-live',
+    CONTACT_FROM_EMAIL:'support@ipsglobalservice.com',
+    CONTACT_REPLY_TO_EMAIL:'contact@ipsglobalservice.com'
+  };
+  const mongooseForMail=(await import('mongoose')).default;
+  const {default:ContactEnquiry}=await import('../models/ContactEnquiry.js');
+  const {default:ContactEmailJob}=await import('../models/ContactEmailJob.js');
+  const {enqueueContactEmailJobs,processContactEmailJobs}=await import('../services/contactEmailQueue.js');
+  await mongooseForMail.connect(process.env.MONGODB_URI);
+  const savedLead=await ContactEnquiry.findOne({enquiry_id:reference}).lean();
+  assert.equal(savedLead.email,'guest@example.org');
+  const firstQueue=await enqueueContactEmailJobs(savedLead,{env:mailEnv});
+  const duplicateQueue=await enqueueContactEmailJobs(savedLead,{env:mailEnv});
+  assert.equal(firstQueue.queued,2);
+  assert.equal(duplicateQueue.queued,2);
+  assert.equal(await ContactEmailJob.countDocuments({enquiry_id:reference}),2);
+  pass('Real database queues one customer receipt and one IPS staff alert per enquiry');
+
+  const mailCalls=[];
+  const fakeEmailProvider=async (url,options)=>{
+    assert.equal(url,'https://api.resend.com/emails');
+    const payload=JSON.parse(options.body);
+    mailCalls.push({payload,key:options.headers['Idempotency-Key']});
+    return {ok:true,status:200,json:async()=>({id:'ci-resend-accepted-'+mailCalls.length})};
+  };
+  const sentQueue=await processContactEmailJobs({env:mailEnv,request:fakeEmailProvider,limit:3});
+  assert.equal(sentQueue.accepted,2,JSON.stringify(sentQueue));
+  assert.equal(mailCalls.length,2);
+  assert.ok(mailCalls.every(x=>x.payload.from==='IPS Academic Services <support@ipsglobalservice.com>'));
+  assert.ok(mailCalls.every(x=>x.payload.reply_to==='contact@ipsglobalservice.com'));
+  assert.ok(mailCalls.every(x=>x.key.startsWith('ips-enquiry/'+reference+'/')));
+  assert.deepEqual(new Set(mailCalls.map(x=>x.payload.to[0])),new Set(['guest@example.org','contact@ipsglobalservice.com']));
+  const replay=await processContactEmailJobs({env:mailEnv,request:fakeEmailProvider,limit:3});
+  assert.equal(replay.processed,0);
+  assert.equal(mailCalls.length,2);
+  const jobs=await ContactEmailJob.find({enquiry_id:reference}).lean();
+  assert.equal(jobs.filter(x=>x.status==='accepted').length,2);
+  await mongooseForMail.disconnect();
+  pass('Provider accepts both IPS-authenticated notifications once; repeated queue processing sends zero duplicates');
+
   const unauthorized=await call('/api/contact-channels/admin/threads');
   assert.equal(unauthorized.status,401);
   pass('Guest cannot list external chat inbox');
