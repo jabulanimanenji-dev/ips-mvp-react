@@ -1,0 +1,47 @@
+/* IPS academic workspace theme — one visual identity across authenticated portals.
+   CSS custom properties deliberately preserve CMS layouts, mobile navigation,
+   route protections, forms, buttons and existing light/dark functionality. */
+html:not([data-theme="dark"]) .ipsa-workspace{
+ --font:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+ --radius-sm:4px;--radius-md:6px;--radius-lg:8px;--radius-xl:12px;
+ --primary:#16324c;--primary-dark:#0d2238;--primary-light:#caa66e;--primary-deepest:#0b1a2a;
+ --border-focus:#a57b47;--text-link:#1f4f6d;--text-link-hover:#99703c;
+ --bg-body:#f6f6f2;--bg-surface:#fff;--bg-surface-2:#f2f3f1;--bg-surface-3:#e9eeef;
+ --bg-card:#fff;--bg-input:#fff;--bg-hover:#f0f2f2;--bg-active:#edf2f3;
+ --bg-header:rgba(250,251,250,.96);
+ --text-primary:#192f46;--text-secondary:#485e72;--text-muted:#6e7c8c;
+ --border:rgba(22,48,75,.12);--border-strong:rgba(22,48,75,.2);
+ --grad-hero:linear-gradient(128deg,#14283e 0%,#243f54 64%,#89714e 100%);
+ --shadow-glow-purple:0 4px 14px rgba(20,40,62,.12);
+}
+html[data-theme="dark"] .ipsa-workspace{
+ --font:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+ --radius-sm:4px;--radius-md:6px;--radius-lg:8px;--radius-xl:12px;
+ --primary:#e6c18b;--primary-dark:#b98c53;--primary-light:#f0d3a0;--primary-deepest:#152c43;
+ --border-focus:#e0b779;--text-link:#dcb77f;--text-link-hover:#f5d6a2;
+ --bg-body:#101c2b;--bg-surface:#162639;--bg-surface-2:#1d3046;--bg-surface-3:#263b50;
+ --bg-card:#182b3e;--bg-input:#1e3248;--bg-hover:#243c55;--bg-active:#274259;
+ --bg-header:rgba(19,36,56,.96);
+ --text-primary:#f3f4f2;--text-secondary:#c3cbd4;--text-muted:#a2b1c1;
+ --border:rgba(216,229,238,.13);--border-strong:rgba(216,229,238,.24);
+ --grad-hero:linear-gradient(128deg,#111f30 0%,#263d52 68%,#806744 100%);
+ --shadow-glow-purple:0 5px 19px rgba(0,0,0,.23);
+}
+.ipsa-workspace{font-family:var(--font);color:var(--text-primary)}
+.ipsa-workspace .card{border-radius:var(--radius-lg);box-shadow:none;transition:border-color .15s,box-shadow .15s}
+.ipsa-workspace .card:hover{border-color:var(--border-strong)}
+.ipsa-workspace .btn{border-radius:4px;box-shadow:none;letter-spacing:0}
+.ipsa-workspace .btn-primary{background:var(--bg-card);background:#16324c;color:#fff;border:1px solid #16324c;box-shadow:none}
+html[data-theme="dark"] .ipsa-workspace .btn-primary{background:#d3ac76;color:#132a40;border-color:#d3ac76}
+.ipsa-workspace .btn-primary:hover{filter:brightness(1.1);transform:none}
+.ipsa-workspace .form-input,.ipsa-workspace .form-select,.ipsa-workspace .form-textarea{
+ border-radius:4px;border-color:var(--border-strong);
+ background:var(--bg-input);color:var(--text-primary)
+}
+.ipsa-workspace :is(button,a,input,textarea,select):focus-visible{outline:3px solid #cba56f;outline-offset:2px}
+.ipsa-workspace .section-title{letter-spacing:-.035em;color:var(--text-primary)}
+.ipsa-workspace .client-sidebar,.ipsa-workspace .writer-sidebar{box-shadow:1px 0 0 var(--border)}
+.ipsa-workspace .client-content,.ipsa-workspace .writer-main,.ipsa-workspace .admin-main-content{min-width:0}
+.ipsa-workspace .client-content>:first-child,.ipsa-workspace .writer-main>:first-child,.ipsa-workspace .admin-main-content>:first-child{max-width:1440px;margin-inline:auto}
+@media(max-width:750px){.ipsa-workspace .client-content,.ipsa-workspace .writer-main,.ipsa-workspace .admin-main-content{overflow-wrap:anywhere}}
+@media(prefers-reduced-motion:reduce){.ipsa-workspace .card,.ipsa-workspace .btn{transition:none}}
