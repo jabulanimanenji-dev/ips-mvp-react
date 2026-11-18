@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PUBLIC_CONTACTS } from '../../../shared/publicContacts.js';
+import { IPS_EMAILS } from '../../../shared/businessEmails.js';
 
 export function useContactOptions(){
   const [config,setConfig]=useState(PUBLIC_CONTACTS);
@@ -31,7 +32,12 @@ export default function ContactOptions(){
       </div>
       <div className="ipsa-contact-card">
         <strong>Contact IPS</strong>
-        <p>Choose your preferred chat app. IPS project records remain in the website workspace.</p>
+        <p>Choose how you'd like to contact IPS. Private project records remain in your secure website workspace.</p>
+        <a className="ipsa-contact-link" href={'mailto:'+IPS_EMAILS.contact}>
+          <span className="ipsa-contact-symbol" aria-hidden="true">✉</span>
+          <span><b>Email IPS</b><small>{IPS_EMAILS.contact} · Opens your email app</small></span>
+          <span aria-hidden="true">↗</span>
+        </a>
         {options.length ? options.map(([label,data,description])=>
           <a key={label} href={data.url} target="_blank" rel="noopener noreferrer" className="ipsa-contact-link">
             <span className="ipsa-contact-symbol" aria-hidden="true">{label==='WhatsApp'?'✉':'➤'}</span>
