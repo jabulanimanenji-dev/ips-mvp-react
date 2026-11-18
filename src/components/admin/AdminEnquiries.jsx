@@ -16,6 +16,7 @@ export default function AdminEnquiries(){
   const [statusMessage,setStatusMessage]=useState('');
   const [busy,setBusy]=useState(false);
   const [emailReady,setEmailReady]=useState(false);
+  const [emailJobs,setEmailJobs]=useState([]);
   const [error,setError]=useState('');
   const current=leads.find(v=>v.enquiry_id===selected);
   const visible=leads.filter(x=>(filter==='all'||(filter==='open'?x.status!=='closed':x.status===filter)) &&
@@ -30,6 +31,15 @@ export default function AdminEnquiries(){
     }catch(ex){setError(ex.message);}
   }
   useEffect(()=>{refresh();fetch('/api/contact-enquiries/config',{cache:'no-store'}).then(r=>r.json()).then(r=>setEmailReady(Boolean(r.email_replies_configured))).catch(()=>{});},[]);
+  useEffect(()=>{
+    if(!selected){setEmailJobs([]);return;}
+    let mounted=true;
+    fetch('/api/contact-enquiries/admin/'+encodeURIComponent(selected)+'/email-status',{cache:'no-store'})
+      .then(async r=>{if(!r.ok)throw Error('not available');return r.json();})
+      .then(data=>{if(mounted)setEmailJobs(data.notifications||[]);})
+      .catch(()=>{if(mounted)setEmailJobs([]);});
+    return ()=>{mounted=false;};
+  },[selected]);
   async function update(updates){
     if(!current)return;
     setError('');setStatusMessage('');setBusy(true);
@@ -89,6 +99,17 @@ export default function AdminEnquiries(){
           <p><b>Contact details:</b> {current.email||'No email'} {current.phone||''}</p>
           <p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>Enquiry-specific contact permission recorded: {current.contact_consent?'Yes':'No'} · {current.consent_at?new Date(current.consent_at).toLocaleString():''}</p>
           <ContactActions lead={current}/>
+          <div style={{margin:'14px 0',padding:'13px 15px',border:'1px solid var(--border)',borderRadius:8}}>
+            <strong>IPS email notifications</strong>
+            {emailJobs.length?emailJobs.map(job=><p key={job._id||job.kind} style={{fontSize:'.83rem',margin:'8px 0'}}>
+              {job.kind==='client_receipt'?'Customer confirmation':'IPS staff alert'}:
+              <b> {job.status}</b>
+              {job.status==='accepted'?' (provider accepted; inbox delivery not yet confirmed)':''}
+              {job.status==='bounced'||job.status==='complained'?' (do not resend without investigating)':''}
+            </p>):<p style={{fontSize:'.82rem',color:'var(--text-muted)'}}>
+              No automatic notification was queued. Email automation may be disabled on this backend.
+            </p>}
+          </div>
           <label style={{display:'block',marginBottom:18}}>Status
             <select className="form-select" value={current.status} disabled={busy} onChange={e=>update({status:e.target.value})} style={{marginTop:5}}>
               <option value="new">New</option><option value="in_progress">In progress</option>
