@@ -26,6 +26,7 @@ import { registerStudentWebhook, registerStudentPaymentRoutes } from './services
 import { registerContactWebhooks, registerContactApi } from './services/contactChannels.js';
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
+import { registerContactEmailWebhooks } from './services/contactEmailWebhooks.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
 import ServiceCategory from './models/ServiceCategory.js';
 import ServiceEngineSettings from './models/ServiceEngineSettings.js';
@@ -100,6 +101,7 @@ app.use(helmet({
 // Signature verification must see the unmodified request bytes, before the JSON parser.
 registerStudentWebhook(app, express, { StudentPayment, ServiceRequest });
 registerContactWebhooks(app, express);
+registerContactEmailWebhooks(app, express);
 app.use(express.json({ limit: '35mb' }));
 
 const sessionSecret = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'local-development-change-me';
