@@ -180,93 +180,38 @@ export function AuthProvider({ children }) {
   // CLIENT SIGNUP
   // ==========================
 
-  const signupClient =
-    useCallback(
-      async (
-        name,
-        email,
-        password
-      ) => {
+  // Student account registration never creates a signed-in session. Proof of
+  // mailbox control is mandatory before account access is permitted.
+  const signupClient=useCallback(async(username,email,password)=>{
+    try{
+      const response=await fetch('/api/clients',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({username,email,password})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)return {success:false,error:data.error||'Account registration is unavailable.',
+        verification_required:Boolean(data.verification_required)};
+      return {success:true,verification_required:Boolean(data.verification_required)};
+    }catch{return {success:false,error:'Secure account registration is currently unavailable.'};}
+  },[]);
 
+  const verifyClientEmail=useCallback(async(email,code)=>{
+    try{
+      const response=await fetch('/api/client/verify-email',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email,code})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!data.success)return {success:false,error:data.error||'Verification failed.'};
+      setUser({...data.client,token:data.token});
+      return {success:true};
+    }catch{return {success:false,error:'Email verification is not available.'};}
+  },[setUser]);
 
-        try {
-
-
-          const response =
-            await fetch(
-              '/api/clients',
-              {
-                method:'POST',
-
-                headers:{
-                  'Content-Type':
-                    'application/json'
-                },
-
-                body:
-                  JSON.stringify({
-                    full_name:name,
-                    email,
-                    password
-                  })
-              }
-            );
-
-
-
-          const data =
-            await response.json();
-
-
-
-          if(data.success){
-
-            setUser({
-              ...data.client,
-              token: data.token
-            });
-
-
-            return {
-              success:true
-            };
-
-          }
-
-
-
-          return {
-            success:false,
-            error:
-              data.error ||
-              data.message ||
-              'Signup failed'
-          };
-
-
-
-        } catch(err){
-
-
-          return {
-            success:false,
-            error:
-              'Server error'
-          };
-
-
-        }
-
-
-      },
-      [setUser]
-    );
-
-
-
-
-
-
+  const resendClientVerification=useCallback(async(email)=>{
+    try{
+      const response=await fetch('/api/client/resend-verification',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email})});
+      const data=await response.json().catch(()=>({}));
+      return response.ok?{success:true,message:data.message}:{success:false,error:data.error||'Unable to resend.'};
+    }catch{return {success:false,error:'Unable to request a new verification code.'};}
+  },[]);
 
   // ==========================
   // ADMIN LOGIN
@@ -555,6 +500,8 @@ export function AuthProvider({ children }) {
         loginClient,
 
         signupClient,
+        verifyClientEmail,
+        resendClientVerification,
 
         loginAdmin,
 
@@ -625,6 +572,8 @@ export function PreviewAuthProvider({ children, pageId = 'public.home' }) {
       loading: false,
       loginClient: previewResult,
       signupClient: previewResult,
+      verifyClientEmail: previewResult,
+      resendClientVerification: previewResult,
       loginAdmin: previewResult,
       loginWriter: previewResult,
       updateClientProfile: previewResult,
