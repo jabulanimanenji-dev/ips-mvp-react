@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import '../styles/academic-workspace.css';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import { useTheme } from '../context/ThemeContext';
@@ -25,12 +26,14 @@ export default function AdminLayout() {
   const { config } = useCMS();
   const layout = config.layouts?.admin || {};
 
-  // Force dark theme for admin portal
+  // Administration uses a dark workspace, without leaking that theme to
+  // public/customer pages when navigating away.
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', 'dark');
+    const previous=document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme','dark');
     return () => {
-      // Optional: restore previous theme on unmount
-      // document.documentElement.setAttribute('data-theme', theme);
+      if(previous===null)document.documentElement.removeAttribute('data-theme');
+      else document.documentElement.setAttribute('data-theme',previous);
     };
   }, []);
 
@@ -42,7 +45,7 @@ export default function AdminLayout() {
   )?.[1] || 'Admin';
 
   return (
-    <div className={`admin-layout density-${layout.density || 'comfortable'}`} style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className={`admin-layout density-${layout.density || 'comfortable'} ipsa-workspace`} style={{ display: 'flex', minHeight: '100vh' }}>
       <AdminSidebar />
       <div className="admin-layout-content" style={{ marginLeft: layout.sidebarWidth || 260, flex: 1, display: 'flex', flexDirection: 'column' }}>
         {/* Topbar */}
