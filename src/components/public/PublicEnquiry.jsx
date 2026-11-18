@@ -1,5 +1,6 @@
 import React,{useState} from 'react';
 import { PUBLIC_CONTACTS } from '../../../shared/publicContacts.js';
+import { IPS_EMAILS } from '../../../shared/businessEmails.js';
 
 const starting={name:'',email:'',phone:'',preferred_channel:'email',subject:'',message:'',contact_consent:false,website:''};
 const demo=import.meta.env.VITE_DESIGN_PREVIEW === 'true';
@@ -22,6 +23,9 @@ export default function PublicEnquiry(){
     'I consent to IPS contacting me about this enquiry.'
   ].join('\n');
   const chatUrl=PUBLIC_CONTACTS.whatsapp.url+'?text='+encodeURIComponent(details);
+  const mailUrl='mailto:'+IPS_EMAILS.contact+'?subject='+encodeURIComponent('IPS Enquiry: '+form.subject.trim())+'&body='+encodeURIComponent(details);
+  const viaEmail=form.preferred_channel==='email';
+  const fallbackUrl=viaEmail?mailUrl:chatUrl;
   async function submit(e){
     e.preventDefault();setError('');setResult('');setFallback(false);
     if(demo){
@@ -36,7 +40,7 @@ export default function PublicEnquiry(){
       setResult('Enquiry '+data.enquiry_id+' saved. IPS can follow up using the contact method you selected. Keep this reference.');
       setForm(starting);
     }catch(ex){
-      setError(ex.message||'We could not save your enquiry. You can contact us using WhatsApp.');
+      setError(ex.message||'We could not save your enquiry. You can contact us directly via email or WhatsApp.');
       setFallback(true);
     }finally{setPending(false);}
   }
@@ -71,14 +75,16 @@ export default function PublicEnquiry(){
           <label>Message *<textarea required minLength={15} maxLength={3000} rows={5} value={form.message} onChange={e=>set('message',e.target.value)} placeholder="Explain what you need and when IPS should contact you."/></label>
           <label className="ipsa-enquiry-trap" aria-hidden="true">Website<input tabIndex={-1} autoComplete="off" value={form.website} onChange={e=>set('website',e.target.value)} /></label>
           <label className="ipsa-enquiry-consent"><input type="checkbox" required checked={form.contact_consent} onChange={e=>set('contact_consent',e.target.checked)}/><span>I agree that IPS may use my details to reply about this enquiry. This is not consent to marketing messages.</span></label>
-          {demo&&<p className="ipsa-enquiry-preview">This is a website design preview, so its form cannot save an enquiry. You can send this message through WhatsApp instead.</p>}
+          {demo&&<p className="ipsa-enquiry-preview">This is a website preview. Your details are not submitted or saved here. Prepare an email or WhatsApp message, then send it yourself from the corresponding app.</p>}
           {error&&<p className="ipsa-form-error" role="alert">{error}</p>}
           {result&&<p className="ipsa-form-success" role="status">{result}</p>}
           {fallback&&<div role="status" className="ipsa-enquiry-fallback">
-            <p>To contact IPS now, continue to WhatsApp and send the prepared message. The message is not sent until you confirm in WhatsApp.</p>
-            <a className="ipsa-btn ipsa-btn-dark" href={chatUrl} target="_blank" rel="noopener noreferrer">Open prepared WhatsApp message <span>↗</span></a>
+            <p>{viaEmail?'Open the prepared email in your email application and press Send. IPS will receive it at '+IPS_EMAILS.contact+'.':'Open the prepared WhatsApp message and press Send. If you prefer Telegram, start a chat with @IPScontactBot yourself.'} This website preview does not send or save the message automatically.</p>
+            <a className="ipsa-btn ipsa-btn-dark" href={fallbackUrl} target={viaEmail?undefined:'_blank'} rel={viaEmail?undefined:'noopener noreferrer'}>
+              {viaEmail?'Open prepared email to IPS':'Open prepared WhatsApp message'} <span>↗</span>
+            </a>
           </div>}
-          <button className="ipsa-btn ipsa-btn-dark ipsa-enquiry-send" type="submit" disabled={pending}>{pending?'Sending enquiry…':demo?'Prepare message for WhatsApp':'Request a response from IPS'}<span aria-hidden="true">↗</span></button>
+          <button className="ipsa-btn ipsa-btn-dark ipsa-enquiry-send" type="submit" disabled={pending}>{pending?'Sending enquiry…':demo?(viaEmail?'Prepare email to IPS':'Prepare WhatsApp message'):'Request a response from IPS'}<span aria-hidden="true">↗</span></button>
           <small>Enquiries are free. We do not start or charge for work without an agreed quotation.</small>
         </form>
       </div>
