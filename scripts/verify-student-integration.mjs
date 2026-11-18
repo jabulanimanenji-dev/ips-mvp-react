@@ -7,7 +7,8 @@ const cases=[];
 async function call(path,{method='GET',session='',json,headers={},raw}={}){
   const res=await fetch(BASE+path,{
     method,headers:{...(session?{cookie:session}:{}),...(json?{'Content-Type':'application/json'}:{}),...headers},
-    body:json?JSON.stringify(json):raw
+    body:json?JSON.stringify(json):raw,
+    signal:AbortSignal.timeout(20000)
   });
   let body={};const text=await res.text();try{body=JSON.parse(text);}catch{body={raw:text};}
   return {status:res.status,body,cookie:res.headers.get('set-cookie')?.split(';')[0]||''};
@@ -69,6 +70,7 @@ async function go(){
   pass('Owner manages callback queue; unconfigured email never pretends to send');
 
   // Real MongoDB outbox with a fake provider: no external emails or credentials.
+  console.log('CI_CONTACT_MAIL_TESTS_START');
   const mailEnv={
     CONTACT_EMAIL_NOTIFICATIONS_ENABLED:'true',
     CONTACT_RESEND_API_KEY:'ci-mock-not-live',
@@ -297,4 +299,10 @@ async function go(){
 
   console.log('ALL '+cases.length+' database-backed workflow gates passed.');
 }
-go().catch(err=>{console.error('INTEGRATION_FAILED:',err.stack||String(err));process.exitCode=1;});
+go().catch(async err=>{
+  console.error('INTEGRATION_FAILED:',err.stack||String(err));
+  // A failed assertion must not keep the standalone MongoDB test connection
+  // alive until CI timeout, hiding the first genuine defect.
+  try{await (await import('mongoose')).default.disconnect();}catch{}
+  process.exitCode=1;
+});
