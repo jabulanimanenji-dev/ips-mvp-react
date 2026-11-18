@@ -88,9 +88,9 @@ try {
   });
   await caseRun('secondary entry pages share IPS academic interior design',async()=>{
     const pages=[
-      ['/login','/Client sign in/i,'client-login'],
-      ['/signup','/Create student account/i,'client-signup'],
-      ['/writer/login','/Provider sign in/i,'provider-login']
+      ['/login',/Client sign in/i,'client-login'],
+      ['/signup',/Create student account/i,'client-signup'],
+      ['/writer/login',/Provider sign in/i,'provider-login']
     ];
     for(const [route,formLabel,suffix] of pages){
       await desktop.goto(base+route,{waitUntil:'domcontentloaded'});
