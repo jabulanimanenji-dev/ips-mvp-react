@@ -3,13 +3,20 @@ import {isAcademicDesignPreview} from './AcademicAuthShell.jsx';
 
 // Only the real backend verifies account emails. This component intentionally
 // never displays verification secrets in query strings or browser storage.
-export default function VerifyEmailPanel({kind='client',email,onSuccess,onCancel}){
+export default function VerifyEmailPanel({kind='client',email,onSuccess,onCancel,verify}){
   const [code,setCode]=useState(''),[status,setStatus]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
   const path=kind==='writer'?'/api/writer':'/api/client';
   const submit=async(event)=>{
     event.preventDefault();if(isAcademicDesignPreview)return;
     setError('');setStatus('');setBusy(true);
     try{
+      if(verify){
+        const result=await verify(email,code);
+        if(!result.success)throw Error(result.error||'Verification failed.');
+        setStatus('Email verified successfully.');
+        onSuccess?.(result);
+        return;
+      }
       const res=await fetch(path+'/verify-email',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({email,code})});
       const data=await res.json().catch(()=>({}));
