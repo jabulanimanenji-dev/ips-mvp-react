@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import './academic-interior.css';
 
 const initialForm = {
   full_name: '', email: '', password: '', confirm_password: '', phone: '', country: '', city: '',
@@ -70,7 +71,7 @@ export default function ProviderApplicationPage() {
   };
 
   if (state.success) return (
-    <main className="container" style={{ padding: '5rem 1rem', maxWidth: 760 }}>
+    <main className="container ipsa-interior ipsa-provider-onboarding" style={{ padding: '5rem 1rem', maxWidth: 760 }}>
       <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
         <div className="badge badge-success">Application received</div>
         <h1 style={{ marginTop: '1rem' }}>Thank you for applying</h1>
@@ -85,10 +86,10 @@ export default function ProviderApplicationPage() {
 
   const experienced = form.has_professional_experience === 'yes';
   return (
-    <main className="container" style={{ padding: '3rem 1rem 5rem', maxWidth: 980 }}>
-      <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-        <div className="badge badge-review">Join the IPS provider network</div>
-        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.4rem)', margin: '1rem 0 .75rem' }}>Become a Service Provider</h1>
+    <main className="container ipsa-interior ipsa-provider-onboarding" style={{ padding: '3rem 1rem 5rem', maxWidth: 980 }}>
+      <div className="ipsa-interior-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
+        <span className="ipsa-interior-label">JOIN THE IPS PROVIDER NETWORK</span>
+        <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.4rem)', margin: '1rem 0 .75rem' }}>Become an IPS <em>service provider.</em></h1>
         <p style={{ color: 'var(--text-muted)', maxWidth: 760, margin: '0 auto' }}>Professional experience, a portfolio and a CV are optional. Tell us what you can do and why you want to join.</p>
       </div>
       {state.error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem' }}>{state.error}</div>}
