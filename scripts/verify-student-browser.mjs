@@ -29,6 +29,7 @@ try {
   });
   await caseRun('WhatsApp and Telegram links show with accurate backend limitations', async () => {
     assert.equal(await desktop.locator('.ipsa-contact-link[href="https://wa.me/48794088714"]').count(),1);
+    assert.equal(await desktop.locator('.ipsa-contact-link[href="mailto:contact@ipsglobalservice.com"]').count(),1);
     assert.equal(await desktop.locator('.ipsa-contact-link[href="https://t.me/IPScontactBot"]').count(),1);
     assert.ok(await desktop.getByText(/Telegram @IPScontactBot can be opened/i).isVisible());
   });
@@ -40,12 +41,21 @@ try {
     await form.locator('input[placeholder="What would you like help with?"]').fill('Research planning question');
     await form.locator('textarea').fill('Please contact me about research planning consultations.');
     await form.locator('input[type="checkbox"]').check();
-    await form.getByRole('button',{name:/Prepare message for WhatsApp/i}).click();
+    await form.getByRole('button',{name:/Prepare email to IPS/i}).click();
+    const emailLink=form.locator('.ipsa-enquiry-fallback a[href^="mailto:contact@ipsglobalservice.com?subject="]');
+    assert.equal(await emailLink.count(),1);
+    const emailHref=await emailLink.getAttribute('href');
+    assert.ok(decodeURIComponent(emailHref).includes('Visitor Test'));
+    assert.ok(decodeURIComponent(emailHref).includes('Research planning question'));
+    assert.ok(await form.getByText(/does not send or save the message automatically/i).isVisible());
+
+    await form.locator('select').selectOption('whatsapp');
+    await form.locator('input[type="tel"]').fill('+48794088714');
+    await form.getByRole('button',{name:/Prepare WhatsApp message/i}).click();
     const link=form.locator('.ipsa-enquiry-fallback a[href^="https://wa.me/48794088714?text="]');
     assert.equal(await link.count(),1);
     const message=new URL(await link.getAttribute('href')).searchParams.get('text');
     assert.ok(message.includes('Visitor Test')&&message.includes('Research planning question'));
-    assert.ok(await form.getByText(/not sent until you confirm in WhatsApp/i).isVisible());
   });
   await caseRun('six category filters and sixteen service products', async () => {
     assert.equal(await desktop.locator('.ipsa-tabs button').count(),6);
