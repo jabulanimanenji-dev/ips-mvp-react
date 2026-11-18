@@ -25,10 +25,10 @@ export default function SignupPage(){
     }catch{setError('Registration is temporarily unavailable. Please try again later.');}
     finally{setLoading(false);}
   }
-  return <AcademicAuthShell eyebrow="NEW STUDENT ACCOUNT" title="Your next chapter" italicTitle="starts here." intro="Create a private account to request academic support and manage your correspondence with IPS."
+  return <AcademicAuthShell eyebrow="CREATE YOUR IPS ACCOUNT" title="Your next chapter" italicTitle="starts here." intro="Create a private account to request academic support and manage your correspondence with IPS."
     asideTitle="A clearer way to" asideItalic="move forward." asideCopy="Share your requirements, review the agreed scope and keep important project communications together.">
     {error&&<div className="ipsa-auth-alert" role="alert">{error}</div>}
-    <form onSubmit={submit} aria-label="Create student account">
+    <form onSubmit={submit} aria-label="Create your IPS account">
       <label className="ipsa-auth-field"><span>Full name</span>
         <input name="name" type="text" autoComplete="name" value={form.name} onChange={update} placeholder="Your full name" required maxLength={100}/>
       </label>
