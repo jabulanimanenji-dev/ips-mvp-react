@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './academic-interior.css';
+import VerifyEmailPanel from '../components/public/VerifyEmailPanel.jsx';
 
 const initialForm = {
   full_name: '', email: '', password: '', confirm_password: '', phone: '', country: '', city: '',
@@ -21,7 +22,7 @@ export default function ProviderApplicationPage() {
   const [form, setForm] = useState(initialForm);
   const [cvFile, setCvFile] = useState(null);
   const fileInput = useRef(null);
-  const [state, setState] = useState({ working: false, error: '', success: false, id: '' });
+  const [state, setState] = useState({ working: false, error: '', success: false, id: '', email: '', verified: false });
   const update = event => setForm(previous => ({ ...previous, [event.target.name]: event.target.value }));
 
   const chooseCv = event => {
@@ -44,6 +45,10 @@ export default function ProviderApplicationPage() {
 
   const submit = async event => {
     event.preventDefault();
+    if (!/[A-Z]/.test(form.password) || !/[0-9]/.test(form.password) || !/[^A-Za-z0-9\\s]/.test(form.password) || form.password.length < 8) {
+      setState(previous=>({...previous,working:false,error:'Use at least 8 characters including a capital letter, a number and a symbol.',success:false}));
+      return;
+    }
     if (form.password !== form.confirm_password) {
       setState({ working: false, error: 'The passwords do not match.', success: false, id: '' });
       return;
@@ -61,7 +66,7 @@ export default function ProviderApplicationPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Application could not be submitted.');
-      setState({ working: false, error: '', success: true, id: data.application?.writer_id || '' });
+      setState({ working: false, error: '', success: true, id: data.application?.writer_id || '', email: form.email, verified:false });
       setForm(initialForm);
       setCvFile(null);
       if (fileInput.current) fileInput.current.value = '';
@@ -75,7 +80,11 @@ export default function ProviderApplicationPage() {
       <div className="card" style={{ textAlign: 'center', padding: '3rem' }}>
         <div className="badge badge-success">Application received</div>
         <h1 style={{ marginTop: '1rem' }}>Thank you for applying</h1>
-        <p style={{ color: 'var(--text-muted)' }}>Your reference is <strong>{state.id}</strong>. IPS reviews every applicant fairly, including beginners without a professional profile or CV.</p>
+        <p style={{ color: 'var(--text-muted)' }}>Your application reference is <strong>{state.id}</strong>. IPS reviews applicants fairly, including those starting their professional careers.</p>
+        {!state.verified&&state.email&&<VerifyEmailPanel kind="writer" email={state.email}
+          onSuccess={()=>setState(previous=>({...previous,verified:true}))}
+          onCancel={()=>setState(previous=>({...previous,success:false}))}/>}
+        {state.verified&&<p role="status">Email verified. IPS will review your application and contact you in writing.</p>}
         <div className="flex gap-2 justify-center" style={{ flexWrap: 'wrap', marginTop: '1.5rem' }}>
           <Link className="btn btn-primary" to="/writer/login">Sign in to my workspace</Link>
           <Link className="btn btn-secondary" to="/">Return home</Link>
@@ -98,9 +107,9 @@ export default function ProviderApplicationPage() {
         <div className="provider-grid">
           <label className="form-group"><span className="form-label">Full name *</span><input className="form-input" name="full_name" value={form.full_name} onChange={update} required /></label>
           <label className="form-group"><span className="form-label">Email *</span><input className="form-input" type="email" name="email" value={form.email} onChange={update} required /></label>
-          <label className="form-group"><span className="form-label">Password *</span><input className="form-input" type="password" minLength={8} name="password" value={form.password} onChange={update} required /></label>
+          <label className="form-group"><span className="form-label">Password * (8+ characters, capital, number and symbol)</span><input className="form-input" type="password" minLength={8} name="password" value={form.password} onChange={update} required /></label>
           <label className="form-group"><span className="form-label">Confirm password *</span><input className="form-input" type="password" minLength={8} name="confirm_password" value={form.confirm_password} onChange={update} required /></label>
-          <label className="form-group"><span className="form-label">Phone *</span><input className="form-input" name="phone" value={form.phone} onChange={update} required /></label>
+          <label className="form-group"><span className="form-label">Phone or WhatsApp (optional)</span><input className="form-input" name="phone" value={form.phone} onChange={update} /></label>
           <label className="form-group"><span className="form-label">Country *</span><input className="form-input" name="country" value={form.country} onChange={update} required /></label>
           <label className="form-group"><span className="form-label">City</span><input className="form-input" name="city" value={form.city} onChange={update} /></label>
           <label className="form-group"><span className="form-label">Application level *</span><select className="form-select" name="experience_level" value={form.experience_level} onChange={update}><option value="entry-level">Entry-level / starting out</option><option value="student-trainee">Student or trainee</option><option value="experienced">Experienced provider</option></select></label>
