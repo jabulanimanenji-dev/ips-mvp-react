@@ -275,9 +275,8 @@ export function AuthProvider({ children }) {
 
           return {
             success:false,
-            error:
-              data.message || data.error ||
-              'Invalid credentials'
+            verification_required:Boolean(data.verification_required),
+            error:data.message||data.error||'Invalid credentials'
           };
 
 
