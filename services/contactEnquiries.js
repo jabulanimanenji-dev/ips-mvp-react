@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import ContactEnquiry from '../models/ContactEnquiry.js';
 import { canSendContactEmail,sendEmailReply } from './businessEmailTransport.js';
 import { enqueueContactEmailJobs } from './contactEmailQueue.js';
+import ContactEmailJob from '../models/ContactEmailJob.js';
 export { canSendContactEmail,sendEmailReply } from './businessEmailTransport.js';
 
 export const PUBLIC_REPLY_METHODS=Object.freeze(['email','phone','whatsapp','telegram']);
@@ -120,6 +121,21 @@ export function registerEnquiryRoutes(app,{requireSession}){
     const lead=await ContactEnquiry.findOneAndUpdate({enquiry_id:req.params.id},{$set:updates},{new:true,runValidators:true});
     if(!lead)return res.sendStatus(404);
     res.json({success:true,enquiry:lead});
+  });
+  app.get('/api/contact-enquiries/admin/:id/email-status',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='admin')return res.sendStatus(403);
+    try{
+      const lead=await ContactEnquiry.findOne({enquiry_id:req.params.id}).select('enquiry_id').lean();
+      if(!lead)return res.sendStatus(404);
+      const jobs=await ContactEmailJob.find({enquiry_id:lead.enquiry_id})
+        .select('kind recipient status attempts provider_accepted_at delivery_updated_at last_error')
+        .sort({createdAt:1}).lean();
+      res.set('Cache-Control','no-store');
+      return res.json({success:true,notifications:jobs});
+    }catch{
+      return res.status(503).json({success:false,error:'Unable to load email delivery statuses.'});
+    }
   });
   app.post('/api/contact-enquiries/admin/:id/email-reply',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
