@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import '../styles/academic-workspace.css';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -33,7 +34,7 @@ export default function WriterLayout() {
   };
 
   return (
-    <div className={`writer-layout density-${layout.density || 'comfortable'}`} style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className={`writer-layout density-${layout.density || 'comfortable'} ipsa-workspace`} style={{ display: 'flex', minHeight: '100vh' }}>
       <button type="button" className="btn btn-ghost writer-menu-toggle" onClick={() => setMobileOpen(previous => !previous)}>Menu</button>
       {mobileOpen && <div className="writer-sidebar-overlay" onClick={() => setMobileOpen(false)} />}
 
