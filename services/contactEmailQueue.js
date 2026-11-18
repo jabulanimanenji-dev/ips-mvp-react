@@ -1,6 +1,6 @@
 import ContactEmailJob from '../models/ContactEmailJob.js';
 import { IPS_EMAILS } from '../shared/businessEmails.js';
-import { canSendContactEmail,sendBusinessEmail } from './contactEnquiries.js';
+import { canSendContactEmail,sendBusinessEmail } from './businessEmailTransport.js';
 
 // Opt-in worker; secrets and switches are backend-only, never VITE_* variables.
 export const contactNotificationsEnabled=(env=process.env)=>
