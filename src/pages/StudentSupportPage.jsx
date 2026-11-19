@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { STUDENT_DEPARTMENTS, STUDENT_OFFERS, getStudentOffer } from '../../shared/studentOffers.js';
 import './student-support.css';
 import ContactOptions from '../components/public/ContactOptions.jsx';
-import PublicEnquiry from '../components/public/PublicEnquiry.jsx';
+import QuoteRequestForm from '../components/public/QuoteRequestForm.jsx';
 
 const photos = Object.freeze({
   hero: 'https://images.unsplash.com/photo-1758270705317-3ef6142d306f?auto=format&fit=crop&w=1300&q=82',
@@ -108,7 +108,7 @@ export default function StudentSupportPage() {
         <p>Assignments, dissertations, research projects, academic editing and data analysis — structured support for every stage of your academic journey.</p>
         <div className="ipsa-hero-actions">
           <a className="ipsa-btn ipsa-btn-gold" href="/#services">Explore academic services <span aria-hidden="true">↗</span></a>
-          <a className="ipsa-btn ipsa-btn-outline-light" href="/#request-support">Request a consultation <span aria-hidden="true">→</span></a>
+          <a className="ipsa-btn ipsa-btn-outline-light" href="/#request-support">Get a Quote <span aria-hidden="true">→</span></a>
         </div>
         <div className="ipsa-hero-trust" aria-label="Service principles">
           <span><b>01</b> Dedicated project workspace</span>
@@ -224,44 +224,35 @@ export default function StudentSupportPage() {
     <section className="ipsa-section ipsa-request-section" id="request-support">
       <div className="ipsa-wrap ipsa-request-grid">
         <div className="ipsa-request-intro">
-          <SectionTitle eyebrow="START HERE" title={<>Let's give your project <em>a clear direction.</em></>} copy="Tell us where you are academically and what you need help with. We will review the brief and prepare an individual quotation — there is no checkout charge for submitting a request."/>
-          <div className="ipsa-request-assurances"><p><span>✓</span> No payment until you approve a quotation</p><p><span>✓</span> Private order workspace after sign-in</p><p><span>✓</span> Defined scope, outcomes and deadlines</p></div>
+          <SectionTitle eyebrow="START HERE" title={<>Request support with <em>confidence.</em></>} copy="Describe your requirements without sharing your legal name. Choose how IPS contacts you in writing after reviewing your request; no calls or payment are required."/>
+          <div className="ipsa-request-assurances"><p><span>✓</span> No compulsory legal name</p><p><span>✓</span> Choose written email, workspace or messaging contact</p><p><span>✓</span> No calls, marketing consent or upfront payment</p></div>
           <div className="ipsa-request-photo"><img src={photos.library} alt="Quiet university library study space" loading="lazy" /></div>
         </div>
         <div className="ipsa-request-card">
-          <div className="ipsa-request-header"><span>PERSONALIZED REQUEST</span><h3>Tell us about your study.</h3><p>Choose a service and we'll start with the right questions.</p></div>
-          {import.meta.env.VITE_DESIGN_PREVIEW === 'true' ? <div className="ipsa-login-prompt">
-            <div className="ipsa-login-symbol" aria-hidden="true">✧</div>
-            <h4>Review the proposed order experience</h4>
-            <p>This is a read-only, hosted website design preview. Explore the services and sections above; secure accounts, quotations and payments remain in the protected application under qualification.</p>
-            <a className="ipsa-btn ipsa-btn-dark" href="/#services">Browse all academic services <span>↗</span></a>
-          </div> : !user ? <div className="ipsa-login-prompt">
-            <div className="ipsa-login-symbol" aria-hidden="true">↗</div>
-            <h4>Start in your private account.</h4>
-            <p>Sign in or create a student account first. Your selected service will be ready when you return.</p>
-            <Link className="ipsa-btn ipsa-btn-dark" to="/signup" state={{returnTo:'/student-support?service='+encodeURIComponent(offer.id)}}>Create an account <span>↗</span></Link>
-            <Link className="ipsa-quiet-link" to="/login" state={{returnTo:'/student-support?service='+encodeURIComponent(offer.id)}}>Already have an account? Sign in →</Link>
-          </div> : <form className="ipsa-request-form" onSubmit={submit}>
-            <label>What kind of support?<select value={offer.id} onChange={e=>select(e.target.value)}>{STUDENT_OFFERS.map(s=><option key={s.id} value={s.id}>{s.title}</option>)}</select></label>
-            <p className="ipsa-selected-help">{offer.questions}</p>
-            <label>Subject or discipline <span>*</span><input required value={subject} onChange={e=>setSubject(e.target.value)} minLength={3} maxLength={160} placeholder="e.g. Nursing, economics, computer science" /></label>
-            <div className="ipsa-form-row">
-              <label>Study level<select value={level} onChange={e=>setLevel(e.target.value)}><option>Undergraduate</option><option>Master's</option><option>Doctoral</option><option>Other</option></select></label>
-              <label>Preferred deadline<input type="date" value={deadline} min={new Date().toISOString().slice(0,10)} onChange={e=>setDeadline(e.target.value)}/></label>
-            </div>
-            <label>How can we help? <span>*</span><textarea required minLength={20} maxLength={10000} rows={6} value={brief} onChange={e=>setBrief(e.target.value)} placeholder="Tell us about your brief, current stage, requirements, and the guidance or editing you need." /></label>
-            <label className="ipsa-checkbox"><input type="checkbox" checked={agree} onChange={e=>setAgree(e.target.checked)} required/> <span>I am requesting permitted academic assistance, not work to submit deceptively as my own.</span></label>
-            {error && <p className="ipsa-form-error" role="alert">{error}</p>}
-            {notice && <p className="ipsa-form-success" role="status">{notice}</p>}
-            <button className="ipsa-btn ipsa-btn-dark ipsa-submit" type="submit" disabled={working}>{working?'Saving your request…':'Submit for a quotation'} <span aria-hidden="true">↗</span></button>
-            <small className="ipsa-legal">A request is not a payment or an agreement to begin fulfillment.</small>
-          </form>}
+          <div className="ipsa-request-header"><span>CONFIDENTIAL QUOTATION REQUEST</span><h3>Your work, your choice.</h3><p>Choose your support and preferred written contact method.</p></div>
+          <QuoteRequestForm selectedService={offer.id}/>
         </div>
       </div>
     </section>
 
     <ContactOptions />
-    <PublicEnquiry />
+    <section className="ipsa-section ipsa-privacy" id="privacy" aria-labelledby="ipsa-privacy-heading">
+      <div className="ipsa-wrap ipsa-privacy-grid">
+        <div>
+          <span className="ipsa-eyebrow">PRIVACY & CONFIDENTIALITY</span>
+          <h2 id="ipsa-privacy-heading">Your academic work deserves <em>discretion.</em></h2>
+          <p>IPS does not ask Students / Researchers for a legal name to browse services, create an account or request a quote. Choose your own username instead.</p>
+          <p>We collect the request details and contact method you choose, and restrict project access to authorized IPS personnel and specialists assigned to the work. No academic information is published as a testimonial or portfolio without separate permission.</p>
+        </div>
+        <div className="ipsa-privacy-points">
+          <article><strong>Only the details we need</strong><p>No compulsory legal name, institution or phone number for ordinary enquiries. Relevant billing details may be requested only when an agreed paid engagement requires them.</p></article>
+          <article><strong>Written communication, your choice</strong><p>Choose email, private IPS workspace or a connected messaging channel. IPS makes no telephone or voice calls. We never silently change your contact preference.</p></article>
+          <article><strong>Understand messenger limits</strong><p>Telegram bot chats are not end-to-end encrypted Secret Chats. Ordinary email and business messaging have different confidentiality limits. Keep confidential documents and research participant data in your secure workspace.</p></article>
+          <article><strong>Control of your records</strong><p>New uncompleted guest quote requests are scheduled for removal after 30 days. Some paid, billing, dispute and legal records may need longer retention. Contact IPS to request access, correction or appropriate deletion.</p></article>
+        </div>
+      </div>
+      <div className="ipsa-wrap ipsa-privacy-end">Questions about confidentiality? <a href="mailto:privacy@ipsglobalservice.com">Email our privacy team</a>. We do not sell customer information or use quotation details for marketing without separate permission.</div>
+    </section>
     <section className="ipsa-section ipsa-faq" id="questions">
       <div className="ipsa-wrap ipsa-faq-layout"><SectionTitle eyebrow="BEFORE YOU BEGIN" title={<>Your questions, <em>answered.</em></>} copy="Straightforward answers about services, privacy, academic integrity and the process."/>
         <div className="ipsa-faq-list">{faqs.map(([q,a])=><details key={q}><summary>{q}<span aria-hidden="true">＋</span></summary><p>{a}</p></details>)}</div>
