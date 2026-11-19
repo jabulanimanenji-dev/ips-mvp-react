@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {productionConfigurationErrors} from '../shared/runtimeConfig.js';
+import {acceptsStripeEvent} from '../services/studentPayments.js';
 const baseline=()=>({
   NODE_ENV:'production',IPS_STAGING_MODE:'true',
   MONGODB_URI:'mongodb+srv://ci-user:ci-password@ci.example.net/ips_staging_review?retryWrites=true',
@@ -49,4 +50,12 @@ test('staging requires explicit, exact email-recipient allowlist before enabling
     .some(x=>x.includes('allowlist')));
   assert.ok(stageErrors({...allowed,IPS_STAGING_ALLOWLIST_EMAILS:'*@example.org'})
     .some(x=>x.includes('allowlist')));
+});
+
+test('test-mode-only staging refuses real-money and ambiguous signed checkout/refund events',()=>{
+  const env={IPS_STAGING_MODE:'true'};
+  assert.equal(acceptsStripeEvent({id:'evt_test',livemode:false},env),true);
+  assert.equal(acceptsStripeEvent({id:'evt_live',livemode:true},env),false);
+  assert.equal(acceptsStripeEvent({id:'evt_ambiguous'},env),false);
+  assert.equal(acceptsStripeEvent({id:'evt_live'},{}),true);
 });
