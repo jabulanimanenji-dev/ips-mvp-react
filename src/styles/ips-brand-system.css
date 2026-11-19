@@ -378,3 +378,211 @@ html[data-theme="dark"] .ipsa-workspace .dashboard-zone-admin-stats .card strong
 @media(prefers-reduced-motion:reduce) {
   .ipsa-workspace *, .ipsa *, .ips-evaluation-banner { scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important; }
 }
+
+
+/* CHECKPOINT B — shared workspace header, clear management metrics. */
+.ips-workspace-topbar {
+  display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  min-height:73px;padding:1rem 1.2rem;margin-bottom:1.5rem;
+  background:var(--bg-card);border:1px solid var(--border);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);
+}
+.ips-workspace-topbar-identity { display:flex;align-items:center;gap:.9rem;min-width:0; }
+.ips-workspace-topbar-monogram {
+  display:grid;place-items:center;flex:0 0 40px;width:40px;height:40px;
+  border-radius:8px;background:#163b51;color:#fff;font-weight:850;
+  font-size:.82rem;letter-spacing:.02em;
+}
+.ips-workspace-topbar-title {
+  display:block;font-size:.97rem;line-height:1.25;font-weight:750;
+  color:var(--text-primary);text-decoration:none;
+}
+.ips-workspace-topbar-title:hover { color:var(--text-link); }
+.ips-workspace-topbar-identity p { color:var(--text-muted);font-size:.75rem;margin:.28rem 0 0; }
+.ips-workspace-topbar-status {
+  display:flex;align-items:center;gap:.6rem;white-space:nowrap;
+  color:var(--text-secondary);font-size:.76rem;font-weight:630;
+}
+.ips-workspace-privacy-dot {
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:#2b7956;box-shadow:0 0 0 3px #2b795618;
+}
+.ipsa-workspace .ips-metric-card {
+  display:flex;flex-direction:column;gap:.4rem;min-height:124px;
+  justify-content:center;padding:1.15rem 1.25rem;
+  border-top:3px solid #294d65;
+}
+.ipsa-workspace .ips-metric-label {
+  color:var(--text-secondary);font-size:.73rem;font-weight:720;
+  text-transform:uppercase;letter-spacing:.055em;
+}
+.ipsa-workspace .ips-metric-value {
+  color:var(--text-primary);font-size:clamp(1.25rem,2.3vw,1.85rem);
+  font-weight:780;line-height:1.25;letter-spacing:-.03em;
+}
+.ipsa-workspace .ips-metric-caption {
+  color:var(--text-muted);font-size:.73rem;line-height:1.4;
+}
+
+/* CMS editing modules: remove residual dark semi-transparent controls,
+   keep all edit affordances, and use the same readable neutral panel depth. */
+.ipsa-workspace .phase12-shell :is(.phase12-layer-list > div,.phase12-nav-list > div,
+.phase12-repeaters > div,.phase12-reorder-buttons button,.phase12-clear-colors,
+.phase12-row-actions button,.phase12-color-field,.phase12-fields-panel) {
+  background:var(--bg-surface-2)!important;color:var(--text-primary);
+  border-color:var(--border)!important;
+}
+.ipsa-workspace .phase12-shell .phase12-preview-portal aside {
+  background:#163044!important;color:#dce6ed!important;
+}
+.ipsa-workspace .phase12-shell .phase12-preview-portal aside span:first-of-type {
+  background:#2d5269!important;color:#fff!important;
+}
+.ipsa-workspace .phase12-shell :is(.phase12-reorder-buttons button,.phase12-clear-colors,
+.phase12-layer-list button,.phase12-row-actions button):hover { background:var(--bg-hover)!important; }
+.ipsa-workspace .phase12-shell :is(.phase12-dirty,.phase12-status-grid strong) {
+  color:var(--text-primary);
+}
+.ipsa-workspace .phase12-shell :is(.phase12-dirty.is-dirty,.phase12-eyebrow) {
+  color:#806036;
+}
+
+/* Service engine inherited dark/Violet specifics, normalized here rather than
+   replacing core workflow state or its service/category editors. */
+.ipsa-workspace .service-engine-shell :is(.service-engine-header h3,
+.service-engine-section-heading h3,.service-engine-panel-title h4) {
+  color:var(--text-primary)!important;
+}
+.ipsa-workspace .service-engine-header p { color:var(--text-secondary)!important; }
+.ipsa-workspace .service-engine-platform-state {
+  border-color:var(--border-strong);background:var(--bg-surface-2);color:var(--text-primary);
+}
+.ipsa-workspace .service-engine-shell .service-engine-nav {
+  background:var(--bg-card)!important;border:1px solid var(--border);border-radius:var(--radius-lg);
+}
+.ipsa-workspace .service-engine-shell .service-engine-nav button { color:var(--text-secondary); }
+.ipsa-workspace .service-engine-shell .service-engine-nav button.active {
+  color:#163b53!important;background:#e6eff4!important;
+  border:1px solid #bed1dc!important;box-shadow:none!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-panel,
+.service-engine-kpis > button,.service-engine-hero-panel,.service-engine-master-switch,
+.service-engine-toggle-row,.service-engine-check,.service-engine-record-list > button,
+.service-engine-template-card,.service-engine-compact-list > button,
+.service-engine-question-list > button) {
+  background:var(--bg-card)!important;color:var(--text-primary)!important;
+  border-color:var(--border)!important;box-shadow:none!important;transform:none!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-record-list > button:hover,
+.service-engine-compact-list > button:hover,.service-engine-question-list > button:hover) {
+  background:var(--bg-hover)!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-record-list > button.active,
+.service-engine-compact-list > button.active,.service-engine-question-list > button.active,
+.service-engine-template-card.active) {
+  background:#e6eff4!important;border-color:#9ab5c4!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-record-icon,
+.service-engine-template-card > span) {
+  background:#234d63!important;color:#fff!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-record-list-heading > span,
+.service-engine-inheritance-guide article b,.service-engine-step-summary b) {
+  color:#1c5673!important;background:#e6eff4!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-status.status-published,
+.service-engine-health-row b.is-on,.service-engine-effective.is-on) {
+  color:#226546!important;background:#e2f2e9!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-status.status-paused,
+.service-engine-health-row b.is-off) {
+  color:#825b20!important;background:#f6ebd9!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-status.status-draft,
+.service-engine-status.status-archived) {
+  color:var(--text-secondary)!important;background:var(--bg-surface-2)!important;
+}
+.ipsa-workspace .service-engine-shell :is(.service-engine-effective.is-off,
+.service-engine-inline-error) {
+  color:#993e3e!important;background:#f8e9e8!important;
+}
+.ipsa-workspace .service-engine-shell .service-engine-permission-note {
+  color:#7c5920!important;background:#f5eddf!important;
+}
+.ipsa-workspace .service-engine-shell .service-engine-global-toggle > span,
+.ipsa-workspace .service-engine-shell .service-engine-template-card > b,
+.ipsa-workspace .service-engine-shell .service-engine-question-list > button > b {
+  color:var(--text-secondary)!important;
+}
+
+/* Page designer is a neutral editing tool, not a dark stage. Canvas content
+   itself is controlled by its preview device and remains unaltered. */
+.ipsa-workspace .page-designer-shell :is(.page-designer-inspector,
+.page-designer-controls,.page-designer-stage-panel,.page-designer-toolbar,
+.page-designer-coverage-summary,.page-designer-diagnostics,
+.page-designer-section,.page-designer-layer-list button,.page-designer-native-layer-list button,
+.page-designer-inspector-group) {
+  color:var(--text-primary);border-color:var(--border);box-shadow:none;
+}
+.ipsa-workspace .page-designer-shell :is(.page-designer-layer-list button.selected,
+.page-designer-native-layer-list button.selected,
+.page-designer-device-pills button.active) {
+  border-color:#a5becb!important;background:#e7eff4!important;color:#183b53!important;
+}
+
+/* The alternate legacy service marketplace must not remain neon magenta when
+   another route or configuration exposes it. Service actions stay intact. */
+.marketplace { background:#f5f6f5;color:#172c3c; }
+.marketplace .market-hero {
+  background:linear-gradient(135deg,#102a43,#244759)!important;
+  min-height:min(620px,90vh);
+}
+.marketplace .market-orb { display:none; }
+.marketplace .market-core {
+  border-radius:24px;background:linear-gradient(135deg,#1d4056,#2c5267)!important;
+  box-shadow:0 16px 32px rgba(0,0,0,.12);
+}
+.marketplace .market-hero h1 em {
+  background:none!important;color:#e7c991!important;-webkit-text-fill-color:initial!important;
+}
+.marketplace .market-float-card {
+  background:#1b3b51;border-color:#497087;box-shadow:0 8px 20px rgba(0,0,0,.1);
+  backdrop-filter:none;border-radius:12px;
+}
+.marketplace .market-float-card small { color:#e3c38d; }
+.marketplace .mini-progress i { background:#bfa073; }
+.marketplace :is(.service-market-card,.market-form) {
+  background:#fff;color:#172c3c;border-radius:12px;box-shadow:var(--shadow-sm);
+}
+.marketplace .service-market-card:hover,
+.marketplace .service-market-card.selected {
+  transform:none;border-color:#91acbc;box-shadow:var(--shadow-md);
+}
+.marketplace :is(.service-market-card b,.service-symbol) {
+  background:#1e485f!important;border-radius:9px;
+}
+.marketplace .market-request-wrap { background:#112e43!important; }
+.marketplace .market-form :is(input,select,textarea) {
+  background:#fff;color:#172c3c;border-color:#bdcad2;border-radius:7px;
+}
+.marketplace .market-form :is(input,select,textarea):focus {
+  border-color:#2c657f;box-shadow:0 0 0 3px #2c657f20;
+}
+.marketplace .market-submit {
+  background:#173b53;color:#fff;border-radius:7px;box-shadow:none;
+}
+.marketplace .market-submit:hover { background:#285b72; }
+.marketplace .market-form-top small { color:#576d7f; }
+.marketplace .market-final a { background:#173b53;color:#fff;border-radius:8px; }
+.marketplace .market-kicker,.marketplace .market-heading span,
+.marketplace .request-intro > span { color:#c1a06d; }
+
+@media(max-width:768px) {
+  .ips-workspace-topbar { margin-bottom:1.15rem; }
+  .ips-workspace-topbar-status { font-size:.69rem; }
+  .ipsa-workspace .ips-metric-card { min-height:104px; }
+}
+@media(max-width:480px) {
+  .ips-workspace-topbar { padding:.85rem .95rem; }
+  .ips-workspace-topbar-status { display:none; }
+}
