@@ -95,7 +95,8 @@ try{
     ['/client/services','student-services'],
     ['/client/orders','student-orders'],
     ['/client/profile','student-profile'],
-    ['/client/support','student-support']
+    ['/client/support','student-support'],
+    ['/client/payments','student-stripe-refund-records']
   ];
   for(const [route,name] of studentRoutes)await check('Student workflow '+route,async()=>{
     await student.goto(base+route,{waitUntil:'domcontentloaded'});
@@ -143,6 +144,16 @@ try{
     await specialist.locator('.writer-layout').waitFor({timeout:15000});
     assert.equal(await specialist.locator('body').evaluate(el=>el.scrollWidth>window.innerWidth+4),false);
     await evidence(specialist,name);
+  });
+  await check('Three-role finance ledgers reflect the same paid and refunded project',async()=>{
+    await specialist.goto(base+'/writer/earnings',{waitUntil:'domcontentloaded'});
+    await specialist.getByText('My Payment Records').waitFor({timeout:14000});
+    await specialist.getByText('CI-BANK-TEST-TRANSFER-001').count(); // reference is not exposed in specialist browser
+    await specialist.getByText(paidRequest.request_id).first().waitFor({timeout:14000});
+    await student.goto(base+'/client/payments',{waitUntil:'domcontentloaded'});
+    await student.getByText('My Payments & Refunds').first().waitFor({timeout:14000});
+    await student.getByText(paidRequest.request_id).first().waitFor({timeout:14000});
+    await evidence(student,'client-provider-verified-payments-refunds');
   });
   await check('Student identity cannot open specialist or administrator workspaces',async()=>{
     await student.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
