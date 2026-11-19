@@ -61,13 +61,13 @@ export default function ChannelInbox(){
           {threads.map(t=><button type="button" key={t._id} onClick={()=>setSelected(t._id)}
             style={{textAlign:'left',padding:12,border:'1px solid var(--border)',borderRadius:8,background:t._id===selected?'var(--bg-surface-2)':'transparent',color:'var(--text-primary)',cursor:'pointer'}}>
             <strong>{t.display_name||t.channel} · {t.channel}</strong><br/>
-            <small>{t.client_id?'Account linked':'Unverified external contact'}{t.unread_count?' · '+t.unread_count+' unread':''}</small>
+            <small>{t.client_id?'Verified IPS account':t.verified_quote?'Verified IPS quotation contact':'Unverified external contact'}{t.unread_count?' · '+t.unread_count+' unread':''}</small>
           </button>)}
         </div>
       </section>
       <section className="card">
         <h3>{contact?((contact.display_name||contact.channel)+' · '+contact.channel):'Select a conversation'}</h3>
-        {contact&&<p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>{contact.client_id?'Verified IPS account':'Not linked to an IPS account'} — Do not disclose client project details until verified.</p>}
+        {contact&&<p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>{contact.client_id?'Verified IPS account':contact.verified_quote?'Customer-verified quotation channel':'External chat not verified for IPS quotations'} — Keep academic documents and private project records in the protected IPS workspace.</p>}
         <div style={{maxHeight:500,minHeight:180,overflowY:'auto',padding:'10px 0'}}>
           {messages.map(m=><div key={m._id} style={{padding:12,marginBottom:8,background:m.direction==='inbound'?'var(--bg-surface-2)':'var(--bg-surface)',borderRadius:9}}>
             <small>{m.direction==='inbound'?'Customer':'IPS team'} · {new Date(m.createdAt).toLocaleString()}</small>
