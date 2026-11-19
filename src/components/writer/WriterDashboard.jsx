@@ -54,7 +54,7 @@ export default function WriterDashboard() {
   });
   const active = jobs.filter(j => !done.includes(j.status));
   const dueSoon = jobs.filter(j => j.due && !done.includes(j.status) && (new Date(j.due) - today) / 86400000 <= 3);
-  const earnings = jobs.filter(j => j.status === 'Completed').reduce((sum, j) => sum + Number(j.payout || 0), 0);
+  const completedCount=jobs.filter(j=>j.status==='Completed').length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -76,7 +76,7 @@ export default function WriterDashboard() {
 
       <DashboardZone portal="writer" id="stats">
       <div data-studio-protected="true" data-studio-protected-reason="Live assignment statistics are controlled by authenticated API data, not the page editor." className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
-        {[['All jobs', jobs.length], ['Active', active.length], ['Due soon', dueSoon.length], ['Earned', `$${earnings.toFixed(0)}`]].map(([label, value]) =>
+        {[['All jobs', jobs.length], ['Active', active.length], ['Due soon', dueSoon.length], ['Completed jobs', completedCount]].map(([label, value]) =>
           <div className="card" key={label}><strong style={{ fontSize: '1.9rem', color: 'var(--primary)' }}>{value}</strong><div>{label}</div></div>
         )}
       </div>
