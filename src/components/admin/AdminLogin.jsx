@@ -33,7 +33,7 @@ export default function AdminLogin() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #0B1C3B 0%, #2D1F44 50%, #512F5C 100%)',
+        background: 'linear-gradient(135deg, #0d2034 0%, #254057 72%, #665c4a 100%)',
         padding: '1.5rem',
       }}
     >
@@ -41,7 +41,7 @@ export default function AdminLogin() {
         style={{
           width: '100%',
           maxWidth: 420,
-          background: 'rgba(12,17,31,0.85)',
+          background: 'rgba(13,30,47,0.9)',
           border: '1px solid rgba(185,205,238,0.12)',
           borderRadius: 16,
           padding: '2.5rem',
@@ -55,7 +55,7 @@ export default function AdminLogin() {
               width: 56,
               height: 56,
               borderRadius: 14,
-              background: 'linear-gradient(135deg, #660273 0%, #A305A6 100%)',
+              background: 'linear-gradient(135deg, #1f425e 0%, #be9965 100%)',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -63,7 +63,7 @@ export default function AdminLogin() {
               fontWeight: 800,
               color: '#fff',
               marginBottom: '1rem',
-              boxShadow: '0 0 24px rgba(163,5,166,0.3)',
+              boxShadow: '0 0 24px rgba(190,153,101,0.23)',
             }}
           >
             IPS
