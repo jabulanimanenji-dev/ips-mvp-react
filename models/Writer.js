@@ -7,6 +7,7 @@ const WriterSchema = new mongoose.Schema({
   password: { type: String, required: true },
   email_verified_at: { type: Date, default: null },
   first_login_at: { type: Date, default: null },
+  session_version: { type: Number, default: 1, min: 1 },
   verification_hash: { type: String, select: false },
   verification_expires_at: { type: Date, select: false },
   verification_sent_at: { type: Date, select: false },
