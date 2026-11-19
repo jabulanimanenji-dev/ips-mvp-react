@@ -1,9 +1,11 @@
 import React,{useEffect,useState} from 'react';
 import {useAuth} from '../../context/AuthContext';
+import {useNavigate} from 'react-router-dom';
 import {usernameValid,passwordValid} from '../../../shared/privacyIdentity.js';
 
 export default function ClientProfile(){
   const {user,updateClientProfile}=useAuth();
+  const navigate=useNavigate();
   const [form,setForm]=useState({username:'',country:'',phone:'',password:'',currentPassword:''});
   const [state,setState]=useState({saving:false,success:'',error:''});
   useEffect(()=>setForm({
@@ -17,6 +19,10 @@ export default function ClientProfile(){
     const updates={username:form.username.trim(),country:form.country.trim(),phone:form.phone.trim(),
       ...(form.password?{password:form.password,current_password:form.currentPassword}:{})};
     const result=await updateClientProfile(updates);
+    if(result.reauthenticate){
+      navigate('/login',{replace:true,state:{notice:'Your account credentials have changed. For privacy, sign in again with your new password.'}});
+      return;
+    }
     setState({saving:false,success:result.success?'Profile updated.':'',error:result.success?'':result.error});
     if(result.success)setForm(p=>({...p,password:'',currentPassword:''}));
   };
