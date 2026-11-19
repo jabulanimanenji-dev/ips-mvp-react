@@ -8,8 +8,8 @@ import {publicContactConfig} from './contactChannels.js';
 import {enqueueContactEmailJobs} from './contactEmailQueue.js';
 
 const hashes=new Map(),WINDOW_MS=15*60000;
-function limited(req){
-  const hash=crypto.createHash('sha256').update(String(req.ip||req.socket?.remoteAddress||'unknown')).digest('hex');
+function limited(req,scope='quote-submission',maxRequests=4){
+  const hash=crypto.createHash('sha256').update(scope+'|'+String(req.ip||req.socket?.remoteAddress||'unknown')).digest('hex');
   const now=Date.now();
   const last=hashes.get(hash);
   if(hashes.size>1500){
@@ -18,7 +18,7 @@ function limited(req){
   }
   const record=!last||now>last.until?{count:0,until:now+WINDOW_MS}:last;
   record.count++;hashes.set(hash,record);
-  return record.count>4;
+  return record.count>maxRequests;
 }
 const sameOrigin=req=>{
   const origin=req.get('origin');
@@ -100,7 +100,7 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
     }catch(error){console.error('Quote storage failed:',error?.name||'error');return res.status(503).json({success:false,error:'We could not securely save your request.'});}
   });
   app.post('/api/quote-requests/verify-email',async(req,res)=>{
-    if(limited(req))return res.status(429).json({success:false,error:'Please try again later.'});
+    if(limited(req,'verification',8))return res.status(429).json({success:false,error:'Please try again later.'});
     const id=String(req.body?.quote_id||'');
     const code=String(req.body?.code||'');
     if(!/^IPS-Q-[A-F0-9]{18}$/.test(id)||!/^\d{8}$/.test(code))
@@ -138,7 +138,7 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
   app.post('/api/quote-requests/:id/workspace-reply',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
     if(session.role!=='client')return res.sendStatus(403);
-    if(limited(req))return res.status(429).json({success:false,error:'Please wait before sending another message.'});
+    if(limited(req,'workspace-replies',30))return res.status(429).json({success:false,error:'Please wait before sending another message.'});
     const body=String(req.body?.message||'').trim();
     if(body.length<3||body.length>2400)return res.status(400).json({success:false,error:'Your message must be 3–2400 characters.'});
     try{
