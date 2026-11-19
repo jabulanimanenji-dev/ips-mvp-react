@@ -96,6 +96,7 @@ export default function ClientSidebar() {
                   key={item.id}
                   to={item.target}
                   onClick={() => setMobileOpen(false)}
+                  aria-current={active?'page':undefined}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -119,7 +120,7 @@ export default function ClientSidebar() {
                 </Link>
               );
             })}
-            <Link to="/client/payments" onClick={()=>setMobileOpen(false)}
+            <Link to="/client/payments" aria-current={isActive('/client/payments')?'page':undefined} onClick={()=>setMobileOpen(false)}
               style={{display:'flex',alignItems:'center',gap:'.75rem',padding:'.65rem .875rem',
                 borderRadius:'var(--radius-md)',textDecoration:'none',fontSize:'.9rem',fontWeight:600,
                 background:isActive('/client/payments')?'var(--bg-active)':'transparent',
