@@ -42,6 +42,8 @@ const ContactEnquirySchema=new mongoose.Schema({
   source:{type:String,default:'academic-website'},
   admin_note:{type:String,default:'',maxlength:1600},
   review_started_at:{type:Date},
+  assigned_admin_id:{type:String,default:'',index:true},
+  assigned_at:{type:Date},
   next_update_at:{type:Date,index:true},
   last_customer_update_at:{type:Date},
   pending_reply:{type:String,required:false},
