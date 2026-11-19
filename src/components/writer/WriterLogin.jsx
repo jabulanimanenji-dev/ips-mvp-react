@@ -22,7 +22,7 @@ export default function WriterLogin(){
   return <AcademicAuthShell standalone eyebrow="WORKING WITH IPS" title="Your expertise." italicTitle="Our platform." intro="Sign in to review your assignments and communicate with the IPS team in one professional workspace."
     asideTitle="Work with" asideItalic="clarity." asideCopy="A structured space for assignments, project updates and correspondence with the IPS team.">
     <nav className="ipsa-auth-roles" aria-label="Choose account type">
-      <Link to="/login">Seeking support</Link><span className="active" aria-current="page">Working with IPS</span>
+      <Link to="/login">Student / Researcher</Link><span className="active" aria-current="page">Specialist</span>
     </nav>
     {error&&<div className="ipsa-auth-alert" role="alert">{error}</div>}
     {verificationNeeded?<VerifyEmailPanel kind="writer" email={email} onSuccess={()=>{setError('Your email is verified. If your application has been approved, sign in to open your specialist workspace.');setVerificationNeeded(false);}} onCancel={()=>{setVerificationNeeded(false);setError('');}}/>:null}
