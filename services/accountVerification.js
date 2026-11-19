@@ -10,7 +10,7 @@ const safeEqual=(a,b)=>typeof a==='string'&&typeof b==='string'&&a.length===b.le
   crypto.timingSafeEqual(Buffer.from(a),Buffer.from(b));
 export const publicAccount=account=>{
   const data=typeof account.toObject==='function'?account.toObject():{...account};
-  for(const key of ['password','verification_hash','verification_attempts','verification_expires_at','verification_sent_at','notes'])
+  for(const key of ['password','verification_hash','verification_attempts','verification_expires_at','verification_sent_at','password_reset_hash','password_reset_expires_at','password_reset_sent_at','notes'])
     delete data[key];
   return data;
 };
