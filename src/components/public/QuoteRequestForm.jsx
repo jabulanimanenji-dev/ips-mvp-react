@@ -155,7 +155,7 @@ export default function QuoteRequestForm({selectedService=''}) {
       <button className="ipsa-btn ipsa-btn-dark ipsa-submit" disabled={busy||(!allowed&&!demo)}>
         {busy?'Saving request…':demo?'Preview quotation request':'Submit Quote Request'} <span aria-hidden="true">↗</span>
       </button>
-      <small className="ipsa-legal">Submitting is free and creates no payment obligation. IPS will never call you. Guest requests awaiting completion are normally scheduled for deletion after 30 days.</small>
+      <small className="ipsa-legal">Submitting is free and creates no payment obligation. IPS will never call you. Unverified guest requests expire after 30 days. Verified requests follow applicable retention rules.</small>
     </form>
   </section>;
 }
