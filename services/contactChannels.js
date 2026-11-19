@@ -130,6 +130,26 @@ async function storeInbound(event){
       if(lead)try{await enqueueContactEmailJobs(lead);}catch{}
     }
   }
+  // General enquiry guests can also prove their selected channel by sending
+  // their exact ENQ reference. This does not authenticate an IPS account.
+  const ref=/\bENQ-[A-F0-9]{18}\b/i.exec(event.body)?.[0]?.toUpperCase();
+  if(ref){
+    const filter={enquiry_id:ref,request_type:'general',preferred_channel:event.channel,
+      contact_verified:false,contact_consent:true};
+    if(event.channel==='telegram'){
+      if(event.telegram_username)filter.telegram_username=event.telegram_username.toLowerCase();
+      else return {duplicate:false};
+    }else filter.phone='+'+String(event.external_id).replace(/^\+/,'');
+    const result=await ContactEnquiry.updateOne(filter,{
+      $set:{contact_verified:true,verification_status:'verified',contact_verified_at:now,
+        contact_thread_id:String(contact._id)},$unset:{purge_at:''}
+    });
+    if(result.modifiedCount){
+      await ChannelContact.updateOne({_id:contact._id},{$set:{status:'open'}});
+      const lead=await ContactEnquiry.findOne({enquiry_id:ref}).lean();
+      if(lead)try{await enqueueContactEmailJobs(lead);}catch{}
+    }
+  }
   return {duplicate:false};
 }
 async function safeEventBatch(events){
@@ -251,10 +271,10 @@ export function registerContactApi(app,{requireSession}){
     try{const session=requireSession(req,res);if(!session)return;
       if(session.role!=='admin')return res.sendStatus(403);
       const threads=await ChannelContact.find().select('channel display_name external_id client_id verified_at last_inbound_at last_message_at unread_count status').sort({last_message_at:-1}).limit(100).lean();
-      const verified=await ContactEnquiry.find({request_type:'quote',contact_verified:true,contact_thread_id:{$in:threads.map(t=>String(t._id))}})
+      const verified=await ContactEnquiry.find({contact_consent:true,contact_verified:true,status:{$ne:'closed'},contact_thread_id:{$in:threads.map(t=>String(t._id))}})
         .select('contact_thread_id').lean();
       const verifiedIds=new Set(verified.map(q=>q.contact_thread_id));
-      const rows=threads.map(t=>({...t,verified_quote:verifiedIds.has(String(t._id))}));
+      const rows=threads.map(t=>({...t,verified_contact:t.status==='open'&&verifiedIds.has(String(t._id))}));
       res.set('Cache-Control','no-store');res.json({success:true,threads:rows});
     }catch{res.status(500).json({success:false,error:'Unable to load channel inbox.'});}
   });
