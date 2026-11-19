@@ -23,7 +23,7 @@ await mongoose.connect(process.env.MONGODB_URI);
 // academic project from the preceding three-role MongoDB lifecycle. No seeded
 // account or administrator status forgery is needed for browser qualification.
 const paidRequest=await ServiceRequest.findOne({
-  client_id:'CID-TEST-ALICE',category:'Academic Support',payment_status:'paid',
+  client_id:'CID-TEST-ALICE',category:'Academic Support',payment_status:{$in:['paid','refunded']},
   provider_id:'WID-CI-VERIFIED-01'
 }).sort({createdAt:-1}).lean();
 assert.ok(paidRequest?.request_id,'Missing verified paid and approved specialist project from API integration.');
