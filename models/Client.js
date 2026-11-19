@@ -9,6 +9,10 @@ const ClientSchema = new mongoose.Schema({
   full_name: { type: String, default: '' },
   email_verified_at: { type: Date, default: null },
   first_login_at: { type: Date, default: null },
+  session_version: { type: Number, default: 1, min: 1 },
+  password_reset_hash: { type: String, select: false },
+  password_reset_expires_at: { type: Date, select: false },
+  password_reset_sent_at: { type: Date, select: false },
   verification_hash: { type: String, select: false },
   verification_expires_at: { type: Date, select: false },
   verification_sent_at: { type: Date, select: false },
@@ -24,5 +28,6 @@ const ClientSchema = new mongoose.Schema({
   notes: { type: String, default: '' }
 }, { timestamps: true });
 
+ClientSchema.index({password_reset_hash:1},{unique:true,sparse:true});
 ClientSchema.index({username_key:1},{unique:true,partialFilterExpression:{username_key:{$type:'string'}}});
 export default mongoose.model('Client', ClientSchema);
