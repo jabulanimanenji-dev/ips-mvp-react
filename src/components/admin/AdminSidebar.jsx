@@ -60,7 +60,7 @@ export default function AdminSidebar() {
       >
         <div style={{ padding: '1.5rem', borderBottom: '1px solid rgba(185,205,238,0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'var(--grad-hero)', display: 'grid', placeItems: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#fff', boxShadow: 'var(--shadow-glow-purple)' }}>
+            <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg,#15344e,#b99664)', display: 'grid', placeItems: 'center', fontSize: '0.85rem', fontWeight: 800, color: '#fff', boxShadow: 'var(--shadow-glow-purple)' }}>
               IPS
             </div>
             <div>
