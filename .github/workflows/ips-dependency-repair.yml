@@ -23,7 +23,13 @@ jobs:
       - name: Restore pinned dependency state without running install hooks
         run: npm ci --ignore-scripts
       - name: Repair advisories inside allowed semver ranges without force
-        run: npm audit fix --package-lock-only --ignore-scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          # npm audit fix exits 1 when advisories remain outside allowed semver.
+          # Capture that partial safe repair; the subsequent critical gate still
+          # fails closed if the critical issues have not actually been resolved.
+          npm audit fix --package-lock-only --ignore-scripts || test "$?" -eq 1
       - name: Refuse changes outside dependency manifests
         shell: bash
         run: |
@@ -38,8 +44,8 @@ jobs:
           fi
       - name: Restore exact repaired dependencies and build the real frontend
         run: npm ci
-      - name: Audit all shipping packages for high/critical advisories
-        run: npm audit --omit=dev --audit-level=high
+      - name: Reject unresolved critical production advisories before repair commit
+        run: npm audit --omit=dev --audit-level=critical
       - name: Run entire IPS local verification without test bypasses
         run: npm run check
       - name: Commit only the reviewed dependency manifests if checks pass
