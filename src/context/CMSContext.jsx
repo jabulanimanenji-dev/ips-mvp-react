@@ -131,6 +131,10 @@ export function CMSProvider({ children }) {
   const [publishedVersion, setPublishedVersion] = useState(1);
 
   const refreshConfig = useCallback(async () => {
+    if(import.meta.env.VITE_DESIGN_PREVIEW==='true'){
+      setLoading(false);
+      return;
+    }
     try {
       const response = await fetch('/api/platform-config', { cache: 'no-store' });
       const data = await response.json();
