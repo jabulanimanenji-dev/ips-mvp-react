@@ -1,4 +1,5 @@
 import React,{useEffect,useState} from 'react';
+import {serviceTitle,quoteSubjectTitle,quoteStatusTitle,contactChannelTitle} from '../../utils/quoteLabels.js';
 
 function ContactActions({lead}){
   const {email,phone,preferred_channel,enquiry_id,contact_verified}=lead;
@@ -100,17 +101,17 @@ export default function AdminEnquiries(){
         <div style={{display:'grid',gap:7}}>
           {visible.map(x=><button key={x.enquiry_id} onClick={()=>{setSelected(x.enquiry_id);setMessage('');}}
             style={{background:selected===x.enquiry_id?'var(--bg-active)':'transparent',padding:13,textAlign:'left',color:'var(--text-primary)',border:'1px solid var(--border)',borderRadius:8,cursor:'pointer'}}>
-            <strong>{x.subject}</strong><small style={{display:'block',marginTop:6,color:'var(--text-muted)'}}>{x.username||x.name||'Private visitor'} · {x.preferred_channel} · {x.status}</small>
+            <strong>{quoteSubjectTitle(x)}</strong><small style={{display:'block',marginTop:6,color:'var(--text-muted)'}}>{x.username||x.name||'Private visitor'} · {contactChannelTitle(x.preferred_channel)} · {quoteStatusTitle(x.status)}</small>
           </button>)}
         </div>
       </section>
       <section className="card">
         {!current?<p>Select a contact request.</p>:<>
-          <h3 style={{marginBottom:8}}>{current.subject}</h3>
+          <h3 style={{marginBottom:8}}>{quoteSubjectTitle(current)}</h3>
           <small>{current.enquiry_id} · {current.username||current.name||'Private visitor'} · {new Date(current.createdAt).toLocaleString()}</small>
           <p style={{marginTop:10}}><b>Preferred contact:</b> {current.preferred_channel}</p>
           <p><b>Written contact:</b> {current.email||current.telegram_username||current.phone||'Private workspace'} · {current.contact_verified?'Verified':'Awaiting verification'}</p>
-          {current.request_type==='quote'&&<p><b>Quotation:</b> {current.service||'General'} · {current.discipline||'Unspecified discipline'} · {current.study_level||'Unspecified level'} · {current.preferred_deadline||'No deadline selected'}</p>}
+          {current.request_type==='quote'&&<p><b>Quotation:</b> {serviceTitle(current.service)} · {current.discipline||'Unspecified discipline'} · {current.study_level||'Unspecified level'} · {current.preferred_deadline||'No deadline selected'}</p>}
           <p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>Enquiry-specific contact permission recorded: {current.contact_consent?'Yes':'No'} · {current.consent_at?new Date(current.consent_at).toLocaleString():''}</p>
           <ContactActions lead={current}/>
           <div style={{margin:'14px 0',padding:'13px 15px',border:'1px solid var(--border)',borderRadius:8}}>
