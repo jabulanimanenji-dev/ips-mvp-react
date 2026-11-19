@@ -1,6 +1,9 @@
 import React,{useCallback,useEffect,useState} from 'react';
+import {useSearchParams} from 'react-router-dom';
 
 export default function ChannelInbox(){
+  const [params]=useSearchParams();
+  const linkedThread=String(params.get('thread')||'');
   const [threads,setThreads]=useState([]);
   const [selected,setSelected]=useState('');
   const [messages,setMessages]=useState([]);
@@ -28,6 +31,7 @@ export default function ChannelInbox(){
   },[selected]);
 
   useEffect(()=>{refresh();},[refresh]);
+  useEffect(()=>{if(/^[a-f0-9]{24}$/i.test(linkedThread))setSelected(linkedThread);},[linkedThread]);
   useEffect(()=>{loadMessages();},[loadMessages]);
   async function reply(event){
     event.preventDefault();setError('');
