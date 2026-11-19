@@ -26,10 +26,10 @@ export default function AdminDashboard() {
   const attention = analytics?.attention || [];
   const activity = analytics?.recentActivity || [];
   const statCards = [
-    { title: 'Academic Paid', value: fmtCur(finance.paidAcademic || 0), grad: 'linear-gradient(135deg,#7A4BA8,#C3A7E3)' },
-    { title: 'Active Work', value: counts.activeWork || 0, grad: 'linear-gradient(135deg,#4F95B1,#6EC9E8)' },
-    { title: 'New Signups (30d)', value: counts.newSignups30d || 0, grad: 'linear-gradient(135deg,#D07E47,#ED9E6F)' },
-    { title: 'Open Support', value: counts.openTickets || 0, grad: 'linear-gradient(135deg,#512F5C,#B66570)' }
+    { title: 'Academic paid', value: fmtCur(finance.paidAcademic || 0), description:'Verified payments' },
+    { title: 'Active work', value: counts.activeWork || 0, description:'Engagements in progress' },
+    { title: 'New registrations', value: counts.newSignups30d || 0, description:'Past 30 days' },
+    { title: 'Open support', value: counts.openTickets || 0, description:'Requiring attention' }
   ];
 
   return (
@@ -44,8 +44,10 @@ export default function AdminDashboard() {
         <DashboardZone portal="admin" id="stats">
           <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
             {statCards.map(card => (
-              <div key={card.title} className="card" style={{ background: card.grad, color: '#fff', border: 'none' }}>
-                <strong style={{ fontSize: '1.6rem' }}>{card.value}</strong><div style={{ opacity: .9 }}>{card.title}</div>
+              <div key={card.title} className="card ips-metric-card">
+                <span className="ips-metric-label">{card.title}</span>
+                <strong className="ips-metric-value">{card.value}</strong>
+                <span className="ips-metric-caption">{card.description}</span>
               </div>
             ))}
           </div>
