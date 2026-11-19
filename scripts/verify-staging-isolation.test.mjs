@@ -23,9 +23,30 @@ test('staging rejects unisolated R2 storage, production domains and live payment
   const errors=stageErrors(env);
   assert.ok(errors.some(x=>x.includes('R2')));
   assert.ok(errors.some(x=>x.includes('production domain')));
-  assert.ok(errors.some(x=>x.includes('payment')));
+  assert.ok(errors.some(x=>x.includes('Stripe')));
   assert.ok(errors.some(x=>x.includes('email')));
 });
 test('distinct staging database, bucket and public URL satisfy isolation conditions',()=>{
   assert.deepEqual(stageErrors(baseline()),[]);
+});
+
+test('staging permits only genuine test-mode Stripe credentials and keeps signed test webhook boundary',()=>{
+  const env={...baseline(),STRIPE_SECRET_KEY:'sk_test_AAAAAAAAAAAAAAAAAA',
+    STRIPE_WEBHOOK_SECRET:'whsec_BBBBBBBBBBBBBBBBBB'};
+  assert.deepEqual(stageErrors(env),[]);
+  assert.ok(stageErrors({...env,STRIPE_SECRET_KEY:'sk_live_AAAAAAAAAAAAAAAAAA'})
+    .some(x=>x.includes('Stripe')));
+  assert.ok(stageErrors({...env,STRIPE_WEBHOOK_SECRET:''})
+    .some(x=>x.includes('webhook')));
+  assert.ok(stageErrors({...env,STRIPE_SECRET_KEY:''})
+    .some(x=>x.includes('webhook')));
+});
+test('staging requires explicit, exact email-recipient allowlist before enabling account verification mail',()=>{
+  const allowed={...baseline(),CONTACT_RESEND_API_KEY:'re_test_staging_example',
+    IPS_STAGING_ALLOWLIST_EMAILS:'student.test@example.org,ops.test@example.org'};
+  assert.deepEqual(stageErrors(allowed),[]);
+  assert.ok(stageErrors({...allowed,IPS_STAGING_ALLOWLIST_EMAILS:''})
+    .some(x=>x.includes('allowlist')));
+  assert.ok(stageErrors({...allowed,IPS_STAGING_ALLOWLIST_EMAILS:'*@example.org'})
+    .some(x=>x.includes('allowlist')));
 });
