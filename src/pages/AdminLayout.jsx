@@ -40,7 +40,7 @@ export default function AdminLayout() {
   const configuredTitle = (config.navigation?.admin || []).find(item =>
     location.pathname.startsWith(item.target?.split('?')[0])
   )?.label;
-  const pageTitle = configuredTitle || Object.entries(PAGE_TITLES).find(([path]) =>
+  const pageTitle = ((import.meta.env.VITE_STUDENT_LAUNCH==='true'&&location.pathname.startsWith('/admin/enquiries'))?'Private Quotes & Enquiries':null) || configuredTitle || Object.entries(PAGE_TITLES).find(([path]) =>
     location.pathname.startsWith(path)
   )?.[1] || 'Admin';
 
