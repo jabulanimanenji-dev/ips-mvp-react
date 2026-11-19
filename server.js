@@ -2137,34 +2137,49 @@ app.patch('/api/orders/:id/progress', async (req, res) => {
 
 app.post('/api/orders/:id/revisions', async (req, res) => {
   try {
-    const { actor_id, actor_role, reason } = req.body;
-    const order = await Order.findOneAndUpdate(
-      { order_id: req.params.id },
-      {
-        status: 'Client Revision Requested',
-        $inc: { revision_count: 1 },
-        $push: { status_history: { status: 'Client Revision Requested', actor_id, actor_role, reason } }
-      },
-      { returnDocument: 'after' }
-    );
-    await recordAudit({
-      order_id: req.params.id, actor_id, actor_role,
-      action: 'revision_requested', details: { reason }
-    });
-    res.json({ success: true, order });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    const session=requireSession(req,res);
+    if(!session)return;
+    const order=await Order.findOne({order_id:req.params.id});
+    if(!order)return res.status(404).json({success:false,error:'Order not found.'});
+    if(session.role!=='client'||session.id!==order.client_id)
+      return res.status(403).json({success:false,error:'Only the customer may request revisions.'});
+    if(!['Delivered','Approved for Client'].includes(order.status))
+      return res.status(409).json({success:false,error:'Revisions may only be requested after IPS releases the work.'});
+    const reason=String(req.body?.reason||'').trim();
+    if(reason.length<10||reason.length>2000)
+      return res.status(400).json({success:false,error:'Describe the requested revision in 10–2000 characters.'});
+    const revised=await Order.findOneAndUpdate({
+      order_id:req.params.id,client_id:session.id,status:{$in:['Delivered','Approved for Client']}
+    },{
+      $set:{status:'Client Revision Requested'},
+      $inc:{revision_count:1},
+      $push:{status_history:{status:'Client Revision Requested',actor_id:session.id,actor_role:'client',reason}}
+    },{new:true,runValidators:true});
+    if(!revised)return res.status(409).json({success:false,error:'The work status changed. Refresh and try again.'});
+    await recordAudit({order_id:req.params.id,actor_id:session.id,actor_role:'client',
+      action:'revision_requested',details:{reason}});
+    res.set('Cache-Control','no-store');
+    res.json({success:true,order:revised});
+  }catch(err){
+    return res.status(503).json({success:false,error:'The revision request could not be saved.'});
   }
 });
 
 app.get('/api/notifications/:role/:id', async (req, res) => {
   try {
-    const notifications = await Notification.find({
-      recipient_role: req.params.role, recipient_id: req.params.id
-    }).sort({ createdAt: -1 }).limit(100);
-    res.json({ success: true, notifications });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
+    const session=requireSession(req,res);
+    if(!session)return;
+    if(!['client','writer','admin'].includes(req.params.role))
+      return res.status(400).json({success:false,error:'Unknown notification audience.'});
+    if(session.role!=='admin'&&(session.role!==req.params.role||session.id!==req.params.id))
+      return res.status(403).json({success:false,error:'You may only read your own notifications.'});
+    const notifications=await Notification.find({
+      recipient_role:req.params.role,recipient_id:req.params.id
+    }).sort({createdAt:-1}).limit(100).lean();
+    res.set('Cache-Control','private, no-store');
+    res.json({success:true,notifications});
+  }catch{
+    res.status(503).json({success:false,error:'Private notifications could not be loaded.'});
   }
 });
 
