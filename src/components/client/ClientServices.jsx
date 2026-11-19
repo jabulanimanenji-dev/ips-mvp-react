@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+const academicLaunch=import.meta.env.VITE_STUDENT_LAUNCH==='true';
 
 export default function ClientServices() {
   const { user } = useAuth();
@@ -43,20 +44,32 @@ export default function ClientServices() {
   return (
     <div>
       <section style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: '1.5rem' }}>
-        <div><small style={{ color: 'var(--primary)', fontWeight: 800, letterSpacing: '.12em' }}>MY IPS</small><h1 className="section-title">Service Hub</h1><p className="section-subtitle">Request, approve and follow every service from brief to delivery.</p></div>
-        <Link to="/services" className="btn btn-primary">+ Create service request</Link>
+        <div><small style={{ color: 'var(--primary)', fontWeight: 800, letterSpacing: '.12em' }}>MY IPS WORKSPACE</small><h1 className="section-title">{academicLaunch?'My Projects':'Service Hub'}</h1><p className="section-subtitle">{academicLaunch?'Review written quotations, approved academic requests and delivery progress.':'Request, approve and follow every service from brief to delivery.'}</p></div>
+        <Link to={academicLaunch?'/#request-support':'/services'} className="btn btn-primary">{academicLaunch?'Get a Quote':'+ Create service request'}</Link>
       </section>
 
-      <div className="grid grid-3 gap-4" style={{ marginBottom: '1.5rem' }}>
+      {academicLaunch?<div className="grid grid-3 gap-4" style={{marginBottom:'1.5rem'}}>
+        <Link to="/#request-support" className="card" style={{textDecoration:'none',color:'inherit',borderTop:'4px solid #c9a36e'}}>
+          <strong>Get a Quote</strong><p style={{color:'var(--text-muted)'}}>Describe your academic support needs without giving a legal name.</p><span style={{color:'var(--primary)',fontWeight:800}}>Request a private quotation →</span>
+        </Link>
+        <Link to="/client/overview" className="card" style={{textDecoration:'none',color:'inherit',borderTop:'4px solid #214c67'}}>
+          <strong>Private Quote Messages</strong><p style={{color:'var(--text-muted)'}}>Read written IPS quotations and reply securely in your workspace.</p><span style={{color:'var(--primary)',fontWeight:800}}>Open conversations →</span>
+        </Link>
+        <Link to="/client/orders" className="card" style={{textDecoration:'none',color:'inherit',borderTop:'4px solid #6f9789'}}>
+          <strong>My Orders</strong><p style={{color:'var(--text-muted)'}}>View agreed orders after quotation acceptance and confirmation.</p><span style={{color:'var(--primary)',fontWeight:800}}>View orders →</span>
+        </Link>
+      </div>:null}
+      {!academicLaunch?      <div className="grid grid-3 gap-4" style={{ marginBottom: '1.5rem' }}>
         <Link to="/services?type=professional" className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #a305a6' }}><strong>Professional service</strong><p style={{ color: 'var(--text-muted)' }}>Business, digital, research, career and technical support.</p><span style={{ color: 'var(--primary)', fontWeight: 800 }}>Create request →</span></Link>
         <Link to="/services?type=odd_job" className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #ee7b54' }}><strong>Odd job</strong><p style={{ color: 'var(--text-muted)' }}>Local errands, moving, personal admin, events and practical help.</p><span style={{ color: '#b54627', fontWeight: 800 }}>Create request →</span></Link>
         <Link to={import.meta.env.VITE_STUDENT_LAUNCH === 'true' ? '/student-support' : '/client/order'} className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #2868d8' }}><strong>Academic & writing</strong><p style={{ color: 'var(--text-muted)' }}>Use the specialist order form for structured writing work.</p><span style={{ color: '#2868d8', fontWeight: 800 }}>Create order →</span></Link>
       </div>
 
+:null}
       <section className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: '1rem' }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {[['all','All'],['active','Active'],['quotes','Quotes'],['professional','Professional'],['odd_job','Odd jobs']].map(([value,label]) =>
+            {(academicLaunch?[['all','All Projects'],['active','Active'],['quotes','Quotations']]:[['all','All'],['active','Active'],['quotes','Quotes'],['professional','Professional'],['odd_job','Odd jobs']]).map(([value,label]) =>
               <button key={value} className={`btn btn-sm ${filter === value ? 'btn-primary' : 'btn-ghost'}`} onClick={() => setFilter(value)}>{label}</button>
             )}
           </div>
@@ -69,8 +82,8 @@ export default function ClientServices() {
             <div>
               <small style={{ color: 'var(--primary)', fontWeight: 800 }}>{r.family === 'odd_job' ? 'ODD JOB' : 'PROFESSIONAL'} · {r.category}</small>
               <h3 style={{ margin: '.25rem 0' }}><Link to={`/client/services/${r.request_id}`} style={{ color: 'inherit' }}>{r.title}</Link></h3>
-              <p style={{ color: 'var(--text-muted)', margin: '.25rem 0' }}>{r.status} · {r.progress || 0}% complete · {r.provider_name || 'Provider not assigned'}</p>
-              <div style={{ height: 7, background: 'var(--bg-surface-2)', borderRadius: 8, maxWidth: 600 }}><i style={{ display: 'block', height: '100%', width: `${r.progress || 0}%`, background: 'linear-gradient(90deg,#660273,#ee7b54)', borderRadius: 8 }} /></div>
+              <p style={{ color: 'var(--text-muted)', margin: '.25rem 0' }}>{r.status} · {r.progress || 0}% complete · {r.provider_name || 'Specialist not assigned'}</p>
+              <div style={{ height: 7, background: 'var(--bg-surface-2)', borderRadius: 8, maxWidth: 600 }}><i style={{ display: 'block', height: '100%', width: `${r.progress || 0}%`, background: academicLaunch?'linear-gradient(90deg,#173d57,#c5a06d)':'linear-gradient(90deg,#660273,#ee7b54)', borderRadius: 8 }} /></div>
               {r.status === 'Quoted' && !r.quote?.accepted && <div style={{ display: 'flex', gap: 8, marginTop: '1rem', flexWrap: 'wrap' }}>
                 <button disabled={busy === r.request_id} className="btn btn-primary btn-sm" onClick={() => decideQuote(r, true)}>Accept ${r.quote.currency || 'USD'} ${r.quote.total}</button>
                 <Link className="btn btn-ghost btn-sm" to={`/client/services/${r.request_id}`}>Request changes with reason</Link>
