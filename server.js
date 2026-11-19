@@ -282,7 +282,7 @@ app.get('/api/clients', async (req, res) => {
     if (!session) return;
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const [clients, orderTotals] = await Promise.all([
-      Client.find().select('-password').sort({ createdAt: -1 }).lean(),
+      Client.find().select('-password -full_name').sort({ createdAt: -1 }).lean(),
       Order.aggregate([
         {
           $group: {
