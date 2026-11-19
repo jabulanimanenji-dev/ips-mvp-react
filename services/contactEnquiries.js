@@ -128,16 +128,32 @@ export function registerEnquiryRoutes(app,{requireSession}){
   app.patch('/api/contact-enquiries/admin/:id',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
     if(session.role!=='admin')return res.sendStatus(403);
-    const status=req.body?.status, note=req.body?.admin_note;
+    const status=req.body?.status, note=req.body?.admin_note, next=req.body?.next_update_at;
     if(status!==undefined&&!['new','in_progress','waiting_for_customer','closed'].includes(status))
       return res.status(400).json({success:false,error:'Invalid status.'});
     if(note!==undefined&&(!isText(note)||note.length>1600))return res.sendStatus(400);
-    if(status===undefined&&note===undefined)return res.sendStatus(400);
-    const updates={last_activity_at:new Date()};
-    if(status!==undefined)updates.status=status;
+    if(status===undefined&&note===undefined&&next===undefined)return res.sendStatus(400);
+    const now=new Date(),updates={last_activity_at:now},unset={};
+    if(status!==undefined){
+      updates.status=status;
+      if(status==='in_progress')updates.review_started_at=now;
+      if(status==='closed')unset.next_update_at='';
+    }
     if(note!==undefined)updates.admin_note=note;
-    const lead=await ContactEnquiry.findOneAndUpdate({enquiry_id:req.params.id},{$set:updates},{new:true,runValidators:true});
+    if(next!==undefined&&status!=='closed'){
+      if(next===null||next==='')unset.next_update_at='';
+      else {
+        const due=typeof next==='string'?new Date(next):new Date(NaN);
+        if(!Number.isFinite(due.getTime())||due<=now||due.getTime()>now.getTime()+90*86400000)
+          return res.status(400).json({success:false,error:'Choose a future written-update deadline within 90 days.'});
+        updates.next_update_at=due;
+      }
+    }
+    const operation={$set:updates};
+    if(Object.keys(unset).length)operation.$unset=unset;
+    const lead=await ContactEnquiry.findOneAndUpdate({enquiry_id:req.params.id},operation,{new:true,runValidators:true});
     if(!lead)return res.sendStatus(404);
+    res.set('Cache-Control','no-store');
     res.json({success:true,enquiry:lead});
   });
   app.get('/api/contact-enquiries/admin/:id/email-status',async(req,res)=>{
@@ -170,7 +186,7 @@ export function registerEnquiryRoutes(app,{requireSession}){
     try{
       const messageId=await sendEmailReply({to:lead.email,subject:lead.subject,body,reference:lead.enquiry_id});
       await ContactEnquiry.updateOne({_id:lead._id,pending_reply:lock},
-        {$unset:{pending_reply:''},$set:{status:'waiting_for_customer',last_activity_at:new Date()},
+        {$unset:{pending_reply:'',next_update_at:''},$set:{status:'waiting_for_customer',last_activity_at:new Date(),last_customer_update_at:new Date()},
           $push:{messages:{direction:'outbound',channel:'email',body,author:session.id,delivery_status:'sent',provider_id:messageId,created_at:new Date()}}});
       res.json({success:true,message:'Email accepted by the provider.',provider_id:messageId});
     }catch(error){
