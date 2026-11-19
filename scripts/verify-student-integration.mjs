@@ -61,10 +61,45 @@ async function go(){
   const aliceId=alice.body.client.client_id;
   pass('Verified-only pseudonymous student login and signed HttpOnly cookie');
 
-  const bob=await call('/api/client/login',{method:'POST',json:{email:'bob.test@example.org',password}});
+  let bob=await call('/api/client/login',{method:'POST',json:{email:'bob.test@example.org',password}});
   assert.equal(bob.status,200);
   assert.notEqual(bob.body.client.client_id,aliceId);
   pass('Separate verified student identities');
+  const recoveryUnavailable=await call('/api/client/password-recovery/request',{
+    method:'POST',json:{email:'bob.test@example.org'}});
+  assert.equal(recoveryUnavailable.status,503);
+  const {completePasswordRecovery,tokenDigest}=await import('../services/passwordRecovery.js');
+  const recoveryEnv={NODE_ENV:'development',PUBLIC_APP_URL:'http://127.0.0.1:8080',
+    CONTACT_RESEND_API_KEY:'ci-fake-not-a-real-provider',
+    CONTACT_FROM_EMAIL:'support@ipsglobalservice.com',
+    CONTACT_REPLY_TO_EMAIL:'contact@ipsglobalservice.com',
+    EMAIL_VERIFICATION_SECRET:'CI-password-recovery-signing-secret-1234567890'};
+  const resetProof=crypto.randomBytes(32).toString('base64url');
+  const newPassword='ReplacedStrongPassword9!';
+  const bobId=bob.body.client.client_id;
+  await Client.updateOne({client_id:bobId},{$set:{
+    password_reset_hash:tokenDigest(resetProof,recoveryEnv.EMAIL_VERIFICATION_SECRET),
+    password_reset_expires_at:new Date(Date.now()+15*60000),password_reset_sent_at:new Date()
+  }});
+  const resetResult=await completePasswordRecovery(resetProof,newPassword,{
+    env:recoveryEnv,model:Client,hashPassword:testHash
+  });
+  assert.equal(resetResult.success,true);
+  const replay=await completePasswordRecovery(resetProof,newPassword,{
+    env:recoveryEnv,model:Client,hashPassword:testHash
+  });
+  assert.equal(replay.status,400);
+  const oldSession=await call('/api/client/me',{session:bob.cookie});
+  assert.equal(oldSession.status,401);
+  const oldLogin=await call('/api/client/login',{method:'POST',session:bob.cookie,
+    json:{email:'bob.test@example.org',password}});
+  assert.equal(oldLogin.status,401);
+  bob=await call('/api/client/login',{method:'POST',session:bob.cookie,
+    json:{email:'bob.test@example.org',password:newPassword}});
+  assert.equal(bob.status,200,JSON.stringify(bob.body));
+  const newSession=await call('/api/client/me',{session:bob.cookie});
+  assert.equal(newSession.status,200);
+  pass('One-use password recovery rotates session version; old sessions/password fail, new verified login succeeds');
 
   const admin=await call('/api/admin/login',{method:'POST',json:{email:'owner-ci@example.invalid',password:'LocalOnlyAdminPassword123!'}});
   assert.equal(admin.status,200,JSON.stringify(admin.body));
