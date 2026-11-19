@@ -380,7 +380,7 @@ app.patch('/api/clients/:id', async (req, res) => {
     if (!session) return;
     if (session.role !== 'admin' && !(session.role === 'client' && session.id === req.params.id)) return res.status(403).json({ success: false, error: 'You cannot update this client.' });
     const clientFields = ['username', 'phone', 'country', 'password'];
-    const adminFields = [...clientFields, 'email', 'status', 'notes'];
+    const adminFields = ['username', 'phone', 'country', 'email', 'status', 'notes'];
     const allowedFields = session.role === 'admin' ? adminFields : clientFields;
     const updates = Object.fromEntries(
       Object.entries(req.body || {}).filter(([key]) => allowedFields.includes(key))
@@ -390,8 +390,13 @@ app.patch('/api/clients/:id', async (req, res) => {
       if(!usernameValid(updates.username))return res.status(400).json({success:false,error:'Invalid username.'});
       updates.username_key=usernameKey(updates.username);
     }
+    if(req.body?.password!==undefined&&session.role==='admin')
+      return res.status(403).json({success:false,error:'Staff cannot set customer passwords. The account owner must use verified recovery.'});
     if(updates.password!==undefined){
       if(!passwordValid(updates.password))return res.status(400).json({success:false,error:'Password must be at least 8 characters with a capital letter, number and symbol.'});
+      const existing=await Client.findOne({client_id:req.params.id});
+      if(!existing||!verifyPassword(String(req.body?.current_password||''),existing.password))
+        return res.status(403).json({success:false,error:'Enter your current password before changing it.'});
       updates.password=hashPassword(updates.password);
     }
     if(updates.email!==undefined){
