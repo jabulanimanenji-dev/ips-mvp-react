@@ -24,8 +24,8 @@ export default function LoginPage(){
   }
   return <AcademicAuthShell eyebrow="YOUR IPS WORKSPACE" title="Welcome" italicTitle="back." intro="Access your IPS requests, quotations and conversations in one secure workspace.">
     <nav className="ipsa-auth-roles" aria-label="Choose account type">
-      <span className="active" aria-current="page">Seeking support</span>
-      <Link to="/writer/login">Working with IPS</Link>
+      <span className="active" aria-current="page">Student / Researcher</span>
+      <Link to="/writer/login">Specialist</Link>
     </nav>
     {error&&<div className="ipsa-auth-alert" role="alert">{error}</div>}
     {verificationNeeded?<VerifyEmailPanel email={email} verify={verifyClientEmail}
