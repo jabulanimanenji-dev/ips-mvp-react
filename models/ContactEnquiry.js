@@ -17,6 +17,7 @@ const ContactEnquirySchema=new mongoose.Schema({
   username:{type:String,default:'',maxlength:32,index:true},
   request_type:{type:String,enum:['general','quote'],default:'general'},
   service:{type:String,default:'',maxlength:100},
+  service_request_id:{type:String,default:'',index:true},
   discipline:{type:String,default:'',maxlength:160},
   study_level:{type:String,default:'',maxlength:70},
   preferred_deadline:{type:String,default:'',maxlength:10},
