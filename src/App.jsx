@@ -45,6 +45,7 @@ import WriterLayout from './pages/WriterLayout';
 import WriterDashboard from './components/writer/WriterDashboard';
 import WriterOrders from './components/writer/WriterOrders';
 import WriterProfile from './components/writer/WriterProfile.jsx';
+import SpecialistEarnings from './components/writer/SpecialistEarnings.jsx';
 import WriterOrderDetail from './components/writer/WriterOrderDetail';
 import ProviderServices from './components/writer/ProviderServices';
 import ServiceJobDetail from './components/common/ServiceJobDetail';
@@ -326,6 +327,7 @@ export default function App() {
         <Route path="orders/:orderId" element={<WriterOrderDetail />} />
         <Route path="messages" element={<DirectMessaging role="writer" />} />
         <Route path="profile" element={<WriterProfile />} />
+        <Route path="earnings" element={<SpecialistEarnings />} />
         <Route path="actions" element={<ActionCenter role="writer" />} />
       </Route>
 
