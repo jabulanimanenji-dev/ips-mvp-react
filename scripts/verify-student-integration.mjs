@@ -116,6 +116,16 @@ async function go(){
   const admin=await call('/api/admin/login',{method:'POST',json:{email:'owner-ci@example.invalid',password:'LocalOnlyAdminPassword123!'}});
   assert.equal(admin.status,200,JSON.stringify(admin.body));
   pass('Actual administrator authentication');
+  const leakedNotifications=await call('/api/notifications/client/'+aliceId);
+  assert.equal(leakedNotifications.status,401);
+  const foreignNotifications=await call('/api/notifications/client/'+aliceId,{session:bob.cookie});
+  assert.equal(foreignNotifications.status,403);
+  const ownNotifications=await call('/api/notifications/client/'+aliceId,{session:alice.cookie});
+  assert.equal(ownNotifications.status,200);
+  const unauthRevision=await call('/api/orders/ORDER-NOT-OWNED/revisions',{method:'POST',
+    json:{reason:'I would like an unauthorized revision request.'}});
+  assert.equal(unauthRevision.status,401);
+  pass('Private notifications and legacy academic-order revisions fail closed against guests and unrelated clients');
 
   const privateQuote={
     username:'PrivateAlice',service:'statistics-support',subject:'R'.repeat(160),
