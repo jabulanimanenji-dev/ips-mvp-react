@@ -173,6 +173,31 @@ try{
     assert.equal(await admin.locator('body').evaluate(el=>el.scrollWidth>window.innerWidth+4),false);
     await evidence(admin,name);
   });
+  await check('Student logout clears the cookie and denies re-entry to private workspaces',async()=>{
+    await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
+    await student.locator('.client-sidebar').getByRole('button',{name:'Logout'}).click();
+    await student.waitForURL(base+'/',{timeout:15000});
+    const response=await student.request.get(base+'/api/client/me');
+    assert.equal(response.status(),401);
+    await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
+    await student.waitForURL(/\/login/,{timeout:15000});
+  });
+  await check('Verified Specialist sign-out closes the backend session, not only the screen',async()=>{
+    await specialist.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
+    await specialist.locator('.writer-sidebar').getByRole('button',{name:'Logout'}).click();
+    await specialist.waitForURL(/\/writer\/login/,{timeout:15000});
+    assert.equal((await specialist.request.get(base+'/api/writer/me')).status(),401);
+    await specialist.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
+    await specialist.waitForURL(/\/writer\/login/,{timeout:15000});
+  });
+  await check('Administrator sign-out invalidates backend authentication',async()=>{
+    await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
+    await admin.locator('.admin-sidebar').getByRole('button',{name:'Logout'}).click();
+    await admin.waitForURL(/\/admin\/login/,{timeout:15000});
+    assert.equal((await admin.request.get(base+'/api/admin/me')).status(),401);
+    await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
+    await admin.waitForURL(/\/admin\/login/,{timeout:15000});
+  });
   const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});pages.push(mobile);
   await check('Mobile signup and quotation display private-first labels without overflow',async()=>{
     await mobile.goto(base+'/signup',{waitUntil:'domcontentloaded'});
