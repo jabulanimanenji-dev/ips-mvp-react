@@ -61,13 +61,13 @@ export default function ChannelInbox(){
           {threads.map(t=><button type="button" key={t._id} onClick={()=>setSelected(t._id)}
             style={{textAlign:'left',padding:12,border:'1px solid var(--border)',borderRadius:8,background:t._id===selected?'var(--bg-surface-2)':'transparent',color:'var(--text-primary)',cursor:'pointer'}}>
             <strong>{t.display_name||t.channel} · {t.channel}</strong><br/>
-            <small>{t.client_id?'Verified IPS account':t.verified_quote?'Verified IPS quotation contact':'Unverified external contact'}{t.unread_count?' · '+t.unread_count+' unread':''}</small>
+            <small>{t.status==='closed'?'Opted out / closed':t.verified_contact?'Verified written-contact request':t.client_id?'IPS account linked — no verified enquiry':'Unverified external contact'}{t.unread_count?' · '+t.unread_count+' unread':''}</small>
           </button>)}
         </div>
       </section>
       <section className="card">
         <h3>{contact?((contact.display_name||contact.channel)+' · '+contact.channel):'Select a conversation'}</h3>
-        {contact&&<p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>{contact.client_id?'Verified IPS account':contact.verified_quote?'Customer-verified quotation channel':'External chat not verified for IPS quotations'} — Keep academic documents and private project records in the protected IPS workspace.</p>}
+        {contact&&<p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>{contact.status==='closed'?'Contact withdrawn or closed':contact.verified_contact?'Customer-verified written channel':'No verified request — replies disabled'} — Keep academic documents and private project records in the protected IPS workspace.</p>}
         <div style={{maxHeight:500,minHeight:180,overflowY:'auto',padding:'10px 0'}}>
           {messages.map(m=><div key={m._id} style={{padding:12,marginBottom:8,background:m.direction==='inbound'?'var(--bg-surface-2)':'var(--bg-surface)',borderRadius:9}}>
             <small>{m.direction==='inbound'?'Customer':'IPS team'} · {new Date(m.createdAt).toLocaleString()}</small>
@@ -75,8 +75,8 @@ export default function ChannelInbox(){
           </div>)}
         </div>
         {contact&&<form onSubmit={reply}>
-          <label className="form-group"><span className="form-label">Reply</span><textarea className="form-textarea" value={body} onChange={e=>setBody(e.target.value)} rows={4} maxLength={2000} required/></label>
-          <button type="submit" className="btn btn-primary" disabled={loading}>{loading?'Sending…':'Send reply'}</button>
+          <label className="form-group"><span className="form-label">Reply through the customer's verified channel</span><textarea className="form-textarea" value={body} onChange={e=>setBody(e.target.value)} rows={4} maxLength={2000} required/></label>
+          <button type="submit" className="btn btn-primary" disabled={loading||!contact.verified_contact||contact.status==='closed'}>{loading?'Sending…':'Send reply'}</button>
         </form>}
       </section>
     </div>
