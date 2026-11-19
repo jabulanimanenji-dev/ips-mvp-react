@@ -94,9 +94,7 @@ export function AuthProvider({children}){
 
           removeWriter();
           removeAdmin();
-          removeWriter();
-      removeAdmin();
-      setUser(data.client);
+          setUser(data.client);
 
 
           return {
@@ -159,7 +157,7 @@ export function AuthProvider({children}){
         body:JSON.stringify({email,code})});
       const data=await response.json().catch(()=>({}));
       if(!response.ok||!data.success)return {success:false,error:data.error||'Verification failed.'};
-      setUser(data.client);
+      removeWriter();removeAdmin();setUser(data.client);
       return {success:true};
     }catch{return {success:false,error:'Email verification is not available.'};}
   },[setUser]);
