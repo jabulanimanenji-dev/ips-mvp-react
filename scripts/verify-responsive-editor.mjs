@@ -103,6 +103,8 @@ assert.match(quote, /case 'thesis'/);
 assert.match(quote, /case 'assignment'/);
 assert.match(quote, /case 'project'/);
 assert.match(quote, /case 'oddjob'/);
-assert.match(quote, /to="\/client\/order"/);
+assert.match(quote, /to="\/#request-support"/);
+assert.match(quote, /Get a Quote/);
+assert.match(quote, /written/);
 
 console.log('Responsive Platform Studio verification passed with isolated device preview, per-device hero settings, mobile navigation, diagnostics, and preserved academic pricing.');
