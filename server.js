@@ -159,7 +159,8 @@ const requireSession = (req, res) => {
 // specialist approval invalidates an otherwise unexpired signed cookie.
 app.use('/api',async(req,res,next)=>{
   const session=readSession(req);
-  if(!session||!['client','writer'].includes(session.role))return next();
+  if(!session)return next();
+  if(!['client','writer'].includes(session.role))return next();
   if(session.email_verified!==true)return res.status(401).json({success:false,error:'Email verification is required.'});
   try{
     if(mongoose.connection.readyState!==1)return res.status(503).json({success:false,error:'Account verification is temporarily unavailable.'});
