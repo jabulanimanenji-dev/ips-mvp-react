@@ -71,7 +71,7 @@ export default function ClientSupport() {
   return (
     <div>
       <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>Client help desk</div>
+        <div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>Student / Researcher support</div>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '.35rem 0' }}>Support Centre</h2>
         <p style={{ color: 'var(--text-muted)', margin: 0 }}>Open a trackable ticket, see every response, and keep the full history in your account.</p>
       </div>
