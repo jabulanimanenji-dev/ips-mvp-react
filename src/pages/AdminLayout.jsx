@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import '../styles/academic-workspace.css';
 import { Outlet, useLocation } from 'react-router-dom';
 import AdminSidebar from '../components/admin/AdminSidebar';
@@ -26,16 +26,8 @@ export default function AdminLayout() {
   const { config } = useCMS();
   const layout = config.layouts?.admin || {};
 
-  // Administration uses a dark workspace, without leaking that theme to
-  // public/customer pages when navigating away.
-  useEffect(() => {
-    const previous=document.documentElement.getAttribute('data-theme');
-    document.documentElement.setAttribute('data-theme','dark');
-    return () => {
-      if(previous===null)document.documentElement.removeAttribute('data-theme');
-      else document.documentElement.setAttribute('data-theme',previous);
-    };
-  }, []);
+  // Follow the same user-selected IPS theme as clients and specialists.
+  // Forcing a dark document inside a light Studio background caused illegible panels.
 
   const configuredTitle = (config.navigation?.admin || []).find(item =>
     location.pathname.startsWith(item.target?.split('?')[0])
@@ -66,13 +58,13 @@ export default function AdminLayout() {
             padding: '0 2rem',
           }}
         >
-          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#F8F4E9' }}>{pageTitle}</h1>
+          <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{pageTitle}</h1>
           <div className="flex items-center gap-3">
             <button
               className="btn btn-sm btn-ghost"
               onClick={toggleTheme}
               title="Toggle theme"
-              style={{ color: '#B9CDEE' }}
+              style={{ color: 'var(--text-secondary)' }}
             >
               {theme === 'dark' ? '☀️ Light' : '🌙 Dark'}
             </button>
@@ -81,7 +73,7 @@ export default function AdminLayout() {
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                background: 'var(--grad-hero)',
+                background: '#163b52',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
