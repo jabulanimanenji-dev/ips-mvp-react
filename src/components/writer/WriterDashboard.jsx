@@ -29,12 +29,11 @@ export default function WriterDashboard() {
   const jobs = useMemo(() => [
     ...services.map(job => ({
       ...job, id: job.request_id, title: job.title, kind: job.family === 'odd_job' ? 'Odd job' : 'Professional',
-      href: '/writer/services', due: job.deadline, payout: job.quote?.labor || 0
+      href: '/writer/services/'+encodeURIComponent(job.request_id), due: job.deadline
     })),
     ...orders.map(job => ({
       ...job, id: job.order_id, title: job.topic_title, kind: 'Academic & writing',
-      href: `/writer/orders/${job._id}`, due: job.deadline,
-      payout: job.writerPayout || Math.round((job.total_fee_usd || 0) * .6)
+      href: `/writer/orders/${job._id}`, due: job.deadline
     }))
   ], [orders, services]);
 
@@ -98,7 +97,7 @@ export default function WriterDashboard() {
         {shown.map(job => (
           <Link key={`${job.kind}-${job.id}`} to={job.href} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '1rem 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
             <div><small style={{ color: 'var(--primary)', fontWeight: 800 }}>{job.kind.toUpperCase()} · {job.id}</small><h3 style={{ margin: '.25rem 0' }}>{job.title}</h3><small style={{ color: 'var(--text-muted)' }}>{job.due ? `Due ${new Date(job.due).toLocaleDateString()}` : 'Deadline to be confirmed'}</small></div>
-            <div style={{ textAlign: 'right' }}><strong>{job.status}</strong><div>{job.progress || 0}% complete</div>{job.payout > 0 && <small>${job.payout}</small>}</div>
+            <div style={{ textAlign: 'right' }}><strong>{job.status}</strong><div>{job.progress || 0}% complete</div></div>
           </Link>
         ))}
       </section>
