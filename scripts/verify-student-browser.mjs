@@ -117,6 +117,14 @@ try {
     assert.ok(await desktop.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+2));
     await desktop.screenshot({path:'browser-evidence/choose-account-desktop.png',fullPage:true,animations:'disabled'});
   });
+  await caseRun('privacy and confidentiality page uses clear policies and remains readable',async()=>{
+    await desktop.goto(base+'/privacy',{waitUntil:'domcontentloaded'});
+    assert.equal(await desktop.getByRole('heading',{name:'Privacy & Confidentiality'}).count(),1);
+    assert.ok(await desktop.getByText(/You can approach IPS without revealing your legal name/i).isVisible());
+    assert.equal(await desktop.locator('a[href="mailto:privacy@ipsglobalservice.com"]').count(),1);
+    assert.ok(await desktop.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+2));
+    await desktop.screenshot({path:'browser-evidence/privacy-desktop.png',fullPage:true,animations:'disabled'});
+  });
   const mobile = await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
   mobile.on('console', msg => { if(msg.type()==='error') warnings.push('mobile console: '+msg.text()); });
   await mobile.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
