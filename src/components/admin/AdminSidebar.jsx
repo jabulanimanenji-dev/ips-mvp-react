@@ -48,7 +48,7 @@ export default function AdminSidebar() {
         style={{
           width: sidebarWidth,
           minHeight: '100vh',
-          background: `linear-gradient(180deg, ${config.theme?.dark?.surface || '#0B1C3B'} 0%, ${config.theme?.gradientStart || '#2D1F44'} 100%)`,
+          background: 'linear-gradient(180deg, #0d263c 0%, #173d58 100%)',
           borderRight: '1px solid var(--border)',
           display: 'flex',
           flexDirection: 'column',
@@ -89,7 +89,7 @@ export default function AdminSidebar() {
                   fontSize: '0.88rem',
                   fontWeight: 600,
                   color: active ? '#F8F4E9' : '#B9CDEE',
-                  background: active ? 'rgba(122,75,168,0.25)' : 'transparent',
+                  background: active ? 'rgba(204,170,110,0.16)' : 'transparent',
                   border: active ? '1px solid rgba(163,5,166,0.3)' : '1px solid transparent',
                   textDecoration: 'none',
                   transition: 'all 0.2s ease'
@@ -103,8 +103,8 @@ export default function AdminSidebar() {
               </Link>
             );
           })}
-          {hasAdminPermission('support.view') && <Link to="/admin/enquiries" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Contact & callbacks</Link>}
-          {hasAdminPermission('messages.view') && <Link to="/admin/external-chats" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ WhatsApp & Telegram inbox</Link>}
+          {hasAdminPermission('support.view') && <Link to="/admin/enquiries" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Private Quotes & Enquiries</Link>}
+          {hasAdminPermission('messages.view') && <Link to="/admin/external-chats" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Written Messaging Inbox</Link>}
         </nav>
 
         <div style={{ padding: '1rem 0.75rem', borderTop: '1px solid rgba(185,205,238,0.08)' }}>
