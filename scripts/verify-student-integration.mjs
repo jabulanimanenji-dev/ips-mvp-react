@@ -98,6 +98,13 @@ async function go(){
   assert.equal(clientQueue.status,403);
   const ownerQueue=await call('/api/contact-enquiries/admin',{session:admin.cookie});
   assert.equal(ownerQueue.status,200,JSON.stringify(ownerQueue.body));
+  const unauthAttention=await call('/api/contact-enquiries/admin/attention',{session:alice.cookie});
+  assert.equal(unauthAttention.status,403);
+  const attention=await call('/api/contact-enquiries/admin/attention',{session:admin.cookie});
+  assert.equal(attention.status,200);
+  assert.equal(attention.body.success,true);
+  assert.ok(attention.body.new_requests>=1);
+  assert.equal(typeof attention.body.overdue_updates,'number');
   const found=ownerQueue.body.enquiries.find(x=>x.enquiry_id===reference);
   assert.equal(found.username,'PrivateAlice');
   assert.equal(found.name,'');
