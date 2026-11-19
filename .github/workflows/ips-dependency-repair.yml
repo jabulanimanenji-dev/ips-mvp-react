@@ -1,0 +1,60 @@
+name: IPS Audited Dependency Repair
+on:
+  pull_request:
+    branches: [commercial/student-support-v1]
+permissions:
+  contents: read
+jobs:
+  audited-repair:
+    if: github.event.pull_request.head.ref == 'audit/central-ips-privacy-queue-20261119' && github.event.pull_request.head.repo.full_name == 'jabulanimanenji-dev/ips-mvp-react'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: audit/central-ips-privacy-queue-20261119
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Restore pinned dependency state without running install hooks
+        run: npm ci --ignore-scripts
+      - name: Repair advisories inside allowed semver ranges without force
+        run: npm audit fix --package-lock-only --ignore-scripts
+      - name: Refuse changes outside dependency manifests
+        shell: bash
+        run: |
+          set -euo pipefail
+          changes="$(git diff --name-only)"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            if echo "$changes" | grep -Ev '^(package.json|package-lock.json)$'; then
+              echo 'Unexpected dependency repair file changes' >&2
+              exit 1
+            fi
+          fi
+      - name: Restore exact repaired dependencies and build the real frontend
+        run: npm ci
+      - name: Audit all shipping packages for high/critical advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: Run entire IPS local verification without test bypasses
+        run: npm run check
+      - name: Commit only the reviewed dependency manifests if checks pass
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo 'No remaining safe semver dependency repair is required'
+            exit 0
+          fi
+          git config user.name 'IPS CI Security Gate'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Repair audited production dependency vulnerabilities without forced upgrades'
+          gh auth setup-git
+          git push origin HEAD:refs/heads/audit/central-ips-privacy-queue-20261119
