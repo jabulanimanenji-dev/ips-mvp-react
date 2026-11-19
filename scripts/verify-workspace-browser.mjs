@@ -51,6 +51,9 @@ try{
     await student.getByText('Private Quote Messages').waitFor({timeout:20000});
     assert.ok(await student.getByText('PrivateAlice').first().count()>=1);
     assert.equal(await student.evaluate(()=>localStorage.getItem('ips-user')),null);
+    const hero=student.locator('.dashboard-zone-client-hero section');
+    const gradient=await hero.evaluate(el=>getComputedStyle(el).backgroundImage);
+    assert.ok(gradient.includes('rgb(16, 42, 67)'), 'Student hero must use readable deep-navy background: '+gradient);
     await evidence(student,'student-overview');
   });
   await check('Signed-in student sees only their own quotation and can reply',async()=>{
@@ -88,6 +91,10 @@ try{
     await specialist.waitForURL(/\/writer/,{timeout:15000});
     await specialist.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
     await specialist.locator('.writer-layout').waitFor({timeout:15000});
+    const hero=specialist.locator('.dashboard-zone-writer-hero section');
+    const gradient=await hero.evaluate(el=>getComputedStyle(el).backgroundImage);
+    assert.ok(gradient.includes('rgb(16, 42, 67)'), 'Specialist hero must use readable deep-navy background: '+gradient);
+    assert.ok(await specialist.getByText('Specialist Workspace').count()>=1);
     await evidence(specialist,'specialist-dashboard');
   });
   for(const [route,name] of [
@@ -117,6 +124,10 @@ try{
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
     const control=admin.locator('.ips-contact-admin');
     await control.waitFor({timeout:15000});
+    const sidebar=admin.locator('.admin-sidebar');
+    const bg=await sidebar.evaluate(el=>getComputedStyle(el).backgroundImage);
+    assert.ok(bg.includes('rgb(13, 38, 60)'), 'Administrator sidebar must be navy, not legacy purple: '+bg);
+    assert.equal(await admin.getByText('Contact & callbacks').count(),0);
     await evidence(admin,'admin-private-quotation-queue');
   });
   for(const [route,name] of [
