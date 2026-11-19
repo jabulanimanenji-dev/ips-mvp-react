@@ -105,8 +105,10 @@ try{
     const gradient=await hero.evaluate(el=>getComputedStyle(el).backgroundImage);
     assert.ok(gradient.includes('rgb(16, 42, 67)'), 'Specialist hero must use readable deep-navy background: '+gradient);
     assert.ok(await specialist.getByText('Specialist Workspace').count()>=1);
+    await specialist.getByRole('button',{name:'Completed',exact:true}).click();
+    await specialist.getByText(paidRequest.title).first().waitFor({timeout:12000});
     assert.ok(await specialist.getByText(paidRequest.title).count()>=1,
-      'The genuine paid, specialist-completed academic project must appear in the specialist workspace.');
+      'The paid, reviewed and completed customer project must appear under the specialist Completed filter.');
     await specialist.waitForFunction(()=>{
       const cards=[...document.querySelectorAll('.dashboard-zone-writer-stats .card')];
       const first=cards.find(card=>card.textContent?.includes('All jobs'));
