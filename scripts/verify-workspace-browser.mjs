@@ -119,6 +119,15 @@ try{
     assert.ok(await specialist.getByText('Specialist Workspace').count()>=1);
     assert.ok(await specialist.getByText(/Thesis & Dissertation Guidance/i).count()>=1,
       'Assigned academic request must appear in specialist work queue.');
+    await specialist.waitForFunction(()=>{
+      const cards=[...document.querySelectorAll('.dashboard-zone-writer-stats .card')];
+      const first=cards.find(card=>card.textContent?.includes('All jobs'));
+      const active=cards.find(card=>card.textContent?.includes('Active'));
+      return Number(first?.querySelector('strong')?.textContent)>=1 &&
+        Number(active?.querySelector('strong')?.textContent)>=1;
+    },null,{timeout:15000});
+    assert.ok(await specialist.locator('.dashboard-zone-writer-stats .card').first().getByText('1').count()>=1,
+      'Specialist totals must reflect the assigned paid work.');
     await evidence(specialist,'specialist-dashboard');
   });
   for(const [route,name] of [
