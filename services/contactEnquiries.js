@@ -128,7 +128,7 @@ export function registerEnquiryRoutes(app,{requireSession}){
         ContactEnquiry.countDocuments({next_update_at:{$lte:now},status:{$in:['new','in_progress']},
           contact_consent:true,contact_verified:true}),
         ContactEnquiry.countDocuments({status:'new',contact_verified:true,contact_consent:true}),
-        ContactEnquiry.countDocuments({status:{$in:['new','in_progress']},assigned_admin_id:'',
+        ContactEnquiry.countDocuments({status:{$in:['new','in_progress']},assigned_admin_id:{$in:['',null]},
           contact_verified:true,contact_consent:true})
       ]);
       res.set('Cache-Control','no-store');
@@ -149,7 +149,7 @@ export function registerEnquiryRoutes(app,{requireSession}){
     try{
       const now=new Date();
       const lead=await ContactEnquiry.findOneAndUpdate({
-        enquiry_id:req.params.id,assigned_admin_id:'',status:{$in:['new','in_progress']},
+        enquiry_id:req.params.id,assigned_admin_id:{$in:['',null]},status:{$in:['new','in_progress']},
         contact_verified:true,contact_consent:true
       },{$set:{assigned_admin_id:session.id,assigned_at:now,status:'in_progress',
         review_started_at:now,last_activity_at:now}},{new:true});
