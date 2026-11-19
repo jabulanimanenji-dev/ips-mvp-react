@@ -97,14 +97,14 @@ const defaultPageDesign = page => ({
   enabled: true,
   background: {
     type: 'theme',
-    color: '#00010D',
-    gradientStart: '#321A6B',
-    gradientEnd: '#A305A6',
+    color: '#f4f6f7',
+    gradientStart: '#102a43',
+    gradientEnd: '#24465c',
     assetId: '',
     posterAssetId: '',
     positionX: 50,
     positionY: 50,
-    overlayColor: '#00010D',
+    overlayColor: '#0d2335',
     overlayOpacity: 0,
     responsive: Object.fromEntries(['desktop', 'tablet', 'mobile'].map(device => [device, {
       type: 'inherit',
@@ -264,38 +264,38 @@ export const DEFAULT_PLATFORM_CONFIG = {
   schemaVersion: 6,
   theme: {
     light: {
-      primary: '#A305A6',
-      primaryDark: '#7A4BA8',
-      accent: '#D07E47',
-      background: '#F8F4E9',
+      primary: '#183B53',
+      primaryDark: '#112C42',
+      accent: '#9F7944',
+      background: '#F5F6F5',
       surface: '#FFFFFF',
-      surfaceAlt: '#F6DBC0',
-      text: '#131F38',
-      textSecondary: '#465083',
-      textMuted: '#748B91',
-      border: '#E4DFD6',
-      success: '#16A34A',
-      danger: '#DC2626'
+      surfaceAlt: '#F1F4F5',
+      text: '#172C3C',
+      textSecondary: '#43586A',
+      textMuted: '#607283',
+      border: '#DCE3E7',
+      success: '#216746',
+      danger: '#A43A3A'
     },
     dark: {
-      primary: '#A305A6',
-      primaryDark: '#7A4BA8',
-      accent: '#ED9E6F',
-      background: '#00010D',
-      surface: '#0C111F',
-      surfaceAlt: '#131F38',
-      text: '#F8F4E9',
-      textSecondary: '#B9CDEE',
-      textMuted: '#748B91',
-      border: '#26324A',
-      success: '#22C55E',
-      danger: '#EF4444'
+      primary: '#A8CBDF',
+      primaryDark: '#9EBED3',
+      accent: '#D7B781',
+      background: '#101D28',
+      surface: '#172A39',
+      surfaceAlt: '#1E3445',
+      text: '#F4F6F6',
+      textSecondary: '#D3DFE4',
+      textMuted: '#B3C6D0',
+      border: '#354C5C',
+      success: '#7FC89F',
+      danger: '#F3A2A2'
     },
-    gradientStart: '#321A6B',
-    gradientEnd: '#A305A6',
+    gradientStart: '#102A43',
+    gradientEnd: '#24465C',
     fontFamily: 'Inter',
-    buttonRadius: 10,
-    cardRadius: 16
+    buttonRadius: 8,
+    cardRadius: 12
   },
   layouts: {
     public: { contentWidth: 1200, contentPadding: 24, sectionSpacing: 80, density: 'comfortable' },
@@ -609,6 +609,36 @@ const normaliseNav = (items, portal) => {
   return cleaned;
 };
 
+// Legacy visual-theme values were published by older IPS builds. Do not
+// silently discard intentional CMS edits: migrate only exact old defaults.
+// This fixes the real purple-overlay bug at the config authority, before the
+// CMS provider writes CSS variables inline to document.documentElement.
+export const LEGACY_IPS_THEME_DEFAULTS = Object.freeze({
+  light:{
+    primary:'#A305A6',primaryDark:'#7A4BA8',accent:'#D07E47',
+    background:'#F8F4E9',surface:'#FFFFFF',surfaceAlt:'#F6DBC0',
+    text:'#131F38',textSecondary:'#465083',textMuted:'#748B91',
+    border:'#E4DFD6',success:'#16A34A',danger:'#DC2626'
+  },
+  dark:{
+    primary:'#A305A6',primaryDark:'#7A4BA8',accent:'#ED9E6F',
+    background:'#00010D',surface:'#0C111F',surfaceAlt:'#131F38',
+    text:'#F8F4E9',textSecondary:'#B9CDEE',textMuted:'#748B91',
+    border:'#26324A',success:'#22C55E',danger:'#EF4444'
+  },
+  gradientStart:'#321A6B',
+  gradientEnd:'#A305A6'
+});
+export const migrateLegacyIpsPalette=(raw,mode,defaults)=>{
+  const source=raw||{},old=LEGACY_IPS_THEME_DEFAULTS[mode];
+  return Object.fromEntries(Object.entries(defaults).map(([name,fallback])=>{
+    const current=source[name];
+    const legacy=old[name];
+    return [name,typeof current==='string'&&current.toLowerCase()===legacy?.toLowerCase()
+      ?fallback:current??fallback];
+  }));
+};
+
 export function normalisePlatformConfig(input = {}) {
   const base = clonePlatformConfig(DEFAULT_PLATFORM_CONFIG);
   const source = input && typeof input === 'object' ? input : {};
@@ -616,13 +646,17 @@ export function normalisePlatformConfig(input = {}) {
   const theme = source.theme || {};
 
   ['light', 'dark'].forEach(mode => {
-    const modeSource = theme[mode] || {};
+    const modeSource=migrateLegacyIpsPalette(theme[mode],mode,base.theme[mode]);
     Object.keys(base.theme[mode]).forEach(key => {
       result.theme[mode][key] = cleanColor(modeSource[key], base.theme[mode][key]);
     });
   });
-  result.theme.gradientStart = cleanColor(theme.gradientStart, base.theme.gradientStart);
-  result.theme.gradientEnd = cleanColor(theme.gradientEnd, base.theme.gradientEnd);
+  const gradientStart=String(theme.gradientStart||'').toLowerCase()===
+    LEGACY_IPS_THEME_DEFAULTS.gradientStart.toLowerCase()?base.theme.gradientStart:theme.gradientStart;
+  const gradientEnd=String(theme.gradientEnd||'').toLowerCase()===
+    LEGACY_IPS_THEME_DEFAULTS.gradientEnd.toLowerCase()?base.theme.gradientEnd:theme.gradientEnd;
+  result.theme.gradientStart = cleanColor(gradientStart, base.theme.gradientStart);
+  result.theme.gradientEnd = cleanColor(gradientEnd, base.theme.gradientEnd);
   result.theme.fontFamily = ['Inter', 'System', 'Georgia', 'Arial', 'Verdana'].includes(theme.fontFamily) ? theme.fontFamily : base.theme.fontFamily;
   result.theme.buttonRadius = clamp(theme.buttonRadius, 0, 40, base.theme.buttonRadius);
   result.theme.cardRadius = clamp(theme.cardRadius, 0, 40, base.theme.cardRadius);
