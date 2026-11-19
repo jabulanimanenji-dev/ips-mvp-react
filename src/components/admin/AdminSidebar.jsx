@@ -13,6 +13,7 @@ export default function AdminSidebar() {
   const [messageCount, setMessageCount] = useState(0);
   const [supportCount, setSupportCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutError,setLogoutError]=useState('');
   const navItems = (config.navigation?.admin || []).filter(item => {
     if (!item.visible) return false;
     const permission = ADMIN_NAV_PERMISSIONS[item.target.split('?')[0]];
@@ -32,9 +33,11 @@ export default function AdminSidebar() {
     }).catch(() => {});
   }, [location.pathname]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/admin/login', { replace: true });
+  const handleLogout = async () => {
+    setLogoutError('');
+    const result=await logout();
+    if(result?.success)navigate('/admin/login',{replace:true});
+    else setLogoutError(result?.error||'Unable to end your session. Please try again.');
   };
 
   return (
@@ -109,6 +112,7 @@ export default function AdminSidebar() {
 
         <div style={{ padding: '1rem 0.75rem', borderTop: '1px solid rgba(185,205,238,0.08)' }}>
           <button type="button" onClick={handleLogout} className="btn btn-danger" style={{ width: '100%' }}>Logout</button>
+          {logoutError&&<small role="alert" style={{color:'#ffb3b3',fontSize:'.74rem'}}>{logoutError}</small>}
         </div>
       </aside>
 
