@@ -1,10 +1,13 @@
 import React,{useCallback,useEffect,useState} from 'react';
+import {Link} from 'react-router-dom';
+import ChannelLinkControls from './ChannelLinkControls.jsx';
 import {serviceTitle,quoteStatusTitle} from '../../utils/quoteLabels.js';
 
 // This inbox intentionally reads only quotations associated with the
 // authenticated IPS student session. The public quote reference is not an
 // authorization token and must never be used for guest lookup.
 export default function PrivateQuoteInbox(){
+  const [claimRef,setClaimRef]=useState(''),[claimBusy,setClaimBusy]=useState(false);
   const [rows,setRows]=useState([]),[selected,setSelected]=useState(''),[message,setMessage]=useState('');
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true);
   const refresh=useCallback(async()=>{
@@ -20,6 +23,22 @@ export default function PrivateQuoteInbox(){
   },[]);
   useEffect(()=>{refresh();},[refresh]);
   const quote=rows.find(row=>row.enquiry_id===selected);
+  async function claim(e){
+    e.preventDefault();
+    const ref=claimRef.trim().toUpperCase();
+    setError('');setNotice('');setClaimBusy(true);
+    try{
+      const response=await fetch('/api/quote-requests/claim',{
+        method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({quote_id:ref})
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.success)throw Error(result.error||'Your quotation could not be linked.');
+      setClaimRef('');setNotice('Quotation linked to your private account.');
+      await refresh();
+    }catch(err){setError(err.message||'Unable to link this quotation.');}
+    finally{setClaimBusy(false);}
+  }
   async function send(e){
     e.preventDefault();
     if(!quote||message.trim().length<3)return;
@@ -47,6 +66,15 @@ export default function PrivateQuoteInbox(){
       </div>
       <button type="button" className="btn btn-ghost btn-sm" onClick={()=>{setLoading(true);refresh();}} disabled={busy}>Refresh</button>
     </div>
+    <form onSubmit={claim} style={{display:'flex',alignItems:'end',gap:10,flexWrap:'wrap',marginTop:12,marginBottom:10}}>
+      <label className="form-group" style={{flex:'1 1 230px',margin:0}}>
+        <span className="form-label">Already requested a quotation as a guest?</span>
+        <input className="form-input" value={claimRef} onChange={e=>setClaimRef(e.target.value)}
+          required maxLength={24} pattern="IPS-Q-[A-Fa-f0-9]{18}" placeholder="IPS-Q-..." aria-label="Private IPS quote reference" />
+      </label>
+      <button className="btn btn-ghost" type="submit" disabled={claimBusy||!claimRef.trim()}>{claimBusy?'Verifying…':'Link verified quotation'}</button>
+    </form>
+    <small>Only the owner of the verified email or linked Telegram/WhatsApp conversation can claim this reference. A reference alone never grants access.</small>
     {loading?<p role="status">Loading your private quotations…</p>:null}
     {error?<p role="alert" style={{color:'var(--danger)',fontSize:'.85rem'}}>{error}</p>:null}
     {!loading&&!error&&rows.length===0?<p style={{color:'var(--text-muted)',fontSize:'.88rem'}}>No quotations are linked to this workspace yet. <a href="/#request-support">Get a Quote</a> to submit a private request.</p>:null}
@@ -57,7 +85,10 @@ export default function PrivateQuoteInbox(){
         </select>
       </label>
       {quote&&<div>
-        <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Private reference: <strong>{quote.enquiry_id}</strong>. Status: <strong>{quoteStatusTitle(quote.status)}</strong>. Quotation details and payment arrangements require separate confirmation.</p>
+        <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Private reference: <strong>{quote.enquiry_id}</strong>. Status: <strong>{quoteStatusTitle(quote.status)}</strong>. Preferred written channel: <strong>{quote.preferred_channel}</strong>.</p>
+        {quote.service_request_id?
+          <p role="status"><Link className="btn btn-primary" to={'/client/services/'+encodeURIComponent(quote.service_request_id)}>Open managed IPS project {quote.service_request_id}</Link> — review itemized quotations and approve or reject terms in your private project workspace.</p>:
+          <p>IPS is reviewing your requirements. A managed project will appear here after staff handoff. A request itself is not a payment obligation.</p>
         {quote.next_update_at&&quote.status!=='closed'&&quote.status!=='waiting_for_customer'&&
           <p role="status" style={{fontSize:'.85rem',fontWeight:600}}>Next written IPS update expected by: {new Date(quote.next_update_at).toLocaleString()}. If this time has passed, IPS still has your request and should provide an update.</p>}
         {!quote.next_update_at&&quote.status==='new'&&
@@ -78,6 +109,7 @@ export default function PrivateQuoteInbox(){
         </form>}
       </div>}
     </div>}
+    <ChannelLinkControls/>
     <p style={{fontSize:'.77rem',marginTop:18,color:'var(--text-muted)'}}>
       IPS does not call customers. Avoid posting account passwords, card numbers or identifiable research participant data.
       Your username and academic requests are not public.
