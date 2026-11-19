@@ -474,7 +474,7 @@ app.post('/api/orders', async (req, res) => {
     const order = new Order({
       ...req.body,
       client_id: session.id,
-      client_name: client.full_name,
+      client_name: (client.username || client.full_name || 'Private customer'),
       client_email: client.email,
       order_id: newId
     });
@@ -1591,7 +1591,7 @@ app.post('/api/support-tickets', async (req, res) => {
     const ticket = await SupportTicket.create({
       ticket_id: ticketId,
       client_id: client.client_id,
-      client_name: client.full_name,
+      client_name: (client.username || client.full_name || 'Private customer'),
       client_email: client.email,
       subject,
       category: req.body?.category,
@@ -2312,7 +2312,7 @@ app.post('/api/service-catalog/:slug/requests', async (req, res) => {
     const count = await ServiceRequest.countDocuments(); const requestId = `SRV-${String(count + 1).padStart(5, '0')}`;
     const snapshot = buildServiceRequestSnapshot({ service, category, answers: validation.answers });
     const request = await ServiceRequest.create({
-      request_id: requestId, client_id: session.id, client_name: client.full_name, client_email: client.email,
+      request_id: requestId, client_id: session.id, client_name: (client.username || client.full_name || 'Private customer'), client_email: client.email,
       family: category.family === 'odd_job' ? 'odd_job' : 'professional', category: category.name,
       title: String(req.body?.title || service.name).trim().slice(0, 180), description: String(req.body?.description || `Dynamic request for ${service.name}`).trim(),
       desired_outcome: String(req.body?.desired_outcome || '').trim(), delivery_mode: req.body?.delivery_mode || 'remote', location: String(req.body?.location || ''),
@@ -2322,7 +2322,7 @@ app.post('/api/service-catalog/:slug/requests', async (req, res) => {
       status_history: [{ status: 'New Request', actor_id: session.id, actor_role: 'client', reason: 'Dynamic service request submitted' }]
     });
     await recordAudit({ order_id: requestId, actor_id: session.id, actor_role: 'client', action: 'service_engine_request_created', details: { serviceId: service.serviceId, revision: service.revision || 1 } });
-    await Notification.create({ recipient_id: 'admin', recipient_role: 'admin', order_id: requestId, type: 'service_request', message: `New ${service.name} request from ${client.full_name}` }).catch(() => {});
+    await Notification.create({ recipient_id: 'admin', recipient_role: 'admin', order_id: requestId, type: 'service_request', message: `New ${service.name} request from ${(client.username || client.full_name || 'Private customer')}` }).catch(() => {});
     res.status(201).json({ success: true, request });
   } catch (err) { res.status(500).json({ success: false, error: err.message }); }
 });
@@ -2377,7 +2377,7 @@ app.post('/api/services', async (req, res) => {
         service: body.service_slug
       } : {},
       client_id: session.id,
-      client_name: client.full_name,
+      client_name: (client.username || client.full_name || 'Private customer'),
       client_email: client.email,
       request_id: requestId,
       payment_status: 'unpaid',
