@@ -182,8 +182,12 @@ try{
     const control=admin.locator('.ips-contact-admin');
     await control.waitFor({timeout:15000});
     const sidebar=admin.locator('.admin-sidebar');
-    const bg=await sidebar.evaluate(el=>getComputedStyle(el).backgroundImage);
-    assert.ok(bg.includes('rgb(13, 38, 60)'), 'Administrator sidebar must be navy, not legacy purple: '+bg);
+    const tone=await sidebar.evaluate(el=>{
+      const style=getComputedStyle(el);
+      return {background:style.backgroundColor,text:getComputedStyle(el.querySelector('nav a')).color};
+    });
+    assert.equal(tone.background,'rgb(20, 43, 61)','All IPS portal sidebars must use the same professional navy');
+    assert.equal(tone.text,'rgb(203, 216, 224)','Administration navigation links must retain readable contrast');
     assert.equal(await admin.getByText('Contact & callbacks').count(),0);
     await evidence(admin,'admin-private-quotation-queue');
   });
