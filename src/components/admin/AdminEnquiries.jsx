@@ -80,7 +80,7 @@ export default function AdminEnquiries(){
   }
   return <div className="ips-contact-admin">
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12,marginBottom:24}}>
-      <div><h1>Private Quotes & Enquiries</h1><p style={{color:'var(--text-muted)'}}>Review private requests and reply only through each customer's verified, selected written channel.</p></div>
+      <div><h1 style={{color:'#1d344b'}}>Private Quotes & Enquiries</h1><p style={{color:'#52667a'}}>Review private requests and reply only through each customer's verified, selected written channel.</p></div>
       <button className="btn btn-ghost" type="button" onClick={()=>refresh()}>Refresh</button>
     </div>
     <p className="card" style={{marginBottom:15,fontSize:'.86rem'}}>Written communication only — no phone or voice calls. Never send private academic documents, research participant records, passwords or payment credentials through external messaging. Use only verified customer-selected contact channels.</p>
