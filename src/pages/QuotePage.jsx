@@ -200,13 +200,12 @@ export default function QuotePage() {
               marginTop: '0.5rem'
             }}
           >
-            Get an Instant Quote
+            Explore a Price Estimate
           </h1>
 
 
           <p className="section-subtitle">
-            Transparent pricing based on your service,
-            academic level, and deadline.
+            Estimate service pricing by academic level and deadline. This calculator does not constitute a final IPS quotation.
           </p>
 
         </div>
@@ -510,21 +509,13 @@ export default function QuotePage() {
 
 
             <Link
-              to="/client/order"
-              state={{
-                service,
-                level,
-                quantity,
-                deadline,
-                estimatedPrice:
-                  calculation?.total || 0
-              }}
+              to="/#request-support"
               className="btn btn-primary btn-lg"
               style={{
                 width: '100%'
               }}
             >
-              Get Quote
+              Get a Quote
             </Link>
 
 
@@ -537,8 +528,7 @@ export default function QuotePage() {
                   'var(--text-muted)'
               }}
             >
-              No payment required to place your order.
-              Full ownership upon completion.
+              Submit a private request using a username. IPS reviews the requirements and responds in writing through your selected contact method. No calls or upfront payment.
             </p>
 
 
