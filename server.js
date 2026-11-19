@@ -713,7 +713,7 @@ app.patch('/api/writers/:id', async (req, res) => {
       'availability',
       'status'
     ];
-    const providerUpdates = ['full_name', 'password', 'primary_expertise', 'secondary_expertise', 'academic_level', 'availability'];
+    const providerUpdates = ['password', 'primary_expertise', 'secondary_expertise', 'academic_level', 'availability'];
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => (session.role === 'admin' ? allowedUpdates : providerUpdates).includes(key))
     );
