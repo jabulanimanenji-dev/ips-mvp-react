@@ -8,10 +8,12 @@ function ContactActions({lead}){
     </p>
     {email&&preferred_channel==='email'&&contact_verified&&
       <small>Email replies use only the verified IPS business address. Do not send from a personal account.</small>}
-    {phone&&preferred_channel==='whatsapp'&&contact_verified&&
-      <a className="btn btn-ghost" href={'https://wa.me/'+phone.replace('+','')+'?text='+encodeURIComponent('IPS reference: '+enquiry_id)}
-        target="_blank" rel="noopener noreferrer">Open verified WhatsApp chat ↗</a>}
-    {preferred_channel==='telegram'&&<small>Telegram contact requires the customer to start @IPScontactBot, provide their reference and link the conversation. Never send academic documents through bot chat.</small>}
+    {contact_verified&&lead.contact_thread_id&&['whatsapp','telegram'].includes(preferred_channel)&&
+      <a className="btn btn-ghost" href={'/admin/external-chats?thread='+encodeURIComponent(lead.contact_thread_id)}>
+        Open verified {preferred_channel==='telegram'?'Telegram':'WhatsApp'} conversation ↗
+      </a>}
+    {['telegram','whatsapp'].includes(preferred_channel)&&!contact_verified&&
+      <small>Wait until the customer initiates this chat and sends the exact quotation reference; IPS will match the conversation before contact is verified.</small>}
     {preferred_channel==='workspace'&&<small>Customer chose their private IPS workspace. Record the quote in the authenticated project area, not email or external messaging.</small>}
   </div>;
 }
@@ -62,11 +64,16 @@ export default function AdminEnquiries(){
     event.preventDefault();if(!current||!message.trim())return;
     setError('');setStatusMessage('');setBusy(true);
     try{
-      const response=await fetch('/api/contact-enquiries/admin/'+encodeURIComponent(current.enquiry_id)+'/email-reply',
-      {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message})});
+      const workspace=current.preferred_channel==='workspace';
+      const url=workspace
+        ?'/api/quote-requests/admin/'+encodeURIComponent(current.enquiry_id)+'/workspace-reply'
+        :'/api/contact-enquiries/admin/'+encodeURIComponent(current.enquiry_id)+'/email-reply';
+      const response=await fetch(url,{
+        method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message})
+      });
       const data=await response.json();
       if(!response.ok||!data.success)throw Error(data.error||'Email not confirmed.');
-      setMessage('');setStatusMessage('Email accepted by provider (delivery is not guaranteed).');
+      setMessage('');setStatusMessage(workspace?'Written reply saved in the customer workspace.':'Email accepted by the provider; inbox delivery is not guaranteed.');
       await refresh();
     }catch(ex){setError(ex.message);}
     finally{setBusy(false);}
@@ -130,11 +137,17 @@ export default function AdminEnquiries(){
             </div>)}
           </div>
           <form onSubmit={send}>
-            <label className="form-label">Reply by email {emailReady?'(configured)':'(pending sender verification)'}</label>
+            <label className="form-label">{current.preferred_channel==='workspace'?'Reply in private IPS workspace':current.preferred_channel==='email'?'Reply by verified IPS email':'Reply using the verified external conversation link above'}</label>
             <textarea className="form-textarea" maxLength={2400} minLength={3} rows={5} required value={message} onChange={e=>setMessage(e.target.value)} placeholder="Write a response to this customer" />
-            <button type="submit" className="btn btn-primary" disabled={busy||!emailReady||!current.email||current.preferred_channel!=='email'||!current.contact_verified||current.status==='closed'} style={{marginTop:12}}>{busy?'Sending…':'Send verified email'}</button>
+            {['email','workspace'].includes(current.preferred_channel)&&
+            <button type="submit" className="btn btn-primary"
+              disabled={busy||!current.contact_verified||current.status==='closed'||(current.preferred_channel==='email'&&(!emailReady||!current.email))}
+              style={{marginTop:12}}>
+              {busy?'Sending…':current.preferred_channel==='workspace'?'Send Private Workspace Reply':'Send Verified Email'}
+            </button>}
           </form>
-          {!emailReady&&<p style={{fontSize:'.8rem',color:'var(--text-muted)',marginTop:10}}>Automated email requires a verified sending domain and backend Resend key. Never switch a customer to another channel without permission, and do not use a personal email address.</p>}
+          {current.preferred_channel==='email'&&!emailReady&&<p style={{fontSize:'.8rem',color:'var(--text-muted)',marginTop:10}}>Email requires a verified IPS sender and backend mail provider. Do not use a personal account or change the customer's selected channel.</p>}
+          {['telegram','whatsapp'].includes(current.preferred_channel)&&<p style={{fontSize:'.8rem',color:'var(--text-muted)',marginTop:10}}>Open the linked, verified conversation above to reply. This inbox cannot redirect messages to another channel, and no phone or voice calls are permitted.</p>}
         </>}
       </section>
     </div>
