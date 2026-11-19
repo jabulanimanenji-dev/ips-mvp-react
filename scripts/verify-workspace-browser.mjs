@@ -7,6 +7,7 @@ import Writer from '../models/Writer.js';
 import ServiceRequest from '../models/ServiceRequest.js';
 
 const base=process.env.BROWSER_BASE_URL||'http://127.0.0.1:8080';
+const adminEntry=process.env.VITE_ADMIN_ENTRY_PATH||'/ips-mission-control';
 if(!process.env.MONGODB_URI||!base.startsWith('http://127.0.0.1:'))throw Error('Workspace browser qualification requires the isolated local CI API.');
 await mkdir('workspace-evidence',{recursive:true});
 const failures=[];
@@ -193,10 +194,10 @@ try{
   await check('Administrator sign-out invalidates backend authentication',async()=>{
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
     await admin.locator('.admin-sidebar').getByRole('button',{name:'Logout'}).click();
-    await admin.waitForURL(/\/admin\/login/,{timeout:15000});
+    await admin.waitForURL(url=>url.pathname===adminEntry,{timeout:15000});
     assert.equal((await admin.request.get(base+'/api/admin/me')).status(),401);
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
-    await admin.waitForURL(/\/admin\/login/,{timeout:15000});
+    await admin.waitForURL(url=>url.pathname===adminEntry,{timeout:15000});
   });
   const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});pages.push(mobile);
   await check('Mobile signup and quotation display private-first labels without overflow',async()=>{
