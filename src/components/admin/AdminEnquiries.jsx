@@ -1,5 +1,7 @@
 import React,{useEffect,useState} from 'react';
 import {serviceTitle,quoteSubjectTitle,quoteStatusTitle,contactChannelTitle} from '../../utils/quoteLabels.js';
+const needsUpdate=lead=>Boolean(lead?.next_update_at&&lead.status!=='closed'&&lead.status!=='waiting_for_customer'&&new Date(lead.next_update_at).getTime()<=Date.now());
+const localDateTime=iso=>{if(!iso)return '';const value=new Date(iso);return new Date(value.getTime()-value.getTimezoneOffset()*60000).toISOString().slice(0,16);};
 
 function ContactActions({lead}){
   const {email,phone,preferred_channel,enquiry_id,contact_verified}=lead;
@@ -26,10 +28,13 @@ export default function AdminEnquiries(){
   const [busy,setBusy]=useState(false);
   const [emailReady,setEmailReady]=useState(false);
   const [emailJobs,setEmailJobs]=useState([]);
+  const [nextUpdate,setNextUpdate]=useState('');
   const [error,setError]=useState('');
   const current=leads.find(v=>v.enquiry_id===selected);
-  const visible=leads.filter(x=>(filter==='all'||(filter==='open'?x.status!=='closed':x.status===filter)) &&
-      [x.enquiry_id,x.username,x.name,x.email,x.phone,x.subject].join(' ').toLowerCase().includes(query.toLowerCase()));
+  const visible=leads.filter(x=>(filter==='all'||(filter==='open'?x.status!=='closed':filter==='overdue'?needsUpdate(x):x.status===filter)) &&
+      [x.enquiry_id,x.username,x.name,x.email,x.phone,x.subject].join(' ').toLowerCase().includes(query.toLowerCase()))
+      .sort((a,b)=>Number(needsUpdate(b))-Number(needsUpdate(a)) ||
+        (new Date(a.next_update_at||'9999-12-31').getTime()-new Date(b.next_update_at||'9999-12-31').getTime()));
   async function refresh(){
     try{
       const response=await fetch('/api/contact-enquiries/admin',{cache:'no-store'});
@@ -40,6 +45,7 @@ export default function AdminEnquiries(){
     }catch(ex){setError(ex.message);}
   }
   useEffect(()=>{refresh();fetch('/api/contact-enquiries/config',{cache:'no-store'}).then(r=>r.json()).then(r=>setEmailReady(Boolean(r.email_replies_configured))).catch(()=>{});},[]);
+  useEffect(()=>{setNextUpdate(localDateTime(current?.next_update_at));},[selected,current?.next_update_at]);
   useEffect(()=>{
     if(!selected){setEmailJobs([]);return;}
     let mounted=true;
@@ -94,14 +100,14 @@ export default function AdminEnquiries(){
           <input className="form-input" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search username or reference" aria-label="Search enquiries"/>
           <select className="form-select" value={filter} onChange={e=>setFilter(e.target.value)} aria-label="Filter enquiries">
             <option value="open">Active</option><option value="all">All</option><option value="new">New</option>
-            <option value="in_progress">In progress</option><option value="waiting_for_customer">Waiting</option><option value="closed">Closed</option>
+            <option value="in_progress">In progress</option><option value="waiting_for_customer">Waiting</option><option value="overdue">Updates overdue</option><option value="closed">Closed</option>
           </select>
         </div>
         {visible.length===0&&<p>No enquiries in this view.</p>}
         <div style={{display:'grid',gap:7}}>
           {visible.map(x=><button key={x.enquiry_id} onClick={()=>{setSelected(x.enquiry_id);setMessage('');}}
             style={{background:selected===x.enquiry_id?'var(--bg-active)':'transparent',padding:13,textAlign:'left',color:'var(--text-primary)',border:'1px solid var(--border)',borderRadius:8,cursor:'pointer'}}>
-            <strong>{quoteSubjectTitle(x)}</strong><small style={{display:'block',marginTop:6,color:'var(--text-muted)'}}>{x.username||x.name||'Private visitor'} · {contactChannelTitle(x.preferred_channel)} · {quoteStatusTitle(x.status)}</small>
+            <strong>{quoteSubjectTitle(x)}</strong><small style={{display:'block',marginTop:6,color:'var(--text-muted)'}}>{x.username||x.name||'Private visitor'} · {contactChannelTitle(x.preferred_channel)} · {quoteStatusTitle(x.status)}{needsUpdate(x)?' · UPDATE OVERDUE':''}</small>
           </button>)}
         </div>
       </section>
