@@ -62,3 +62,23 @@ test('mail transport rejects personal sender and invalid message identities',asy
   await assert.rejects(sendBusinessEmail({to:'client@example.org',subject:'Receipt',body:'Hello',idempotencyKey:'bad key',env,request}),/identity/);
   assert.equal(calls,0);
 });
+
+test('isolated production-like staging cannot email any recipient outside a precise approval list',async()=>{
+  const stage={...env,IPS_STAGING_MODE:'true',
+    IPS_STAGING_ALLOWLIST_EMAILS:'verified.test@example.org,ops.test@example.org'};
+  const calls=[];
+  const request=async(url,options)=>{calls.push(JSON.parse(options.body).to[0]);
+    return {ok:true,status:200,json:async()=>({id:'ci-only-provider-mock'})};};
+  await assert.rejects(sendBusinessEmail({
+    to:'customer.other@example.org',subject:'Code',body:'Confidential verification code',env:stage,request
+  }),/outside the approved test allowlist/);
+  await assert.rejects(sendBusinessEmail({
+    to:'verified.test@example.org',subject:'Code',body:'Code',env:{...stage,IPS_STAGING_ALLOWLIST_EMAILS:''},request
+  }),/outside the approved test allowlist/);
+  assert.deepEqual(calls,[]);
+  const accepted=await sendBusinessEmail({
+    to:'VeRiFiEd.TeSt@example.org',subject:'Code',body:'CI-only email',env:stage,request
+  });
+  assert.equal(accepted,'ci-only-provider-mock');
+  assert.deepEqual(calls,['VeRiFiEd.TeSt@example.org']);
+});
