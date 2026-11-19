@@ -537,6 +537,39 @@ async function go(){
   assert.equal(completed.status,200,JSON.stringify(completed.body));
   assert.equal(completed.body.request.status,'Completed');
   pass('Central paid lifecycle includes specialist work, IPS QA, client revision, re-review and verified customer completion');
+  const privatePayouts=await call('/api/specialist-payouts/me',{session:alice.cookie});
+  assert.equal(privatePayouts.status,403);
+  const noPrematurePayment=await call('/api/specialist-payouts/admin/'+requestId+'/record-bank-transfer',{
+    method:'POST',session:admin.cookie,json:{reference:'ci-test-should-not-exist'}});
+  assert.equal(noPrematurePayment.status,409);
+  const approvedPayout=await call('/api/specialist-payouts/admin',{method:'POST',session:admin.cookie,
+    json:{request_id:requestId,amount:120.50,agreed_scope:'Verified 120.50 PLN professional research methods consultation payout'}});
+  assert.equal(approvedPayout.status,201,JSON.stringify(approvedPayout.body));
+  assert.equal(approvedPayout.body.payout.status,'approved');
+  assert.equal(approvedPayout.body.payout.amount_minor,12050);
+  assert.equal(approvedPayout.body.payout.currency,'PLN');
+  const duplicateApproved=await call('/api/specialist-payouts/admin',{method:'POST',session:admin.cookie,
+    json:{request_id:requestId,amount:120.50,agreed_scope:'Do not duplicate this paid assignment'}});
+  assert.equal(duplicateApproved.status,409);
+  const specialistPayout=await call('/api/specialist-payouts/me',{session:specialist.cookie});
+  assert.equal(specialistPayout.status,200,JSON.stringify(specialistPayout.body));
+  assert.equal(specialistPayout.body.payouts[0].status,'approved');
+  const confirmedBank=await call('/api/specialist-payouts/admin/'+requestId+'/record-bank-transfer',{
+    method:'POST',session:admin.cookie,json:{reference:'CI-BANK-TEST-TRANSFER-001'}});
+  assert.equal(confirmedBank.status,200,JSON.stringify(confirmedBank.body));
+  assert.equal(confirmedBank.body.payout.status,'paid');
+  const repeatBank=await call('/api/specialist-payouts/admin/'+requestId+'/record-bank-transfer',{
+    method:'POST',session:admin.cookie,json:{reference:'CI-BANK-TEST-TRANSFER-001'}});
+  assert.equal(repeatBank.status,409);
+  const specialistPaid=await call('/api/specialist-payouts/me',{session:specialist.cookie});
+  assert.equal(specialistPaid.body.payouts[0].status,'paid');
+  assert.equal(specialistPaid.body.payouts[0].payment_reference,'CI-BANK-TEST-TRANSFER-001');
+  const unrelatedPayout=await call('/api/specialist-payouts/me',{session:bob.cookie});
+  assert.equal(unrelatedPayout.status,403);
+  const financeLedger=await call('/api/specialist-payouts/admin',{session:admin.cookie});
+  assert.equal(financeLedger.status,200);
+  assert.equal(financeLedger.body.payouts.find(p=>p.request_id===requestId)?.status,'paid');
+  pass('Real MongoDB salary ledger enforces finance approval, one payout per completed engagement and staff-recorded bank transfer; specialist sees own record only');
 
   // Dedicated verified secondary specialist tests credential rotation without
   // modifying the specialist whose real completed project browser QA exercises.
