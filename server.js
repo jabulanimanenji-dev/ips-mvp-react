@@ -259,7 +259,7 @@ app.use(async (req, res, next) => {
 });
 
 registerEnquiryRoutes(app, { requireSession });
-registerPrivateQuoteRoutes(app, { readSession });
+registerPrivateQuoteRoutes(app, { readSession, requireSession });
 
 app.get('/api/health', (req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
