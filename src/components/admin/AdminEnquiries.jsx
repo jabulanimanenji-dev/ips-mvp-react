@@ -70,6 +70,21 @@ export default function AdminEnquiries(){
     }catch(ex){setError(ex.message);}
     finally{setBusy(false);}
   }
+  async function claimReview(){
+    if(!current||busy)return;
+    setBusy(true);setError('');setStatusMessage('');
+    try{
+      const res=await fetch('/api/contact-enquiries/admin/'+encodeURIComponent(current.enquiry_id)+'/claim',{
+        method:'POST',credentials:'same-origin'
+      });
+      const result=await res.json().catch(()=>({}));
+      if(!res.ok||!result.success)throw Error(result.error||'This request is already under another reviewer.');
+      await refresh();
+      setStatusMessage(result.already_assigned?'You already own this customer review.':
+        'You now own this private review. Set a realistic written update date and respond through the verified channel.');
+    }catch(err){setError(err.message||'Could not take responsibility for this request.');}
+    finally{setBusy(false);}
+  }
   async function createManagedProject(){
     if(!current||busy)return;
     setBusy(true);setError('');setStatusMessage('');
@@ -145,6 +160,13 @@ export default function AdminEnquiries(){
             {!current.client_id&&<small>Customer can claim the reference privately after verifying their selected email or linking their messaging account. Never assign work or demand payment before agreement.</small>}
           </div>}
           <p><b>Human review:</b> {current.review_started_at?'Started '+new Date(current.review_started_at).toLocaleString():'Not yet marked under review'}</p>
+          <div style={{margin:'8px 0 16px',padding:12,border:'1px solid var(--border)',borderRadius:8}}>
+            <strong>Responsible IPS reviewer</strong>
+            {current.assigned_admin_id?<p style={{margin:'8px 0'}}>Assigned internally: {current.assigned_admin_id} · {current.assigned_at?new Date(current.assigned_at).toLocaleString():''}</p>:
+              <p style={{margin:'8px 0'}}>This verified request has no assigned human reviewer yet.</p>}
+            {!current.assigned_admin_id&&current.contact_verified&&current.contact_consent&&current.status!=='closed'&&hasAdminPermission('support.manage')&&
+              <button type="button" className="btn btn-primary" onClick={claimReview} disabled={busy}>Take review ownership</button>}
+          </div>
           {needsUpdate(current)&&<p role="alert" style={{color:'var(--danger)',fontWeight:700}}>Customer update overdue — contact the customer using the verified chosen channel.</p>}
           <p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>Enquiry-specific contact permission recorded: {current.contact_consent?'Yes':'No'} · {current.consent_at?new Date(current.consent_at).toLocaleString():''}</p>
           <ContactActions lead={current}/>
