@@ -100,6 +100,18 @@ async function go(){
   const newSession=await call('/api/client/me',{session:bob.cookie});
   assert.equal(newSession.status,200);
   pass('One-use password recovery rotates session version; old sessions/password fail, new verified login succeeds');
+  const changedAgain='NewestStrongPassword10!';
+  const rotated=await call('/api/clients/'+bobId,{method:'PATCH',session:bob.cookie,
+    json:{password:changedAgain,current_password:newPassword}});
+  assert.equal(rotated.status,200,JSON.stringify(rotated.body));
+  assert.equal(rotated.body.session_revoked,true);
+  assert.equal(rotated.cookie,'ips_session=');
+  const staleAfterChange=await call('/api/client/me',{session:bob.cookie});
+  assert.equal(staleAfterChange.status,401);
+  bob=await call('/api/client/login',{method:'POST',
+    json:{email:'bob.test@example.org',password:changedAgain}});
+  assert.equal(bob.status,200);
+  pass('In-workspace password changes revoke all former cookies and require real reauthentication');
 
   const admin=await call('/api/admin/login',{method:'POST',json:{email:'owner-ci@example.invalid',password:'LocalOnlyAdminPassword123!'}});
   assert.equal(admin.status,200,JSON.stringify(admin.body));
