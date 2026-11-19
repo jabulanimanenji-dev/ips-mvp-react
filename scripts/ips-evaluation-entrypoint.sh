@@ -28,8 +28,10 @@ export VITE_ADMIN_ENTRY_PATH=/ips-evaluation-ops
 export IPS_STAGING_MODE=false
 export NODE_OPTIONS='--max-old-space-size=256'
 # Loopback-only Mongo with localhost bootstrap exception, never public.
+# Bootstrap in a process-private, loopback-only window without authentication,
+# then restart with --auth before seeding or accepting HTTP traffic.
 mongod --dbpath /tmp/ips_eval_mongodb --port 27017 --bind_ip 127.0.0.1 \
-  --wiredTigerCacheSizeGB 0.25 --logpath /tmp/ips-eval-mongod.log --fork --auth
+  --wiredTigerCacheSizeGB 0.25 --logpath /tmp/ips-eval-mongod.log --fork
 ready=0
 for i in $(seq 1 60); do
   if mongosh 'mongodb://127.0.0.1:27017/admin' --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q '^1$'; then
@@ -44,6 +46,9 @@ if [[ "$ready" -ne 1 ]]; then
 fi
 mongosh 'mongodb://127.0.0.1:27017/admin' --quiet --eval \
   'db.createUser({user:"ips_eval_user",pwd:process.env.MONGO_EVAL_PASSWORD,roles:[{role:"readWrite",db:"ips_staging_evaluation"}]})' >/dev/null
+mongod --dbpath /tmp/ips_eval_mongodb --shutdown >/dev/null
+mongod --dbpath /tmp/ips_eval_mongodb --port 27017 --bind_ip 127.0.0.1 \
+  --wiredTigerCacheSizeGB 0.25 --logpath /tmp/ips-eval-mongod.log --fork --auth >/dev/null
 unset MONGO_EVAL_PASSWORD
 node scripts/seed-ips-evaluation.mjs
 echo 'IPS EVALUATION ONLY: starting working three-role Express backend over disposable real MongoDB 7.'
