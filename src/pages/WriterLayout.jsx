@@ -101,6 +101,12 @@ export default function WriterLayout() {
               </Link>
             );
           })}
+          <Link to="/writer/profile" onClick={()=>setMobileOpen(false)}
+            style={{display:'flex',alignItems:'center',padding:'.75rem 1.5rem',textDecoration:'none',
+              borderLeft:isActive('/writer/profile')?'3px solid var(--primary)':'3px solid transparent',
+              color:isActive('/writer/profile')?'var(--primary)':'var(--text-secondary)'}}>
+            <span style={{marginRight:12}}>⚙</span> My Professional Profile
+          </Link>
         </nav>
 
         <div style={{ padding: '1rem 1.5rem 0', borderTop: '1px solid var(--border-light)' }}>
