@@ -75,15 +75,19 @@ try{
     await evidence(student,'student-private-quotation');
   });
   await check('Private quotation links to the same paid and IPS-governed customer project',async()=>{
-    const projectLink=student.getByRole('link',{name:/Open managed IPS project/}).first();
-    await projectLink.waitFor({timeout:12000});
-    await projectLink.click();
-    await student.waitForURL(/\/client\/services\/SRV-[0-9A-F]{18}/,{timeout:12000});
-    const text=await student.locator('body').innerText();
-    assert.ok(text.includes(paidRequest.request_id),'The public quote and managed project must have one real reference.');
-    await evidence(student,'customer-quote-to-managed-project');
-    await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
-    await student.getByText('Private Quote Messages').waitFor({timeout:12000});
+    try{
+      const projectLink=student.getByRole('link',{name:/Open managed IPS project/}).first();
+      await projectLink.waitFor({timeout:12000});
+      await projectLink.click();
+      await student.waitForURL(/\/client\/services\/SRV-[0-9A-F]{18}/,{timeout:12000});
+      await student.getByRole('heading',{name:paidRequest.title,exact:true}).waitFor({timeout:15000});
+      const text=await student.locator('body').innerText();
+      assert.ok(text.includes(paidRequest.request_id),'The public quote and managed project must have one real reference.');
+      await evidence(student,'customer-quote-to-managed-project');
+    }finally{
+      await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
+      await student.getByText('Private Quote Messages').waitFor({timeout:15000});
+    }
   });
   await check('Authenticated workspace persists across reload by server session, not browser storage',async()=>{
     await student.reload({waitUntil:'domcontentloaded'});
