@@ -46,7 +46,11 @@ export async function applyRefundProviderResult(refundId,provider,{
   const payment=await paymentModel.findOne({payment_id:refund.payment_id}).lean();
   if(!payment||String(provider.payment_intent||'')!==String(payment.provider_payment_intent||''))
     return {error:'Provider refund does not match the verified original payment.'};
-  if(refund.status==='succeeded')return {result:safeView(refund),already:true};
+  if(refund.status==='succeeded'){
+    // Signed event replays also repair an interrupted MongoDB reconciliation.
+    await reconcileStudentRefund(refund.payment_id,{refundModel,paymentModel,orderModel});
+    return {result:safeView(refund),already:true};
+  }
   if(refund.status==='failed'&&state!=='succeeded')return {result:safeView(refund),already:true};
   const target=state==='succeeded'?'succeeded':state==='failed'||state==='canceled'?'failed':
     state==='requires_action'?'requires_action':'processing';
