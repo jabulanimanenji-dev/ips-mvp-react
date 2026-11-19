@@ -9,6 +9,7 @@ const links = [
 export function StudentSiteHeader() {
   const { user, logout } = useAuth();
   const [menu, setMenu] = useState(false);
+  const [logoutError,setLogoutError]=useState('');
   const location = useLocation();
   const navigate = useNavigate();
   useEffect(()=>setMenu(false),[location.pathname,location.hash]);
@@ -18,6 +19,7 @@ export function StudentSiteHeader() {
     window.addEventListener('keydown',onKey);
     return ()=>window.removeEventListener('keydown',onKey);
   },[menu]);
+  const signOut=async()=>{setLogoutError('');const result=await logout();if(result?.success)navigate('/');else setLogoutError(result?.error||'Unable to end your session.');};
   return <header className="ipsa-site-header">
     <div className="ipsa-topbar"><div className="ipsa-wrap"><span>IPS · Professional academic services & research support</span><a href="/#contact-ips">Contact IPS <span aria-hidden="true">↗</span></a></div></div>
     <div className="ipsa-navbar ipsa-wrap">
@@ -26,7 +28,8 @@ export function StudentSiteHeader() {
         <div className="ipsa-mobile-actions">{user?<Link to="/client/services">My Workspace</Link>:<Link to="/login">Login</Link>}</div>
       </nav>
       <div className="ipsa-header-actions">
-        {user ? <><Link className="ipsa-header-login" to="/client/services">My workspace</Link><button type="button" className="ipsa-header-login" onClick={()=>{logout();navigate('/');}}>Sign out</button></> : <Link to="/login" className="ipsa-header-login">Login</Link>}
+        {user ? <><Link className="ipsa-header-login" to="/client/services">My workspace</Link><button type="button" className="ipsa-header-login" onClick={signOut}>Sign out</button></> : <Link to="/login" className="ipsa-header-login">Login</Link>}
+        {logoutError&&<small role="alert">{logoutError}</small>}
         <a href="/join" className="ipsa-header-cta">Get started <span aria-hidden="true">↗</span></a>
       </div>
       <button type="button" aria-label={menu?'Close navigation':'Open navigation'} aria-controls="ipsa-main-navigation" aria-expanded={menu} className="ipsa-menu-toggle" onClick={()=>setMenu(m=>!m)}><span/><span/><span/></button>
