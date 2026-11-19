@@ -111,8 +111,8 @@ try {
     assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Specialist').count(),1);
     await desktop.goto(base+'/join',{waitUntil:'domcontentloaded'});
     assert.equal(await desktop.locator('.ipsa-journey-card').count(),2);
-    assert.ok(await desktop.getByText('I need academic support').isVisible());
-    assert.ok(await desktop.getByText('I’d like to work with IPS').isVisible());
+    assert.ok(await desktop.locator('.ipsa-journey-card').first().getByRole('heading',{name:'Student / Researcher'}).isVisible());
+    assert.ok(await desktop.locator('.ipsa-journey-card').last().getByRole('heading',{name:'Specialist'}).isVisible());
     assert.equal(await desktop.locator('.ipsa-interior-header').count(),1);
     assert.ok(await desktop.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+2));
     await desktop.screenshot({path:'browser-evidence/choose-account-desktop.png',fullPage:true,animations:'disabled'});
