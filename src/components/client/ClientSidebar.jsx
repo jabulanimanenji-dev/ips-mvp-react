@@ -11,6 +11,7 @@ export default function ClientSidebar() {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
+  const [logoutError,setLogoutError]=useState('');
   const navItems = (config.navigation?.client || []).filter(item => item.visible);
   const academicLaunch=import.meta.env.VITE_STUDENT_LAUNCH==='true';
   const labelFor=item=>{
@@ -38,9 +39,11 @@ export default function ClientSidebar() {
     return location.pathname === path || location.pathname.startsWith(`${path}/`);
   };
 
-  const handleLogout = () => {
-    logout();
-    window.location.href = '/';
+  const handleLogout = async () => {
+    setLogoutError('');
+    const result=await logout();
+    if(result?.success)window.location.assign('/');
+    else setLogoutError(result?.error||'Unable to end your session. Please try again.');
   };
 
   return (
@@ -126,6 +129,7 @@ export default function ClientSidebar() {
           <button className="btn btn-ghost btn-danger" onClick={handleLogout} style={{ justifyContent: 'flex-start', fontSize: '0.85rem' }}>
             Logout
           </button>
+          {logoutError&&<small role="alert" style={{color:'var(--danger)',fontSize:'.74rem'}}>{logoutError}</small>}
         </div>
       </aside>
 
