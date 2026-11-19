@@ -421,7 +421,10 @@ app.patch('/api/clients/:id', async (req, res) => {
       { returnDocument: 'after', runValidators: true }
     ).select('-password');
     if (!client) return res.status(404).json({ success: false, error: 'Client not found.' });
-    res.json({ success: true, client });
+    const session_revoked=updates.password!==undefined||updates.email!==undefined;
+    if(session_revoked)res.setHeader('Set-Cookie','ips_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+    res.set('Cache-Control','no-store');
+    res.json({ success: true, client, session_revoked });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
