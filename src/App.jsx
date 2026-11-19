@@ -12,6 +12,7 @@ import SignupPage from './pages/SignupPage';
 import ServiceMarketplacePage from './pages/ServiceMarketplacePage';
 import ProviderApplicationPage from './pages/ProviderApplicationPage';
 import JoinPage from './pages/JoinPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 
 import ClientLayout from './pages/ClientLayout';
 import ClientOverview from './components/client/ClientOverviewMongo';
@@ -205,6 +206,7 @@ export default function App() {
         <Route path="/services" element={<FeatureGate feature="serviceMarketplace">{import.meta.env.VITE_STUDENT_LAUNCH === 'true' ? <StudentSupportPage /> : <ServiceMarketplacePage />}</FeatureGate>} />
         <Route path="/student-support" element={<FeatureGate feature="serviceMarketplace"><StudentSupportPage /></FeatureGate>} />
         <Route path="/join" element={<JoinPage />} />
+        <Route path="/privacy" element={<PrivacyPolicyPage />} />
         <Route path="/become-a-provider" element={<FeatureGate feature="providerApplications"><ProviderApplicationPage /></FeatureGate>} />
 
         <Route
