@@ -246,6 +246,9 @@ const descriptorFor = (node, root, pageId) => {
 
 export default function useNativeEditingRuntime({ rootRef, pageId, editing, previewDevice }) {
   const nodesRef = useRef(new Map());
+  // Only nodes actually changed by Studio may be restored. Never overwrite
+  // React-managed live counters, statuses or account-specific text.
+  const appliedOverridesRef = useRef(new Set());
   const descriptorsRef = useRef(new Map());
   const editingRef = useRef(editing);
   const [liveDevice, setLiveDevice] = useState(() => deviceFromWidth(typeof window === 'undefined' ? 1440 : window.innerWidth));
@@ -299,6 +302,7 @@ export default function useNativeEditingRuntime({ rootRef, pageId, editing, prev
         const original = ensureOriginal(node, descriptor);
         applyStyle(node, override.styles?.[device] || {}, override.order?.[device], override.visibility?.[device] !== false, original);
         applyContent(node, descriptor, !override.sourceSignature || override.sourceSignature === descriptor.sourceSignature ? override.content || {} : {}, original);
+        appliedOverridesRef.current.add(key);
       });
     };
 
@@ -324,8 +328,10 @@ export default function useNativeEditingRuntime({ rootRef, pageId, editing, prev
         const descriptor = descriptorsRef.current.get(key);
         const original = originalValues.get(node);
         if (!original || !descriptor) return;
-        applyContent(node, descriptor, {}, original);
-        STYLE_PROPERTIES.forEach(property => { node.style[property] = original.style[property]; });
+        if (appliedOverridesRef.current.has(key)) {
+          applyContent(node, descriptor, {}, original);
+          STYLE_PROPERTIES.forEach(property => { node.style[property] = original.style[property]; });
+        }
         if (node.hasAttribute('data-studio-generated-key')) {
           node.removeAttribute('data-studio-key');
           node.removeAttribute('data-studio-generated-key');
@@ -336,6 +342,7 @@ export default function useNativeEditingRuntime({ rootRef, pageId, editing, prev
       });
       nodesRef.current.clear();
       descriptorsRef.current.clear();
+      appliedOverridesRef.current.clear();
     };
   }, [device, pageId, rootRef]);
 
@@ -346,12 +353,16 @@ export default function useNativeEditingRuntime({ rootRef, pageId, editing, prev
       if (!descriptor || !original) return;
       const override = overrides[key];
       if (!override || !descriptor.editable) {
-        applyContent(node, descriptor, {}, original);
-        applyStyle(node, {}, null, true, original);
+        if (appliedOverridesRef.current.has(key)) {
+          applyContent(node, descriptor, {}, original);
+          applyStyle(node, {}, null, true, original);
+          appliedOverridesRef.current.delete(key);
+        }
         return;
       }
       applyStyle(node, override.styles?.[device] || {}, override.order?.[device], override.visibility?.[device] !== false, original);
       applyContent(node, descriptor, !override.sourceSignature || override.sourceSignature === descriptor.sourceSignature ? override.content || {} : {}, original);
+      appliedOverridesRef.current.add(key);
     });
     if (descriptorsRef.current.size) {
       publishCatalog(pageId, descriptorsRef.current);
