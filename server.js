@@ -161,6 +161,7 @@ const requireSession = (req, res) => {
 // specialist approval invalidates an otherwise unexpired signed cookie.
 const publicAuthPaths=new Set([
   '/client/login','/clients','/client/verify-email',
+  '/writer/login','/writer/verify-email','/writer/resend-verification',
   '/client/resend-verification','/client/password-recovery/request',
   '/client/password-recovery/complete','/logout'
 ]);
@@ -175,7 +176,7 @@ app.use('/api',async(req,res,next)=>{
     if(mongoose.connection.readyState!==1)return res.status(503).json({success:false,error:'Account verification is temporarily unavailable.'});
     const valid=session.role==='client'
       ?await Client.exists({client_id:session.id,email_verified_at:{$ne:null},status:'Active',...sessionFilter(session)})
-      :await Writer.exists({writer_id:session.id,email_verified_at:{$ne:null},status:'Active',application_status:'approved'});
+      :await Writer.exists({writer_id:session.id,email_verified_at:{$ne:null},status:'Active',application_status:'approved',...sessionFilter(session)});
     if(!valid){
       res.set('Cache-Control','no-store');
       res.setHeader('Set-Cookie','ips_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
@@ -716,9 +717,15 @@ app.patch('/api/writers/:id', async (req, res) => {
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => (session.role === 'admin' ? allowedUpdates : providerUpdates).includes(key))
     );
+    if(session.role==='admin'&&Object.hasOwn(req.body||{},'password'))
+      return res.status(403).json({success:false,error:'IPS staff cannot set specialist passwords. The specialist must authenticate and update their own password.'});
     if(updates.password!==undefined){
       if(!passwordValid(updates.password))return res.status(400).json({success:false,error:'Passwords need at least 8 characters, a capital, number and symbol.'});
+      const existing=await Writer.findOne({writer_id:session.id,status:'Active',application_status:'approved'});
+      if(!existing||!verifyPassword(String(req.body?.current_password||''),existing.password))
+        return res.status(403).json({success:false,error:'Enter your current password before changing it.'});
       updates.password=hashPassword(updates.password);
+      updates.session_version=sessionVersion(existing)+1;
     }
     if(updates.email!==undefined){
       updates.email=normalizeEmail(updates.email);
@@ -733,7 +740,10 @@ app.patch('/api/writers/:id', async (req, res) => {
     if (!writer) {
       return res.status(404).json({ success: false, error: 'Writer not found' });
     }
-    res.json({ success: true, writer });
+    const session_revoked=updates.password!==undefined||updates.email!==undefined;
+    if(session_revoked)res.setHeader('Set-Cookie','ips_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+    res.set('Cache-Control','no-store');
+    res.json({ success: true, writer,session_revoked });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -917,7 +927,7 @@ app.post('/api/writer/login', async (req, res) => {
     if(firstLogin){writer.first_login_at=new Date();await writer.save();}
     const safeWriter=publicAccount(writer);
     safeWriter.first_login=firstLogin;
-    const token = signSession({ id: writer.writer_id, role: 'writer', email_verified:true });
+    const token = signSession({ id: writer.writer_id, role: 'writer', email_verified:true,session_version:sessionVersion(writer) });
     setSessionCookie(res, token);
     res.json({ success: true, writer: safeWriter, token });
   } catch (err) {
