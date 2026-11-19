@@ -76,6 +76,7 @@ try {
   await caseRun('service selection changes enquiry without inventing paid checkout', async () => {
     await desktop.getByRole('button',{name:'Request Statistics & SPSS / R / Python'}).click();
     assert.ok(desktop.url().includes('service=statistics-support'));
+    await desktop.waitForFunction(() => document.querySelector('.ipsa-request-form select')?.value === 'statistics-support', null, {timeout:7000});
     assert.equal(await desktop.locator('.ipsa-request-form select').first().inputValue(),'statistics-support');
     assert.ok(await desktop.getByRole('heading',{name:'Get a Quote'}).count()>=1);
   });
