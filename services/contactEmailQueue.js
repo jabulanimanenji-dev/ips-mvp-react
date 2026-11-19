@@ -15,10 +15,10 @@ export function emailJobDefinitions(lead){
       '\nSign in to the IPS administrator contact queue to review it.\n'+
       'Do not reply to this notification; reply to the customer from their enquiry.'
   };
-  const receipt=lead.contact_consent===true&&lead.email?{
+  const receipt=lead.contact_consent===true&&lead.contact_verified===true&&lead.preferred_channel==='email'&&lead.email?{
     enquiry_id:lead.enquiry_id,kind:'client_receipt',recipient:lead.email,
     subject:'IPS received your enquiry · '+lead.enquiry_id,
-    body:'Hello '+lead.name+',\n\n'+
+    body:'Hello '+(lead.username||'there')+',\n\n'+
       'Thank you for contacting IPS Academic Services. We have received your enquiry.\n'+
       'Reference: '+lead.enquiry_id+'\n'+
       'Our team can follow up using the contact method you selected.\n'+
