@@ -87,6 +87,7 @@ try{
     const page=await newPage();
     try{
       await login(page,'/writer/login','specialist.evaluation@example.org','EvalSpecialist2026!',/open my workspace/i);
+      await page.waitForURL(/\/writer\/dashboard(?:[/?#]|$)/,{timeout:20000});
       await page.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
       await page.locator('.writer-layout .ips-workspace-topbar').waitFor();
       const bg=await page.locator('.writer-sidebar').evaluate(el=>getComputedStyle(el).backgroundColor);
@@ -102,6 +103,7 @@ try{
     const page=await newPage();
     try{
       await login(page,'/ips-evaluation-ops','admin.evaluation@example.org','EvalAdmin2026!','Sign In');
+      await page.waitForURL(/\/admin\//,{timeout:20000});
       await page.goto(base+'/admin/cms',{waitUntil:'domcontentloaded'});
       await page.locator('.platform-studio-dashboard').waitFor({timeout:20000});
       const welcome=page.locator('.platform-studio-welcome').first();
@@ -131,6 +133,7 @@ try{
     const page=await newPage();
     try{
       await login(page,'/ips-evaluation-ops','admin.evaluation@example.org','EvalAdmin2026!','Sign In');
+      await page.waitForURL(/\/admin\//,{timeout:20000});
       await page.goto(base+'/admin/cms',{waitUntil:'domcontentloaded'});
       await page.locator('.platform-studio-kpis button').first().waitFor();
       await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));
