@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 
 const ServiceRequestSchema = new mongoose.Schema({
   request_id: { type: String, required: true, unique: true },
+  source_quote_id: { type: String, default: undefined, unique: true, sparse: true, index: true },
   client_id: { type: String, required: true, index: true },
   client_name: { type: String, required: true },
   client_email: { type: String, required: true },
@@ -12,7 +13,7 @@ const ServiceRequestSchema = new mongoose.Schema({
   service_revision: { type: Number, default: 0 },
   intake_answers: { type: mongoose.Schema.Types.Mixed, default: {} },
   intake_snapshot: { type: mongoose.Schema.Types.Mixed, default: {} },
-  source: { type: String, enum: ['legacy', 'service_engine'], default: 'legacy' },
+  source: { type: String, enum: ['legacy', 'service_engine', 'quote_intake'], default: 'legacy' },
   title: { type: String, required: true },
   description: { type: String, required: true },
   desired_outcome: { type: String, default: '' },
