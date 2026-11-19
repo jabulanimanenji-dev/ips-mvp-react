@@ -1,11 +1,12 @@
 name: IPS Audited Dependency Repair
 on:
-  workflow_dispatch:
+  pull_request:
+    branches: [commercial/student-support-v1]
 permissions:
   contents: read
 jobs:
   audited-repair:
-    if: github.ref == 'refs/heads/audit/central-ips-privacy-queue-20261119'
+    if: github.event.pull_request.head.ref == 'audit/central-ips-privacy-queue-20261119' && github.event.pull_request.head.repo.full_name == 'jabulanimanenji-dev/ips-mvp-react'
     runs-on: ubuntu-latest
     timeout-minutes: 18
     permissions:
@@ -28,6 +29,9 @@ jobs:
           # npm audit fix exits 1 when advisories remain outside allowed semver.
           # Capture that partial safe repair; the subsequent critical gate still
           # fails closed if the critical issues have not actually been resolved.
+          # Express 4.22.3 fixes the qs dependency advisory while retaining
+          # Express 4 semantics; avoid an untested major framework migration.
+          npm install express@4.22.3 --save-exact --package-lock-only --ignore-scripts
           npm audit fix --package-lock-only --ignore-scripts || test "$?" -eq 1
       - name: Refuse changes outside dependency manifests
         shell: bash
@@ -43,8 +47,8 @@ jobs:
           fi
       - name: Restore exact repaired dependencies and build the real frontend
         run: npm ci
-      - name: Reject unresolved critical production advisories before repair commit
-        run: npm audit --omit=dev --audit-level=critical
+      - name: Reject unresolved high or critical production advisories before repair commit
+        run: npm audit --omit=dev --audit-level=high
       - name: Run entire IPS local verification without test bypasses
         run: npm run check
       - name: Commit only the reviewed dependency manifests if checks pass
