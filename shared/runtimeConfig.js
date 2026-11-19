@@ -193,6 +193,26 @@ export const productionConfigurationErrors = (environment = process.env) => {
     }
   }
 
+  if (String(environment.IPS_STAGING_MODE||'').toLowerCase()==='true') {
+    // The credentials alone do not prove isolation. Refuse to start if the
+    // database or object store appears to be a live IPS production target.
+    let stagingDatabase='';
+    try {stagingDatabase=decodeURIComponent(new URL(String(environment.MONGODB_URI||'')).pathname.replace(/^\//,''));}
+    catch {}
+    if(!/^ips_staging_[A-Za-z0-9_]+$/.test(stagingDatabase))
+      errors.push('Staging requires its own MongoDB database named ips_staging_*; never use the production database.');
+    if(!/staging/i.test(String(environment.R2_BUCKET_NAME||'')))
+      errors.push('Staging requires a dedicated R2 bucket whose name contains staging.');
+    if(String(environment.CONTACT_EMAIL_NOTIFICATIONS_ENABLED||'false')!=='false')
+      errors.push('Staging must not turn on automatic business email notifications.');
+    if(environment.STRIPE_SECRET_KEY||environment.STRIPE_WEBHOOK_SECRET)
+      errors.push('Staging may not contain live payment credentials.');
+    try{
+      const host=new URL(String(environment.PUBLIC_APP_URL||'')).hostname.toLowerCase();
+      if(host==='ipsglobalservice.com'||host.endsWith('.ipsglobalservice.com'))
+        errors.push('Staging may not claim the customer-facing production domain.');
+    }catch{}
+  }
   return errors;
 };
 
