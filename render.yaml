@@ -22,6 +22,19 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      # Required for public sign-up and email-based quotation requests.
+      # Configure both secrets through Render's environment UI before launch.
+      - key: EMAIL_VERIFICATION_SECRET
+        sync: false
+      - key: CONTACT_RESEND_API_KEY
+        sync: false
+      - key: CONTACT_FROM_EMAIL
+        value: support@ipsglobalservice.com
+      - key: CONTACT_REPLY_TO_EMAIL
+        value: contact@ipsglobalservice.com
+      # Never enable notifications before verifying actual delivery/webhooks.
+      - key: CONTACT_EMAIL_NOTIFICATIONS_ENABLED
+        value: 'false'
       - key: VITE_ADMIN_ENTRY_PATH
         sync: false
       - key: STORAGE_PROVIDER
