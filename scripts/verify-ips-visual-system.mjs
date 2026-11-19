@@ -82,7 +82,7 @@ try{
       assert.ok(headerGeometry.sidebar>=headerGeometry.banner-1,
         'Client workspace branding must not be concealed by evaluation notice');
       assert.ok(await page.getByText('Private · written communication').count()>=1);
-      await page.getByText('IPS-Q-E1A2B3C4D5E6F70809').first().waitFor({timeout:18000});
+      await page.locator('select option[value="IPS-Q-E1A2B3C4D5E6F70809"]').first().waitFor({state:'attached',timeout:18000});
       await noHorizontalOverflow(page);
       await picture(page,'02-client-overview');
       await page.goto(base+'/client/payments',{waitUntil:'domcontentloaded'});
