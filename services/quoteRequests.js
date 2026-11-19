@@ -71,7 +71,7 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
         email:c.email,phone:c.phone,telegram_username:c.telegram_username,
         preferred_channel:c.preferred_channel,
         service:c.service,discipline:c.subject,study_level:c.level,preferred_deadline:c.deadline,
-        subject:c.service+' — '+c.subject,contact_consent:true,consent_at:now,
+        subject:c.service,contact_consent:true,consent_at:now,
         contact_verified:c.contact_verified,
         verification_status:c.verification_status,
         contact_verified_at:c.contact_verified?now:undefined,
@@ -129,7 +129,7 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
     try{
       const rows=await ContactEnquiry.find({
         request_type:'quote',client_id:session.id,preferred_channel:'workspace',contact_verified:true
-      }).select('enquiry_id username service discipline study_level preferred_deadline subject status messages createdAt updatedAt')
+      }).select('enquiry_id username service discipline study_level preferred_deadline subject status next_update_at messages createdAt updatedAt')
         .sort({createdAt:-1}).limit(50).lean();
       res.set('Cache-Control','no-store');
       res.json({success:true,quotes:rows});
@@ -162,7 +162,7 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
         enquiry_id:req.params.id,request_type:'quote',client_id:{$ne:''},
         preferred_channel:'workspace',contact_verified:true,status:{$ne:'closed'}
       },{$push:{messages:{direction:'outbound',channel:'website',body,author:session.id,delivery_status:'sent',created_at:new Date()}},
-        $set:{status:'waiting_for_customer',last_activity_at:new Date()}},{new:true,runValidators:true}).select('enquiry_id messages status');
+        $set:{status:'waiting_for_customer',last_activity_at:new Date(),last_customer_update_at:new Date()}},{new:true,runValidators:true}).select('enquiry_id messages status');
       if(!row)return res.status(409).json({success:false,error:'This request does not have a verified private workspace destination.'});
       res.set('Cache-Control','no-store');
       res.json({success:true,quote:{enquiry_id:row.enquiry_id,messages:row.messages,status:row.status}});
