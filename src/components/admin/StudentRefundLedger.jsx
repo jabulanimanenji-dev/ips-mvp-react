@@ -16,7 +16,7 @@ export default function StudentRefundLedger({payments=[]}){
   useEffect(()=>{refresh();},[]);
   const eligible=payments.filter(p=>p.status==='paid');
   const selected=eligible.find(p=>p.request_id===requestId);
-  const maxAmount=selected?Number(selected.amount_minor)/100:0;
+  const maxAmount=selected?Math.max(0,Number(selected.amount_minor||0)-Number(selected.refunded_minor||0))/100:0;
   async function submit(event){
     event.preventDefault();setBusy(true);setError('');setNotice('');
     if(!selected)return setBusy(false);
@@ -44,7 +44,7 @@ export default function StudentRefundLedger({payments=[]}){
       <label className="form-group"><span className="form-label">Verified paid IPS project</span>
         <select className="form-select" value={requestId} required onChange={e=>{setRequestId(e.target.value);setAmount('');}}>
           <option value="">Choose a paid project</option>
-          {eligible.map(p=><option key={p.request_id} value={p.request_id}>{p.request_id} · {fmt(p.amount_minor,p.currency.toUpperCase())}</option>)}
+          {eligible.map(p=><option key={p.request_id} value={p.request_id}>{p.request_id} · {fmt(Number(p.amount_minor)-Number(p.refunded_minor||0),p.currency.toUpperCase())} remaining</option>)}
         </select>
       </label>
       <label className="form-group"><span className="form-label">Refund amount (optional: leave empty for remaining full amount)</span>
