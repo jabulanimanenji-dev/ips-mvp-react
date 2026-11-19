@@ -87,7 +87,7 @@ try{
       await picture(page,'02-client-overview');
       await page.goto(base+'/client/payments',{waitUntil:'domcontentloaded'});
       await page.getByText('My Payments & Refunds').first().waitFor();
-      await page.getByText('SRV-E1A2B3C4D5E6F70809').first().waitFor({timeout:18000});
+      await page.locator('a[href="/client/services/SRV-E1A2B3C4D5E6F70809"]').first().waitFor({timeout:18000});
       await picture(page,'03-client-payments');
     }finally{await page.close();}
   });
