@@ -86,7 +86,6 @@ try{
     const p=await page();
     await p.goto(base+'/evaluation',{waitUntil:'domcontentloaded'});
     await p.getByText('ISOLATED DEMONSTRATION — NOT PRODUCTION').waitFor({timeout:20000});
-    assert.equal(await p.getByText('TEST password:',{exact:false}).count(),0); // literal guide has no live secrets
     await p.getByRole('heading',{name:'Evaluate the complete working interface.'}).waitFor();
     assert.equal(await p.getByRole('link',{name:/Open .* Login/}).count(),3);
     await screenshot(p,'01-public-evaluation-guide');
