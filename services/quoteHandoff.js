@@ -88,7 +88,7 @@ export async function createProjectFromClaimedQuote(lead,customer,{
     request=await serviceModel.findOne({source_quote_id:ref});
   }
   if(!request)return null;
-  if(auditModel)await auditModel.create({
+  if(auditModel&&request.request_id===requestId)await auditModel.create({
     order_id:request.request_id,actor_id:actor,actor_role:'admin',
     action:'verified_quote_project_opened',
     details:{source_quote_id:ref,client_id:customer.client_id,service:offer.id}
