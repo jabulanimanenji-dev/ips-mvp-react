@@ -342,11 +342,14 @@ app.post('/api/client/verify-email',async(req,res)=>{
     if(!account)return res.status(400).json({success:false,error:'The code is invalid or expired.'});
     const result=await confirmEmailChallenge(account,input.code);
     if(result.error)return res.status(result.status||400).json({success:false,error:result.error});
-    account.status='Active';await account.save();
+    account.status='Active';
+    const firstLogin=!account.first_login_at;
+    if(firstLogin)account.first_login_at=new Date();
+    await account.save();
     const token=signSession({id:account.client_id,role:'client',email_verified:true});
     setSessionCookie(res,token);
     res.set('Cache-Control','no-store');
-    return res.json({success:true,client:publicAccount(account),token});
+    return res.json({success:true,client:{...publicAccount(account),first_login:firstLogin},token});
   }catch{return res.status(503).json({success:false,error:'Email verification is temporarily unavailable.'});}
 });
 
@@ -429,7 +432,9 @@ app.post('/api/client/login', async (req, res) => {
         client.password = hashPassword(password);
         await client.save();
       }
-      const safeClient = publicAccount(client);
+      const firstLogin=!client.first_login_at;
+      if(firstLogin){client.first_login_at=new Date();await client.save();}
+      const safeClient = {...publicAccount(client),first_login:firstLogin};
       const token = signSession({ id: client.client_id, role: 'client', email_verified:true });
       setSessionCookie(res, token);
       res.json({ success: true, client: safeClient, token });
@@ -852,8 +857,10 @@ app.post('/api/writer/login', async (req, res) => {
       writer.password = hashPassword(password);
       await writer.save();
     }
-    const safeWriter = writer.toObject();
-    delete safeWriter.password;
+    const firstLogin=!writer.first_login_at;
+    if(firstLogin){writer.first_login_at=new Date();await writer.save();}
+    const safeWriter=publicAccount(writer);
+    safeWriter.first_login=firstLogin;
     const token = signSession({ id: writer.writer_id, role: 'writer', email_verified:true });
     setSessionCookie(res, token);
     res.json({ success: true, writer: safeWriter, token });
