@@ -1,0 +1,380 @@
+/* IPS BRAND SYSTEM · DESIGN CHECKPOINT 2026-11-20
+   One coherent, accessible surface language for public, client, specialist,
+   administration, CMS, visual studio, service engine and evaluation.
+   Keep component layouts/route logic intact. Use semantic tokens.
+*/
+:root {
+  color-scheme: light;
+  --font: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --sidebar-w: 260px;
+  --header-h: 68px;
+  --content-max: 1220px;
+  --bg-body: #f5f6f5;
+  --bg-surface: #ffffff;
+  --bg-surface-2: #f1f4f5;
+  --bg-surface-3: #e9edef;
+  --bg-elevated: #ffffff;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-header: rgba(255,255,255,.97);
+  --bg-hover: #eef3f5;
+  --bg-active: #e6eef2;
+  --text-primary: #172c3c;
+  --text-secondary: #43586a;
+  --text-muted: #607283;
+  --text-on-primary: #ffffff;
+  --text-on-dark: #f6f8f9;
+  --text-link: #1d526d;
+  --text-link-hover: #123a50;
+  --border: #dce3e7;
+  --border-strong: #c4d0d7;
+  --border-focus: #245b74;
+  --primary: #183b53;
+  --primary-dark: #112c42;
+  --primary-light: #cadde7;
+  --primary-deepest: #0d2235;
+  --primary-deep: #17384d;
+  --primary-mid: #365b70;
+  --accent-gold: #9f7944;
+  --accent-gold-light: #c4a06a;
+  --accent-gold-pale: #f3e9d6;
+  --accent-cyan: #4c8298;
+  --accent-cyan-dark: #2e657e;
+  --accent-rose: #9d7175;
+  --accent-mauve: #7c7f8c;
+  --accent-ice: #e6edf2;
+  --accent-warm: #f4eee3;
+  --success: #216746;
+  --warning: #92631a;
+  --danger: #a43a3a;
+  --info: #2f657d;
+  --grad-galaxy: linear-gradient(140deg,#11283a,#24485b);
+  --grad-hero: linear-gradient(125deg,#102a43,#24465c);
+  --grad-card-1: linear-gradient(145deg,#183a50,#244f65);
+  --grad-card-2: linear-gradient(145deg,#23485d,#326177);
+  --grad-card-3: linear-gradient(145deg,#88673b,#a7895b);
+  --grad-card-4: linear-gradient(145deg,#1e3b51,#536c7b);
+  --grad-card-7: linear-gradient(145deg,#17354b,#274b63);
+  --shadow-sm: 0 1px 2px rgba(14,40,59,.055);
+  --shadow-md: 0 3px 14px rgba(14,40,59,.07);
+  --shadow-lg: 0 12px 32px rgba(14,40,59,.12);
+  --shadow-glow-purple: 0 3px 12px rgba(14,40,59,.10);
+  --shadow-glow-cyan: 0 3px 12px rgba(14,40,59,.10);
+  --shadow-glow-gold: 0 3px 12px rgba(125,95,55,.10);
+  --overlay: rgba(12,29,42,.40);
+  --overlay-strong: rgba(12,29,42,.7);
+  --scrollbar-track: #edf1f3;
+  --scrollbar-thumb: #bcc8ce;
+  --scrollbar-thumb-hover: #839aa7;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-body: #101d28;
+  --bg-surface: #172a39;
+  --bg-surface-2: #1e3445;
+  --bg-surface-3: #283e50;
+  --bg-elevated: #1e3343;
+  --bg-card: #192d3d;
+  --bg-input: #1d3343;
+  --bg-header: rgba(18,36,51,.97);
+  --bg-hover: #273e4d;
+  --bg-active: #2c4554;
+  --text-primary: #f4f6f6;
+  --text-secondary: #d3dfe4;
+  --text-muted: #b3c6d0;
+  --text-on-primary: #ffffff;
+  --text-on-dark: #f4f7f8;
+  --text-link: #b2d5e5;
+  --text-link-hover: #e0eff6;
+  --border: #354c5c;
+  --border-strong: #597080;
+  --border-focus: #98bfcc;
+  --primary: #a8cbdf;
+  --primary-dark: #9ebed3;
+  --primary-light: #3e5d70;
+  --primary-deepest: #0b1927;
+  --accent-gold: #d7b781;
+  --accent-gold-light: #e2c99e;
+  --accent-gold-pale: #453c2e;
+  --success: #7fc89f;
+  --warning: #edc47c;
+  --danger: #f3a2a2;
+  --info: #9ccade;
+  --scrollbar-track: #152a38;
+  --scrollbar-thumb: #547083;
+  --scrollbar-thumb-hover: #7496a8;
+}
+
+/* Global typography, controls and clarity. */
+body { background:var(--bg-body);color:var(--text-primary);font-family:var(--font);line-height:1.55; }
+a { color:var(--text-link); }
+button,input,textarea,select { font:inherit; }
+button { cursor:pointer; }
+:where(a,button,input,select,textarea,[tabindex]):focus-visible {
+  outline:3px solid var(--border-focus);outline-offset:3px;
+}
+:where(button,input,select,textarea):disabled { cursor:not-allowed;opacity:.65; }
+::selection { background:#c2dbe4;color:#112e42; }
+.section-title { font-weight:750;line-height:1.2;letter-spacing:-.033em; }
+.label { color:var(--text-muted); }
+.btn { min-height:42px;padding:.62rem 1.1rem;border-radius:var(--radius-md);font-weight:700;box-shadow:none;transform:none;transition:background-color .16s,border-color .16s,color .16s; }
+.btn-primary { background:#183b53;color:#fff;border:1px solid #183b53;box-shadow:none; }
+.btn-primary:hover { background:#285770;border-color:#285770;box-shadow:none;transform:none; }
+.btn-gold { background:#aa8754;color:#102a43;box-shadow:none; }
+.btn-gold:hover { background:#c2a06d;box-shadow:none;transform:none; }
+.btn-secondary { background:var(--bg-surface-2);border:1px solid var(--border-strong);color:var(--text-primary); }
+.btn-ghost { border:1px solid var(--border-strong);color:var(--text-primary);background:transparent; }
+.btn-danger { background:transparent;color:var(--danger);border:1px solid var(--border-strong); }
+.btn-ghost:hover,.btn-secondary:hover { background:var(--bg-hover); }
+.btn:focus-visible { outline:3px solid var(--border-focus);outline-offset:3px; }
+.card { background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);transition:border-color .15s; }
+.card:hover { box-shadow:var(--shadow-sm);border-color:var(--border-strong); }
+:where(.form-input,.form-select,.form-textarea) {
+  border:1px solid var(--border-strong);background:var(--bg-input);color:var(--text-primary);
+  border-radius:var(--radius-md);min-height:42px;
+}
+:where(.form-input,.form-select,.form-textarea):focus { border-color:var(--border-focus);box-shadow:0 0 0 3px rgba(46,101,126,.14); }
+.form-label { color:var(--text-secondary); }
+.data-table { border-collapse:collapse;font-variant-numeric:tabular-nums;width:100%; }
+.data-table th { color:var(--text-secondary);background:var(--bg-surface-2);font-size:.72rem;letter-spacing:.04em; }
+.data-table td { color:var(--text-primary);border-bottom:1px solid var(--border); }
+.data-table tr:hover td { background:var(--bg-hover); }
+.badge-new { background:var(--bg-surface-2);color:var(--text-primary); }
+.badge-progress { background:#e4edf3;color:#215874; }
+.badge-review { background:#f3ecde;color:#795820; }
+.badge-completed { background:#e4f2e8;color:#226645; }
+.badge-disputed,.badge-cancelled { background:#f7e8e6;color:#953a3a; }
+
+/* One navigation and content density for every authenticated department. */
+.ipsa-workspace {
+  font-family:var(--font);
+  --radius-sm:5px;--radius-md:8px;--radius-lg:12px;--radius-xl:16px;
+  --bg-body: #f4f6f7;
+  --bg-surface: #fff;
+  --bg-surface-2: #f0f3f5;
+  --bg-surface-3: #e9eef1;
+  --bg-card: #fff;
+  --bg-input: #fff;
+  --bg-header: rgba(255,255,255,.97);
+  --bg-hover: #edf2f4;
+  --bg-active: #e6eef2;
+  --text-primary: #172e3e;
+  --text-secondary: #435b6c;
+  --text-muted: #647785;
+  --text-link: #1b5474;
+  --border: #dce3e8;
+  --border-strong: #c8d4dc;
+  --border-focus: #2e6d89;
+  --primary:#173b53;
+  --accent-gold:#9b7949;
+  --shadow-sm:0 1px 2px rgba(13,42,60,.05);
+  color:var(--text-primary);background:var(--bg-body);
+  line-height:1.55;
+}
+html[data-theme="dark"] .ipsa-workspace {
+  --bg-body:#111f2c;--bg-surface:#182d3e;--bg-surface-2:#223a4c;
+  --bg-surface-3:#284355;--bg-card:#1b3142;--bg-input:#1c3546;
+  --bg-header:rgba(22,42,57,.97);--bg-hover:#2a4354;--bg-active:#304f61;
+  --text-primary:#f3f7f8;--text-secondary:#d0dde4;--text-muted:#aec2cc;
+  --text-link:#b2d9e9;--border:#3c5463;--border-strong:#6b8795;
+  --border-focus:#b5d5e2;--primary:#a6cde0;--accent-gold:#dfc08b;
+}
+:where(.admin-layout,.client-layout,.writer-layout).ipsa-workspace { background:var(--bg-body); }
+.ipsa-workspace :is(.admin-main-content,.client-content,.writer-main) {
+  min-width:0;color:var(--text-primary);background:var(--bg-body)!important;
+}
+.ipsa-workspace :is(.admin-main-content,.client-content,.writer-main)>:first-child {
+  max-width:1440px;min-width:0;margin-inline:auto;
+}
+.ipsa-workspace .card { box-shadow:var(--shadow-sm);border-radius:var(--radius-lg);padding:1.25rem; }
+.ipsa-workspace .card:hover { box-shadow:var(--shadow-sm);transform:none; }
+.ipsa-workspace .btn-primary { background:#173b53;color:#fff;border:1px solid #173b53; }
+.ipsa-workspace .btn-primary:hover { background:#25536d;border-color:#25536d; }
+.ipsa-workspace :is(.form-input,.form-select,.form-textarea) { color:var(--text-primary);border-color:var(--border-strong);border-radius:var(--radius-md); }
+.ipsa-workspace :is(h1,h2,h3,h4) { color:var(--text-primary);letter-spacing:-.027em; }
+.ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar) {
+  background:#142b3d!important;color:#f5f8fa!important;
+  border-right:1px solid #2d4556!important;
+  box-shadow:1px 0 0 rgba(14,30,45,.12);
+}
+.ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar) nav a {
+  color:#cbd8e0!important;background:transparent!important;
+  border-color:transparent!important;border-radius:7px!important;
+  min-height:42px;transition:background .15s,color .15s;
+}
+.ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar) nav a:hover {
+  background:#244355!important;color:#fff!important;
+}
+.ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar) nav a[aria-current="page"],
+.ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar) nav a.is-current {
+  background:#2d5166!important;color:#fff!important;border-color:rgba(211,181,129,.35)!important;
+}
+.ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar) nav a:focus-visible { outline:2px solid #e8c893;outline-offset:-2px; }
+.ipsa-workspace :is(.client-sidebar,.writer-sidebar)>div:first-child {
+  border-color:#354e5e!important;
+}
+.ipsa-workspace :is(.client-sidebar,.writer-sidebar)>div:first-child>div:last-child>div:first-child {
+  color:#f4f7f9!important;
+}
+.ipsa-workspace :is(.client-sidebar,.writer-sidebar)>div:first-child>div:last-child>div:last-child {
+  color:#b9cbd6!important;
+}
+.ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar)>div:last-child .btn {
+  color:#e7eef2!important;border-color:#587082!important;background:transparent!important;
+  width:100%;
+}
+.ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar)>div:last-child .btn:hover {
+  background:#2a4960!important;color:#fff!important;
+}
+.ipsa-workspace .admin-layout-content > header {
+  background:var(--bg-header)!important;border-color:var(--border)!important;
+  box-shadow:0 1px 0 var(--border);
+}
+.ipsa-workspace .admin-layout-content > header h1 { color:var(--text-primary)!important;letter-spacing:-.03em; }
+.ipsa-workspace .admin-layout-content > header .btn-ghost { color:var(--text-secondary)!important; }
+.ipsa-workspace .dashboard-zone-admin-stats .card {
+  background:var(--bg-card)!important;color:var(--text-primary)!important;
+  border:1px solid var(--border)!important;
+}
+.ipsa-workspace .dashboard-zone-admin-stats .card strong { color:#173b53!important; }
+html[data-theme="dark"] .ipsa-workspace .dashboard-zone-admin-stats .card strong { color:#dcecf4!important; }
+
+/* Website / Platform Studio: neutral surfaces instead of dark translucent panels,
+   magenta gradients and giant empty tiles. All native controls remain functional. */
+.ipsa-workspace .phase12-shell {
+  --studio-border:var(--border);--studio-panel:var(--bg-card);
+  color:var(--text-primary);font-size:.92rem;line-height:1.5;
+}
+.ipsa-workspace .phase12-shell .phase12-topbar {
+  align-items:center;gap:1rem;margin-bottom:1.2rem;
+}
+.ipsa-workspace .phase12-shell .phase12-topbar h2 { font-size:clamp(1.45rem,2.6vw,2rem);font-weight:760; }
+.ipsa-workspace .phase12-shell .phase12-eyebrow {
+  color:#806036;font-size:.68rem;letter-spacing:.12em;
+}
+.ipsa-workspace .platform-studio-dashboard { gap:1rem; }
+.ipsa-workspace .platform-studio-welcome {
+  border:1px solid var(--border);border-radius:var(--radius-lg);
+  background:var(--bg-card)!important;box-shadow:var(--shadow-sm);
+  padding:1.2rem 1.4rem;
+}
+.ipsa-workspace .platform-studio-welcome h3 { font-size:clamp(1.2rem,2vw,1.55rem);color:var(--text-primary); }
+.ipsa-workspace .platform-studio-welcome p { color:var(--text-secondary); }
+.ipsa-workspace .platform-studio-welcome span { color:#876439; }
+.ipsa-workspace .platform-studio-kpis { grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem; }
+.ipsa-workspace .platform-studio-kpis button,
+.ipsa-workspace .platform-studio-modules button {
+  background:var(--bg-card)!important;border:1px solid var(--border)!important;
+  color:var(--text-primary)!important;box-shadow:var(--shadow-sm);
+  border-radius:var(--radius-lg);transform:none!important;
+}
+.ipsa-workspace .platform-studio-kpis button:hover,
+.ipsa-workspace .platform-studio-modules button:hover { border-color:#839dab!important;box-shadow:var(--shadow-md); }
+.ipsa-workspace .platform-studio-kpis button { padding:1rem 1.2rem;min-height:116px; }
+.ipsa-workspace .platform-studio-kpis small,
+.ipsa-workspace .platform-studio-kpis span { color:var(--text-secondary)!important;font-weight:550; }
+.ipsa-workspace .platform-studio-kpis strong { color:var(--text-primary);font-size:1.65rem;line-height:1.2;margin:.35rem 0; }
+.ipsa-workspace .platform-studio-modules { grid-template-columns:repeat(3,minmax(0,1fr));gap:.8rem; }
+.ipsa-workspace .platform-studio-modules button { min-height:150px;padding:1.15rem; }
+.ipsa-workspace .platform-studio-modules strong { color:var(--text-primary);font-size:1.03rem; }
+.ipsa-workspace .platform-studio-modules span { color:var(--text-secondary)!important; }
+.ipsa-workspace .platform-studio-modules b { color:#20536f; }
+.ipsa-workspace .phase12-status-grid > div,
+.ipsa-workspace .phase12-tabs,
+.ipsa-workspace .phase12-panel,
+.ipsa-workspace .phase12-canvas-panel,
+.ipsa-workspace .page-designer-shell .phase12-panel {
+  color:var(--text-primary);background:var(--bg-card)!important;
+  border-color:var(--border)!important;box-shadow:var(--shadow-sm);
+}
+.ipsa-workspace .phase12-status-grid small,
+.ipsa-workspace .phase12-status-grid span,
+.ipsa-workspace .phase12-panel-heading small,
+.ipsa-workspace .phase12-preview-note { color:var(--text-secondary); }
+.ipsa-workspace .phase12-tabs button,
+.ipsa-workspace .phase12-canvas-toolbar button { color:var(--text-secondary); }
+.ipsa-workspace .phase12-tabs button.active,
+.ipsa-workspace .phase12-canvas-toolbar button.active {
+  background:#e6eff4;color:#173d54;box-shadow:inset 0 0 0 1px #bfd0db;
+}
+.ipsa-workspace .phase12-tabs button:hover,
+.ipsa-workspace .phase12-canvas-toolbar button:hover { background:var(--bg-hover); }
+.ipsa-workspace .phase12-canvas { background-color:#e9eef1;background-image:none; }
+.ipsa-workspace .page-designer-shell { color:var(--text-primary); }
+
+/* Engine, question builder, records and other CMS modules use the same neutral
+   panel system even when their older CSS specified opaque violet surfaces. */
+.ipsa-workspace .service-engine-shell {
+  --engine-border:var(--border);
+  --engine-panel:var(--bg-card);
+  --engine-panel-soft:var(--bg-surface-2);
+  --engine-purple:#28556e;
+  --engine-gold:#9f7944;
+  color:var(--text-primary);
+}
+.ipsa-workspace .service-engine-header {
+  background:var(--bg-card)!important;border-color:var(--border)!important;
+  color:var(--text-primary);
+}
+.ipsa-workspace .service-engine-header::after { display:none; }
+.ipsa-workspace .service-engine-shell :is(.service-engine-panel,.service-engine-nav,.service-engine-card,.service-engine-editor,.service-engine-table,.service-engine-stat,.service-engine-setting) {
+  color:var(--text-primary);background:var(--bg-card);border-color:var(--border);
+}
+.ipsa-workspace .service-engine-shell :is(p,small,label) { color:var(--text-secondary); }
+.ipsa-workspace .service-engine-shell :is(button,a):focus-visible { outline:3px solid var(--border-focus);outline-offset:2px; }
+
+/* Accessible overflow, badges and compact interactions in all three roles. */
+.ipsa-workspace :is(.data-table,.admin-table,.writer-table) { min-width:0; }
+.ipsa-workspace :is(.card,.phase12-panel) :is(p,small) { overflow-wrap:anywhere; }
+.ipsa-workspace .data-table th { background:var(--bg-surface-2);color:var(--text-secondary); }
+.ipsa-workspace .data-table td { color:var(--text-primary); }
+.ipsa-workspace .badge { border-radius:6px;font-size:.73rem; }
+.ipsa-workspace :is(.dashboard-zone,.grid)>:is(.card,section) { min-width:0; }
+
+/* Public academic identity remains visually richer, but uses the same dark navy,
+   precise typography and warm metallic accent as internal portal controls. */
+.ipsa-site-header,.ipsa-footer { color:#152b3d; }
+.ipsa :is(.ipsa-btn,.ipsa-header-cta) { box-shadow:none;transform:none; }
+.ipsa .ipsa-btn:hover { transform:none; }
+.ipsa :is(.ipsa-header-cta,.ipsa-btn-dark) { background:#153b52;border-color:#153b52; }
+.ipsa :is(.ipsa-header-cta,.ipsa-btn-dark):hover { background:#24516a;border-color:#24516a; }
+.ipsa :is(.ipsa-btn-gold) { background:#e7c895;color:#162f40; }
+.ipsa :is(.ipsa-section-head h2) { letter-spacing:-.035em; }
+.ipsa :is(.ipsa-site-header a,.ipsa button,.ipsa input,.ipsa select,.ipsa textarea):focus-visible { outline:3px solid #b28a4f;outline-offset:3px; }
+
+/* Evaluation is explicit but never occupies a full content row or obscures
+   controls. A narrow fixed label plus a dedicated guide carries the details. */
+.ips-evaluation-banner {
+  position:sticky;top:0;z-index:1150;display:flex;align-items:center;justify-content:center;
+  padding:7px 16px;gap:12px;background:#f7edda;border-bottom:1px solid #d6b983;
+  color:#46351f;letter-spacing:.025em;font-size:.72rem;font-weight:750;
+}
+.ips-evaluation-banner a { color:#17475e;text-decoration:underline;text-underline-offset:2px; }
+.ips-evaluation-banner:focus-within { outline:2px solid #17475e; }
+
+@media(max-width:1160px){
+  .ipsa-workspace .platform-studio-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .ipsa-workspace .platform-studio-modules { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:800px){
+  .ipsa-workspace :is(.admin-main-content,.client-content,.writer-main) { padding:5.2rem 1rem 1.75rem!important; }
+  .ipsa-workspace .platform-studio-welcome { flex-direction:column;align-items:stretch; }
+  .ipsa-workspace .phase12-topbar { flex-wrap:wrap; }
+  .ipsa-workspace .phase12-status-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .ips-evaluation-banner { font-size:.69rem;flex-wrap:wrap;text-align:center; }
+}
+@media(max-width:570px){
+  .ipsa-workspace .platform-studio-modules,
+  .ipsa-workspace .platform-studio-kpis,
+  .ipsa-workspace .phase12-status-grid { grid-template-columns:1fr; }
+  .ipsa-workspace .phase12-tabs { overflow-x:auto; }
+  .ipsa-workspace .card { padding:1rem; }
+  .ipsa-workspace .data-table { display:table;white-space:normal; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .ipsa-workspace *, .ipsa *, .ips-evaluation-banner { scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important; }
+}
