@@ -143,7 +143,11 @@ const readSession = req => {
 };
 const requireSession = (req, res) => {
   const session = readSession(req);
-  if (!session || (session.role==='client'||session.role==='writer')&&session.email_verified!==true) {
+  if (!session) {
+    res.status(401).json({ success: false, error: 'A valid signed-in session is required.' });
+    return null;
+  }
+  if ((session.role==='client'||session.role==='writer')&&session.email_verified!==true) {
     res.status(401).json({ success: false, error: 'A verified signed-in session is required.' });
     return null;
   }
