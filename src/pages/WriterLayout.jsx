@@ -40,7 +40,7 @@ export default function WriterLayout() {
 
       <aside
         data-studio-global="provider-sidebar"
-        data-studio-label="Provider portal navigation"
+        data-studio-label="Specialist workspace navigation"
         className={`writer-sidebar ${mobileOpen ? 'sidebar-open' : ''}`}
         style={{
           width: layout.sidebarWidth || 240,
@@ -53,8 +53,8 @@ export default function WriterLayout() {
         }}
       >
         <div style={{ padding: '0 1.5rem 1.5rem', borderBottom: '1px solid var(--border-light)' }}>
-          <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary)' }}>IPS Provider Portal</div>
-          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{writer?.full_name || 'Service Provider'}</div>
+          <div style={{ fontWeight: 800, fontSize: '1.1rem', color: 'var(--primary)' }}>Specialist Workspace</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{writer?.full_name || 'Specialist'}</div>
         </div>
 
         <nav style={{ flex: 1, padding: '1rem 0' }}>
@@ -71,7 +71,7 @@ export default function WriterLayout() {
                   gap: '0.75rem',
                   padding: '0.75rem 1.5rem',
                   color: active ? 'var(--primary)' : 'var(--text-secondary)',
-                  background: active ? 'rgba(122,75,168,0.08)' : 'transparent',
+                  background: active ? 'rgba(39,76,102,0.1)' : 'transparent',
                   borderLeft: active ? '3px solid var(--primary)' : '3px solid transparent',
                   textDecoration: 'none',
                   fontWeight: active ? 600 : 400,
