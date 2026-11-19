@@ -162,7 +162,8 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
         enquiry_id:req.params.id,request_type:'quote',client_id:{$ne:''},
         preferred_channel:'workspace',contact_verified:true,status:{$ne:'closed'}
       },{$push:{messages:{direction:'outbound',channel:'website',body,author:session.id,delivery_status:'sent',created_at:new Date()}},
-        $set:{status:'waiting_for_customer',last_activity_at:new Date(),last_customer_update_at:new Date()}},{new:true,runValidators:true}).select('enquiry_id messages status');
+        $set:{status:'waiting_for_customer',last_activity_at:new Date(),last_customer_update_at:new Date()},
+        $unset:{next_update_at:''}},{new:true,runValidators:true}).select('enquiry_id messages status');
       if(!row)return res.status(409).json({success:false,error:'This request does not have a verified private workspace destination.'});
       res.set('Cache-Control','no-store');
       res.json({success:true,quote:{enquiry_id:row.enquiry_id,messages:row.messages,status:row.status}});
