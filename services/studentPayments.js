@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { isStudentSupportRequest } from '../shared/studentOffers.js';
+import {processStudentRefundEvent} from './studentRefunds.js';
 
 const allowedCurrencies = new Set(['usd', 'eur', 'pln']);
 const safeError = error => error instanceof Error ? error.message : 'Unexpected payment error';
@@ -39,8 +40,13 @@ export function registerStudentWebhook(app, express, { StudentPayment, ServiceRe
     }
     try {
       const event = JSON.parse(req.body.toString('utf8'));
-      const session = event.data?.object || {};
-      if (!event.id || !session.id || !event.type) return res.status(400).json({ success: false, error: 'Malformed payment event.' });
+      if (!event.id || !event.type) return res.status(400).json({ success: false, error: 'Malformed payment event.' });
+      if(['refund.created','refund.updated','refund.failed'].includes(event.type)){
+        await processStudentRefundEvent(event);
+        return res.json({received:true});
+      }
+      const session=event.data?.object||{};
+      if(!session.id)return res.status(400).json({success:false,error:'Malformed checkout event.'});
       const supported = new Set(['checkout.session.completed', 'checkout.session.async_payment_succeeded', 'checkout.session.async_payment_failed', 'checkout.session.expired']);
       if (!supported.has(event.type)) return res.json({ received: true });
       const payment = await StudentPayment.findOne({ provider_session_id: session.id });
