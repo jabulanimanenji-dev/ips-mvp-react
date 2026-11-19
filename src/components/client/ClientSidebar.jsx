@@ -36,7 +36,7 @@ export default function ClientSidebar() {
         className="btn btn-ghost client-menu-toggle"
         style={{ position: 'fixed', top: '1rem', left: '1rem', zIndex: 1100, display: 'none' }}
         onClick={() => setMobileOpen(previous => !previous)}
-        aria-label="Toggle client menu"
+        aria-label="Toggle workspace menu"
       >
         Menu
       </button>
@@ -66,8 +66,8 @@ export default function ClientSidebar() {
             IPS
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>My IPS</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.full_name || 'Guest'}</div>
+            <div style={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>My Workspace</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{user?.username || 'Student / Researcher'}</div>
           </div>
         </div>
 
