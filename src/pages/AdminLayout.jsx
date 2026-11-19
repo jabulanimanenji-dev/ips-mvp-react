@@ -8,14 +8,14 @@ import { useCMS } from '../context/CMSContext';
 const PAGE_TITLES = {
   '/admin/dashboard': 'Dashboard',
   '/admin/orders': 'Orders',
-  '/admin/clients': 'Clients',
-  '/admin/writers': 'Service Providers',
+  '/admin/clients': 'Students & Researchers',
+  '/admin/writers': 'Specialists',
   '/admin/services': 'Service Operations',
   '/admin/payments': 'Payments',
   '/admin/cms': 'CMS',
   '/admin/messages': 'Messages',
   '/admin/external-chats': 'WhatsApp & Telegram inbox',
-  '/admin/enquiries': 'Contact & callback requests',
+  '/admin/enquiries': 'Private Quotes & Enquiries',
   '/admin/reports': 'Reports',
   '/admin/settings': 'Settings',
 };
