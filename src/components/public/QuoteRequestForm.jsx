@@ -68,7 +68,7 @@ export default function QuoteRequestForm({selectedService=''}) {
   return <section className="ipsa-quote-form-wrap" aria-label="Get a Quote">
     <div className="ipsa-quote-heading">
       <h3>Get a Quote</h3>
-      <p>Tell us what you need. IPS reviews requests before giving a written quotation. No account, legal name, phone call or payment is required.</p>
+      <p>Tell us what you need. IPS confirms successful submission immediately, but a person reviews requests before providing a written quotation. There is no instant price or payment obligation. No account, legal name or phone call is required.</p>
     </div>
     {result&&!result.preview?<div role="status" className="ipsa-form-success" style={{padding:18}}>
       <strong>Your private reference: {result.quote_id}</strong>
