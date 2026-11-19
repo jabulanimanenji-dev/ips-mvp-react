@@ -76,7 +76,7 @@ export function registerPrivateQuoteRoutes(app,{readSession}){
         verification_status:c.verification_status,
         contact_verified_at:c.contact_verified?now:undefined,
         status:'new',source:'academic-quote',
-        purge_at:new Date(now.getTime()+30*86400000),
+        ...(c.contact_verified?{}:{purge_at:new Date(now.getTime()+30*86400000)}),
         messages:[{direction:'inbound',channel:'website',body:c.message,delivery_status:'received',created_at:now}],
         last_activity_at:now
       });
@@ -113,6 +113,7 @@ export function registerPrivateQuoteRoutes(app,{readSession}){
       const result=await confirmEmailChallenge(lead,code);
       if(result.error)return res.status(result.status||400).json({success:false,error:result.error});
       lead.contact_verified=true;lead.verification_status='verified';lead.contact_verified_at=new Date();
+      lead.purge_at=undefined;
       await lead.save();
       try{await enqueueContactEmailJobs(lead);}catch(error){console.error('IPS verified quote notification unavailable:',error?.name||'error');}
       res.set('Cache-Control','no-store');
