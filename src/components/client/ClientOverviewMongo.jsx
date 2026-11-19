@@ -81,7 +81,7 @@ export default function ClientOverviewMongo() {
       <DashboardZone portal="client" id="stats">
       <div data-studio-protected="true" data-studio-protected-reason="Private customer metrics are calculated from live account data." className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
         {[
-          ['All jobs', activity.length, 'Across every IPS service'],
+          [academicLaunch?'My projects':'All jobs', activity.length, academicLaunch?'Academic support work and requests':'Across every IPS service'],
           ['Active', active.length, 'Currently being handled'],
           ['Quotes waiting', quotes.length, 'Ready for your decision'],
           ['Completed', completed.length, 'Delivered successfully']
@@ -138,14 +138,14 @@ export default function ClientOverviewMongo() {
       <DashboardZone portal="client" id="activity">
       <div className="card">
         <div className="flex justify-between items-center" style={{ gap: 12, flexWrap: 'wrap' }}>
-          <div><h3>Recent activity</h3><p style={{ color: 'var(--text-muted)' }}>Every job, together in one timeline.</p></div>
+          <div><h3>Recent activity</h3><p style={{ color: 'var(--text-muted)' }}>{academicLaunch?'Your academic projects, updates and service history.':'Every job, together in one timeline.'}</p></div>
           <ConfigurableActionGroup portal="client" area="activity" actionClassName="btn-sm" />
         </div>
         {loading && <p>Loading your workspace...</p>}
         {!loading && !activity.length && <p style={{ color: 'var(--text-muted)', padding: '1.5rem 0' }}>No activity yet. Choose a service above to begin.</p>}
         {activity.slice(0, 7).map(item => (
           <Link key={`${item.kind}-${item.id}`} to={item.href} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '1rem 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
-            <span><small style={{ color: 'var(--primary)', fontWeight: 800 }}>{item.kind.toUpperCase()}</small><br /><strong>{item.title}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{item.id}</small></span>
+            <span><small style={{ color: 'var(--primary)', fontWeight: 800 }}>{academicLaunch&&item.kind==='Professional service'?'ACADEMIC SUPPORT':item.kind.toUpperCase()}</small><br /><strong>{item.title}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{item.id}</small></span>
             <span style={{ textAlign: 'right' }}><strong>{item.status}</strong><br /><small>{item.progress}% complete</small></span>
           </Link>
         ))}
