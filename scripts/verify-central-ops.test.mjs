@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {permissionForAdminRequest,hasAdminPermission,rolePermissions} from '../shared/adminPermissions.js';
-import {revokeQuoteChannel} from '../services/contactChannels.js';
+import {revokeChannelConsent} from '../services/contactChannels.js';
 import {validatePrivateQuote} from '../shared/privacyIdentity.js';
 
 test('private quote staff messages require a dedicated support management permission',()=>{
@@ -28,12 +28,12 @@ test('disconnecting messenger revokes verified quotation and exact contact permi
   const model={updateMany:async(filter,change)=>{
     calls.push({filter,change});return {modifiedCount:2};
   }};
-  const result=await revokeQuoteChannel({
+  const result=await revokeChannelConsent({
     channel:'telegram',clientId:'CID-PRIVATE-1',contactIds:['507f1f77bcf86cd799439011'],model
   });
   assert.equal(result.modifiedCount,2);
   const {filter,change}=calls[0];
-  assert.equal(filter.request_type,'quote');
+  assert.deepEqual(filter.request_type,{$in:['quote','general']});
   assert.equal(filter.preferred_channel,'telegram');
   assert.equal(filter.contact_verified,true);
   assert.equal(filter.$or.length,2);
@@ -43,7 +43,7 @@ test('disconnecting messenger revokes verified quotation and exact contact permi
   assert.equal(change.$set.contact_verified,false);
   assert.equal(change.$unset.contact_thread_id,'');
   assert.equal(change.$unset.contact_verified_at,'');
-  assert.equal((await revokeQuoteChannel({channel:'whatsapp',model})).modifiedCount,0);
-  await assert.rejects(revokeQuoteChannel({channel:'signal',model}),/Unsupported/);
+  assert.equal((await revokeChannelConsent({channel:'whatsapp',model})).modifiedCount,0);
+  await assert.rejects(revokeChannelConsent({channel:'signal',model}),/Unsupported/);
   assert.equal(calls.length,1);
 });
