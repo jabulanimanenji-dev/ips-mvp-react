@@ -19,33 +19,20 @@ const hashPass=password=>{
 };
 const password='ExampleTestPassword123!';
 await mongoose.connect(process.env.MONGODB_URI);
-await Writer.updateOne({writer_id:'WID-TEST-SPECIALIST'},{$setOnInsert:{
-  writer_id:'WID-TEST-SPECIALIST',full_name:'CI Specialist',email:'specialist-ci@example.org',
-  password:hashPass(password),email_verified_at:new Date(),status:'Active',application_status:'approved',
-  primary_expertise:'Research methods',services:['research-methods']
-}},{upsert:true});
-// Seed only a specialist identity. The actual paid academic request came from
-// the preceding, fully validated API lifecycle. Assign it through the admin
-// API rather than bypassing role/quote/payment rules with a database write.
+// Reuse the genuinely verified and IPS-approved specialist and completed
+// academic project from the preceding three-role MongoDB lifecycle. No seeded
+// account or administrator status forgery is needed for browser qualification.
 const paidRequest=await ServiceRequest.findOne({
-  client_id:'CID-TEST-ALICE',category:'Academic Support',payment_status:'paid'
+  client_id:'CID-TEST-ALICE',category:'Academic Support',payment_status:'paid',
+  provider_id:'WID-CI-VERIFIED-01'
 }).sort({createdAt:-1}).lean();
-assert.ok(paidRequest?.request_id,'Missing verified-paid academic request from backend integration.');
+assert.ok(paidRequest?.request_id,'Missing verified paid and approved specialist project from API integration.');
+assert.equal(paidRequest.status,'Completed');
+const writerIdentity=await Writer.findOne({writer_id:'WID-CI-VERIFIED-01'}).lean();
+assert.equal(writerIdentity?.application_status,'approved');
+assert.ok(writerIdentity?.email_verified_at);
 await mongoose.disconnect();
-const adminResponse=await fetch(base+'/api/admin/login',{method:'POST',
-  headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({email:process.env.ADMIN_EMAIL,password:process.env.ADMIN_PASSWORD})});
-assert.equal(adminResponse.status,200,'Could not authenticate test administrator.');
-const adminCookie=adminResponse.headers.get('set-cookie')?.split(';')[0];
-assert.ok(adminCookie?.startsWith('ips_session='));
-const assignedResponse=await fetch(base+'/api/services/'+encodeURIComponent(paidRequest.request_id),{
-  method:'PATCH',headers:{'Content-Type':'application/json',Cookie:adminCookie},
-  body:JSON.stringify({provider_id:'WID-TEST-SPECIALIST',status:'Assigned'})
-});
-const assignedData=await assignedResponse.json().catch(()=>({}));
-assert.equal(assignedResponse.status,200,'Approved specialist assignment failed: '+JSON.stringify(assignedData));
-assert.equal(assignedData.request?.provider_id,'WID-TEST-SPECIALIST');
-console.log('PASS Administrator assigns a verified-paid academic service to an approved specialist via API');
+console.log('PASS Browser reuses genuine paid assignment, approved specialist and completed client lifecycle');
 const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
 const pages=[];
 const open=async()=>{const p=await browser.newPage({viewport:{width:1440,height:900}});pages.push(p);return p};
@@ -108,7 +95,7 @@ try{
   const specialist=await open();
   await check('Real approved Specialist login opens only the Specialist workspace',async()=>{
     await specialist.goto(base+'/writer/login',{waitUntil:'domcontentloaded'});
-    await specialist.locator('input[type=email]').fill('specialist-ci@example.org');
+    await specialist.locator('input[type=email]').fill('writer.ci@example.org');
     await specialist.locator('input[type=password]').fill(password);
     await specialist.getByRole('button',{name:/open my workspace/i}).click();
     await specialist.waitForURL(/\/writer/,{timeout:15000});
@@ -118,8 +105,8 @@ try{
     const gradient=await hero.evaluate(el=>getComputedStyle(el).backgroundImage);
     assert.ok(gradient.includes('rgb(16, 42, 67)'), 'Specialist hero must use readable deep-navy background: '+gradient);
     assert.ok(await specialist.getByText('Specialist Workspace').count()>=1);
-    assert.ok(await specialist.getByText(/Thesis & Dissertation Guidance/i).count()>=1,
-      'Assigned academic request must appear in specialist work queue.');
+    assert.ok(await specialist.getByText(paidRequest.title).count()>=1,
+      'The genuine paid, specialist-completed academic project must appear in the specialist workspace.');
     await specialist.waitForFunction(()=>{
       const cards=[...document.querySelectorAll('.dashboard-zone-writer-stats .card')];
       const first=cards.find(card=>card.textContent?.includes('All jobs'));
