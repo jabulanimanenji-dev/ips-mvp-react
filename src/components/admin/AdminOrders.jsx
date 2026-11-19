@@ -120,7 +120,7 @@ export default function AdminOrders() {
           <thead>
             <tr>
               <th>ID</th>
-              <th>Client</th>
+              <th>Student / Researcher</th>
               <th>Service</th>
               <th>Topic</th>
               <th>Writer</th>
