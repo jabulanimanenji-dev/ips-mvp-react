@@ -401,6 +401,106 @@ async function go(){
   assert.equal(assigned.status,200,JSON.stringify(assigned.body));
   pass('Paid quote locked; paid order cannot be deleted and can advance to assignment queue');
 
+  const {default:Writer}=await import('../models/Writer.js');
+  await mongoose.connect(process.env.MONGODB_URI);
+  const specialistId='WID-CI-VERIFIED-01';
+  await Writer.create({
+    writer_id:specialistId,full_name:'Verified Test Specialist',email:'writer.ci@example.org',
+    password:testHash(password),email_verified_at:new Date(),application_status:'pending',
+    status:'Inactive',primary_expertise:'Research methods',availability:'Available'
+  });
+  await mongoose.disconnect();
+  const unapprovedSpecialist=await call('/api/writer/login',{method:'POST',
+    json:{email:'writer.ci@example.org',password}});
+  assert.equal(unapprovedSpecialist.status,403);
+  const approvedSpecialist=await call('/api/provider/applications/'+specialistId,{
+    method:'PATCH',session:admin.cookie,json:{decision:'approved',admin_notes:'Credentials checked in isolated CI test fixture'}});
+  assert.equal(approvedSpecialist.status,200,JSON.stringify(approvedSpecialist.body));
+  const specialist=await call('/api/writer/login',{method:'POST',json:{email:'writer.ci@example.org',password}});
+  assert.equal(specialist.status,200,JSON.stringify(specialist.body));
+  assert.equal(specialist.body.writer.full_name,'Verified Test Specialist');
+  pass('Human manager approval gates real specialist access; unapproved application cannot sign in');
+
+  const assignedSpecialist=await call('/api/services/'+requestId,{
+    method:'PATCH',session:admin.cookie,json:{provider_id:specialistId,status:'Assigned',
+      reason:'Approved paid work allocated to vetted specialist'}});
+  assert.equal(assignedSpecialist.status,200,JSON.stringify(assignedSpecialist.body));
+  assert.equal(assignedSpecialist.body.request.provider_id,specialistId);
+  const specialistJobs=await call('/api/services?provider_id='+specialistId,{session:specialist.cookie});
+  assert.equal(specialistJobs.status,200);
+  assert.equal(specialistJobs.body.requests.some(job=>job.request_id===requestId),true);
+  const specialistWorkspace=await call('/api/orders/'+requestId+'/workspace',{session:specialist.cookie});
+  assert.equal(specialistWorkspace.status,200,JSON.stringify(specialistWorkspace.body));
+  const unassignedWorkspace=await call('/api/orders/'+requestId+'/workspace',{session:bob.cookie});
+  assert.equal(unassignedWorkspace.status,403);
+  const noDirectContact=await call('/api/orders/'+requestId+'/messages',{
+    method:'POST',session:specialist.cookie,
+    json:{channel:'client_provider',body:'Direct communication should not bypass management.'}});
+  assert.equal(noDirectContact.status,403);
+  const specialistMessage=await call('/api/orders/'+requestId+'/messages',{
+    method:'POST',session:specialist.cookie,json:{channel:'writer_admin',
+      body:'I am ready to work on the authorized paid research methods assignment.'}});
+  assert.equal(specialistMessage.status,200);
+  const clientMessages=await call('/api/orders/'+requestId+'/workspace',{session:alice.cookie});
+  assert.ok(!clientMessages.body.messages.some(m=>m.body.includes('I am ready to work on')));
+  pass('Approved specialist receives only assigned paid work, with private staff channels and no direct-contact bypass');
+
+  const started=await call('/api/services/'+requestId,{method:'PATCH',session:specialist.cookie,
+    json:{status:'In Progress',progress:45,provider_notes:'Research methods assessment underway'}});
+  assert.equal(started.status,200,JSON.stringify(started.body));
+  const documentBody='IPS isolated test: research methods feedback prepared by vetted specialist.';
+  const documentBuffer=Buffer.from(documentBody,'utf8');
+  const uploaded=await call('/api/orders/'+requestId+'/files',{
+    method:'POST',session:specialist.cookie,json:{
+      name:'research-methods-feedback.txt',mime_type:'text/plain',size:documentBuffer.length,
+      data:documentBuffer.toString('base64'),category:'Provider Draft',
+      description:'Reviewable academic feedback for manager approval'
+    }});
+  assert.equal(uploaded.status,200,JSON.stringify(uploaded.body));
+  assert.equal(uploaded.body.file.state,'pending');
+  const fileId=uploaded.body.file._id;
+  const noEarlyFile=await call('/api/files/'+fileId+'/download',{session:alice.cookie});
+  assert.equal(noEarlyFile.status,403);
+  const noSelfRelease=await call('/api/files/'+fileId,{method:'PATCH',session:specialist.cookie,
+    json:{state:'released',visibility:'all'}});
+  assert.equal(noSelfRelease.status,403);
+  const deliveredForReview=await call('/api/services/'+requestId,{
+    method:'PATCH',session:specialist.cookie,json:{status:'Submitted for Review',progress:90,
+      provider_notes:'Completed methods feedback ready for IPS quality review'}});
+  assert.equal(deliveredForReview.status,200,JSON.stringify(deliveredForReview.body));
+  const releasedFile=await call('/api/files/'+fileId,{method:'PATCH',session:admin.cookie,
+    json:{state:'released',visibility:'admin_client',
+      description:'IPS quality reviewed, released to verified client'}});
+  assert.equal(releasedFile.status,200,JSON.stringify(releasedFile.body));
+  const approvedForClient=await call('/api/services/'+requestId,{
+    method:'PATCH',session:admin.cookie,json:{status:'Ready for Client',reason:'IPS quality review approved'}});
+  assert.equal(approvedForClient.status,200,JSON.stringify(approvedForClient.body));
+  const clientFile=await call('/api/files/'+fileId+'/download',{session:alice.cookie});
+  assert.equal(clientFile.status,200);
+  assert.equal(clientFile.body.raw,documentBody);
+  const untrustedFile=await call('/api/files/'+fileId+'/download',{session:bob.cookie});
+  assert.equal(untrustedFile.status,403);
+  pass('Specialist submits real local-stored file; IPS approves and releases; correct client downloads, other clients denied');
+
+  const revision=await call('/api/services/'+requestId,{
+    method:'PATCH',session:alice.cookie,json:{status:'Correction Required',reason:'Please explain one assumption in more detail'}});
+  assert.equal(revision.status,200,JSON.stringify(revision.body));
+  const rework=await call('/api/services/'+requestId,{
+    method:'PATCH',session:specialist.cookie,json:{status:'In Progress',progress:92}});
+  assert.equal(rework.status,200);
+  const resubmitted=await call('/api/services/'+requestId,{
+    method:'PATCH',session:specialist.cookie,json:{status:'Submitted for Review',progress:100}});
+  assert.equal(resubmitted.status,200);
+  const approvedAgain=await call('/api/services/'+requestId,{
+    method:'PATCH',session:admin.cookie,json:{status:'Ready for Client'}});
+  assert.equal(approvedAgain.status,200);
+  const completed=await call('/api/services/'+requestId,{
+    method:'PATCH',session:alice.cookie,json:{status:'Completed'}});
+  assert.equal(completed.status,200,JSON.stringify(completed.body));
+  assert.equal(completed.body.request.status,'Completed');
+  pass('Central paid lifecycle includes specialist work, IPS QA, client revision, re-review and verified customer completion');
+
+
   const link=await call('/api/contact-channels/link-code',{method:'POST',session:alice.cookie});
   assert.equal(link.status,200,JSON.stringify(link.body));
   assert.match(link.body.command,/^\/link [A-Za-z0-9_-]{20}$/);
