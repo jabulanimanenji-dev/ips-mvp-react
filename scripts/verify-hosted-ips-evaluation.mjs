@@ -109,7 +109,7 @@ try{
     await p.locator('input[type=email]').fill('specialist.evaluation@example.org');
     await p.locator('input[type=password]').fill('EvalSpecialist2026!');
     await p.getByRole('button',{name:/open my workspace/i}).click();
-    await p.waitForURL(/\/writer\//,{timeout:20000});
+    await p.waitForURL(/\/writer\/dashboard(?:[/?#]|$)/,{timeout:20000});
     await p.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
     await p.locator('.writer-layout').waitFor({timeout:20000});
     await screenshot(p,'04-approved-specialist-workspace');
