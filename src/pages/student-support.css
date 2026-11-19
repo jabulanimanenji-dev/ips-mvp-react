@@ -364,3 +364,28 @@
 .ipsa-enquiry-form>small{display:block;color:#7d8b97;font-size:.72rem;margin-top:14px;line-height:1.7}
 @media(max-width:900px){.ipsa-enquiry-columns{grid-template-columns:1fr;gap:35px}.ipsa-enquiry-intro{padding-top:0}}
 @media(max-width:570px){.ipsa-enquiry-card{padding:24px 20px}.ipsa-enquiry-form .ipsa-form-row{grid-template-columns:1fr;gap:0}}
+
+/* Privacy-first quotation and plain-language confidentiality overview */
+.ipsa-quote-form-wrap{display:flex;flex-direction:column;gap:16px}
+.ipsa-quote-heading h3{color:#1a3049;font-size:1.35rem;letter-spacing:-.035em;font-weight:740;margin:0 0 7px}
+.ipsa-quote-heading p{font-size:.85rem;line-height:1.65;color:#617185;margin:0}
+.ipsa-quote-form-wrap .ipsa-request-form{border-top:1px solid #e0e5e9;padding-top:16px}
+.ipsa-quote-form-wrap .ipsa-request-form input:disabled{color:#6d7782;background:#f0f2f3}
+.ipsa-quote-form-wrap .ipsa-form-success{background:#f1f5f3;border:1px solid #b8ccc5;color:#243f3b;border-radius:5px}
+.ipsa-quote-form-wrap .ipsa-form-success p{font-size:.83rem;line-height:1.6;margin:11px 0}
+.ipsa-quote-form-wrap .ipsa-form-success form{display:grid;gap:12px}
+.ipsa-quote-form-wrap .ipsa-form-success form label{font-size:.83rem;font-weight:720}
+.ipsa-quote-form-wrap .ipsa-form-success form input{display:block;width:100%;margin-top:7px}
+.ipsa-privacy{background:#f5f5f1;border-top:1px solid #e4e6e2}
+.ipsa-privacy-grid{display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);gap:clamp(28px,6vw,85px)}
+.ipsa-privacy h2{font-size:clamp(2rem,3vw,3.3rem);line-height:1.1;letter-spacing:-.04em;color:#192f48;margin:0 0 24px}
+.ipsa-privacy h2 em{font:italic 1em Georgia,"Times New Roman",serif;color:#a8804e}
+.ipsa-privacy p{line-height:1.8;color:#5c6f80;font-size:.9rem}
+.ipsa-privacy-points{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.ipsa-privacy-points article{background:#fff;padding:24px;border:1px solid #dfe4e5;border-radius:4px}
+.ipsa-privacy-points article strong{color:#1d3349;letter-spacing:-.015em;font-size:.94rem}
+.ipsa-privacy-points article p{font-size:.81rem;line-height:1.7;margin:10px 0 0}
+.ipsa-privacy-end{border-top:1px solid #d9dfde;margin-top:40px;padding-top:25px;color:#617185;font-size:.82rem;line-height:1.6}
+.ipsa-privacy-end a{color:#213f57;text-decoration:underline;text-decoration-color:#b69a70;text-underline-offset:3px}
+@media(max-width:850px){.ipsa-privacy-grid{grid-template-columns:1fr}.ipsa-privacy-points{gap:12px}}
+@media(max-width:560px){.ipsa-privacy-points{grid-template-columns:1fr}.ipsa-privacy-points article{padding:20px}.ipsa-privacy{padding:70px 0}}
