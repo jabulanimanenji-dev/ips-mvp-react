@@ -4,7 +4,11 @@ const formatTotal = quote => new Intl.NumberFormat('en', { style: 'currency', cu
 
 export default function StudentCheckout({ job, onRefresh }) {
   const [state, setState] = useState({ working: false, error: '', status: job.payment_status || 'unpaid' });
-  const paid = state.status === 'paid' || job.payment_status === 'paid';
+  const paymentState=state.status||job.payment_status||'unpaid';
+  const paid=paymentState==='paid';
+  const refunded=paymentState==='refunded';
+  const partiallyRefunded=paymentState==='partially_refunded';
+  const settled=paid||refunded||partiallyRefunded;
   const eligible = job.quote?.accepted && Number(job.quote.total) > 0;
   const returned = new URLSearchParams(window.location.search).get('checkout') === 'returned';
 
@@ -13,7 +17,7 @@ export default function StudentCheckout({ job, onRefresh }) {
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Payment status could not be verified.');
     setState(previous => ({ ...previous, status: data.payment_status, error: '' }));
-    if (data.payment_status === 'paid') onRefresh?.();
+    if (['paid','refunded','partially_refunded'].includes(data.payment_status)) onRefresh?.();
     return data.payment_status;
   }, [job.request_id, onRefresh]);
 
@@ -27,7 +31,7 @@ export default function StudentCheckout({ job, onRefresh }) {
     if (!returned) return () => { active = false; };
     const timer = setInterval(async () => {
       polls += 1;
-      try { if ((await refresh()) === 'paid' || polls >= 15) clearInterval(timer); }
+      try { if (['paid','refunded','partially_refunded'].includes(await refresh()) || polls >= 15) clearInterval(timer); }
       catch { if (polls >= 15) clearInterval(timer); }
     }, 4000);
     return () => { active = false; clearInterval(timer); };
@@ -54,7 +58,11 @@ export default function StudentCheckout({ job, onRefresh }) {
     <h3>Secure payment</h3>
     <p>Payment is required only after you accept the final academic-support quotation.</p>
     <p><strong>Quotation: {eligible ? formatTotal(job.quote) : 'Awaiting your approval'}</strong></p>
-    {paid ? <p role="status" style={{ color: 'var(--success, green)' }}>Payment verified. Your support request is eligible for fulfillment.</p>
+    {settled ? <p role="status" style={{ color: 'var(--success, green)' }}>
+      {refunded?'This quotation was fully refunded. No further payment is due for this project.':
+      partiallyRefunded?'This quotation was paid and partially refunded. You cannot be charged again for the same accepted quote.':
+      'Payment verified. Your support request is eligible for fulfillment.'}
+    </p>
       : !eligible ? <p>Review and accept your quotation from the Service Hub before paying.</p>
       : <>
         <p role="status">{state.status === 'processing' || returned ? 'Checking payment confirmation with the provider…' : 'Payment has not been confirmed.'}</p>
