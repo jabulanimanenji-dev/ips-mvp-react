@@ -4,9 +4,11 @@ import ContactEnquiry from '../models/ContactEnquiry.js';
 import { canSendContactEmail,sendEmailReply } from './businessEmailTransport.js';
 import { enqueueContactEmailJobs } from './contactEmailQueue.js';
 import ContactEmailJob from '../models/ContactEmailJob.js';
+import {usernameValid,normalizeUsername,normalizeEmail} from '../shared/privacyIdentity.js';
+import {verificationAvailable,issueEmailChallenge,confirmEmailChallenge} from './accountVerification.js';
 export { canSendContactEmail,sendEmailReply } from './businessEmailTransport.js';
 
-export const PUBLIC_REPLY_METHODS=Object.freeze(['email','phone','whatsapp','telegram']);
+export const PUBLIC_REPLY_METHODS=Object.freeze(['email','whatsapp','telegram']);
 const isText=x=>typeof x==='string';
 const within=(x,min,max)=>isText(x)&&x.trim().length>=min&&x.trim().length<=max;
 export const validEmail=x=>isText(x)&&x.length<=254&&/^[^\s@\x00-\x1f]+@[^\s@\x00-\x1f]+\.[a-zA-Z]{2,}$/i.test(x);
@@ -15,24 +17,23 @@ export const normalizePhone=x=>isText(x)?x.trim().replace(/[\s().-]/g,''):'';
 
 export function validatePublicEnquiry(data){
   if(!data || typeof data!=='object'||Array.isArray(data))return {error:'An enquiry is required.'};
-  const name=String(data.name||'').trim().slice(0,101);
-  const email=String(data.email||'').trim().toLowerCase().slice(0,255);
+  const username=normalizeUsername(data.username||data.name||'').slice(0,33);
+  const email=normalizeEmail(data.email).slice(0,255);
   const phone=normalizePhone(String(data.phone||'').slice(0,40));
   const subject=String(data.subject||'').trim().slice(0,141);
   const message=String(data.message||'').trim().slice(0,3001);
   const method=data.preferred_channel;
-  if(!within(name,2,100)||!within(subject,4,140)||!within(message,15,3000))
-    return {error:'Provide your name, subject and a clear message (at least 15 characters).'};
+  if(!usernameValid(username)||!within(subject,4,140)||!within(message,15,3000))
+    return {error:'Choose a username (3–32 characters), a subject and a clear message.'};
   if(!PUBLIC_REPLY_METHODS.includes(method))return {error:'Choose a supported contact method.'};
   if(email&&!validEmail(email))return {error:'Enter a valid email address.'};
   if(phone&&!validTelephone(phone))return {error:'Enter a phone number with a country code such as +48…'};
   if(method==='email'&&!email)return {error:'Email address is required for email replies.'};
-  if(['phone','whatsapp'].includes(method)&&!phone)return {error:'Phone number is required for a callback or WhatsApp.'};
-  // Bots may not initiate conversations. A phone/email alternative ensures a usable callback.
-  if(method==='telegram'&&!email&&!phone)return {error:'Add an email address or telephone number as an alternative to Telegram.'};
+  if(method==='whatsapp'&&!phone)return {error:'A WhatsApp number is required for written WhatsApp messages.'};
+  if(method==='telegram'&&!/^[a-zA-Z][a-zA-Z0-9_]{4,31}$/.test(String(data.telegram_username||'').replace(/^@/,'')))return {error:'Enter a Telegram username and start the IPS bot chat.'};
   if(data.contact_consent!==true)return {error:'You must consent to be contacted about this enquiry.'};
   if(String(data.website||'').trim())return {error:'We could not process this request.'};
-  return {value:{name,email,phone,subject,message,preferred_channel:method,contact_consent:true}};
+  return {value:{username,email:method==='email'?email:'',phone:method==='whatsapp'?phone:'',telegram_username:method==='telegram'?String(data.telegram_username).replace(/^@/,'').toLowerCase():'',subject,message,preferred_channel:method,contact_consent:true}};
 }
 
 const windowMs=15*60*1000;
@@ -70,34 +71,51 @@ export function registerEnquiryRoutes(app,{requireSession}){
   });
   app.post('/api/contact-enquiries',async(req,res)=>{
     if(!matchesOrigin(req))return res.status(403).json({success:false,error:'Submit from the IPS website.'});
-    if(mongoose.connection.readyState!==1)return res.status(503).json({success:false,error:'Enquiries are temporarily unavailable. Contact IPS on WhatsApp instead.'});
+    if(mongoose.connection.readyState!==1)return res.status(503).json({success:false,error:'Written enquiries are temporarily unavailable.'});
     if(requestLimited(req))return res.status(429).json({success:false,error:'Too many requests. Please try again later.'});
     const checked=validatePublicEnquiry(req.body);
     if(checked.error)return res.status(400).json({success:false,error:checked.error});
+    if(checked.value.preferred_channel==='email'&&!verificationAvailable())return res.status(503).json({success:false,error:'Verified email enquiries are temporarily unavailable.'});
     try{
       // Public enquiries never trust caller-supplied client_id or role.
       const c=checked.value;
       const id=createId(), now=new Date();
       const lead=await ContactEnquiry.create({
-        enquiry_id:id,name:c.name,email:c.email,phone:c.phone,
+        enquiry_id:id,name:'',username:c.username,email:c.email,phone:c.phone,
+        telegram_username:c.telegram_username,request_type:'general',purge_at:new Date(now.getTime()+30*86400000),
         preferred_channel:c.preferred_channel,subject:c.subject,contact_consent:true,consent_at:now,
+        contact_verified:false,verification_status:'awaiting_verification',
         messages:[{direction:'inbound',channel:'website',body:c.message,delivery_status:'received',created_at:now}],
         last_activity_at:now
       });
-      // The enquiry is already durable. A mail-provider or outbox failure must
-      // not make the client retry and accidentally submit a second enquiry.
-      let email_notification='disabled';
-      try{
-        const result=await enqueueContactEmailJobs(lead);
-        email_notification=result.enabled?'queued':'disabled';
-      }catch(error){
-        email_notification='unavailable';
-        console.error('IPS email outbox enqueue failed:',error?.name||'error');
+      if(c.preferred_channel==='email'){
+        try{await issueEmailChallenge(lead);}
+        catch(error){return res.status(503).json({success:false,enquiry_id:id,verification_required:true,
+          error:'Enquiry saved, but the verification email failed. Contact IPS with this reference.'});}
       }
       res.set('Cache-Control','no-store');
-      return res.status(201).json({success:true,enquiry_id:id,email_notification,
-        message:'Your enquiry was saved by IPS. Keep this reference for follow-up.'});
+      return res.status(202).json({success:true,enquiry_id:id,
+        verification_required:c.preferred_channel==='email',
+        requires_chat_start:c.preferred_channel!=='email',
+        message:'Enquiry saved, but IPS needs to verify your selected written contact channel before responding.'});
     }catch(error){console.error('Public enquiry storage failed:',error?.name||'error');return res.status(503).json({success:false,error:'Your enquiry was not saved. Please use WhatsApp instead.'});}
+  });
+  app.post('/api/contact-enquiries/verify-email',async(req,res)=>{
+    const id=String(req.body?.enquiry_id||''),code=String(req.body?.code||'');
+    if(!/^ENQ-[A-F0-9]{18}$/.test(id)||!/^\d{8}$/.test(code))
+      return res.status(400).json({success:false,error:'Enter a valid enquiry reference and code.'});
+    try{
+      const lead=await ContactEnquiry.findOne({enquiry_id:id,request_type:'general',preferred_channel:'email',contact_verified:false})
+        .select('+verification_hash +verification_expires_at +verification_attempts +verification_sent_at');
+      if(!lead)return res.status(400).json({success:false,error:'Verification is unavailable.'});
+      const outcome=await confirmEmailChallenge(lead,code);
+      if(outcome.error)return res.status(outcome.status).json({success:false,error:outcome.error});
+      lead.contact_verified=true;lead.contact_verified_at=new Date();lead.verification_status='verified';
+      await lead.save();
+      try{await enqueueContactEmailJobs(lead);}catch{}
+      res.set('Cache-Control','no-store');
+      return res.json({success:true,enquiry_id:id});
+    }catch{return res.status(503).json({success:false,error:'Could not verify this request.'});}
   });
   app.get('/api/contact-enquiries/admin',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
@@ -146,7 +164,7 @@ export function registerEnquiryRoutes(app,{requireSession}){
     // Reserve a reply slot to avoid accidental double-click / parallel sends.
     const lock=crypto.randomUUID();
     const lead=await ContactEnquiry.findOneAndUpdate({
-      enquiry_id:req.params.id,email:{$ne:''},status:{$ne:'closed'},pending_reply:{$exists:false}},
+      enquiry_id:req.params.id,email:{$ne:''},preferred_channel:'email',contact_verified:true,status:{$ne:'closed'},pending_reply:{$exists:false}},
       {$set:{pending_reply:lock}},{new:true});
     if(!lead)return res.status(409).json({success:false,error:'Enquiry unavailable, closed, missing an email, or another reply is being sent.'});
     try{
