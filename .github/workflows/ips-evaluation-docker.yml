@@ -58,7 +58,7 @@ jobs:
           }
           async function check(path,cookie,want){
             const res=await fetch(base+path,{headers:{Cookie:cookie}});
-            assert.equal(res.status,want,await res.text());
+            assert.equal(res.status,want,await res.clone().text());
             return res;
           }
           const customer=await login('/api/client/login','client.evaluation@example.org','EvalClient2026!');
