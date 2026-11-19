@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fmtCur } from '../../utils/formatters';
+import SpecialistPayoutLedger from './SpecialistPayoutLedger.jsx';
 
 export default function AdminPayments() {
   const [analytics, setAnalytics] = useState(null);
@@ -70,6 +71,7 @@ export default function AdminPayments() {
         <table className="data-table"><thead><tr><th>Request</th><th>Amount</th><th>Status</th><th>Paid at</th></tr></thead><tbody>{studentPayments.map(item => <tr key={item._id}><td>{item.request_id}</td><td>{item.currency.toUpperCase()} {(item.amount_minor / 100).toFixed(2)}</td><td>{item.status}</td><td>{item.paid_at ? new Date(item.paid_at).toLocaleString() : '—'}</td></tr>)}</tbody></table>
         {!studentPayments.length && !studentError && <p>No student payments recorded.</p>}
       </section>
+      <SpecialistPayoutLedger />
     </div>
   );
 }
