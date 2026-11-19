@@ -27,6 +27,7 @@ export default function LoginPage(){
       <span className="active" aria-current="page">Student / Researcher</span>
       <Link to="/writer/login">Specialist</Link>
     </nav>
+    {location.state?.notice&&<p className="ipsa-auth-help" role="status">{location.state.notice}</p>}
     {error&&<div className="ipsa-auth-alert" role="alert">{error}</div>}
     {verificationNeeded?<VerifyEmailPanel email={email} verify={verifyClientEmail}
       onSuccess={()=>navigate(next,{replace:true})} onCancel={()=>{setVerificationNeeded(false);setError('');}}/>:null}
