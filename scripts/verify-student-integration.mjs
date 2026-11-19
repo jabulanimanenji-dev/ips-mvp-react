@@ -71,7 +71,7 @@ async function go(){
   pass('Actual administrator authentication');
 
   const privateQuote={
-    username:'PrivateAlice',service:'statistics-support',subject:'Research planning',
+    username:'PrivateAlice',service:'statistics-support',subject:'R'.repeat(160),
     message:'I would like methodology and data analysis guidance for my academic research project.',
     preferred_channel:'workspace',contact_consent:true
   };
@@ -102,15 +102,24 @@ async function go(){
   assert.equal(found.username,'PrivateAlice');
   assert.equal(found.name,'');
   assert.equal(found.phone,'');
-  pass('Only IPS staff can inspect pseudonymous quote details');
+  assert.equal(found.discipline,'R'.repeat(160));
+  assert.equal(found.subject,'statistics-support');
+  pass('Only IPS staff can inspect pseudonymous quote details and long academic disciplines safely');
 
   const noEmail=await call('/api/contact-enquiries/admin/'+reference+'/email-reply',{
     method:'POST',session:admin.cookie,json:{message:'IPS will respond in writing.'}});
   assert.equal(noEmail.status,503);
+  const updateDue=new Date(Date.now()+2*86400000).toISOString();
+  const invalidDue=await call('/api/contact-enquiries/admin/'+reference,{
+    method:'PATCH',session:admin.cookie,json:{next_update_at:'yesterday'}});
+  assert.equal(invalidDue.status,400);
   const moved=await call('/api/contact-enquiries/admin/'+reference,{
-    method:'PATCH',session:admin.cookie,json:{status:'in_progress',admin_note:'Private quote under review'}});
+    method:'PATCH',session:admin.cookie,
+    json:{status:'in_progress',admin_note:'Private quote under review',next_update_at:updateDue}});
   assert.equal(moved.status,200);
   assert.equal(moved.body.enquiry.status,'in_progress');
+  assert.ok(moved.body.enquiry.review_started_at);
+  assert.ok(moved.body.enquiry.next_update_at);
   const ownerQueueAfter=await call('/api/contact-enquiries/admin',{session:admin.cookie});
   assert.equal(ownerQueueAfter.body.enquiries.find(x=>x.enquiry_id===reference)?.messages.length,1);
   pass('Only authorized IPS staff update confidential quote lifecycle; no unverified sends');
@@ -118,12 +127,15 @@ async function go(){
   const privateMine=await call('/api/quote-requests/me',{session:alice.cookie});
   assert.equal(privateMine.status,200);
   assert.ok(privateMine.body.quotes.some(q=>q.enquiry_id===reference));
+  assert.ok(privateMine.body.quotes.find(q=>q.enquiry_id===reference).next_update_at);
   const privateOther=await call('/api/quote-requests/me',{session:bob.cookie});
   assert.equal(privateOther.status,200);
   assert.ok(!privateOther.body.quotes.some(q=>q.enquiry_id===reference));
   const staffMessage=await call('/api/quote-requests/admin/'+reference+'/workspace-reply',{
     method:'POST',session:admin.cookie,json:{message:'IPS reviewed your project. Please clarify the timeframe.'}});
   assert.equal(staffMessage.status,200);
+  const afterUpdate=await call('/api/quote-requests/me',{session:alice.cookie});
+  assert.ok(!afterUpdate.body.quotes.find(q=>q.enquiry_id===reference).next_update_at);
   const customerMessage=await call('/api/quote-requests/'+reference+'/workspace-reply',{
     method:'POST',session:alice.cookie,json:{message:'The timeframe is about two weeks from today.'}});
   assert.equal(customerMessage.status,200);
