@@ -4,6 +4,7 @@ import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useCMS } from '../context/CMSContext';
+import WorkspaceTopbar from '../components/common/WorkspaceTopbar.jsx';
 
 export default function WriterLayout() {
   const { writer, logout } = useAuth();
@@ -80,6 +81,7 @@ export default function WriterLayout() {
                 key={item.id}
                 to={item.target}
                 onClick={() => setMobileOpen(false)}
+                aria-current={active?'page':undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -101,13 +103,13 @@ export default function WriterLayout() {
               </Link>
             );
           })}
-          <Link to="/writer/earnings" onClick={()=>setMobileOpen(false)}
+          <Link to="/writer/earnings" aria-current={isActive('/writer/earnings')?'page':undefined} onClick={()=>setMobileOpen(false)}
             style={{display:'flex',alignItems:'center',padding:'.75rem 1.5rem',textDecoration:'none',
               borderLeft:isActive('/writer/earnings')?'3px solid var(--primary)':'3px solid transparent',
               color:isActive('/writer/earnings')?'var(--primary)':'var(--text-secondary)'}}>
             <span style={{marginRight:12}}>💳</span> My Payments
           </Link>
-          <Link to="/writer/profile" onClick={()=>setMobileOpen(false)}
+          <Link to="/writer/profile" aria-current={isActive('/writer/profile')?'page':undefined} onClick={()=>setMobileOpen(false)}
             style={{display:'flex',alignItems:'center',padding:'.75rem 1.5rem',textDecoration:'none',
               borderLeft:isActive('/writer/profile')?'3px solid var(--primary)':'3px solid transparent',
               color:isActive('/writer/profile')?'var(--primary)':'var(--text-secondary)'}}>
@@ -125,6 +127,7 @@ export default function WriterLayout() {
       </aside>
 
       <main className="writer-main" style={{ flex: 1, padding: layout.contentPadding || 32, overflowY: 'auto', background: 'var(--bg-body)' }}>
+        <WorkspaceTopbar role="writer" />
         <Outlet />
       </main>
 
