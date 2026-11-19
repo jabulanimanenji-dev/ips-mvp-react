@@ -370,7 +370,7 @@ app.post('/api/client/verify-email',async(req,res)=>{
     const token=signSession({id:account.client_id,role:'client',email_verified:true,session_version:sessionVersion(account)});
     setSessionCookie(res,token);
     res.set('Cache-Control','no-store');
-    return res.json({success:true,client:{...publicAccount(account),first_login:firstLogin},token});
+    return res.json({success:true,client:{...publicAccount(account),first_login:firstLogin}});
   }catch{return res.status(503).json({success:false,error:'Email verification is temporarily unavailable.'});}
 });
 
@@ -467,7 +467,7 @@ app.post('/api/client/login', async (req, res) => {
       const safeClient = {...publicAccount(client),first_login:firstLogin};
       const token = signSession({ id: client.client_id, role: 'client', email_verified:true,session_version:sessionVersion(client) });
       setSessionCookie(res, token);
-      res.json({ success: true, client: safeClient, token });
+      res.json({ success: true, client: safeClient });
     } else {
       res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
@@ -933,7 +933,7 @@ app.post('/api/writer/login', async (req, res) => {
     safeWriter.first_login=firstLogin;
     const token = signSession({ id: writer.writer_id, role: 'writer', email_verified:true,session_version:sessionVersion(writer) });
     setSessionCookie(res, token);
-    res.json({ success: true, writer: safeWriter, token });
+    res.json({ success: true, writer: safeWriter });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -996,7 +996,6 @@ app.post('/api/admin/login', async (req, res) => {
       }).catch(() => {});
       res.json({
         success: true,
-        token,
         role: 'superadmin',
         admin: {
           id: email,
@@ -1042,7 +1041,6 @@ app.post('/api/admin/login', async (req, res) => {
       }).catch(() => {});
       res.json({
         success: true,
-        token,
         role: admin.role,
         admin: {
           id: admin.id,
@@ -1124,7 +1122,7 @@ app.post('/api/admin/change-password', async (req, res) => {
       details: { administrator_id: admin.id }
     });
     const access = await resolveAdminAccess({ id: admin.id, session_version: admin.session_version });
-    res.json({ success: true, token, admin: access });
+    res.json({ success: true, admin: access });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
