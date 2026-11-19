@@ -8,6 +8,7 @@ const ClientSchema = new mongoose.Schema({
   username_key: { type: String, lowercase: true, trim: true },
   full_name: { type: String, default: '' },
   email_verified_at: { type: Date, default: null },
+  first_login_at: { type: Date, default: null },
   verification_hash: { type: String, select: false },
   verification_expires_at: { type: Date, select: false },
   verification_sent_at: { type: Date, select: false },
