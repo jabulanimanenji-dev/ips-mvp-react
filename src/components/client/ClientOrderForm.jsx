@@ -294,7 +294,7 @@ export default function ClientOrderForm() {
         user.client_id,
 
       client_name:
-        user.full_name,
+        user.username || 'Private customer',
 
       client_email:
         user.email,
