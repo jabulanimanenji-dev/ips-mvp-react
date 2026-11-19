@@ -161,6 +161,18 @@ async function go(){
   assert.equal(attention.status,200);
   assert.equal(attention.body.success,true);
   assert.ok(attention.body.new_requests>=1);
+  assert.ok(attention.body.unassigned_requests>=1);
+  const staffOwnership=await call('/api/contact-enquiries/admin/'+reference+'/claim',{
+    method:'POST',session:admin.cookie});
+  assert.equal(staffOwnership.status,200,JSON.stringify(staffOwnership.body));
+  assert.equal(staffOwnership.body.enquiry.assigned_admin_id,admin.body.admin.id);
+  assert.ok(staffOwnership.body.enquiry.assigned_at);
+  assert.ok(staffOwnership.body.enquiry.review_started_at);
+  const ownershipRetry=await call('/api/contact-enquiries/admin/'+reference+'/claim',{
+    method:'POST',session:admin.cookie});
+  assert.equal(ownershipRetry.status,200);
+  assert.equal(ownershipRetry.body.already_assigned,true);
+  pass('Real IPS administrator takes accountable review ownership atomically instead of unverified instant-quote promises');
   assert.equal(typeof attention.body.overdue_updates,'number');
   const found=ownerQueue.body.enquiries.find(x=>x.enquiry_id===reference);
   assert.equal(found.username,'PrivateAlice');
