@@ -57,7 +57,7 @@ export default function ClientOverviewMongo() {
         borderRadius: 24,
         padding: '2rem',
         color: '#fff',
-        background: 'var(--grad-hero)',
+        background: 'linear-gradient(125deg,#102a43 0%,#284960 70%,#806947 100%)',
         boxShadow: '0 22px 55px rgba(16,24,40,.18)',
         marginBottom: '1.5rem',
         position: 'relative',
