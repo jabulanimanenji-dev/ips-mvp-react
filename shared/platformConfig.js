@@ -229,19 +229,19 @@ const navigation = {
     { id: 'public-faq', label: 'FAQ', icon: '', target: '#faq', visible: true }
   ],
   client: [
-    { id: 'client-home', label: 'Home', icon: '◆', target: '/client/overview', visible: true },
-    { id: 'client-services', label: 'Service Hub', icon: 'S', target: '/client/services', visible: true },
-    { id: 'client-orders', label: 'Academic & Writing', icon: '▤', target: '/client/orders', visible: true },
+    { id: 'client-home', label: 'Overview', icon: '◆', target: '/client/overview', visible: true },
+    { id: 'client-services', label: 'My Projects', icon: 'S', target: '/client/services', visible: true },
+    { id: 'client-orders', label: 'My Orders', icon: '▤', target: '/client/orders', visible: true },
     { id: 'client-messages', label: 'Messages', icon: '●', target: '/client/messages', visible: true },
-    { id: 'client-profile', label: 'Profile', icon: '◉', target: '/client/profile', visible: true },
+    { id: 'client-profile', label: 'My Profile', icon: '◉', target: '/client/profile', visible: true },
     { id: 'client-support', label: 'Support', icon: '✉', target: '/client/support', visible: true }
   ],
   writer: [
-    { id: 'writer-dashboard', label: 'Dashboard', icon: '▦', target: '/writer/dashboard', visible: true },
-    { id: 'writer-services', label: 'Service Jobs', icon: 'S', target: '/writer/services', visible: true },
-    { id: 'writer-orders', label: 'Assigned Jobs', icon: '▤', target: '/writer/orders', visible: true },
+    { id: 'writer-dashboard', label: 'Overview', icon: '▦', target: '/writer/dashboard', visible: true },
+    { id: 'writer-services', label: 'My Assignments', icon: 'S', target: '/writer/services', visible: true },
+    { id: 'writer-orders', label: 'Academic Assignments', icon: '▤', target: '/writer/orders', visible: true },
     { id: 'writer-messages', label: 'Messages', icon: '●', target: '/writer/messages?category=messages', visible: true },
-    { id: 'writer-actions', label: 'Action Center', icon: '!', target: '/writer/actions', visible: true }
+    { id: 'writer-actions', label: 'My Tasks', icon: '!', target: '/writer/actions', visible: true }
   ],
   admin: [
     { id: 'admin-dashboard', label: 'Dashboard', icon: '▦', target: '/admin/dashboard', visible: true },
