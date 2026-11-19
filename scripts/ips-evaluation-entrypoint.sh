@@ -19,7 +19,7 @@ mkdir -p /tmp/ips_eval_mongodb /var/data/ips-evaluation-files
 chmod 700 /tmp/ips_eval_mongodb /var/data/ips-evaluation-files
 MONGO_EVAL_PASSWORD="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))")"
 export MONGO_EVAL_PASSWORD
-export MONGODB_URI="mongodb://ips_eval_user:${MONGO_EVAL_PASSWORD}@127.0.0.1:27017/ips_staging_evaluation?authSource=ips_staging_evaluation"
+export MONGODB_URI="mongodb://ips_eval_user:${MONGO_EVAL_PASSWORD}@127.0.0.1:27017/ips_staging_evaluation?authSource=admin"
 export SESSION_SECRET="$(node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))")"
 export STORAGE_PROVIDER=local
 export UPLOADS_DIR=/var/data/ips-evaluation-files
@@ -42,7 +42,7 @@ if [[ "$ready" -ne 1 ]]; then
   tail -50 /tmp/ips-eval-mongod.log >&2
   exit 5
 fi
-mongosh 'mongodb://127.0.0.1:27017/ips_staging_evaluation' --quiet --eval \
+mongosh 'mongodb://127.0.0.1:27017/admin' --quiet --eval \
   'db.createUser({user:"ips_eval_user",pwd:process.env.MONGO_EVAL_PASSWORD,roles:[{role:"readWrite",db:"ips_staging_evaluation"}]})' >/dev/null
 unset MONGO_EVAL_PASSWORD
 node scripts/seed-ips-evaluation.mjs
