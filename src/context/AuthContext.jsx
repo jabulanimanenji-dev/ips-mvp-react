@@ -92,7 +92,11 @@ export function AuthProvider({children}){
 
         if (data.success) {
 
-          setUser(data.client);
+          removeWriter();
+          removeAdmin();
+          removeWriter();
+      removeAdmin();
+      setUser(data.client);
 
 
           return {
@@ -213,6 +217,8 @@ export function AuthProvider({children}){
           if(data.success){
 
 
+            removeUser();
+            removeWriter();
             setAdmin({
               ...(data.admin || {}),
               id: data.admin?.id || data.admin?.adminId || email,
@@ -306,6 +312,8 @@ export function AuthProvider({children}){
           if(data.success){
 
 
+            removeUser();
+            removeAdmin();
             setWriter(data.writer);
 
 
@@ -351,23 +359,16 @@ export function AuthProvider({children}){
 
 
 
-  const logout =
-    useCallback(() => {
-
-      fetch('/api/logout', { method: 'POST' }).catch(() => {});
-
-      removeUser();
-
-      removeAdmin();
-
-      removeWriter();
-
-
-    }, [
-      removeUser,
-      removeAdmin,
-      removeWriter
-    ]);
+  // The server must expire the signed HttpOnly cookie before navigation.
+  // UI state is not treated as signed out while a backend session survives.
+  const logout=useCallback(async()=>{
+    try{
+      const response=await fetch('/api/logout',{method:'POST',credentials:'same-origin',cache:'no-store'});
+      if(!response.ok)return {success:false,error:'IPS could not close the session. Retry signing out.'};
+      removeUser();removeAdmin();removeWriter();
+      return {success:true};
+    }catch{return {success:false,error:'IPS could not contact the server. Retry signing out.'};}
+  },[removeUser,removeAdmin,removeWriter]);
 
   const updateClientProfile =
     useCallback(
