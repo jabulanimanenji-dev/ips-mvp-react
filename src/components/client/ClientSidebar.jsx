@@ -12,6 +12,19 @@ export default function ClientSidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [messageCount, setMessageCount] = useState(0);
   const navItems = (config.navigation?.client || []).filter(item => item.visible);
+  const academicLaunch=import.meta.env.VITE_STUDENT_LAUNCH==='true';
+  const labelFor=item=>{
+    if(!academicLaunch)return item.label;
+    const route=String(item.target||'').split('?')[0];
+    return ({
+      '/client/overview':'Overview',
+      '/client/services':'My Projects',
+      '/client/orders':'My Orders',
+      '/client/messages':'Messages',
+      '/client/profile':'My Profile',
+      '/client/support':'Support'
+    })[route]||item.label;
+  };
   const sidebarWidth = config.layouts?.client?.sidebarWidth || 260;
 
   useEffect(() => {
@@ -45,7 +58,7 @@ export default function ClientSidebar() {
 
       <aside
         data-studio-global="client-sidebar"
-        data-studio-label="Client portal navigation"
+        data-studio-label="Student / Researcher workspace navigation"
         className={`client-sidebar ${mobileOpen ? 'sidebar-open' : ''}`}
         style={{
           width: sidebarWidth,
@@ -96,7 +109,7 @@ export default function ClientSidebar() {
                   }}
                 >
                   <span style={{ fontSize: '1rem', opacity: 0.8 }}>{item.icon}</span>
-                  <span style={{ flex: 1 }}>{item.label}</span>
+                  <span style={{ flex: 1 }}>{labelFor(item)}</span>
                   {item.target.startsWith('/client/messages') && messageCount > 0 && (
                     <span className="nav-count">{messageCount > 99 ? '99+' : messageCount}</span>
                   )}
