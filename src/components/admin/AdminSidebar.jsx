@@ -12,6 +12,7 @@ export default function AdminSidebar() {
   const [actionCount, setActionCount] = useState(0);
   const [messageCount, setMessageCount] = useState(0);
   const [supportCount, setSupportCount] = useState(0);
+  const [quoteAttention,setQuoteAttention] = useState({overdue_updates:0,new_requests:0});
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutError,setLogoutError]=useState('');
   const navItems = (config.navigation?.admin || []).filter(item => {
@@ -32,6 +33,23 @@ export default function AdminSidebar() {
       if (data.success) setSupportCount((data.tickets || []).filter(ticket => !['Resolved', 'Closed'].includes(ticket.status)).length);
     }).catch(() => {});
   }, [location.pathname]);
+
+  useEffect(()=>{
+    if(!admin?.id||!hasAdminPermission('support.view'))return;
+    let active=true;
+    const load=async()=>{
+      try{
+        const response=await fetch('/api/contact-enquiries/admin/attention',{cache:'no-store'});
+        const data=await response.json();
+        if(active&&response.ok&&data.success)setQuoteAttention({
+          overdue_updates:Number(data.overdue_updates||0),new_requests:Number(data.new_requests||0)
+        });
+      }catch{}
+    };
+    load();
+    const timer=setInterval(load,60000);
+    return ()=>{active=false;clearInterval(timer);};
+  },[location.pathname,admin?.id]);
 
   const handleLogout = async () => {
     setLogoutError('');
@@ -109,7 +127,7 @@ export default function AdminSidebar() {
               </Link>
             );
           })}
-          {hasAdminPermission('support.view') && <Link to="/admin/enquiries" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Private Quotes & Enquiries</Link>}
+          {hasAdminPermission('support.view') && <Link to="/admin/enquiries" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Private Quotes & Enquiries{quoteAttention.new_requests>0?' · '+quoteAttention.new_requests+' new':''}{quoteAttention.overdue_updates>0?' · '+quoteAttention.overdue_updates+' overdue':''}</Link>}
           {hasAdminPermission('messages.view') && <Link to="/admin/external-chats" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Written Messaging Inbox</Link>}
         </nav>
 
