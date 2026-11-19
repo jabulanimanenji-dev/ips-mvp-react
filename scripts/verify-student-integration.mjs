@@ -570,6 +570,79 @@ async function go(){
   assert.equal(financeLedger.status,200);
   assert.equal(financeLedger.body.payouts.find(p=>p.request_id===requestId)?.status,'paid');
   pass('Real MongoDB salary ledger enforces finance approval, one payout per completed engagement and staff-recorded bank transfer; specialist sees own record only');
+  const {issueStudentRefund}=await import('../services/studentRefunds.js');
+  const refundEnv={STRIPE_SECRET_KEY:'sk_test_ci_not_live',STRIPE_WEBHOOK_SECRET:process.env.STRIPE_WEBHOOK_SECRET};
+  const fakeRefundRequests=[];
+  const fakeStripeRefund=async (url,options)=>{
+    assert.equal(url,'https://api.stripe.com/v1/refunds');
+    const params=new URLSearchParams(options.body);
+    assert.equal(params.get('payment_intent'),'pi_ci_123');
+    const payload={
+      id:'re_ci_refund_'+(fakeRefundRequests.length+1),
+      object:'refund',amount:Number(params.get('amount')),currency:'pln',
+      payment_intent:'pi_ci_123',status:fakeRefundRequests.length===0?'pending':'succeeded',
+      metadata:{ips_refund_id:params.get('metadata[ips_refund_id]')}
+    };
+    fakeRefundRequests.push(payload);
+    return {ok:true,status:200,json:async()=>payload};
+  };
+  const refundPartial=await issueStudentRefund({
+    request_id:requestId,amount_minor:10000,
+    reason:'The customer and IPS agreed that part of the academic support should be reimbursed.'
+  },{env:refundEnv,request:fakeStripeRefund,actor:'CI-FINANCE'});
+  assert.equal(refundPartial.status,202,JSON.stringify(refundPartial));
+  assert.equal(refundPartial.refund.status,'processing');
+  const duplicateRefund=await issueStudentRefund({
+    request_id:requestId,amount_minor:10000,
+    reason:'Attempting to trigger the same provider refund twice must not be allowed.'
+  },{env:refundEnv,request:fakeStripeRefund,actor:'CI-FINANCE'});
+  assert.equal(duplicateRefund.status,409);
+  assert.equal(fakeRefundRequests.length,1);
+  const finalRefund=structuredClone(fakeRefundRequests[0]);
+  finalRefund.status='succeeded';
+  const signedRefundEvent={id:'evt_ci_refund_succeeded_1',type:'refund.updated',data:{object:finalRefund}};
+  const signedRefundRaw=JSON.stringify(signedRefundEvent);
+  const refundTimestamp=Math.floor(Date.now()/1000);
+  const signedRefundHeader='t='+refundTimestamp+',v1='+crypto.createHmac('sha256',process.env.STRIPE_WEBHOOK_SECRET)
+    .update(refundTimestamp+'.'+signedRefundRaw).digest('hex');
+  const deniedRefundWebhook=await call('/api/student-payments/stripe-webhook',{
+    method:'POST',raw:signedRefundRaw,headers:{'Content-Type':'application/json','stripe-signature':'t='+refundTimestamp+',v1=invalid'}});
+  assert.equal(deniedRefundWebhook.status,400);
+  const processedRefund=await call('/api/student-payments/stripe-webhook',{
+    method:'POST',raw:signedRefundRaw,headers:{'Content-Type':'application/json','stripe-signature':signedRefundHeader}});
+  assert.equal(processedRefund.status,200,JSON.stringify(processedRefund.body));
+  const replayRefund=await call('/api/student-payments/stripe-webhook',{
+    method:'POST',raw:signedRefundRaw,headers:{'Content-Type':'application/json','stripe-signature':signedRefundHeader}});
+  assert.equal(replayRefund.status,200);
+  const afterPartial=await call('/api/services/'+requestId,{session:alice.cookie});
+  assert.equal(afterPartial.body.request.payment_status,'partially_refunded');
+  const ownRefunds=await call('/api/student-refunds/me',{session:alice.cookie});
+  assert.equal(ownRefunds.status,200);
+  assert.equal(ownRefunds.body.refunds[0].status,'succeeded');
+  assert.equal((await call('/api/student-refunds/me',{session:bob.cookie})).body.refunds.length,0);
+  const repeatedCheckoutAfterRefund=await call('/api/student-payments/stripe-webhook',{method:'POST',
+    raw:signedPayload,headers:{'Content-Type':'application/json','stripe-signature':signedHeader}});
+  assert.equal(repeatedCheckoutAfterRefund.status,200);
+  assert.equal((await call('/api/services/'+requestId,{session:alice.cookie})).body.request.payment_status,'partially_refunded');
+  pass('Signed Stripe asynchronous partial refund reconciles real ledger once and checkout replay cannot restore paid status');
+
+  const refundRemaining=await issueStudentRefund({
+    request_id:requestId,
+    reason:'A second verified bank-side refund returns all remaining unrefunded IPS funds.'
+  },{env:refundEnv,request:fakeStripeRefund,actor:'CI-FINANCE'});
+  assert.equal(refundRemaining.status,202,JSON.stringify(refundRemaining));
+  assert.equal(refundRemaining.refund.status,'succeeded');
+  assert.equal(fakeRefundRequests[1].amount,11900);
+  const fullyRefunded=await call('/api/services/'+requestId,{session:alice.cookie});
+  assert.equal(fullyRefunded.body.request.payment_status,'refunded');
+  const paymentLedger=await call('/api/student-payments/status/'+requestId,{session:alice.cookie});
+  assert.equal(paymentLedger.body.payment_status,'refunded');
+  const anotherRefund=await issueStudentRefund({
+    request_id:requestId,
+    reason:'No further money remains once the verified customer has been fully refunded.'
+  },{env:refundEnv,request:fakeStripeRefund,actor:'CI-FINANCE'});
+  assert.equal(anotherRefund.status,409);
+  pass('Real MongoDB provider-backed partial plus final refunds never exceed captured charge or create an additional refund');
 
   // Dedicated verified secondary specialist tests credential rotation without
   // modifying the specialist whose real completed project browser QA exercises.
