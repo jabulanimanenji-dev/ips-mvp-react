@@ -67,15 +67,15 @@ const linkCodeFromMessage=body=>{
   return m?m[1]:null;
 };
 // Disconnecting a messenger revokes contact verification and reply consent on
-// every associated quote, including guest enquiries linked by their chat ID.
-export async function revokeQuoteChannel({channel,clientId='',contactIds=[],model=ContactEnquiry}={}){
+// every associated request, including guest enquiries linked by their chat ID.
+export async function revokeChannelConsent({channel,clientId='',contactIds=[],model=ContactEnquiry}={}){
   if(!['telegram','whatsapp'].includes(channel))throw Error('Unsupported contact channel');
   const selectors=[];
   if(clientId)selectors.push({client_id:clientId});
   if(contactIds.length)selectors.push({contact_thread_id:{$in:contactIds}});
   if(!selectors.length)return {modifiedCount:0};
   return model.updateMany({
-    request_type:'quote',preferred_channel:channel,contact_verified:true,$or:selectors
+    request_type:{$in:['quote','general']},preferred_channel:channel,contact_verified:true,$or:selectors
   },{$set:{contact_verified:false,verification_status:'awaiting_verification',contact_consent:false},
      $unset:{contact_thread_id:'',contact_verified_at:''}});
 }
@@ -117,7 +117,7 @@ async function storeInbound(event){
   // quote linking and does not require an IPS account or staff action.
   if(/^(?:\/stop|stop|unsubscribe)$/i.test(event.body.trim())){
     await ChannelContact.updateOne({_id:contact._id},{$set:{status:'closed',client_id:'',verified_at:null}});
-    await revokeQuoteChannel({channel:event.channel,contactIds:[String(contact._id)]});
+    await revokeChannelConsent({channel:event.channel,contactIds:[String(contact._id)]});
     return {duplicate:false,unsubscribed:true};
   }
   // A signed, customer-initiated chat containing the exact quote reference and
@@ -262,7 +262,7 @@ export function registerContactApi(app,{requireSession}){
       // Close first to fail closed if the downstream quote cleanup fails.
       await ChannelContact.updateMany({client_id:session.id,channel:req.body.channel},
         {$set:{client_id:'',verified_at:null,status:'closed'}});
-      await revokeQuoteChannel({channel:req.body.channel,clientId:session.id,contactIds:ids});
+      await revokeChannelConsent({channel:req.body.channel,clientId:session.id,contactIds:ids});
       res.json({success:true});
     }catch{res.status(500).json({success:false,error:'Unable to unlink channel.'});}
   });
