@@ -1,4 +1,5 @@
 import React,{useCallback,useEffect,useState} from 'react';
+import {serviceTitle,quoteStatusTitle} from '../../utils/quoteLabels.js';
 
 // This inbox intentionally reads only quotations associated with the
 // authenticated IPS student session. The public quote reference is not an
@@ -52,11 +53,11 @@ export default function PrivateQuoteInbox(){
     {rows.length>0&&<div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr)',gap:14,marginTop:18}}>
       <label className="form-group"><span className="form-label">Choose your quotation</span>
         <select className="form-select" value={selected} onChange={e=>{setSelected(e.target.value);setMessage('');setNotice('');}}>
-          {rows.map(row=><option value={row.enquiry_id} key={row.enquiry_id}>{row.enquiry_id} · {row.service||'Academic support'} · {row.status}</option>)}
+          {rows.map(row=><option value={row.enquiry_id} key={row.enquiry_id}>{row.enquiry_id} · {serviceTitle(row.service)} · {quoteStatusTitle(row.status)}</option>)}
         </select>
       </label>
       {quote&&<div>
-        <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Private reference: <strong>{quote.enquiry_id}</strong>. Status: <strong>{quote.status}</strong>. Quotation details and payment arrangements require separate confirmation.</p>
+        <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Private reference: <strong>{quote.enquiry_id}</strong>. Status: <strong>{quoteStatusTitle(quote.status)}</strong>. Quotation details and payment arrangements require separate confirmation.</p>
         <div aria-label="Written quotation conversation" style={{maxHeight:320,overflowY:'auto',background:'var(--bg-surface-2)',borderRadius:8,padding:12}}>
           {(quote.messages||[]).map((item,i)=><article key={item._id||i} style={{padding:12,marginBottom:9,background:'var(--bg-surface)',borderRadius:7}}>
             <strong style={{fontSize:'.78rem'}}>{item.direction==='outbound'?'IPS Academic Services':'You'}</strong>
