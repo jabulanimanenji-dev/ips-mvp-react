@@ -44,7 +44,7 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Build frontend and server syntax
         run: |
-          npm run build
+          VITE_STUDENT_LAUNCH=true npm run build
           node --check server.js
           node --check services/contactChannels.js
       - name: Start genuine MongoDB-backed IPS API
@@ -53,6 +53,17 @@ jobs:
           echo $! > /tmp/ips_ci_server.pid
       - name: End-to-end authenticated order, quote, webhook and messaging assertions
         run: node scripts/verify-student-integration.mjs
+      - name: Install isolated browser qualification harness
+        run: npm install --no-save --ignore-scripts playwright@1.56.1
+      - name: Exercise live authenticated workspaces in Chrome
+        run: node scripts/verify-workspace-browser.mjs
+      - name: Publish private-free simulated workspace screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ips-genuine-mongodb-workspace-evidence
+          path: workspace-evidence/
+          if-no-files-found: warn
       - name: Print server diagnostics on failure
         if: failure()
         run: tail -100 /tmp/ips_ci_server.log || true
