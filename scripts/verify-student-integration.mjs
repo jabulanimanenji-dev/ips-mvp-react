@@ -85,10 +85,10 @@ async function go(){
     env:recoveryEnv,model:Client,hashPassword:testHash
   });
   assert.equal(resetResult.success,true);
-  const replay=await completePasswordRecovery(resetProof,newPassword,{
+  const recoveryReplay=await completePasswordRecovery(resetProof,newPassword,{
     env:recoveryEnv,model:Client,hashPassword:testHash
   });
-  assert.equal(replay.status,400);
+  assert.equal(recoveryReplay.status,400);
   const oldSession=await call('/api/client/me',{session:bob.cookie});
   assert.equal(oldSession.status,401);
   const oldLogin=await call('/api/client/login',{method:'POST',session:bob.cookie,
