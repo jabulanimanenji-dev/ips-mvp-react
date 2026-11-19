@@ -6,6 +6,13 @@ const base = process.env.BROWSER_BASE_URL || 'http://127.0.0.1:4173';
 const browser = await chromium.launch({ channel: process.env.BROWSER_CHANNEL || 'chrome', headless: true, args: ['--no-sandbox'] });
 const failures = [];
 let warnings = [];
+const inspectResponse=response=>{
+  if(response.status()<400)return;
+  try{
+    const url=new URL(response.url());
+    warnings.push('HTTP '+response.status()+' '+url.origin+url.pathname);
+  }catch{warnings.push('HTTP '+response.status()+' unavailable resource URL');}
+};
 await mkdir('browser-evidence', {recursive:true});
 
 async function caseRun(name, task) {
@@ -16,6 +23,8 @@ async function caseRun(name, task) {
 try {
   const desktop = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
   desktop.on('console', msg => { if (msg.type()==='error') warnings.push('desktop console: ' + msg.text()); });
+  desktop.on('response',inspectResponse);
+  desktop.on('pageerror',error=>warnings.push('desktop page error: '+String(error)));
   await desktop.goto(base, { waitUntil:'domcontentloaded', timeout:30000 });
   await desktop.getByRole('heading', { name: /Exceptional academic work starts/i }).waitFor({timeout:15000});
   await desktop.evaluate(async () => { const images = [...document.querySelectorAll('.ipsa img')]; images.forEach(img => { img.loading = 'eager'; }); await Promise.all(images.map(img => img.decode().catch(() => {}))); });
@@ -127,6 +136,8 @@ try {
   });
   const mobile = await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1,isMobile:true,hasTouch:true});
   mobile.on('console', msg => { if(msg.type()==='error') warnings.push('mobile console: '+msg.text()); });
+  mobile.on('response',inspectResponse);
+  mobile.on('pageerror',error=>warnings.push('mobile page error: '+String(error)));
   await mobile.goto(base,{waitUntil:'domcontentloaded',timeout:30000});
   await mobile.getByRole('heading',{name:/Exceptional academic work starts/i}).waitFor({timeout:15000});
   await caseRun('mobile menu and no horizontal overflow',async()=>{
