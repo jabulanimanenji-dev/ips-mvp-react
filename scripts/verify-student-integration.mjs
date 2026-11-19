@@ -339,7 +339,15 @@ async function go(){
   assert.equal(linked.body.contacts.find(t=>t.channel==='telegram')?.verified_at!=null,true);
   pass('One-time Telegram linking and duplicate update idempotency');
 
-  const replyText='I would like a consultation before sending documents';
+  const guestGeneral=await call('/api/contact-enquiries',{method:'POST',json:{
+    username:'GuestResearcher',subject:'Research guidance enquiry',
+    message:'I would like a written consultation before sending project documents.',
+    preferred_channel:'whatsapp',phone:'+48123123123',contact_consent:true
+  }});
+  assert.equal(guestGeneral.status,202,JSON.stringify(guestGeneral.body));
+  const guestRef=guestGeneral.body.enquiry_id;
+  assert.match(guestRef,/^ENQ-[A-F0-9]{18}$/);
+  const replyText='I would like a consultation before sending documents. '+guestRef;
   const waPayload={object:'whatsapp_business_account',entry:[{changes:[{field:'messages',value:{
     contacts:[{wa_id:'48123123123',profile:{name:'Test WhatsApp Student'}}],
     messages:[{type:'text',id:'wamid.test-1',from:'48123123123',text:{body:replyText},timestamp:String(Math.floor(Date.now()/1000))}]
@@ -360,6 +368,7 @@ async function go(){
   const tg=adminInbox.body.threads.find(t=>t.channel==='telegram');
   assert.ok(wa&&tg);
   assert.equal(wa.client_id,'');
+  assert.equal(wa.verified_contact,true);
   assert.equal(tg.client_id,aliceId);
   const unauthorizedInbox=await call('/api/contact-channels/admin/threads',{session:alice.cookie});
   assert.equal(unauthorizedInbox.status,403);
@@ -372,6 +381,26 @@ async function go(){
   assert.equal(tgMsgs.body.messages.length,1);
   assert.ok(!JSON.stringify(tgMsgs.body.messages).includes(link.body.code));
   pass('Role-protected owner inbox, deduped transcripts and redacted account codes');
+  const verifiedGuestQueue=await call('/api/contact-enquiries/admin',{session:admin.cookie});
+  assert.equal(verifiedGuestQueue.body.enquiries.find(x=>x.enquiry_id===guestRef)?.contact_verified,true);
+  const stopPayload=structuredClone(waPayload);
+  stopPayload.entry[0].changes[0].value.messages[0]={
+    ...stopPayload.entry[0].changes[0].value.messages[0],
+    id:'wamid.test-stop',text:{body:'STOP'}
+  };
+  const stopRaw=JSON.stringify(stopPayload);
+  const stopSignature='sha256='+crypto.createHmac('sha256','ci_whatsapp_app_secret_123').update(stopRaw).digest('hex');
+  const stopped=await call('/api/channels/whatsapp/webhook',{method:'POST',raw:stopRaw,
+    headers:{'Content-Type':'application/json','x-hub-signature-256':stopSignature}});
+  assert.equal(stopped.status,200);
+  const stoppedQueue=await call('/api/contact-enquiries/admin',{session:admin.cookie});
+  const stoppedLead=stoppedQueue.body.enquiries.find(x=>x.enquiry_id===guestRef);
+  assert.equal(stoppedLead.contact_verified,false);
+  assert.equal(stoppedLead.contact_consent,false);
+  const rejectedReply=await call('/api/contact-channels/admin/threads/'+wa._id+'/reply',{
+    method:'POST',session:admin.cookie,json:{body:'This message must never be delivered.'}});
+  assert.equal(rejectedReply.status,409);
+  pass('Authenticated customer STOP revokes guest consent and prevents external staff delivery');
 
   const unlink=await call('/api/contact-channels/unlink',{method:'POST',session:alice.cookie,json:{channel:'telegram'}});
   assert.equal(unlink.status,200);
