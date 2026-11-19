@@ -49,7 +49,7 @@ test('Telegram secret rejects unauthenticated requests',()=>{
 test('Telegram parser only ingests text in private customer chats',()=>{
   const update={update_id:55,message:{chat:{id:12345,type:'private'},text:'Hello IPS',date:1794861000,from:{first_name:'Student'}}};
   assert.deepEqual(parseTelegramUpdate(update)[0],{
-    channel:'telegram',external_id:'12345',external_message_id:'tg:55',display_name:'Student',
+    channel:'telegram',external_id:'12345',external_message_id:'tg:55',display_name:'Telegram visitor',telegram_username:'',
     body:'Hello IPS',provider_at:new Date(1794861000*1000)
   });
   assert.equal(parseTelegramUpdate({...update,message:{...update.message,chat:{id:12345,type:'group'}}}).length,0);
@@ -68,7 +68,7 @@ test('Whatsapp parser ingests customer texts but ignores delivery statuses and m
   const messages=parseWhatsappUpdate(payload);
   assert.equal(messages.length,1);
   assert.equal(messages[0].external_message_id,'wa:wamid.1');
-  assert.equal(messages[0].display_name,'Student');
+  assert.equal(messages[0].display_name,'WhatsApp visitor');
   assert.equal(messages[0].body,'Please help with my research');
   assert.equal(parseWhatsappUpdate({...payload,object:'bad'}).length,0);
 });
