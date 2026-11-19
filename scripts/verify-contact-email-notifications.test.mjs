@@ -11,8 +11,8 @@ const env={
   CONTACT_REPLY_TO_EMAIL:'contact@ipsglobalservice.com'
 };
 const enquiry={
-  enquiry_id:'ENQ-ABCDE12345',name:'Example Student',email:'student@example.org',
-  contact_consent:true,preferred_channel:'email',
+  enquiry_id:'ENQ-ABCDE12345',username:'QuietStudent',name:'',email:'student@example.org',
+  contact_consent:true,contact_verified:true,preferred_channel:'email',
   subject:'Help with research planning',messages:[{body:'Private research data must not appear in outbound queue.'}]
 };
 test('notifications cannot activate without explicit enablement and correct IPS-only sender',()=>{
@@ -30,6 +30,9 @@ test('outbox composes only consented receipt and minimal staff alert',()=>{
   assert.ok(all[1].body.includes('No work has been ordered or charged'));
   assert.equal(emailJobDefinitions({...enquiry,email:'',contact_consent:true}).length,1);
   assert.equal(emailJobDefinitions({...enquiry,contact_consent:false}).length,1);
+  assert.equal(emailJobDefinitions({...enquiry,contact_verified:false}).length,1);
+  assert.equal(emailJobDefinitions({...enquiry,preferred_channel:'telegram'}).length,1);
+  assert.ok(!JSON.stringify(all).includes('Example Student'));
 });
 test('provider receives IPS sender, correct reply path, stable idempotency header',async()=>{
   let calls=0;
