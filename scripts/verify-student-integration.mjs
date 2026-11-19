@@ -283,7 +283,22 @@ async function go(){
   assert.equal(guestProject.status,200);
   assert.equal(guestProject.body.request.source_quote_id,guestQuoteId);
   assert.equal(guestProject.body.request.payment_status,'unpaid');
+  const incomingGuestMessage=await call('/api/quote-requests/'+guestQuoteId+'/workspace-reply',{
+    method:'POST',session:bob.cookie,
+    json:{message:'This written clarification is private and must not silently change my selected email reply channel.'}
+  });
+  assert.equal(incomingGuestMessage.status,200,JSON.stringify(incomingGuestMessage.body));
+  const guestAfterMessage=await call('/api/quote-requests/me',{session:bob.cookie});
+  const guestSaved=guestAfterMessage.body.quotes.find(q=>q.enquiry_id===guestQuoteId);
+  assert.equal(guestSaved.preferred_channel,'email');
+  assert.ok(guestSaved.messages.some(m=>m.direction==='inbound'&&m.body.includes('written clarification')));
+  const wrongOutboundChannel=await call('/api/quote-requests/admin/'+guestQuoteId+'/workspace-reply',{
+    method:'POST',session:admin.cookie,
+    json:{message:'An unauthorized change of your chosen communication method must be denied.'}
+  });
+  assert.equal(wrongOutboundChannel.status,409);
   pass('Verified guest-email account ownership, not quote ID, permits one-time private project claim');
+  pass('Customer may privately clarify from any verified IPS account; staff cannot override chosen outbound contact channel');
 
   const {default:ContactEmailJob}=await import('../models/ContactEmailJob.js');
   const {enqueueContactEmailJobs,processContactEmailJobs}=await import('../services/contactEmailQueue.js');
