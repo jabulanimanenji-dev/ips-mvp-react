@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fmtCur } from '../../utils/formatters';
 import SpecialistPayoutLedger from './SpecialistPayoutLedger.jsx';
+import StudentRefundLedger from './StudentRefundLedger.jsx';
 
 export default function AdminPayments() {
   const [analytics, setAnalytics] = useState(null);
@@ -60,8 +61,8 @@ export default function AdminPayments() {
         <div className="card">
           <h3 style={{ marginBottom: '.5rem' }}>Collection Status</h3>
           <div className="badge badge-review" style={{ marginBottom: '1rem' }}>Tracking only</div>
-          <p style={{ color: 'var(--text-muted)' }}>No payment links are generated because no verified payment gateway is active. This prevents fake checkout URLs and false payment confirmations.</p>
-          <p style={{ color: 'var(--text-secondary)' }}>When Phase 8 is activated, provider webhooks, payment intents, refunds, receipts, reconciliation, and disputes will connect here.</p>
+          <p style={{ color: 'var(--text-muted)' }}>The student support checkout is activated only when valid Stripe merchant credentials are configured. Payment requests never turn into paid orders merely because a browser returns from checkout.</p>
+          <p style={{ color: 'var(--text-secondary)' }}>The provider-backed student transaction and refund ledgers below are separate from legacy financial estimates. Review pending refunds and failed transfers before reporting cash collected.</p>
         </div>
       </div>
       <section className="card" style={{ marginTop: '1rem', overflowX: 'auto' }}>
@@ -71,6 +72,7 @@ export default function AdminPayments() {
         <table className="data-table"><thead><tr><th>Request</th><th>Amount</th><th>Status</th><th>Paid at</th></tr></thead><tbody>{studentPayments.map(item => <tr key={item._id}><td>{item.request_id}</td><td>{item.currency.toUpperCase()} {(item.amount_minor / 100).toFixed(2)}</td><td>{item.status}</td><td>{item.paid_at ? new Date(item.paid_at).toLocaleString() : '—'}</td></tr>)}</tbody></table>
         {!studentPayments.length && !studentError && <p>No student payments recorded.</p>}
       </section>
+      <StudentRefundLedger payments={studentPayments}/>
       <SpecialistPayoutLedger />
     </div>
   );
