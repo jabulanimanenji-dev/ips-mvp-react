@@ -62,9 +62,9 @@ export default function ClientOverviewMongo() {
         overflow: 'hidden'
       }}>
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <small style={{ letterSpacing: '.14em', textTransform: 'uppercase', opacity: .72, fontWeight: 800 }}>Your IPS workspace</small>
+          <small style={{ letterSpacing: '.14em', textTransform: 'uppercase', opacity: .72, fontWeight: 800 }}>My Workspace</small>
           <h1 style={{ fontSize: 'clamp(1.8rem,4vw,3rem)', margin: '.5rem 0', color: '#fff' }}>
-            Welcome back, {user?.full_name?.split(' ')[0] || 'there'}.
+            Welcome back, {user?.username || 'there'}.
           </h1>
           <p style={{ maxWidth: 640, color: 'rgba(255,255,255,.76)', marginBottom: '1.25rem' }}>
             One place for professional services, odd jobs, academic support, quotes, files and delivery progress.
