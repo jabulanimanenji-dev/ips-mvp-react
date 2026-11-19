@@ -62,10 +62,10 @@ export function registerStudentWebhook(app, express, { StudentPayment, ServiceRe
           await StudentPayment.updateOne({ _id: payment._id, status: { $ne: 'paid' } }, { $set: { status: 'review_required', problem: 'Quote changed after checkout', last_event_id: event.id } });
           return res.json({ received: true, review_required: true });
         }
-        await StudentPayment.updateOne({ _id: payment._id }, { $set: { status: 'paid', paid_at: payment.paid_at || new Date(), provider_payment_intent: session.payment_intent || '', last_event_id: event.id } });
+        await StudentPayment.updateOne({ _id: payment._id, status: { $nin: ['refunded'] } }, { $set: { status: 'paid', paid_at: payment.paid_at || new Date(), provider_payment_intent: session.payment_intent || '', last_event_id: event.id } });
         // Independent, idempotent order transition. Repeated callbacks cannot duplicate the fulfillment entry.
         await ServiceRequest.updateOne(
-          { request_id: payment.request_id, client_id: payment.client_id, payment_status: { $ne: 'paid' }, 'quote.version': payment.quote_version, 'quote.accepted': true },
+          { request_id: payment.request_id, client_id: payment.client_id, payment_status: { $nin: ['paid','refunded','partially_refunded'] }, 'quote.version': payment.quote_version, 'quote.accepted': true },
           { $set: { payment_status: 'paid' }, $push: { status_history: { status: order.status, actor_id: 'stripe', actor_role: 'system', reason: 'Verified payment received' } } }
         );
       } else if (event.type === 'checkout.session.completed') {
