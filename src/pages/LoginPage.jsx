@@ -43,8 +43,7 @@ export default function LoginPage(){
         <span>{loading?'Signing in…':'Open my workspace'}</span><span aria-hidden="true">↗</span>
       </button>
     </form>
-    <p className="ipsa-auth-help">Need help accessing your account? <a className="ipsa-auth-link"
-      href="mailto:support@ipsglobalservice.com?subject=IPS%20Account%20Access%20Assistance">Contact IPS support</a>. Do not email your password.</p>
+    <p className="ipsa-auth-help">Forgotten your password? <Link className="ipsa-auth-link" to="/forgot-password">Reset it securely by verified email</Link>. No phone calls or legal name required.</p>
     <div className="ipsa-auth-after">New to IPS? <Link className="ipsa-auth-link" to="/signup" state={{returnTo:next}}>Create an account</Link></div>
   </AcademicAuthShell>;
 }
