@@ -79,7 +79,7 @@ export default function ClientOverviewMongo() {
       <PrivateQuoteInbox />
 
       <DashboardZone portal="client" id="stats">
-      <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
+      <div data-studio-protected="true" data-studio-protected-reason="Private customer metrics are calculated from live account data." className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
         {[
           ['All jobs', activity.length, 'Across every IPS service'],
           ['Active', active.length, 'Currently being handled'],
