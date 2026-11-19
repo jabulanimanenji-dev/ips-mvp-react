@@ -391,6 +391,10 @@ export function AuthProvider({children}){
           if (!response.ok || !data.success) {
             return { success: false, error: data.error || 'Profile update failed.' };
           }
+          if(data.session_revoked){
+            removeUser();
+            return {success:true,reauthenticate:true};
+          }
           setUser(previous => ({
             ...previous,
             ...data.client,
@@ -401,7 +405,7 @@ export function AuthProvider({children}){
           return { success: false, error: 'The server could not update your profile.' };
         }
       },
-      [setUser, user?.client_id]
+      [setUser, removeUser, user?.client_id]
     );
 
   const changeAdminPassword =
