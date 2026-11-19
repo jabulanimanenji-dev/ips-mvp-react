@@ -14,6 +14,7 @@ export default function WriterLayout() {
   const [actionCount, setActionCount] = useState(0);
   const [messageCount, setMessageCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [logoutError,setLogoutError]=useState('');
   const navItems = (config.navigation?.writer || []).filter(item => item.visible);
   const academicLaunch=import.meta.env.VITE_STUDENT_LAUNCH==='true';
   const labelFor=item=>{
@@ -40,9 +41,11 @@ export default function WriterLayout() {
     }).catch(() => {});
   }, [location.pathname]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/writer/login');
+  const handleLogout = async () => {
+    setLogoutError('');
+    const result=await logout();
+    if(result?.success)navigate('/writer/login',{replace:true});
+    else setLogoutError(result?.error||'Unable to end your session. Please try again.');
   };
 
   return (
@@ -105,6 +108,7 @@ export default function WriterLayout() {
             {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
           </button>
           <button type="button" onClick={handleLogout} className="btn btn-ghost" style={{ width: '100%' }}>Logout</button>
+          {logoutError&&<small role="alert" style={{color:'var(--danger)',fontSize:'.74rem'}}>{logoutError}</small>}
         </div>
       </aside>
 
