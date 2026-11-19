@@ -9,6 +9,7 @@ import HomePage from './pages/HomePage';
 import QuotePage from './pages/QuotePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
+import PasswordRecoveryPage from './pages/PasswordRecoveryPage.jsx';
 import ServiceMarketplacePage from './pages/ServiceMarketplacePage';
 import ProviderApplicationPage from './pages/ProviderApplicationPage';
 import JoinPage from './pages/JoinPage';
@@ -218,6 +219,8 @@ export default function App() {
           path="/signup"
           element={<FeatureGate feature="clientRegistration"><SignupPage /></FeatureGate>}
         />
+        <Route path="/forgot-password" element={<PasswordRecoveryPage />} />
+        <Route path="/reset-password" element={<PasswordRecoveryPage />} />
 
       </Route>
 
