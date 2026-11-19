@@ -3,7 +3,7 @@
    administration, CMS, visual studio, service engine and evaluation.
    Keep component layouts/route logic intact. Use semantic tokens.
 */
-:root {
+html:root {
   color-scheme: light;
   --font: Inter, "Segoe UI", system-ui, -apple-system, sans-serif;
   --radius-sm: 5px;
