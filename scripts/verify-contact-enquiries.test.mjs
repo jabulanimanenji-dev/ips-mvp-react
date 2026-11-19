@@ -4,7 +4,7 @@ import { validatePublicEnquiry,canSendContactEmail,sendEmailReply } from '../ser
 import { IPS_EMAILS, IPS_EMAIL_DOMAIN, isIPSEmail } from '../shared/businessEmails.js';
 
 const enquiry={
-  name:'Student Example',
+  username:'QuietStudent',
   email:'student@example.org',
   phone:'+48794088714',
   subject:'Question about editing',
@@ -16,18 +16,19 @@ test('enquiry accepts a consented email contact and normalizes contact details',
   const value=validatePublicEnquiry({...enquiry,email:' STUDENT@EXAMPLE.ORG '}).value;
   assert.equal(value.email,'student@example.org');
   assert.equal(value.contact_consent,true);
-  assert.equal(value.name,'Student Example');
+  assert.equal(value.username,'QuietStudent');
 });
-test('callback requires a full international phone number',()=>{
-  assert.ok(validatePublicEnquiry({...enquiry,preferred_channel:'phone',phone:''}).error);
+test('phone callbacks are forbidden; only explicit written WhatsApp is available',()=>{
+  assert.ok(validatePublicEnquiry({...enquiry,preferred_channel:'phone'}).error);
   assert.ok(validatePublicEnquiry({...enquiry,preferred_channel:'whatsapp',phone:'794 088 714'}).error);
-  assert.equal(validatePublicEnquiry({...enquiry,preferred_channel:'phone',email:''}).value.phone,'+48794088714');
-  assert.equal(validatePublicEnquiry({...enquiry,preferred_channel:'phone',phone:'+48 794 088 714'}).value.phone,'+48794088714');
+  assert.equal(validatePublicEnquiry({...enquiry,preferred_channel:'whatsapp',phone:'+48 794 088 714'}).value.phone,'+48794088714');
+  assert.ok(validatePublicEnquiry({...enquiry,username:'Legal Name'}).error);
 });
 test('no unsolicited contact without explicit enquiry consent',()=>{
   assert.ok(validatePublicEnquiry({...enquiry,contact_consent:false}).error);
   assert.ok(validatePublicEnquiry({...enquiry,website:'bot-honeypot'}).error);
   assert.ok(validatePublicEnquiry({...enquiry,preferred_channel:'telegram',email:'',phone:''}).error);
+  assert.equal(validatePublicEnquiry({...enquiry,preferred_channel:'telegram',email:'',phone:'',telegram_username:'QuietResearcher'}).value.telegram_username,'quietresearcher');
   assert.ok(validatePublicEnquiry({...enquiry,preferred_channel:'email',email:''}).error);
   assert.ok(validatePublicEnquiry({...enquiry,message:'hello'}).error);
 });
