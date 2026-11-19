@@ -81,14 +81,17 @@ export default function PrivateQuoteInbox(){
     {rows.length>0&&<div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr)',gap:14,marginTop:18}}>
       <label className="form-group"><span className="form-label">Choose your quotation</span>
         <select className="form-select" value={selected} onChange={e=>{setSelected(e.target.value);setMessage('');setNotice('');}}>
-          {rows.map(row=><option value={row.enquiry_id} key={row.enquiry_id}>{row.enquiry_id} · {serviceTitle(row.service)} · {quoteStatusTitle(row.status)}</option>)}
+          {rows.map(row=><option value={row.enquiry_id} key={row.enquiry_id}>{row.enquiry_id} · {serviceTitle(row.service)} · {row.status==='in_progress'&&!row.review_started_at?'In queue':quoteStatusTitle(row.status)}</option>)}
         </select>
       </label>
       {quote&&<div>
-        <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Private reference: <strong>{quote.enquiry_id}</strong>. Status: <strong>{quoteStatusTitle(quote.status)}</strong>. Preferred written channel: <strong>{quote.preferred_channel}</strong>.</p>
+        <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Private reference: <strong>{quote.enquiry_id}</strong>. Status: <strong>{quote.status==='in_progress'&&!quote.review_started_at?'In queue':quoteStatusTitle(quote.status)}</strong>. Preferred written channel: <strong>{quote.preferred_channel}</strong>.</p>
         {quote.service_request_id?
           <p role="status"><Link className="btn btn-primary" to={'/client/services/'+encodeURIComponent(quote.service_request_id)}>Open managed IPS project {quote.service_request_id}</Link> — review itemized quotations and approve or reject terms in your private project workspace.</p>:
-          <p>IPS is reviewing your requirements. A managed project will appear here after staff handoff. A request itself is not a payment obligation.</p>}
+          <p>{quote.review_started_at
+            ? 'A human IPS reviewer has started examining your requirements. You will receive a written response through your selected verified channel.'
+            : 'Your request is safely in the IPS review queue. No human review has been marked as started yet.'}
+            {' '}An IPS manager will open a project after the verified-account handoff. Submitting the request creates no payment obligation.</p>}
         {quote.next_update_at&&quote.status!=='closed'&&quote.status!=='waiting_for_customer'&&
           <p role="status" style={{fontSize:'.85rem',fontWeight:600}}>Next written IPS update expected by: {new Date(quote.next_update_at).toLocaleString()}. If this time has passed, IPS still has your request and should provide an update.</p>}
         {!quote.next_update_at&&quote.status==='new'&&
@@ -100,7 +103,8 @@ export default function PrivateQuoteInbox(){
           </article>)}
         </div>
         {quote.status!=='closed'&&<form onSubmit={send} style={{marginTop:15}}>
-          <label className="form-group"><span className="form-label">Reply privately to IPS</span>
+          <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Your written message is sent privately to IPS management. IPS will still contact you through your selected verified {quote.preferred_channel} channel; using this form does not change that preference.</p>
+          <label className="form-group"><span className="form-label">Send a private clarification to IPS</span>
             <textarea className="form-textarea" required minLength={3} maxLength={2400} rows={3}
               value={message} onChange={e=>setMessage(e.target.value)} placeholder="Ask a question or clarify your request."/>
           </label>
