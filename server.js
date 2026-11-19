@@ -28,6 +28,7 @@ import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import { registerContactEmailWebhooks } from './services/contactEmailWebhooks.js';
 import { registerPrivateQuoteRoutes } from './services/quoteRequests.js';
+import {registerPasswordRecoveryRoutes,sessionFilter,sessionVersion} from './services/passwordRecovery.js';
 import { usernameValid,usernameKey,normalizeUsername,passwordValid,emailValid,normalizeEmail } from './shared/privacyIdentity.js';
 import { verificationAvailable,issueEmailChallenge,confirmEmailChallenge,publicAccount,validateVerificationRequest } from './services/accountVerification.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
@@ -157,7 +158,14 @@ const requireSession = (req, res) => {
 // Every signed customer/specialist API request is rechecked against current
 // database identity state. A changed email, suspended account or withdrawn
 // specialist approval invalidates an otherwise unexpired signed cookie.
+const publicAuthPaths=new Set([
+  '/api/client/login','/api/clients','/api/client/verify-email',
+  '/api/client/resend-verification','/api/client/password-recovery/request',
+  '/api/client/password-recovery/complete','/api/logout'
+]);
 app.use('/api',async(req,res,next)=>{
+  // Expired cookies must not stop people signing in or recovering an account.
+  if(publicAuthPaths.has(req.path))return next();
   const session=readSession(req);
   if(!session)return next();
   if(!['client','writer'].includes(session.role))return next();
@@ -165,7 +173,7 @@ app.use('/api',async(req,res,next)=>{
   try{
     if(mongoose.connection.readyState!==1)return res.status(503).json({success:false,error:'Account verification is temporarily unavailable.'});
     const valid=session.role==='client'
-      ?await Client.exists({client_id:session.id,email_verified_at:{$ne:null},status:'Active'})
+      ?await Client.exists({client_id:session.id,email_verified_at:{$ne:null},status:'Active',...sessionFilter(session)})
       :await Writer.exists({writer_id:session.id,email_verified_at:{$ne:null},status:'Active',application_status:'approved'});
     if(!valid){
       res.set('Cache-Control','no-store');
@@ -258,6 +266,7 @@ app.use(async (req, res, next) => {
   }
 });
 
+registerPasswordRecoveryRoutes(app, {hashPassword});
 registerEnquiryRoutes(app, { requireSession });
 registerPrivateQuoteRoutes(app, { readSession, requireSession });
 
@@ -351,7 +360,7 @@ app.post('/api/client/verify-email',async(req,res)=>{
     const firstLogin=!account.first_login_at;
     if(firstLogin)account.first_login_at=new Date();
     await account.save();
-    const token=signSession({id:account.client_id,role:'client',email_verified:true});
+    const token=signSession({id:account.client_id,role:'client',email_verified:true,session_version:sessionVersion(account)});
     setSessionCookie(res,token);
     res.set('Cache-Control','no-store');
     return res.json({success:true,client:{...publicAccount(account),first_login:firstLogin},token});
@@ -398,6 +407,7 @@ app.patch('/api/clients/:id', async (req, res) => {
       if(!existing||!verifyPassword(String(req.body?.current_password||''),existing.password))
         return res.status(403).json({success:false,error:'Enter your current password before changing it.'});
       updates.password=hashPassword(updates.password);
+      updates.session_version=sessionVersion(existing)+1;
     }
     if(updates.email!==undefined){
       updates.email=normalizeEmail(updates.email);
@@ -445,7 +455,7 @@ app.post('/api/client/login', async (req, res) => {
       const firstLogin=!client.first_login_at;
       if(firstLogin){client.first_login_at=new Date();await client.save();}
       const safeClient = {...publicAccount(client),first_login:firstLogin};
-      const token = signSession({ id: client.client_id, role: 'client', email_verified:true });
+      const token = signSession({ id: client.client_id, role: 'client', email_verified:true,session_version:sessionVersion(client) });
       setSessionCookie(res, token);
       res.json({ success: true, client: safeClient, token });
     } else {
