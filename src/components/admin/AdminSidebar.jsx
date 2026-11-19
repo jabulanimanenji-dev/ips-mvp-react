@@ -104,6 +104,7 @@ export default function AdminSidebar() {
                 key={item.id}
                 to={item.target}
                 onClick={() => setMobileOpen(false)}
+                aria-current={active?'page':undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -128,8 +129,8 @@ export default function AdminSidebar() {
               </Link>
             );
           })}
-          {hasAdminPermission('support.view') && <Link to="/admin/enquiries" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Private Quotes & Enquiries{quoteAttention.new_requests>0?' · '+quoteAttention.new_requests+' new':''}{quoteAttention.overdue_updates>0?' · '+quoteAttention.overdue_updates+' overdue':''}{quoteAttention.unassigned_requests>0?' · '+quoteAttention.unassigned_requests+' unassigned':''}</Link>}
-          {hasAdminPermission('messages.view') && <Link to="/admin/external-chats" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Written Messaging Inbox</Link>}
+          {hasAdminPermission('support.view') && <Link to="/admin/enquiries" aria-current={location.pathname.startsWith('/admin/enquiries')?'page':undefined} onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Private Quotes & Enquiries{quoteAttention.new_requests>0?' · '+quoteAttention.new_requests+' new':''}{quoteAttention.overdue_updates>0?' · '+quoteAttention.overdue_updates+' overdue':''}{quoteAttention.unassigned_requests>0?' · '+quoteAttention.unassigned_requests+' unassigned':''}</Link>}
+          {hasAdminPermission('messages.view') && <Link to="/admin/external-chats" aria-current={location.pathname.startsWith('/admin/external-chats')?'page':undefined} onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Written Messaging Inbox</Link>}
         </nav>
 
         <div style={{ flexShrink: 0, padding: '1rem 0.75rem', borderTop: '1px solid rgba(185,205,238,0.08)' }}>
