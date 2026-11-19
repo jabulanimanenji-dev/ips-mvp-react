@@ -1,0 +1,26 @@
+# IPS ISOLATED EVALUATION ONLY — no production database, payments or identity.
+# This container includes a disposable loopback-only MongoDB. Its contents can
+# disappear on restart. Never use it for personal data or actual customer work.
+FROM node:24-bookworm-slim AS node_runtime
+FROM mongo:7.0
+COPY --from=node_runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node_runtime /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx && \
+    node --version && npm --version && mongod --version
+WORKDIR /app
+ENV NODE_ENV=production \
+    VITE_IPS_EVALUATION=true \
+    VITE_STUDENT_LAUNCH=true \
+    VITE_DESIGN_PREVIEW=false \
+    VITE_ADMIN_ENTRY_PATH=/ips-evaluation-ops \
+    IPS_EVALUATION_MODE=true \
+    STORAGE_PROVIDER=local \
+    UPLOADS_DIR=/var/data/ips-evaluation-files \
+    CONTACT_EMAIL_NOTIFICATIONS_ENABLED=false
+COPY package.json package-lock.json ./
+RUN npm ci --include=dev --ignore-scripts=false
+COPY . .
+RUN npm run build && node --check server.js && node --check scripts/seed-ips-evaluation.mjs
+EXPOSE 8080
+ENTRYPOINT ["/bin/bash","scripts/ips-evaluation-entrypoint.sh"]
