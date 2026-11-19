@@ -4,6 +4,7 @@ import {mkdir} from 'node:fs/promises';
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import Writer from '../models/Writer.js';
+import ServiceRequest from '../models/ServiceRequest.js';
 
 const base=process.env.BROWSER_BASE_URL||'http://127.0.0.1:8080';
 if(!process.env.MONGODB_URI||!base.startsWith('http://127.0.0.1:'))throw Error('Workspace browser qualification requires the isolated local CI API.');
@@ -22,7 +23,28 @@ await Writer.updateOne({writer_id:'WID-TEST-SPECIALIST'},{$setOnInsert:{
   password:hashPass(password),email_verified_at:new Date(),status:'Active',application_status:'approved',
   primary_expertise:'Research methods',services:['research-methods']
 }},{upsert:true});
+// Seed only a specialist identity. The actual paid academic request came from
+// the preceding, fully validated API lifecycle. Assign it through the admin
+// API rather than bypassing role/quote/payment rules with a database write.
+const paidRequest=await ServiceRequest.findOne({
+  client_id:'CID-TEST-ALICE',category:'Academic Support',payment_status:'paid'
+}).sort({createdAt:-1}).lean();
+assert.ok(paidRequest?.request_id,'Missing verified-paid academic request from backend integration.');
 await mongoose.disconnect();
+const adminResponse=await fetch(base+'/api/admin/login',{method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({email:process.env.ADMIN_EMAIL,password:process.env.ADMIN_PASSWORD})});
+assert.equal(adminResponse.status,200,'Could not authenticate test administrator.');
+const adminCookie=adminResponse.headers.get('set-cookie')?.split(';')[0];
+assert.ok(adminCookie?.startsWith('ips_session='));
+const assignedResponse=await fetch(base+'/api/services/'+encodeURIComponent(paidRequest.request_id),{
+  method:'PATCH',headers:{'Content-Type':'application/json',Cookie:adminCookie},
+  body:JSON.stringify({provider_id:'WID-TEST-SPECIALIST',status:'Assigned'})
+});
+const assignedData=await assignedResponse.json().catch(()=>({}));
+assert.equal(assignedResponse.status,200,'Approved specialist assignment failed: '+JSON.stringify(assignedData));
+assert.equal(assignedData.request?.provider_id,'WID-TEST-SPECIALIST');
+console.log('PASS Administrator assigns a verified-paid academic service to an approved specialist via API');
 const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
 const pages=[];
 const open=async()=>{const p=await browser.newPage({viewport:{width:1440,height:900}});pages.push(p);return p};
@@ -95,6 +117,8 @@ try{
     const gradient=await hero.evaluate(el=>getComputedStyle(el).backgroundImage);
     assert.ok(gradient.includes('rgb(16, 42, 67)'), 'Specialist hero must use readable deep-navy background: '+gradient);
     assert.ok(await specialist.getByText('Specialist Workspace').count()>=1);
+    assert.ok(await specialist.getByText(/Thesis & Dissertation Guidance/i).count()>=1,
+      'Assigned academic request must appear in specialist work queue.');
     await evidence(specialist,'specialist-dashboard');
   });
   for(const [route,name] of [
