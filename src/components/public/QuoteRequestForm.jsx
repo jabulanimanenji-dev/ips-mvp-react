@@ -14,7 +14,9 @@ export default function QuoteRequestForm({selectedService=''}) {
   const [config,setConfig]=useState({email:false,telegram:false,whatsapp:false,workspace:true,accepting_requests:false});
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState(null),[code,setCode]=useState('');
   useEffect(()=>setForm(old=>({...old,service:selectedService||old.service})),[selectedService]);
-  useEffect(()=>{let active=true;
+  useEffect(()=>{
+    if(demo)return;
+    let active=true;
     fetch('/api/quote-requests/config',{cache:'no-store'}).then(r=>r.ok?r.json():Promise.reject()).then(data=>{
       if(active&&data.success)setConfig(data);
     }).catch(()=>{});
