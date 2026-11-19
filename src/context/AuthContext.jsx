@@ -22,6 +22,12 @@ export function AuthProvider({children}){
   const removeAdmin=useCallback(()=>setAdmin(null),[]);
 
   useEffect(()=>{
+    // The public design build has no API. Never probe real account sessions
+    // from its static pages or generate misleading authentication errors.
+    if(import.meta.env.VITE_DESIGN_PREVIEW==='true'){
+      setLoading(false);
+      return;
+    }
     let active=true;
     const controller=new AbortController();
     const limit=setTimeout(()=>controller.abort(),9000);
