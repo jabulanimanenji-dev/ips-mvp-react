@@ -538,6 +538,45 @@ async function go(){
   assert.equal(completed.body.request.status,'Completed');
   pass('Central paid lifecycle includes specialist work, IPS QA, client revision, re-review and verified customer completion');
 
+  // Dedicated verified secondary specialist tests credential rotation without
+  // modifying the specialist whose real completed project browser QA exercises.
+  const specialistSecurityId='WID-CI-SECURITY-2';
+  await mongoose.connect(process.env.MONGODB_URI);
+  await Writer.create({
+    writer_id:specialistSecurityId,full_name:'Independent Identity Test Specialist',
+    email:'specialist.security@example.org',password:testHash(password),
+    email_verified_at:new Date(),status:'Active',application_status:'approved'
+  });
+  await mongoose.disconnect();
+  const securityLogin=await call('/api/writer/login',{method:'POST',json:{
+    email:'specialist.security@example.org',password
+  }});
+  assert.equal(securityLogin.status,200);
+  const adminImpersonation=await call('/api/writers/'+specialistSecurityId,{
+    method:'PATCH',session:admin.cookie,json:{password:'StaffCannotReplaceWriter8!'}});
+  assert.equal(adminImpersonation.status,403);
+  const noCurrentPassword=await call('/api/writers/'+specialistSecurityId,{
+    method:'PATCH',session:securityLogin.cookie,json:{password:'IndependentNewWriter9!'}});
+  assert.equal(noCurrentPassword.status,403);
+  const selfChange=await call('/api/writers/'+specialistSecurityId,{
+    method:'PATCH',session:securityLogin.cookie,
+    json:{password:'IndependentNewWriter9!',current_password:password}});
+  assert.equal(selfChange.status,200,JSON.stringify(selfChange.body));
+  assert.equal(selfChange.body.session_revoked,true);
+  const oldWriterSession=await call('/api/writer/me',{session:securityLogin.cookie});
+  assert.equal(oldWriterSession.status,401);
+  const oldWriterLogin=await call('/api/writer/login',{method:'POST',
+    json:{email:'specialist.security@example.org',password}});
+  assert.equal(oldWriterLogin.status,401);
+  const newWriterLogin=await call('/api/writer/login',{method:'POST',session:securityLogin.cookie,
+    json:{email:'specialist.security@example.org',password:'IndependentNewWriter9!'}});
+  assert.equal(newWriterLogin.status,200);
+  const writerIdentityMutation=await call('/api/writers/'+specialistSecurityId,{
+    method:'PATCH',session:newWriterLogin.cookie,json:{full_name:'Unverified New Name'}});
+  assert.equal(writerIdentityMutation.status,200);
+  assert.equal(writerIdentityMutation.body.writer.full_name,'Independent Identity Test Specialist');
+  pass('Specialist self-service credentials require existing password, revoke stale sessions and protect IPS-vetted legal identity');
+
 
   const link=await call('/api/contact-channels/link-code',{method:'POST',session:alice.cookie});
   assert.equal(link.status,200,JSON.stringify(link.body));
