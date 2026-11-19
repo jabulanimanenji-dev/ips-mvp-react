@@ -41,7 +41,7 @@ try {
     assert.equal(await desktop.locator('a[href^="tel:"]').count(),0);
     assert.equal(await form.locator('input[autocomplete="name"]').count(),0);
     await form.locator('input[autocomplete="nickname"]').fill('QuietResearcher');
-    await form.locator('select').first().selectOption('research-planning');
+    await form.locator('select').first().selectOption('research-methods');
     await form.locator('textarea').fill('Please review my academic project scope and recommend suitable research methodology guidance.');
     await form.locator('input[type="email"]').fill('visitor@example.org');
     await form.locator('input[type="checkbox"]').check();
