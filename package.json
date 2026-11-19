@@ -1,7 +1,7 @@
 {
   "name": "ips-mvp-react",
   "version": "1.0.0",
-  "description": "I P S \u2014 Complete MVP with React, Express, and God Mode CMS",
+  "description": "I P S — Complete MVP with React, Express, and God Mode CMS",
   "private": true,
   "type": "module",
   "scripts": {
@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "dotenv": "^17.4.2",
-    "express": "^4.19.2",
+    "express": "4.22.3",
     "helmet": "^8.3.0",
     "mongoose": "^9.7.4",
     "react": "^18.3.1",
