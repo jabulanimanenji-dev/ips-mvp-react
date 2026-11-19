@@ -635,3 +635,34 @@ html[data-theme="dark"] .ipsa-workspace .dashboard-zone-admin-stats .card strong
  .ips-eval-hero h1 { font-size:2.15rem; }
  .ips-eval-role,.ips-eval-instructions,.ips-eval-disclosure-small { padding:1.15rem; }
 }
+
+
+/* Final shell acceptance: the evaluation notice stays visible but MUST NOT
+   cover the fixed management, client or specialist brand/navigation header.
+   Fixed height and truncation make the offset deterministic on all devices. */
+.ips-evaluation-banner {
+  height:38px;min-height:38px;flex-wrap:nowrap;overflow:hidden;
+  padding:6px 15px;line-height:1.35;
+}
+.ips-evaluation-banner span {
+  min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.ips-evaluation-banner a { flex-shrink:0;white-space:nowrap; }
+body:has(.ips-evaluation-banner) .ipsa-workspace :is(.admin-sidebar,.client-sidebar,.writer-sidebar) {
+  top:38px!important;
+  height:calc(100vh - 38px)!important;
+  max-height:calc(100vh - 38px)!important;
+  min-height:0!important;
+}
+body:has(.ips-evaluation-banner) .ipsa-workspace .admin-layout-content>header {
+  top:38px!important;
+}
+body:has(.ips-evaluation-banner) :is(.admin-menu-toggle,.client-menu-toggle,.writer-menu-toggle) {
+  top:calc(38px + 1rem)!important;
+}
+body:has(.ips-evaluation-banner) :is(.admin-sidebar-overlay,.client-sidebar-overlay,.writer-sidebar-overlay) {
+  top:38px;
+}
+@media(max-width:600px){
+  .ips-evaluation-banner { font-size:.68rem;gap:9px;padding:5px 10px; }
+}
