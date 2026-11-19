@@ -103,7 +103,7 @@ async function storeInbound(event){
   // A signed, customer-initiated chat containing the exact quote reference and
   // matching channel identity proves control of that reply route.
   if(quoteReferenceFromMessage(event.body)){
-    const verified=await confirmQuoteMessengerContact(event);
+    const verified=await confirmQuoteMessengerContact({...event,contact_id:String(contact._id)});
     if(verified){
       const lead=await ContactEnquiry.findOne({enquiry_id:quoteReferenceFromMessage(event.body)}).lean();
       if(lead)try{await enqueueContactEmailJobs(lead);}catch{}
