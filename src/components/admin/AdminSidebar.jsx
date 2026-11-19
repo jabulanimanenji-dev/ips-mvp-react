@@ -36,7 +36,7 @@ export default function AdminSidebar() {
   const handleLogout = async () => {
     setLogoutError('');
     const result=await logout();
-    if(result?.success)navigate('/admin/login',{replace:true});
+    if(result?.success)navigate(import.meta.env.VITE_ADMIN_ENTRY_PATH||'/ips-mission-control',{replace:true});
     else setLogoutError(result?.error||'Unable to end your session. Please try again.');
   };
 
