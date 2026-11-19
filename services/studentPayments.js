@@ -40,6 +40,8 @@ export function registerStudentWebhook(app, express, { StudentPayment, ServiceRe
     }
     try {
       const event = JSON.parse(req.body.toString('utf8'));
+      if(String(process.env.IPS_STAGING_MODE||'').toLowerCase()==='true'&&event.livemode!==false)
+        return res.status(400).json({success:false,error:'Staging accepts signed Stripe test-mode events only.'});
       if (!event.id || !event.type) return res.status(400).json({ success: false, error: 'Malformed payment event.' });
       if(['refund.created','refund.updated','refund.failed'].includes(event.type)){
         await processStudentRefundEvent(event);
