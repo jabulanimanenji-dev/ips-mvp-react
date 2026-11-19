@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardZone from '../common/DashboardZone';
 import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
+import PrivateQuoteInbox from './PrivateQuoteInbox.jsx';
 
 const closed = ['Completed', 'Cancelled'];
 
@@ -73,6 +74,8 @@ export default function ClientOverviewMongo() {
         </div>
       </section>
       </DashboardZone>
+
+      <PrivateQuoteInbox />
 
       <DashboardZone portal="client" id="stats">
       <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
