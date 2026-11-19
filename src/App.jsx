@@ -21,6 +21,7 @@ import ClientOrders from './components/client/ClientOrders';
 import ClientOrderDetail from './components/client/ClientOrderDetail';
 import ClientOrderForm from './components/client/ClientOrderForm';
 import ClientProfile from './components/client/ClientProfile';
+import ClientPayments from './components/client/ClientPayments.jsx';
 import ClientSupport from './components/client/ClientSupport';
 import ClientServices from './components/client/ClientServices';
 
@@ -286,6 +287,7 @@ export default function App() {
           path="profile"
           element={<ClientProfile />}
         />
+        <Route path="payments" element={<ClientPayments/>}/>
 
 
         <Route
