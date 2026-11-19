@@ -4,10 +4,10 @@ import {usernameValid,passwordValid} from '../../../shared/privacyIdentity.js';
 
 export default function ClientProfile(){
   const {user,updateClientProfile}=useAuth();
-  const [form,setForm]=useState({username:'',country:'',phone:'',password:''});
+  const [form,setForm]=useState({username:'',country:'',phone:'',password:'',currentPassword:''});
   const [state,setState]=useState({saving:false,success:'',error:''});
   useEffect(()=>setForm({
-    username:user?.username||'',country:user?.country||'',phone:user?.phone||'',password:''
+    username:user?.username||'',country:user?.country||'',phone:user?.phone||'',password:'',currentPassword:''
   }),[user]);
   const submit=async event=>{
     event.preventDefault();
@@ -15,10 +15,10 @@ export default function ClientProfile(){
     if(form.password&&!passwordValid(form.password))return setState({saving:false,success:'',error:'Use at least 8 characters, a capital letter, a number and a symbol.'});
     setState({saving:true,success:'',error:''});
     const updates={username:form.username.trim(),country:form.country.trim(),phone:form.phone.trim(),
-      ...(form.password?{password:form.password}:{})};
+      ...(form.password?{password:form.password,current_password:form.currentPassword}:{})};
     const result=await updateClientProfile(updates);
     setState({saving:false,success:result.success?'Profile updated.':'',error:result.success?'':result.error});
-    if(result.success)setForm(p=>({...p,password:''}));
+    if(result.success)setForm(p=>({...p,password:'',currentPassword:''}));
   };
   return <div>
     <header style={{marginBottom:26}}>
@@ -46,6 +46,11 @@ export default function ClientProfile(){
           <label className="form-group"><span className="form-label">WhatsApp number (optional)</span>
             <input className="form-input" type="tel" value={form.phone} onChange={e=>setForm(p=>({...p,phone:e.target.value}))} placeholder="Only if you want written WhatsApp contact"/>
             <small style={{color:'var(--text-muted)'}}>IPS never makes phone or voice calls.</small>
+          </label>
+          <label className="form-group"><span className="form-label">Current password (required only when changing password)</span>
+            <input className="form-input" type="password" autoComplete="current-password" value={form.currentPassword}
+              onChange={e=>setForm(p=>({...p,currentPassword:e.target.value}))}
+              placeholder="Confirm your current password"/>
           </label>
           <label className="form-group"><span className="form-label">New password (optional)</span>
             <input className="form-input" type="password" autoComplete="new-password" minLength={8}
