@@ -1,0 +1,82 @@
+name: IPS Fully Isolated Hosted Evaluation Qualification
+on:
+  pull_request:
+    branches: [commercial/student-support-v1]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  docker-evaluation:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'audit/central-ips-privacy-queue-20261119'
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build complete IPS evaluation container with its own MongoDB 7
+        run: docker build --pull -f Dockerfile.ips-evaluation -t ips-evaluation:qualify .
+      - name: Boot isolated customer, specialist and admin with zero production credentials
+        run: |
+          set -euo pipefail
+          docker run --detach --rm --name ips-evaluation-ci --memory=1700m \
+            -p 127.0.0.1:18080:8080 \
+            -e NODE_ENV=production -e PORT=8080 \
+            -e ADMIN_EMAIL=admin.evaluation@example.org \
+            -e ADMIN_PASSWORD='EvalAdmin2026!' \
+            -e IPS_EVAL_CLIENT_PASSWORD='EvalClient2026!' \
+            -e IPS_EVAL_SPECIALIST_PASSWORD='EvalSpecialist2026!' \
+            ips-evaluation:qualify
+          for i in $(seq 1 120); do
+            if curl --silent --show-error --fail http://127.0.0.1:18080/api/health \
+              | grep -q '"database":"connected"'; then
+              echo 'PASS Isolated evaluation environment has a real authenticated MongoDB 7'
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' ips-evaluation-ci 2>/dev/null)" != "true" ]; then
+              docker logs ips-evaluation-ci || true
+              exit 1
+            fi
+            sleep 2
+          done
+          docker logs ips-evaluation-ci
+          exit 1
+      - name: Authenticate three real role sessions and check confidential boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          const base='http://127.0.0.1:18080';
+          async function login(path,email,password){
+            const res=await fetch(base+path,{method:'POST',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({email,password})});
+            const data=await res.json();
+            assert.equal(res.status,200,JSON.stringify(data));
+            const cookie=res.headers.get('set-cookie')?.split(';')[0];
+            assert.ok(cookie?.startsWith('ips_session='));
+            assert.ok(!data.token,'Signed credentials may only be HttpOnly cookies');
+            return cookie;
+          }
+          async function check(path,cookie,want){
+            const res=await fetch(base+path,{headers:{Cookie:cookie}});
+            assert.equal(res.status,want,await res.text());
+            return res;
+          }
+          const customer=await login('/api/client/login','client.evaluation@example.org','EvalClient2026!');
+          const specialist=await login('/api/writer/login','specialist.evaluation@example.org','EvalSpecialist2026!');
+          const manager=await login('/api/admin/login','admin.evaluation@example.org','EvalAdmin2026!');
+          const q=await (await check('/api/quote-requests/me',customer,200)).json();
+          assert.ok(q.quotes.some(row=>row.enquiry_id==='IPS-Q-E1A2B3C4D5E6F70809'));
+          const a=await (await check('/api/services',specialist,200)).json();
+          assert.ok(a.requests.some(row=>row.provider_id==='WID-EVAL-SPECIALIST-1'));
+          await check('/api/contact-enquiries/admin/attention',manager,200);
+          await check('/api/contact-enquiries/admin/attention',customer,403);
+          await check('/api/quote-requests/me',specialist,403);
+          await check('/api/specialist-payouts/me',specialist,200);
+          await check('/api/specialist-payouts/me',customer,403);
+          const page=await fetch(base+'/evaluation');
+          assert.equal(page.status,200);
+          console.log('PASS Three actual IPS session roles, synthetic work, payout and isolation checks');
+          JS
+      - name: Stop disposable server and redact all secrets
+        if: always()
+        run: docker rm --force ips-evaluation-ci 2>/dev/null || true
