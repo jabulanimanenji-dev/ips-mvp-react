@@ -6,94 +6,54 @@ import React, {
   useEffect
 } from 'react';
 
-import { useLocalStorage } from '../hooks/useLocalStorage';
 import { hasAdminPermission } from '../../shared/adminPermissions';
 
+const AuthContext=createContext();
 
-const AuthContext = createContext();
+// No account identity or signed session token is trusted from browser storage.
+// Rehydrate the *current* account from a validated HttpOnly server session.
+export function AuthProvider({children}){
+  const [user,setUser]=useState(null);
+  const [writer,setWriter]=useState(null);
+  const [admin,setAdmin]=useState(null);
+  const [loading,setLoading]=useState(true);
+  const removeUser=useCallback(()=>setUser(null),[]);
+  const removeWriter=useCallback(()=>setWriter(null),[]);
+  const removeAdmin=useCallback(()=>setAdmin(null),[]);
 
-
-
-export function AuthProvider({ children }) {
-
-
-  const [
-    user,
-    setUser,
-    removeUser
-  ] = useLocalStorage(
-    'ips-user',
-    null
-  );
-
-
-  const [
-    admin,
-    setAdmin,
-    removeAdmin
-  ] = useLocalStorage(
-    'ips-admin-session',
-    null
-  );
-
-
-  const [
-    writer,
-    setWriter,
-    removeWriter
-  ] = useLocalStorage(
-    'ips-writer-session',
-    null
-  );
-
-
-
-  const [loading, setLoading] =
-    useState(true);
-
-
-
-  useEffect(() => {
-
-    // Allow stored sessions to load
-    // before protected routes check auth
-
-    const timer =
-      setTimeout(() => {
-        setLoading(false);
-      }, 100);
-
-
-    return () =>
-      clearTimeout(timer);
-
-
-  }, []);
-
-  useEffect(() => {
-    if (!admin) return;
-    let cancelled = false;
-    fetch('/api/admin/me', { credentials: 'same-origin' })
-      .then(async response => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.success) throw new Error(data.error || 'Administrator session expired.');
-        if (!cancelled) {
-          setAdmin(previous => ({
-            ...data.admin,
-            id: data.admin?.adminId || data.admin?.id || previous?.id
-          }));
-        }
-      })
-      .catch(() => {
-        if (!cancelled) removeAdmin();
-      });
-    return () => { cancelled = true; };
-  }, [admin?.id, removeAdmin, setAdmin]);
-
-
-
-
-
+  useEffect(()=>{
+    let active=true;
+    const controller=new AbortController();
+    const limit=setTimeout(()=>controller.abort(),9000);
+    const get=async(path,key)=>{
+      try{
+        const response=await fetch(path,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+        if(!response.ok)return null;
+        const data=await response.json();
+        return data.success?data[key]||null:null;
+      }catch{return null;}
+    };
+    // A single signed cookie represents at most one role; all others must
+    // remain absent. A 401/403/timeout never opens a protected workspace.
+    Promise.all([
+      get('/api/client/me','client'),
+      get('/api/writer/me','writer'),
+      get('/api/admin/me','admin')
+    ]).then(([client,specialist,operator])=>{
+      if(!active)return;
+      if(client)setUser(client);
+      else if(specialist)setWriter(specialist);
+      else if(operator)setAdmin({...operator,id:operator.adminId||operator.id});
+    }).finally(()=>{
+      clearTimeout(limit);
+      if(active)setLoading(false);
+    });
+    try{
+      for(const key of ['ips-user','ips-writer-session','ips-admin-session'])
+        window.localStorage.removeItem(key);
+    }catch{}
+    return ()=>{active=false;clearTimeout(limit);controller.abort();};
+  },[]);
 
   // ==========================
   // CLIENT LOGIN
@@ -132,10 +92,7 @@ export function AuthProvider({ children }) {
 
         if (data.success) {
 
-          setUser({
-            ...data.client,
-            token: data.token
-          });
+          setUser(data.client);
 
 
           return {
@@ -198,7 +155,7 @@ export function AuthProvider({ children }) {
         body:JSON.stringify({email,code})});
       const data=await response.json().catch(()=>({}));
       if(!response.ok||!data.success)return {success:false,error:data.error||'Verification failed.'};
-      setUser({...data.client,token:data.token});
+      setUser(data.client);
       return {success:true};
     }catch{return {success:false,error:'Email verification is not available.'};}
   },[setUser]);
@@ -349,14 +306,7 @@ export function AuthProvider({ children }) {
           if(data.success){
 
 
-            setWriter({
-
-              ...data.writer,
-
-              token:
-                data.token
-
-            });
+            setWriter(data.writer);
 
 
 
