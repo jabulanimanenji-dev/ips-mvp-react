@@ -15,6 +15,18 @@ export default function WriterLayout() {
   const [messageCount, setMessageCount] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navItems = (config.navigation?.writer || []).filter(item => item.visible);
+  const academicLaunch=import.meta.env.VITE_STUDENT_LAUNCH==='true';
+  const labelFor=item=>{
+    if(!academicLaunch)return item.label;
+    const route=String(item.target||'').split('?')[0];
+    return ({
+      '/writer/dashboard':'Overview',
+      '/writer/services':'My Assignments',
+      '/writer/orders':'Academic Assignments',
+      '/writer/messages':'Messages',
+      '/writer/actions':'My Tasks'
+    })[route]||item.label;
+  };
   const layout = config.layouts?.writer || {};
 
   const isActive = target => location.pathname === target.split('?')[0];
@@ -80,7 +92,7 @@ export default function WriterLayout() {
                 }}
               >
                 <span>{item.icon}</span>
-                <span style={{ flex: 1 }}>{item.label}</span>
+                <span style={{ flex: 1 }}>{labelFor(item)}</span>
                 {item.target === '/writer/actions' && actionCount > 0 && <span className="writer-nav-count writer-nav-count-danger">{actionCount > 99 ? '99+' : actionCount}</span>}
                 {item.target.startsWith('/writer/messages') && messageCount > 0 && <span className="writer-nav-count">{messageCount > 99 ? '99+' : messageCount}</span>}
               </Link>
