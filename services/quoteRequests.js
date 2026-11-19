@@ -128,8 +128,8 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
     if(session.role!=='client')return res.sendStatus(403);
     try{
       const rows=await ContactEnquiry.find({
-        request_type:'quote',client_id:session.id,preferred_channel:'workspace',contact_verified:true
-      }).select('enquiry_id username service discipline study_level preferred_deadline subject status next_update_at messages createdAt updatedAt')
+        request_type:'quote',client_id:session.id,contact_verified:true
+      }).select('enquiry_id username service discipline study_level preferred_deadline subject status preferred_channel service_request_id next_update_at messages createdAt updatedAt')
         .sort({createdAt:-1}).limit(50).lean();
       res.set('Cache-Control','no-store');
       res.json({success:true,quotes:rows});
