@@ -115,6 +115,22 @@ async function go(){
   assert.equal(ownerQueueAfter.body.enquiries.find(x=>x.enquiry_id===reference)?.messages.length,1);
   pass('Only authorized IPS staff update confidential quote lifecycle; no unverified sends');
 
+  const privateMine=await call('/api/quote-requests/me',{session:alice.cookie});
+  assert.equal(privateMine.status,200);
+  assert.ok(privateMine.body.quotes.some(q=>q.enquiry_id===reference));
+  const privateOther=await call('/api/quote-requests/me',{session:bob.cookie});
+  assert.equal(privateOther.status,200);
+  assert.ok(!privateOther.body.quotes.some(q=>q.enquiry_id===reference));
+  const staffMessage=await call('/api/quote-requests/admin/'+reference+'/workspace-reply',{
+    method:'POST',session:admin.cookie,json:{message:'IPS reviewed your project. Please clarify the timeframe.'}});
+  assert.equal(staffMessage.status,200);
+  const customerMessage=await call('/api/quote-requests/'+reference+'/workspace-reply',{
+    method:'POST',session:alice.cookie,json:{message:'The timeframe is about two weeks from today.'}});
+  assert.equal(customerMessage.status,200);
+  const privateThread=await call('/api/quote-requests/me',{session:alice.cookie});
+  assert.equal(privateThread.body.quotes.find(q=>q.enquiry_id===reference).messages.length,3);
+  pass('Two-way private quotation messages are available to the account owner');
+
   // Real MongoDB outbox with a fake provider: no external emails or credentials.
   console.log('CI_CONTACT_MAIL_TESTS_START');
   const mailEnv={
