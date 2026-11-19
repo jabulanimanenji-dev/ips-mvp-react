@@ -1,4 +1,6 @@
 import React,{useEffect,useState} from 'react';
+import {Link} from 'react-router-dom';
+import {useAuth} from '../../context/AuthContext';
 import {serviceTitle,quoteSubjectTitle,quoteStatusTitle,contactChannelTitle} from '../../utils/quoteLabels.js';
 const needsUpdate=lead=>Boolean(lead?.next_update_at&&lead.status!=='closed'&&lead.status!=='waiting_for_customer'&&new Date(lead.next_update_at).getTime()<=Date.now());
 const localDateTime=iso=>{if(!iso)return '';const value=new Date(iso);return new Date(value.getTime()-value.getTimezoneOffset()*60000).toISOString().slice(0,16);};
@@ -21,6 +23,7 @@ function ContactActions({lead}){
   </div>;
 }
 export default function AdminEnquiries(){
+  const {hasAdminPermission}=useAuth();
   const [leads,setLeads]=useState([]),[selected,setSelected]=useState('');
   const [filter,setFilter]=useState('open'),[query,setQuery]=useState('');
   const [message,setMessage]=useState('');
@@ -65,6 +68,20 @@ export default function AdminEnquiries(){
       if(!response.ok||!data.success)throw Error(data.error||'Could not update enquiry.');
       await refresh();setStatusMessage('Enquiry updated.');
     }catch(ex){setError(ex.message);}
+    finally{setBusy(false);}
+  }
+  async function createManagedProject(){
+    if(!current||busy)return;
+    setBusy(true);setError('');setStatusMessage('');
+    try{
+      const response=await fetch('/api/quote-requests/admin/'+encodeURIComponent(current.enquiry_id)+'/create-project',{
+        method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}
+      });
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok||!result.success)throw Error(result.error||'Managed project could not be created.');
+      await refresh();
+      setStatusMessage('Managed project ready: '+result.request_id+'. Issue an itemized quote before any payment or assignment.');
+    }catch(err){setError(err.message||'The verified customer project could not be opened.');}
     finally{setBusy(false);}
   }
   async function send(event){
@@ -118,6 +135,15 @@ export default function AdminEnquiries(){
           <p style={{marginTop:10}}><b>Preferred contact:</b> {current.preferred_channel}</p>
           <p><b>Written contact:</b> {current.email||current.telegram_username||current.phone||'Private workspace'} · {current.contact_verified?'Verified':'Awaiting verification'}</p>
           {current.request_type==='quote'&&<p><b>Quotation:</b> {serviceTitle(current.service)} · {current.discipline||'Unspecified discipline'} · {current.study_level||'Unspecified level'} · {current.preferred_deadline||'No deadline selected'}</p>}
+          {current.request_type==='quote'&&<div className="card" style={{margin:'12px 0',padding:12,background:'var(--bg-surface-2)'}}>
+            <strong>Central IPS project handoff</strong>
+            {current.service_request_id?
+              <p><Link to={'/admin/services/'+encodeURIComponent(current.service_request_id)}>Open managed project {current.service_request_id}</Link> to issue a written price, allocate a vetted specialist after payment and govern delivery.</p>
+              :<p style={{marginTop:7}}>This request is not yet a paid order. The customer must use a verified IPS account and link this exact quotation before a managed project can open.</p>}
+            {!current.service_request_id&&current.client_id&&current.contact_verified&&current.contact_consent&&hasAdminPermission('services.manage')&&
+              <button className="btn btn-primary" type="button" disabled={busy} onClick={createManagedProject}>Open managed IPS project</button>}
+            {!current.client_id&&<small>Customer can claim the reference privately after verifying their selected email or linking their messaging account. Never assign work or demand payment before agreement.</small>}
+          </div>}
           <p><b>Human review:</b> {current.review_started_at?'Started '+new Date(current.review_started_at).toLocaleString():'Not yet marked under review'}</p>
           {needsUpdate(current)&&<p role="alert" style={{color:'var(--danger)',fontWeight:700}}>Customer update overdue — contact the customer using the verified chosen channel.</p>}
           <p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>Enquiry-specific contact permission recorded: {current.contact_consent?'Yes':'No'} · {current.consent_at?new Date(current.consent_at).toLocaleString():''}</p>
