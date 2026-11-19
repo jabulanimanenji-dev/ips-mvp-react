@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">IPS Academic Services</title>
+  <rect width="64" height="64" rx="13" fill="#0d263c"/>
+  <text x="7" y="40" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="800" letter-spacing="-2" fill="#f8f4e9">IPS</text>
+  <circle cx="50" cy="46" r="4" fill="#d7b77d"/>
+</svg>
