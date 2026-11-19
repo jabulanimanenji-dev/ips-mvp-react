@@ -23,31 +23,74 @@ async function go(){
   assert.ok(ready,'Real MongoDB API did not report ready');
   pass('MongoDB-backed API /health readiness');
 
-  const alice=await call('/api/clients',{method:'POST',json:{full_name:'Student Alice',email:'alice.test@example.invalid',password:'ExampleTestPassword123!'}});
+  // CI has no real sending credentials. Registration must refuse activation,
+  // while independently provisioned, already-verified accounts can sign in.
+  const unavailableSignup=await call('/api/clients',{method:'POST',json:{
+    username:'PrivateStudent',email:'new-student@example.org',password:'ExampleTestPassword123!'}});
+  assert.equal(unavailableSignup.status,503);
+  assert.equal(unavailableSignup.body.success,false);
+  pass('Account registration fails closed without verified sender and email-code secret');
+
+  const mongooseForMail=(await import('mongoose')).default;
+  const {default:Client}=await import('../models/Client.js');
+  await mongooseForMail.connect(process.env.MONGODB_URI);
+  const testHash=password=>{
+    const salt=crypto.randomBytes(16).toString('hex');
+    return 'scrypt$'+salt+'$'+crypto.scryptSync(password,salt,64).toString('hex');
+  };
+  const password='ExampleTestPassword123!';
+  for(const [id,username,email,verified] of [
+    ['CID-TEST-ALICE','PrivateAlice','alice.test@example.org',true],
+    ['CID-TEST-BOB','PrivateBob','bob.test@example.org',true],
+    ['CID-TEST-UNVERIFIED','UnverifiedUser','unverified.test@example.org',false]
+  ]){
+    await Client.create({client_id:id,username,username_key:username.toLowerCase(),full_name:'',email,
+      password:testHash(password),email_verified_at:verified?new Date():null,
+      status:verified?'Active':'Pending Verification'});
+  }
+  const denied=await call('/api/client/login',{method:'POST',json:{email:'unverified.test@example.org',password}});
+  assert.equal(denied.status,403);
+  assert.equal(denied.body.verification_required,true);
+  pass('No session cookie for unverified student email');
+
+  const alice=await call('/api/client/login',{method:'POST',json:{email:'alice.test@example.org',password}});
   assert.equal(alice.status,200,JSON.stringify(alice.body));
   assert.ok(alice.cookie.startsWith('ips_session='));
+  assert.equal(alice.body.client.username,'PrivateAlice');
+  assert.equal(alice.body.client.full_name,'');
   const aliceId=alice.body.client.client_id;
-  pass('Real student signup and signed HttpOnly cookie');
+  pass('Verified-only pseudonymous student login and signed HttpOnly cookie');
 
-  const bob=await call('/api/clients',{method:'POST',json:{full_name:'Student Bob',email:'bob.test@example.invalid',password:'ExampleTestPassword123!'}});
+  const bob=await call('/api/client/login',{method:'POST',json:{email:'bob.test@example.org',password}});
   assert.equal(bob.status,200);
   assert.notEqual(bob.body.client.client_id,aliceId);
-  pass('Separate student identity');
+  pass('Separate verified student identities');
 
   const admin=await call('/api/admin/login',{method:'POST',json:{email:'owner-ci@example.invalid',password:'LocalOnlyAdminPassword123!'}});
   assert.equal(admin.status,200,JSON.stringify(admin.body));
   pass('Actual administrator authentication');
 
-  const publicContact={name:'Guest Student',email:'guest@example.org',phone:'+48794088714',
-    preferred_channel:'phone',subject:'Please call me about research coaching',
-    message:'I would like to discuss your research coaching service and get a callback.',contact_consent:true};
-  const invalidContact=await call('/api/contact-enquiries',{method:'POST',json:{...publicContact,contact_consent:false}});
-  assert.equal(invalidContact.status,400);
-  const submitted=await call('/api/contact-enquiries',{method:'POST',json:publicContact});
+  const privateQuote={
+    username:'PrivateAlice',service:'statistics-support',subject:'Research planning',
+    message:'I would like methodology and data analysis guidance for my academic research project.',
+    preferred_channel:'workspace',contact_consent:true
+  };
+  const noConsent=await call('/api/quote-requests',{method:'POST',session:alice.cookie,
+    json:{...privateQuote,contact_consent:false}});
+  assert.equal(noConsent.status,400);
+  const noCalls=await call('/api/quote-requests',{method:'POST',session:alice.cookie,
+    json:{...privateQuote,preferred_channel:'phone',phone:'+48123456789'}});
+  assert.equal(noCalls.status,400);
+  const guestEmail=await call('/api/quote-requests',{method:'POST',json:{...privateQuote,
+    username:'GuestResearcher',preferred_channel:'email',email:'guest@example.org'}});
+  assert.equal(guestEmail.status,503);
+  const submitted=await call('/api/quote-requests',{method:'POST',session:alice.cookie,json:privateQuote});
   assert.equal(submitted.status,201,JSON.stringify(submitted.body));
-  const reference=submitted.body.enquiry_id;
-  assert.match(reference,/^ENQ-[A-F0-9]{18}$/);
-  pass('Guest enquiry and callback saved without signup or payment');
+  const reference=submitted.body.quote_id;
+  assert.match(reference,/^IPS-Q-[A-F0-9]{18}$/);
+  assert.equal(submitted.body.preferred_channel,'workspace');
+  assert.equal(submitted.body.contact_status,'verified');
+  pass('Signed-in private quote requires no legal name or payment; phone calls forbidden');
 
   const guestQueue=await call('/api/contact-enquiries/admin');
   assert.equal(guestQueue.status,401);
@@ -55,19 +98,22 @@ async function go(){
   assert.equal(clientQueue.status,403);
   const ownerQueue=await call('/api/contact-enquiries/admin',{session:admin.cookie});
   assert.equal(ownerQueue.status,200,JSON.stringify(ownerQueue.body));
-  assert.equal(ownerQueue.body.enquiries.find(x=>x.enquiry_id===reference)?.phone,'+48794088714');
-  pass('Only IPS administrators see guest contact details and explicit reply consent');
+  const found=ownerQueue.body.enquiries.find(x=>x.enquiry_id===reference);
+  assert.equal(found.username,'PrivateAlice');
+  assert.equal(found.name,'');
+  assert.equal(found.phone,'');
+  pass('Only IPS staff can inspect pseudonymous quote details');
 
   const noEmail=await call('/api/contact-enquiries/admin/'+reference+'/email-reply',{
-    method:'POST',session:admin.cookie,json:{message:'We will call you to discuss the enquiry.'}});
-  assert.equal(noEmail.status,503,JSON.stringify(noEmail.body));
+    method:'POST',session:admin.cookie,json:{message:'IPS will respond in writing.'}});
+  assert.equal(noEmail.status,503);
   const moved=await call('/api/contact-enquiries/admin/'+reference,{
-    method:'PATCH',session:admin.cookie,json:{status:'in_progress',admin_note:'Callback requested by student'}});
+    method:'PATCH',session:admin.cookie,json:{status:'in_progress',admin_note:'Private quote under review'}});
   assert.equal(moved.status,200);
   assert.equal(moved.body.enquiry.status,'in_progress');
   const ownerQueueAfter=await call('/api/contact-enquiries/admin',{session:admin.cookie});
   assert.equal(ownerQueueAfter.body.enquiries.find(x=>x.enquiry_id===reference)?.messages.length,1);
-  pass('Owner manages callback queue; unconfigured email never pretends to send');
+  pass('Only authorized IPS staff update confidential quote lifecycle; no unverified sends');
 
   // Real MongoDB outbox with a fake provider: no external emails or credentials.
   console.log('CI_CONTACT_MAIL_TESTS_START');
@@ -77,13 +123,18 @@ async function go(){
     CONTACT_FROM_EMAIL:'support@ipsglobalservice.com',
     CONTACT_REPLY_TO_EMAIL:'contact@ipsglobalservice.com'
   };
-  const mongooseForMail=(await import('mongoose')).default;
   const {default:ContactEnquiry}=await import('../models/ContactEnquiry.js');
   const {default:ContactEmailJob}=await import('../models/ContactEmailJob.js');
   const {enqueueContactEmailJobs,processContactEmailJobs}=await import('../services/contactEmailQueue.js');
-  await mongooseForMail.connect(process.env.MONGODB_URI);
-  const savedLead=await ContactEnquiry.findOne({enquiry_id:reference}).lean();
-  assert.equal(savedLead.email,'guest@example.org');
+  const savedLead=await ContactEnquiry.findOne({enquiry_id:reference});
+  assert.equal(savedLead.email,'');
+  // Provider-mock fixture explicitly models a separately consented, verified
+  // email contact; the private workspace quote itself needs no email.
+  savedLead.email='guest@example.org';
+  savedLead.preferred_channel='email';
+  savedLead.contact_verified=true;
+  savedLead.email_verified_at=new Date();
+  await savedLead.save();
   const firstQueue=await enqueueContactEmailJobs(savedLead,{env:mailEnv});
   const duplicateQueue=await enqueueContactEmailJobs(savedLead,{env:mailEnv});
   assert.equal(firstQueue.queued,2);
