@@ -1,12 +1,11 @@
 name: IPS Audited Dependency Repair
 on:
-  pull_request:
-    branches: [commercial/student-support-v1]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   audited-repair:
-    if: github.event.pull_request.head.ref == 'audit/central-ips-privacy-queue-20261119' && github.event.pull_request.head.repo.full_name == 'jabulanimanenji-dev/ips-mvp-react'
+    if: github.ref == 'refs/heads/audit/central-ips-privacy-queue-20261119'
     runs-on: ubuntu-latest
     timeout-minutes: 18
     permissions:
