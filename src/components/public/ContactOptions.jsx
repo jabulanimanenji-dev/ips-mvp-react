@@ -5,6 +5,7 @@ import { IPS_EMAILS } from '../../../shared/businessEmails.js';
 export function useContactOptions(){
   const [config,setConfig]=useState(PUBLIC_CONTACTS);
   useEffect(()=>{
+    if(import.meta.env.VITE_DESIGN_PREVIEW==='true')return;
     let mounted=true;
     fetch('/api/contact-channels/config',{cache:'no-store'})
       .then(async res=>{if(!res.ok)throw Error('Unavailable');return res.json();})
