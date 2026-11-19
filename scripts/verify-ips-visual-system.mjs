@@ -82,10 +82,12 @@ try{
       assert.ok(headerGeometry.sidebar>=headerGeometry.banner-1,
         'Client workspace branding must not be concealed by evaluation notice');
       assert.ok(await page.getByText('Private · written communication').count()>=1);
+      await page.getByText('IPS-Q-E1A2B3C4D5E6F70809').first().waitFor({timeout:18000});
       await noHorizontalOverflow(page);
       await picture(page,'02-client-overview');
       await page.goto(base+'/client/payments',{waitUntil:'domcontentloaded'});
       await page.getByText('My Payments & Refunds').first().waitFor();
+      await page.getByText('SRV-E1A2B3C4D5E6F70809').first().waitFor({timeout:18000});
       await picture(page,'03-client-payments');
     }finally{await page.close();}
   });
@@ -98,10 +100,16 @@ try{
       await page.locator('.writer-layout .ips-workspace-topbar').waitFor();
       const bg=await page.locator('.writer-sidebar').evaluate(el=>getComputedStyle(el).backgroundColor);
       assert.equal(bg,'rgb(20, 43, 61)');
+      await page.waitForFunction(()=>{
+        const all=[...document.querySelectorAll('.dashboard-zone-writer-stats .card')]
+          .find(item=>item.textContent?.includes('All jobs'));
+        return Number(all?.querySelector('strong')?.textContent)>=2;
+      },null,{timeout:18000});
       await noHorizontalOverflow(page);
       await picture(page,'04-specialist-dashboard');
       await page.goto(base+'/writer/earnings',{waitUntil:'domcontentloaded'});
       await page.getByText('My Payment Records').first().waitFor();
+      await page.getByText('SRV-112233445566778899').first().waitFor({timeout:18000});
       await picture(page,'05-specialist-payments');
     }finally{await page.close();}
   });
