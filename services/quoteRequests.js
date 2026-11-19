@@ -33,7 +33,7 @@ const contactStatus=lead=>({
   contact_status:lead.contact_verified?'verified':'awaiting_verification',
   preferred_channel:lead.preferred_channel
 });
-export function registerPrivateQuoteRoutes(app,{readSession}){
+export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
   app.get('/api/quote-requests/config',(_req,res)=>{
     const channels=publicContactConfig();
     res.set('Cache-Control','no-store');
@@ -119,6 +119,54 @@ export function registerPrivateQuoteRoutes(app,{readSession}){
       res.set('Cache-Control','no-store');
       return res.json({success:true,quote_id:id,message:'Your email is verified and IPS can review your request.'});
     }catch{return res.status(503).json({success:false,error:'Verification is temporarily unavailable.'});}
+  });
+
+  // Private workspace quotation messages are accessible solely to the verified
+  // account that created them. A public reference is never an access credential.
+  app.get('/api/quote-requests/me',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='client')return res.sendStatus(403);
+    try{
+      const rows=await ContactEnquiry.find({
+        request_type:'quote',client_id:session.id,preferred_channel:'workspace',contact_verified:true
+      }).select('enquiry_id username service discipline study_level preferred_deadline subject status messages createdAt updatedAt')
+        .sort({createdAt:-1}).limit(50).lean();
+      res.set('Cache-Control','no-store');
+      res.json({success:true,quotes:rows});
+    }catch{return res.status(503).json({success:false,error:'Your private quotations could not be loaded.'});}
+  });
+  app.post('/api/quote-requests/:id/workspace-reply',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='client')return res.sendStatus(403);
+    if(limited(req))return res.status(429).json({success:false,error:'Please wait before sending another message.'});
+    const body=String(req.body?.message||'').trim();
+    if(body.length<3||body.length>2400)return res.status(400).json({success:false,error:'Your message must be 3–2400 characters.'});
+    try{
+      const row=await ContactEnquiry.findOneAndUpdate({
+        enquiry_id:req.params.id,request_type:'quote',client_id:session.id,
+        preferred_channel:'workspace',contact_verified:true,status:{$ne:'closed'}
+      },{$push:{messages:{direction:'inbound',channel:'website',body,author:session.id,delivery_status:'received',created_at:new Date()}},
+        $set:{status:'in_progress',last_activity_at:new Date()}},{new:true,runValidators:true}).select('enquiry_id messages status');
+      if(!row)return res.status(404).json({success:false,error:'Private quotation unavailable or closed.'});
+      res.set('Cache-Control','no-store');
+      res.json({success:true,quote:{enquiry_id:row.enquiry_id,messages:row.messages,status:row.status}});
+    }catch{return res.status(503).json({success:false,error:'Your message could not be saved.'});}
+  });
+  app.post('/api/quote-requests/admin/:id/workspace-reply',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='admin')return res.sendStatus(403);
+    const body=String(req.body?.message||'').trim();
+    if(body.length<3||body.length>2400)return res.status(400).json({success:false,error:'Reply must contain 3–2400 characters.'});
+    try{
+      const row=await ContactEnquiry.findOneAndUpdate({
+        enquiry_id:req.params.id,request_type:'quote',client_id:{$ne:''},
+        preferred_channel:'workspace',contact_verified:true,status:{$ne:'closed'}
+      },{$push:{messages:{direction:'outbound',channel:'website',body,author:session.id,delivery_status:'sent',created_at:new Date()}},
+        $set:{status:'waiting_for_customer',last_activity_at:new Date()}},{new:true,runValidators:true}).select('enquiry_id messages status');
+      if(!row)return res.status(409).json({success:false,error:'This request does not have a verified private workspace destination.'});
+      res.set('Cache-Control','no-store');
+      res.json({success:true,quote:{enquiry_id:row.enquiry_id,messages:row.messages,status:row.status}});
+    }catch{return res.status(503).json({success:false,error:'Private workspace reply could not be saved.'});}
   });
 }
 export function quoteReferenceFromMessage(body){
