@@ -75,7 +75,7 @@ export default function ClientSidebar() {
         }}
       >
         <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--grad-hero)', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: '0.85rem' }}>
+          <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg,#15344e,#b99664)', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 800, fontSize: '0.85rem' }}>
             IPS
           </div>
           <div>
