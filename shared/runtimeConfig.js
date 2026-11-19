@@ -205,8 +205,22 @@ export const productionConfigurationErrors = (environment = process.env) => {
       errors.push('Staging requires a dedicated R2 bucket whose name contains staging.');
     if(String(environment.CONTACT_EMAIL_NOTIFICATIONS_ENABLED||'false')!=='false')
       errors.push('Staging must not turn on automatic business email notifications.');
-    if(environment.STRIPE_SECRET_KEY||environment.STRIPE_WEBHOOK_SECRET)
-      errors.push('Staging may not contain live payment credentials.');
+    const stripeSecret=String(environment.STRIPE_SECRET_KEY||'');
+    const webhookSecret=String(environment.STRIPE_WEBHOOK_SECRET||'');
+    if(stripeSecret&&!/^sk_test_[A-Za-z0-9_]{12,}$/.test(stripeSecret))
+      errors.push('Staging may only use a real Stripe test-mode sk_test_* secret, never a live key.');
+    if(webhookSecret&&!stripeSecret)
+      errors.push('Staging cannot enable a Stripe webhook without a test-mode secret key.');
+    if(stripeSecret&&!/^whsec_[A-Za-z0-9_=-]{12,}$/.test(webhookSecret))
+      errors.push('Staging Stripe checkout requires a separate signed test-mode webhook secret.');
+    const emailAllowlist=String(environment.IPS_STAGING_ALLOWLIST_EMAILS||'');
+    if(environment.CONTACT_RESEND_API_KEY&&!emailAllowlist)
+      errors.push('Staging email transport requires an explicit recipient allowlist.');
+    if(emailAllowlist&&(!emailAllowlist.split(',').every(value=>
+        value===value.trim()&&/^[^\s@,]+@[^\s@,]+\.[A-Za-z]{2,}$/.test(value)&&!value.includes('*'))
+        ||emailAllowlist.length>1600))
+      errors.push('Staging email recipient allowlist must contain only comma-separated exact email addresses.');
+
     try{
       const host=new URL(String(environment.PUBLIC_APP_URL||'')).hostname.toLowerCase();
       if(host==='ipsglobalservice.com'||host.endsWith('.ipsglobalservice.com'))
