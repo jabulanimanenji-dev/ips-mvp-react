@@ -40,6 +40,9 @@ const ContactEnquirySchema=new mongoose.Schema({
   consent_at:{type:Date,required:true},
   source:{type:String,default:'academic-website'},
   admin_note:{type:String,default:'',maxlength:1600},
+  review_started_at:{type:Date},
+  next_update_at:{type:Date,index:true},
+  last_customer_update_at:{type:Date},
   pending_reply:{type:String,required:false},
   messages:{type:[ContactMessageSchema],default:[]},
   last_activity_at:{type:Date,default:Date.now,index:true}
