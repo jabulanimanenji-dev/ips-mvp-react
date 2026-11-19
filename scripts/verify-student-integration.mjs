@@ -197,6 +197,35 @@ async function go(){
   assert.equal(privateThread.body.quotes.find(q=>q.enquiry_id===reference).messages.length,3);
   pass('Two-way private quotation messages are available to the account owner');
 
+  const crossClaim=await call('/api/quote-requests/claim',{method:'POST',session:bob.cookie,json:{quote_id:reference}});
+  assert.equal(crossClaim.status,404);
+  const claimed=await call('/api/quote-requests/claim',{method:'POST',session:alice.cookie,json:{quote_id:reference}});
+  assert.equal(claimed.status,200,JSON.stringify(claimed.body));
+  const unauthorizedProject=await call('/api/quote-requests/admin/'+reference+'/create-project',{
+    method:'POST',session:alice.cookie});
+  assert.equal(unauthorizedProject.status,403);
+  const handoff=await call('/api/quote-requests/admin/'+reference+'/create-project',{
+    method:'POST',session:admin.cookie});
+  assert.equal(handoff.status,200,JSON.stringify(handoff.body));
+  const handoffReplay=await call('/api/quote-requests/admin/'+reference+'/create-project',{
+    method:'POST',session:admin.cookie});
+  assert.equal(handoffReplay.status,200);
+  assert.equal(handoffReplay.body.request_id,handoff.body.request_id);
+  const managedReference=handoff.body.request_id;
+  assert.match(managedReference,/^SRV-[A-F0-9]{18}$/);
+  const linkedQuoteInbox=await call('/api/quote-requests/me',{session:alice.cookie});
+  assert.equal(linkedQuoteInbox.body.quotes.find(q=>q.enquiry_id===reference)?.service_request_id,managedReference);
+  const otherProject=await call('/api/services/'+managedReference,{session:bob.cookie});
+  assert.equal(otherProject.status,403);
+  const sourceProject=await call('/api/services/'+managedReference,{session:alice.cookie});
+  assert.equal(sourceProject.status,200);
+  assert.equal(sourceProject.body.request.source_quote_id,reference);
+  assert.equal(sourceProject.body.request.source,'quote_intake');
+  assert.equal(sourceProject.body.request.client_name,'PrivateAlice');
+  assert.equal(sourceProject.body.request.client_id,aliceId);
+  assert.equal(sourceProject.body.request.payment_status,'unpaid');
+  pass('Authenticated client-claimed quotation becomes one centrally managed project; replay-safe and inaccessible to other clients');
+
   // Real MongoDB outbox with a fake provider: no external emails or credentials.
   console.log('CI_CONTACT_MAIL_TESTS_START');
   const mailEnv={
@@ -277,16 +306,12 @@ async function go(){
   assert.equal(unauthorized.status,401);
   pass('Guest cannot list external chat inbox');
 
-  const created=await call('/api/services',{method:'POST',session:alice.cookie,json:{
-    family:'professional',category:'Academic Support',service_slug:'thesis-support',
-    title:'Thesis & Dissertation Guidance — nursing',description:'I need feedback on my own dissertation chapter and nursing research methodology.',
-    delivery_mode:'remote',intake_answers:{academic_level:'Undergraduate',subject:'Nursing',service:'thesis-support'}
-  }});
+  const requestId=managedReference;
+  const created=await call('/api/services/'+requestId,{session:alice.cookie});
   assert.equal(created.status,200,JSON.stringify(created.body));
-  const requestId=created.body.request.request_id;
   assert.ok(/^SRV-[0-9A-F]{18}$/.test(requestId),requestId);
   assert.equal(created.body.request.payment_status,'unpaid');
-  pass('Persisted student request with collision-resistant ID, zero payment');
+  pass('Original public quote continues into real MongoDB customer project, staff review, pricing and payment');
 
   const otherView=await call('/api/services/'+requestId,{session:bob.cookie});
   assert.equal(otherView.status,403);
