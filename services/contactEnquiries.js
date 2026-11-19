@@ -117,6 +117,22 @@ export function registerEnquiryRoutes(app,{requireSession}){
       return res.json({success:true,enquiry_id:id});
     }catch{return res.status(503).json({success:false,error:'Could not verify this request.'});}
   });
+  // Lightweight staff attention pulse. Counts are computed from authoritative
+  // MongoDB state, not client timers or guessed SLA promises.
+  app.get('/api/contact-enquiries/admin/attention',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='admin')return res.sendStatus(403);
+    try{
+      const now=new Date();
+      const [overdue_updates,new_requests]=await Promise.all([
+        ContactEnquiry.countDocuments({next_update_at:{$lte:now},status:{$in:['new','in_progress']},
+          contact_consent:true,contact_verified:true}),
+        ContactEnquiry.countDocuments({status:'new',contact_verified:true,contact_consent:true})
+      ]);
+      res.set('Cache-Control','no-store');
+      res.json({success:true,overdue_updates,new_requests,as_of:now.toISOString()});
+    }catch{return res.status(503).json({success:false,error:'The private review queue could not be checked.'});}
+  });
   app.get('/api/contact-enquiries/admin',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
     if(session.role!=='admin')return res.sendStatus(403);
