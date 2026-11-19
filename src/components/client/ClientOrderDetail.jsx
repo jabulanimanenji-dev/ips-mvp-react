@@ -152,7 +152,7 @@ export default function ClientOrderDetail() {
               <DetailRow label="Subject" value={order.subject} />
               <DetailRow label="Pages" value={order.pages || order.word_count?.toLocaleString() || 'N/A'} />
               <DetailRow label="Created" value={fmtDate(order.createdAt || order.created_date)} />
-              <DetailRow label="Assigned Writer" value={order.writerName || order.writer_name || 'Not assigned yet'} />
+              <DetailRow label="Assigned Specialist" value={order.writerName || order.writer_name || 'Not assigned yet'} />
             </div>
             {order.requirements && (
               <div style={{ marginTop: '1rem' }}>
