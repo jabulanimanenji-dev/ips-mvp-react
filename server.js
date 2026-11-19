@@ -456,6 +456,37 @@ app.post('/api/client/login', async (req, res) => {
   }
 });
 
+// Secure account rehydration. Browsers may display a protected workspace only
+// after checking the current HttpOnly session cookie against the real database.
+// No password, verification state, access token or admin notes are returned.
+app.get('/api/client/me',async(req,res)=>{
+  const session=requireSession(req,res);
+  if(!session)return;
+  if(session.role!=='client')return res.status(403).json({success:false,error:'Student / Researcher session required.'});
+  try{
+    const client=await Client.findOne({client_id:session.id,email_verified_at:{$ne:null},status:'Active'});
+    if(!client)return res.status(401).json({success:false,error:'Account verification is required.'});
+    const account=publicAccount(client);
+    delete account.notes;
+    res.set('Cache-Control','no-store');
+    return res.json({success:true,client:account});
+  }catch{return res.status(503).json({success:false,error:'Could not verify this student session.'});}
+});
+app.get('/api/writer/me',async(req,res)=>{
+  const session=requireSession(req,res);
+  if(!session)return;
+  if(session.role!=='writer')return res.status(403).json({success:false,error:'Specialist session required.'});
+  try{
+    const writer=await Writer.findOne({writer_id:session.id,email_verified_at:{$ne:null},
+      application_status:'approved',status:'Active'});
+    if(!writer)return res.status(401).json({success:false,error:'Specialist verification or approval is required.'});
+    const account=publicAccount(writer);
+    delete account.notes;
+    res.set('Cache-Control','no-store');
+    return res.json({success:true,writer:account});
+  }catch{return res.status(503).json({success:false,error:'Could not verify this specialist session.'});}
+});
+
 // ========== ORDER APIs ==========
 
 // Get all orders
