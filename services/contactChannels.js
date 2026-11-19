@@ -66,6 +66,19 @@ const linkCodeFromMessage=body=>{
   const m=/^(?:\/link|LINK)\s+([A-Za-z0-9_-]{20})$/i.exec(body);
   return m?m[1]:null;
 };
+// Disconnecting a messenger revokes contact verification and reply consent on
+// every associated quote, including guest enquiries linked by their chat ID.
+export async function revokeQuoteChannel({channel,clientId='',contactIds=[],model=ContactEnquiry}={}){
+  if(!['telegram','whatsapp'].includes(channel))throw Error('Unsupported contact channel');
+  const selectors=[];
+  if(clientId)selectors.push({client_id:clientId});
+  if(contactIds.length)selectors.push({contact_thread_id:{$in:contactIds}});
+  if(!selectors.length)return {modifiedCount:0};
+  return model.updateMany({
+    request_type:'quote',preferred_channel:channel,contact_verified:true,$or:selectors
+  },{$set:{contact_verified:false,verification_status:'awaiting_verification',contact_consent:false},
+     $unset:{contact_thread_id:'',contact_verified_at:''}});
+}
 
 async function storeInbound(event){
   const now=new Date();
@@ -86,7 +99,7 @@ async function storeInbound(event){
     if(token){
       const updated=await ChannelContact.findOneAndUpdate(
         {_id:contact._id,$or:[{client_id:''},{client_id:token.client_id}]},
-        {$set:{client_id:token.client_id,verified_at:now}},{new:true}
+        {$set:{client_id:token.client_id,verified_at:now,status:'open'}},{new:true}
       );
       messageBody=updated?'[Customer verified their IPS account]':'[Account-link request rejected: already linked]';
     }else messageBody='[Invalid or expired account-link request]';
@@ -100,11 +113,19 @@ async function storeInbound(event){
     throw error;
   }
   await ChannelContact.updateOne({_id:contact._id},{$inc:{unread_count:1}});
+  // STOP is a customer-initiated withdrawal. It takes priority over further
+  // quote linking and does not require an IPS account or staff action.
+  if(/^(?:\/stop|stop|unsubscribe)$/i.test(event.body.trim())){
+    await ChannelContact.updateOne({_id:contact._id},{$set:{status:'closed',client_id:'',verified_at:null}});
+    await revokeQuoteChannel({channel:event.channel,contactIds:[String(contact._id)]});
+    return {duplicate:false,unsubscribed:true};
+  }
   // A signed, customer-initiated chat containing the exact quote reference and
   // matching channel identity proves control of that reply route.
   if(quoteReferenceFromMessage(event.body)){
     const verified=await confirmQuoteMessengerContact({...event,contact_id:String(contact._id)});
     if(verified){
+      await ChannelContact.updateOne({_id:contact._id},{$set:{status:'open'}});
       const lead=await ContactEnquiry.findOne({enquiry_id:quoteReferenceFromMessage(event.body)}).lean();
       if(lead)try{await enqueueContactEmailJobs(lead);}catch{}
     }
@@ -216,7 +237,12 @@ export function registerContactApi(app,{requireSession}){
   app.post('/api/contact-channels/unlink',async(req,res)=>{
     try{const session=requireSession(req,res);if(!session)return;
       if(session.role!=='client'||!['telegram','whatsapp'].includes(req.body?.channel))return res.sendStatus(403);
-      await ChannelContact.updateMany({client_id:session.id,channel:req.body.channel},{$set:{client_id:'',verified_at:null}});
+      const contacts=await ChannelContact.find({client_id:session.id,channel:req.body.channel}).select('_id').lean();
+      const ids=contacts.map(item=>String(item._id));
+      // Close first to fail closed if the downstream quote cleanup fails.
+      await ChannelContact.updateMany({client_id:session.id,channel:req.body.channel},
+        {$set:{client_id:'',verified_at:null,status:'closed'}});
+      await revokeQuoteChannel({channel:req.body.channel,clientId:session.id,contactIds:ids});
       res.json({success:true});
     }catch{res.status(500).json({success:false,error:'Unable to unlink channel.'});}
   });
@@ -254,6 +280,11 @@ export function registerContactApi(app,{requireSession}){
       const contact=await ChannelContact.findById(req.params.id);
       if(!contact)return res.sendStatus(404);
       if(contact.status==='closed')return res.status(409).json({success:false,error:'This thread is closed.'});
+      const authorized=await ContactEnquiry.exists({
+        contact_thread_id:String(contact._id),preferred_channel:contact.channel,
+        contact_verified:true,contact_consent:true,status:{$ne:'closed'}
+      });
+      if(!authorized)return res.status(409).json({success:false,error:'Verified written-contact consent is required before replying through this conversation.'});
       let msgId;
       try{msgId=await deliverExternalMessage(contact,body);}
       catch(error){return res.status(502).json({success:false,error:error.message});}
