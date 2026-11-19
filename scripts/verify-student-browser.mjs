@@ -33,29 +33,28 @@ try {
     assert.equal(await desktop.locator('.ipsa-contact-link[href="https://t.me/IPScontactBot"]').count(),1);
     assert.ok(await desktop.getByText(/Telegram @IPScontactBot can be opened/i).isVisible());
   });
-  await caseRun('guest callback form is available without an account and preview never fakes saved lead', async()=>{
-    const form=desktop.locator('.ipsa-enquiry-form');
+  await caseRun('anonymous private quotation form, written-only contact, and truthful static preview',async()=>{
+    const section=desktop.locator('#request-support');
+    const form=section.locator('.ipsa-request-form');
     assert.equal(await form.count(),1);
-    await form.locator('input[autocomplete="name"]').fill('Visitor Test');
+    assert.equal(await desktop.locator('#privacy').count(),1);
+    assert.equal(await desktop.locator('a[href^="tel:"]').count(),0);
+    assert.equal(await form.locator('input[autocomplete="name"]').count(),0);
+    await form.locator('input[autocomplete="nickname"]').fill('QuietResearcher');
+    await form.locator('select').first().selectOption('research-planning');
+    await form.locator('textarea').fill('Please review my academic project scope and recommend suitable research methodology guidance.');
     await form.locator('input[type="email"]').fill('visitor@example.org');
-    await form.locator('input[placeholder="What would you like help with?"]').fill('Research planning question');
-    await form.locator('textarea').fill('Please contact me about research planning consultations.');
     await form.locator('input[type="checkbox"]').check();
-    await form.getByRole('button',{name:/Prepare email to IPS/i}).click();
-    const emailLink=form.locator('.ipsa-enquiry-fallback a[href^="mailto:contact@ipsglobalservice.com?subject="]');
-    assert.equal(await emailLink.count(),1);
-    const emailHref=await emailLink.getAttribute('href');
-    assert.ok(decodeURIComponent(emailHref).includes('Visitor Test'));
-    assert.ok(decodeURIComponent(emailHref).includes('Research planning question'));
-    assert.ok(await form.getByText(/does not send or save the message automatically/i).isVisible());
-
-    await form.locator('select').selectOption('whatsapp');
-    await form.locator('input[type="tel"]').fill('+48794088714');
-    await form.getByRole('button',{name:/Prepare WhatsApp message/i}).click();
-    const link=form.locator('.ipsa-enquiry-fallback a[href^="https://wa.me/48794088714?text="]');
-    assert.equal(await link.count(),1);
-    const message=new URL(await link.getAttribute('href')).searchParams.get('text');
-    assert.ok(message.includes('Visitor Test')&&message.includes('Research planning question'));
+    await form.getByRole('button',{name:/Preview quotation request/i}).click();
+    const preview=section.locator('.ipsa-enquiry-preview');
+    assert.equal(await preview.count(),1);
+    assert.ok(await preview.getByText(/has not been sent or saved/i).isVisible());
+    assert.ok(await preview.locator('a[href^="mailto:contact@ipsglobalservice.com"]').count()===1);
+    await form.locator('select').last().selectOption('telegram');
+    await form.locator('input[placeholder="@yourusername"]').fill('@QuietResearcher');
+    await form.getByRole('button',{name:/Preview quotation request/i}).click();
+    assert.ok(await preview.locator('a[href^="https://t.me/IPScontactBot"]').count()===1);
+    assert.equal(await form.locator('input[type="tel"]').count(),0);
   });
   await caseRun('six category filters and sixteen service products', async () => {
     assert.equal(await desktop.locator('.ipsa-tabs button').count(),6);
@@ -77,8 +76,8 @@ try {
   await caseRun('service selection changes enquiry without inventing paid checkout', async () => {
     await desktop.getByRole('button',{name:'Request Statistics & SPSS / R / Python'}).click();
     assert.ok(desktop.url().includes('service=statistics-support'));
-    assert.ok(await desktop.locator('.ipsa-login-prompt').isVisible());
-    assert.ok(await desktop.getByText('Review the proposed order experience').isVisible());
+    assert.equal(await desktop.locator('.ipsa-request-form select').first().inputValue(),'statistics-support');
+    assert.ok(await desktop.getByRole('heading',{name:'Get a Quote'}).count()>=1);
   });
   await caseRun('functional FAQ and subject navigation', async () => {
     await desktop.locator('.ipsa-faq summary').first().click();
@@ -96,7 +95,7 @@ try {
       await desktop.goto(base+route,{waitUntil:'domcontentloaded'});
       await desktop.locator('.ipsa-auth-shell').waitFor();
       assert.equal(await desktop.locator('.ipsa-auth-aside').count(),1);
-      assert.equal(await desktop.locator('.ipsa-auth .ipsa-auth-field').count(),route==='/signup'?3:2);
+      assert.equal(await desktop.locator('.ipsa-auth .ipsa-auth-field').count(),route==='/signup'?4:2);
       assert.equal(await desktop.getByRole('form',{name:formLabel}).count(),1);
       assert.ok(await desktop.locator('body').evaluate(el=>el.scrollWidth<=window.innerWidth+2));
       assert.equal(await desktop.locator('.ipsa-auth-submit').count(),1);
@@ -104,11 +103,11 @@ try {
       await desktop.screenshot({path:'browser-evidence/'+suffix+'-desktop.png',fullPage:true,animations:'disabled'});
     }
     await desktop.goto(base+'/login',{waitUntil:'domcontentloaded'});
-    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Seeking support').count(),1);
-    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Working with IPS').count(),1);
+    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Student / Researcher').count(),1);
+    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Specialist').count(),1);
     await desktop.goto(base+'/writer/login',{waitUntil:'domcontentloaded'});
-    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Seeking support').count(),1);
-    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Working with IPS').count(),1);
+    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Student / Researcher').count(),1);
+    assert.equal(await desktop.getByRole('navigation',{name:'Choose account type'}).getByText('Specialist').count(),1);
     await desktop.goto(base+'/join',{waitUntil:'domcontentloaded'});
     assert.equal(await desktop.locator('.ipsa-journey-card').count(),2);
     assert.ok(await desktop.getByText('I need academic support').isVisible());
