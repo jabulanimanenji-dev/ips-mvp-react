@@ -148,7 +148,7 @@ async function go(){
   const mailReference='ENQ-'+crypto.randomBytes(9).toString('hex').toUpperCase();
   const savedLead=await ContactEnquiry.create({
     enquiry_id:mailReference,username:'QuietGuest',name:'',request_type:'general',
-    email:'guest@example.org',preferred_channel:'email',contact_consent:true,
+    email:'guest@example.org',preferred_channel:'email',contact_consent:true,consent_at:new Date(),
     contact_verified:true,contact_verified_at:new Date(),verification_status:'verified',
     subject:'Private academic guidance enquiry',
     messages:[{direction:'inbound',channel:'website',body:'I would like written academic guidance and a quotation.',delivery_status:'received'}],
