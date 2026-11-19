@@ -8,6 +8,7 @@ import { CMSProvider } from './context/CMSContext';
 import PlatformPreviewApp from './preview/PlatformPreviewApp';
 import { installPreviewSafetyRuntime } from './preview/previewFixtures';
 import './styles/global.css';
+import './styles/ips-brand-system.css';
 
 const isPlatformPreview = window.location.pathname === '/__platform-preview';
 if (isPlatformPreview) installPreviewSafetyRuntime();
