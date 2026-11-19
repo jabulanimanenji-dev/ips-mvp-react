@@ -58,6 +58,10 @@ export default function PrivateQuoteInbox(){
       </label>
       {quote&&<div>
         <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Private reference: <strong>{quote.enquiry_id}</strong>. Status: <strong>{quoteStatusTitle(quote.status)}</strong>. Quotation details and payment arrangements require separate confirmation.</p>
+        {quote.next_update_at&&quote.status!=='closed'&&quote.status!=='waiting_for_customer'&&
+          <p role="status" style={{fontSize:'.85rem',fontWeight:600}}>Next written IPS update expected by: {new Date(quote.next_update_at).toLocaleString()}. If this time has passed, IPS still has your request and should provide an update.</p>}
+        {!quote.next_update_at&&quote.status==='new'&&
+          <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Your request is safely recorded and awaiting human review. IPS has not yet committed to a review time.</p>}
         <div aria-label="Written quotation conversation" style={{maxHeight:320,overflowY:'auto',background:'var(--bg-surface-2)',borderRadius:8,padding:12}}>
           {(quote.messages||[]).map((item,i)=><article key={item._id||i} style={{padding:12,marginBottom:9,background:'var(--bg-surface)',borderRadius:7}}>
             <strong style={{fontSize:'.78rem'}}>{item.direction==='outbound'?'IPS Academic Services':'You'}</strong>
