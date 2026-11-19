@@ -142,20 +142,23 @@ async function go(){
   const {default:ContactEnquiry}=await import('../models/ContactEnquiry.js');
   const {default:ContactEmailJob}=await import('../models/ContactEmailJob.js');
   const {enqueueContactEmailJobs,processContactEmailJobs}=await import('../services/contactEmailQueue.js');
-  const savedLead=await ContactEnquiry.findOne({enquiry_id:reference});
-  assert.equal(savedLead.email,'');
-  // Provider-mock fixture explicitly models a separately consented, verified
-  // email contact; the private workspace quote itself needs no email.
-  savedLead.email='guest@example.org';
-  savedLead.preferred_channel='email';
-  savedLead.contact_verified=true;
-  savedLead.email_verified_at=new Date();
-  await savedLead.save();
+  // Distinct verified-email lead: do not mutate the active workspace quote
+  // merely to exercise mocked provider delivery. Browser qualification later
+  // verifies that exact private quotation remains accessible to its owner.
+  const mailReference='ENQ-'+crypto.randomBytes(9).toString('hex').toUpperCase();
+  const savedLead=await ContactEnquiry.create({
+    enquiry_id:mailReference,username:'QuietGuest',name:'',request_type:'general',
+    email:'guest@example.org',preferred_channel:'email',contact_consent:true,
+    contact_verified:true,contact_verified_at:new Date(),verification_status:'verified',
+    subject:'Private academic guidance enquiry',
+    messages:[{direction:'inbound',channel:'website',body:'I would like written academic guidance and a quotation.',delivery_status:'received'}],
+    status:'new',last_activity_at:new Date()
+  });
   const firstQueue=await enqueueContactEmailJobs(savedLead,{env:mailEnv});
   const duplicateQueue=await enqueueContactEmailJobs(savedLead,{env:mailEnv});
   assert.equal(firstQueue.queued,2);
   assert.equal(duplicateQueue.queued,2);
-  assert.equal(await ContactEmailJob.countDocuments({enquiry_id:reference}),2);
+  assert.equal(await ContactEmailJob.countDocuments({enquiry_id:mailReference}),2);
   pass('Real database queues one customer receipt and one IPS staff alert per enquiry');
 
   const mailCalls=[];
@@ -170,12 +173,12 @@ async function go(){
   assert.equal(mailCalls.length,2);
   assert.ok(mailCalls.every(x=>x.payload.from==='IPS Academic Services <support@ipsglobalservice.com>'));
   assert.ok(mailCalls.every(x=>x.payload.reply_to==='contact@ipsglobalservice.com'));
-  assert.ok(mailCalls.every(x=>x.key.startsWith('ips-enquiry/'+reference+'/')));
+  assert.ok(mailCalls.every(x=>x.key.startsWith('ips-enquiry/'+mailReference+'/')));
   assert.deepEqual(new Set(mailCalls.map(x=>x.payload.to[0])),new Set(['guest@example.org','contact@ipsglobalservice.com']));
   const replay=await processContactEmailJobs({env:mailEnv,request:fakeEmailProvider,limit:3});
   assert.equal(replay.processed,0);
   assert.equal(mailCalls.length,2);
-  const jobs=await ContactEmailJob.find({enquiry_id:reference}).lean();
+  const jobs=await ContactEmailJob.find({enquiry_id:mailReference}).lean();
   assert.equal(jobs.filter(x=>x.status==='accepted').length,2);
   const firstProviderId=jobs[0].provider_id;
   const unsignedDelivery=await call('/api/contact-email/resend-webhook',{method:'POST',
@@ -194,10 +197,10 @@ async function go(){
   assert.equal(confirmedDelivery.status,200,JSON.stringify(confirmedDelivery.body));
   const webhookReplay=await call('/api/contact-email/resend-webhook',{method:'POST',raw:resendRaw,headers:webhookHeaders});
   assert.equal(webhookReplay.status,200);
-  const staffJobs=await call('/api/contact-enquiries/admin/'+reference+'/email-status',{session:admin.cookie});
+  const staffJobs=await call('/api/contact-enquiries/admin/'+mailReference+'/email-status',{session:admin.cookie});
   assert.equal(staffJobs.status,200,JSON.stringify(staffJobs.body));
   assert.equal(staffJobs.body.notifications.find(x=>x.kind===jobs[0].kind)?.status,'delivered');
-  const studentJobs=await call('/api/contact-enquiries/admin/'+reference+'/email-status',{session:alice.cookie});
+  const studentJobs=await call('/api/contact-enquiries/admin/'+mailReference+'/email-status',{session:alice.cookie});
   assert.equal(studentJobs.status,403);
   pass('Signed Resend webhook updates persisted delivery, replays safely and hides statuses from students');
 
