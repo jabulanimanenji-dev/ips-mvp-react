@@ -50,7 +50,10 @@ export default function AdminSidebar() {
         className={`admin-sidebar ${mobileOpen ? 'sidebar-open' : ''}`}
         style={{
           width: sidebarWidth,
-          minHeight: '100vh',
+          minHeight: 0,
+          height: '100vh',
+          maxHeight: '100vh',
+          overflow: 'hidden',
           background: 'linear-gradient(180deg, #0d263c 0%, #173d58 100%)',
           borderRight: '1px solid var(--border)',
           display: 'flex',
@@ -74,7 +77,7 @@ export default function AdminSidebar() {
           </div>
         </div>
 
-        <nav style={{ flex: 1, padding: '1rem 0.75rem', overflowY: 'auto' }}>
+        <nav style={{ flex: 1, minHeight: 0, padding: '1rem 0.75rem', overflowY: 'auto', overscrollBehavior: 'contain' }}>
           {navItems.map(item => {
             const active = location.pathname.startsWith(item.target.split('?')[0]);
             return (
@@ -110,7 +113,7 @@ export default function AdminSidebar() {
           {hasAdminPermission('messages.view') && <Link to="/admin/external-chats" onClick={()=>setMobileOpen(false)} style={{display:'block',margin:'12px 7px 0',padding:'12px 14px',color:'#E8C891',border:'1px solid rgba(232,200,145,.30)',borderRadius:9,textDecoration:'none',fontWeight:700,fontSize:'.83rem'}}>✉ Written Messaging Inbox</Link>}
         </nav>
 
-        <div style={{ padding: '1rem 0.75rem', borderTop: '1px solid rgba(185,205,238,0.08)' }}>
+        <div style={{ flexShrink: 0, padding: '1rem 0.75rem', borderTop: '1px solid rgba(185,205,238,0.08)' }}>
           <button type="button" onClick={handleLogout} className="btn btn-danger" style={{ width: '100%' }}>Logout</button>
           {logoutError&&<small role="alert" style={{color:'#ffb3b3',fontSize:'.74rem'}}>{logoutError}</small>}
         </div>
