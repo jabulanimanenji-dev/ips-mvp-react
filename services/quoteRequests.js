@@ -133,6 +133,6 @@ export async function confirmQuoteMessengerContact(event,{model=ContactEnquiry}=
     if(!event.telegram_username)return false;
     filter.telegram_username=String(event.telegram_username).replace(/^@/,'').trim();
   }else filter.phone='+'+String(event.external_id||'').replace(/^\+/,'');
-  const result=await model.updateOne(filter,{$set:{contact_verified:true,verification_status:'verified',contact_verified_at:new Date()}});
+  const result=await model.updateOne(filter,{$set:{contact_verified:true,verification_status:'verified',contact_verified_at:new Date()},$unset:{purge_at:''}});
   return Boolean(result.modifiedCount);
 }
