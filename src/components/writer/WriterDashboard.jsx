@@ -75,7 +75,7 @@ export default function WriterDashboard() {
       </DashboardZone>
 
       <DashboardZone portal="writer" id="stats">
-      <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
+      <div data-studio-protected="true" data-studio-protected-reason="Live assignment statistics are controlled by authenticated API data, not the page editor." className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
         {[['All jobs', jobs.length], ['Active', active.length], ['Due soon', dueSoon.length], ['Earned', `$${earnings.toFixed(0)}`]].map(([label, value]) =>
           <div className="card" key={label}><strong style={{ fontSize: '1.9rem', color: 'var(--primary)' }}>{value}</strong><div>{label}</div></div>
         )}
