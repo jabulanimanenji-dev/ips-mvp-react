@@ -88,7 +88,7 @@ export default function PrivateQuoteInbox(){
         <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Private reference: <strong>{quote.enquiry_id}</strong>. Status: <strong>{quoteStatusTitle(quote.status)}</strong>. Preferred written channel: <strong>{quote.preferred_channel}</strong>.</p>
         {quote.service_request_id?
           <p role="status"><Link className="btn btn-primary" to={'/client/services/'+encodeURIComponent(quote.service_request_id)}>Open managed IPS project {quote.service_request_id}</Link> — review itemized quotations and approve or reject terms in your private project workspace.</p>:
-          <p>IPS is reviewing your requirements. A managed project will appear here after staff handoff. A request itself is not a payment obligation.</p>
+          <p>IPS is reviewing your requirements. A managed project will appear here after staff handoff. A request itself is not a payment obligation.</p>}
         {quote.next_update_at&&quote.status!=='closed'&&quote.status!=='waiting_for_customer'&&
           <p role="status" style={{fontSize:'.85rem',fontWeight:600}}>Next written IPS update expected by: {new Date(quote.next_update_at).toLocaleString()}. If this time has passed, IPS still has your request and should provide an update.</p>}
         {!quote.next_update_at&&quote.status==='new'&&
