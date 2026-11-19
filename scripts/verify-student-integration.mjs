@@ -245,6 +245,34 @@ async function go(){
     CONTACT_REPLY_TO_EMAIL:'contact@ipsglobalservice.com'
   };
   const {default:ContactEnquiry}=await import('../models/ContactEnquiry.js');
+  const guestQuoteId='IPS-Q-'+crypto.randomBytes(9).toString('hex').toUpperCase();
+  await ContactEnquiry.create({
+    enquiry_id:guestQuoteId,client_id:'',request_type:'quote',
+    username:'PrivateGuestResearcher',name:'',service:'research-methods',
+    discipline:'Clinical research design',study_level:'Undergraduate',subject:'research-methods',
+    email:'bob.test@example.org',preferred_channel:'email',
+    contact_verified:true,verification_status:'verified',contact_verified_at:new Date(),
+    contact_consent:true,consent_at:new Date(),status:'new',
+    messages:[{direction:'inbound',channel:'website',delivery_status:'received',
+      body:'I request written research methodology feedback for my approved academic project.'}]
+  });
+  const outsiderGuestClaim=await call('/api/quote-requests/claim',{
+    method:'POST',session:alice.cookie,json:{quote_id:guestQuoteId}});
+  assert.equal(outsiderGuestClaim.status,404);
+  const ownerGuestClaim=await call('/api/quote-requests/claim',{
+    method:'POST',session:bob.cookie,json:{quote_id:guestQuoteId}});
+  assert.equal(ownerGuestClaim.status,200,JSON.stringify(ownerGuestClaim.body));
+  const ownerGuestInbox=await call('/api/quote-requests/me',{session:bob.cookie});
+  assert.ok(ownerGuestInbox.body.quotes.some(q=>q.enquiry_id===guestQuoteId));
+  const guestHandoff=await call('/api/quote-requests/admin/'+guestQuoteId+'/create-project',{
+    method:'POST',session:admin.cookie});
+  assert.equal(guestHandoff.status,200,JSON.stringify(guestHandoff.body));
+  const guestProject=await call('/api/services/'+guestHandoff.body.request_id,{session:bob.cookie});
+  assert.equal(guestProject.status,200);
+  assert.equal(guestProject.body.request.source_quote_id,guestQuoteId);
+  assert.equal(guestProject.body.request.payment_status,'unpaid');
+  pass('Verified guest-email account ownership, not quote ID, permits one-time private project claim');
+
   const {default:ContactEmailJob}=await import('../models/ContactEmailJob.js');
   const {enqueueContactEmailJobs,processContactEmailJobs}=await import('../services/contactEmailQueue.js');
   // Distinct verified-email lead: do not mutate the active workspace quote
@@ -556,6 +584,27 @@ async function go(){
   const wa=adminInbox.body.threads.find(t=>t.channel==='whatsapp');
   const tg=adminInbox.body.threads.find(t=>t.channel==='telegram');
   assert.ok(wa&&tg);
+  const telegramQuoteId='IPS-Q-'+crypto.randomBytes(9).toString('hex').toUpperCase();
+  const {default:ContactEnquiryForChat}=await import('../models/ContactEnquiry.js');
+  const mongooseForTelegram=(await import('mongoose')).default;
+  await mongooseForTelegram.connect(process.env.MONGODB_URI);
+  await ContactEnquiryForChat.create({
+    enquiry_id:telegramQuoteId,client_id:'',request_type:'quote',
+    username:'ChatGuest',name:'',service:'statistics-support',discipline:'Social science data analysis',
+    subject:'statistics-support',preferred_channel:'telegram',telegram_username:'chatguest',
+    contact_thread_id:String(tg._id),contact_verified:true,verification_status:'verified',
+    contact_verified_at:new Date(),contact_consent:true,consent_at:new Date(),
+    status:'new',messages:[{direction:'inbound',channel:'website',
+      body:'Private consultation needed for research data analysis and writing feedback.',delivery_status:'received'}]
+  });
+  await mongooseForTelegram.disconnect();
+  const outsiderChatClaim=await call('/api/quote-requests/claim',{method:'POST',session:bob.cookie,
+    json:{quote_id:telegramQuoteId}});
+  assert.equal(outsiderChatClaim.status,404);
+  const verifiedChatClaim=await call('/api/quote-requests/claim',{method:'POST',session:alice.cookie,
+    json:{quote_id:telegramQuoteId}});
+  assert.equal(verifiedChatClaim.status,200,JSON.stringify(verifiedChatClaim.body));
+  pass('Only the customer who linked the exact verified messenger thread can claim its anonymous quotation');
   assert.equal(wa.client_id,'');
   assert.equal(wa.verified_contact,true);
   assert.equal(tg.client_id,aliceId);
@@ -595,6 +644,12 @@ async function go(){
   assert.equal(unlink.status,200);
   const afterUnlink=await call('/api/contact-channels/me',{session:alice.cookie});
   assert.equal(afterUnlink.body.contacts.some(t=>t.channel==='telegram'),false);
+  const chatQuoteAfterUnlink=await call('/api/quote-requests/me',{session:alice.cookie});
+  assert.equal(chatQuoteAfterUnlink.body.quotes.some(q=>q.enquiry_id===telegramQuoteId),false);
+  const reClaimAfterUnlink=await call('/api/quote-requests/claim',{method:'POST',session:alice.cookie,
+    json:{quote_id:telegramQuoteId}});
+  assert.equal(reClaimAfterUnlink.status,404);
+  pass('Messenger unlink withdraws quote verification and blocks workspace access until new consent');
   pass('Student-controlled channel unlink');
 
   console.log('ALL '+cases.length+' database-backed workflow gates passed.');
