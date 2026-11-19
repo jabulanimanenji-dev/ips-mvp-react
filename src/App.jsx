@@ -191,11 +191,9 @@ export default function App() {
   return (
     <>
     {import.meta.env.VITE_IPS_EVALUATION==='true'&&
-      <div role="status" style={{position:'fixed',bottom:0,left:0,right:0,zIndex:9999,
-        background:'#f8e9c7',borderTop:'2px solid #c18435',padding:'8px 12px',
-        color:'#32281d',fontWeight:700,textAlign:'center',fontSize:'.79rem'}}>
-        IPS ISOLATED EVALUATION · SYNTHETIC USERS AND PAYMENTS · NO REAL PERSONAL DATA OR ORDERS ·
-        {' '}<a href="/evaluation" style={{color:'#164c76',textDecoration:'underline'}}>OPEN THREE-ROLE EVALUATION GUIDE</a>
+      <div className="ips-evaluation-banner" role="status">
+        <span>IPS evaluation environment · sample identities and transactions only · no real client data</span>
+        <a href="/evaluation">Open three-workspace evaluation guide</a>
       </div>}
     <VisualPageLayer>
     <Routes>
