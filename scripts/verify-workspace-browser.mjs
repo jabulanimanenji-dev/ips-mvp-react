@@ -159,6 +159,12 @@ try{
     await student.getByText(paidRequest.request_id).first().waitFor({timeout:14000});
     await evidence(student,'client-provider-verified-payments-refunds');
   });
+  await check('Refunded customers never see a second payment request for the same quotation',async()=>{
+    await student.goto(base+'/client/services/'+encodeURIComponent(paidRequest.request_id),{waitUntil:'domcontentloaded'});
+    await student.getByText(/This quotation was fully refunded/).waitFor({timeout:15000});
+    assert.equal(await student.getByRole('button',{name:/^Pay\s+[^m]/}).count(),0);
+    await evidence(student,'fully-refunded-quote-no-repeat-charge');
+  });
   await check('Student identity cannot open specialist or administrator workspaces',async()=>{
     await student.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
     await student.waitForURL(/\/writer\/login/,{timeout:15000});
