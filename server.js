@@ -159,9 +159,9 @@ const requireSession = (req, res) => {
 // database identity state. A changed email, suspended account or withdrawn
 // specialist approval invalidates an otherwise unexpired signed cookie.
 const publicAuthPaths=new Set([
-  '/api/client/login','/api/clients','/api/client/verify-email',
-  '/api/client/resend-verification','/api/client/password-recovery/request',
-  '/api/client/password-recovery/complete','/api/logout'
+  '/client/login','/clients','/client/verify-email',
+  '/client/resend-verification','/client/password-recovery/request',
+  '/client/password-recovery/complete','/logout'
 ]);
 app.use('/api',async(req,res,next)=>{
   // Expired cookies must not stop people signing in or recovering an account.
