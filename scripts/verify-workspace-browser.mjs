@@ -74,6 +74,17 @@ try{
     await student.getByText('Your written reply has been saved for IPS.').waitFor({timeout:10000});
     await evidence(student,'student-private-quotation');
   });
+  await check('Private quotation links to the same paid and IPS-governed customer project',async()=>{
+    const projectLink=student.getByRole('link',{name:/Open managed IPS project/}).first();
+    await projectLink.waitFor({timeout:12000});
+    await projectLink.click();
+    await student.waitForURL(/\/client\/services\/SRV-[0-9A-F]{18}/,{timeout:12000});
+    const text=await student.locator('body').innerText();
+    assert.ok(text.includes(paidRequest.request_id),'The public quote and managed project must have one real reference.');
+    await evidence(student,'customer-quote-to-managed-project');
+    await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
+    await student.getByText('Private Quote Messages').waitFor({timeout:12000});
+  });
   await check('Authenticated workspace persists across reload by server session, not browser storage',async()=>{
     await student.reload({waitUntil:'domcontentloaded'});
     await student.getByText('Private Quote Messages').waitFor({timeout:15000});
@@ -124,7 +135,9 @@ try{
     ['/writer/orders','specialist-orders'],
     ['/writer/services','specialist-assigned-services'],
     ['/writer/messages','specialist-messages'],
-    ['/writer/actions','specialist-tasks']
+    ['/writer/actions','specialist-tasks'],
+    ['/writer/profile','specialist-verified-profile'],
+    ['/writer/earnings','specialist-real-payment-ledger']
   ])await check('Specialist workflow '+route,async()=>{
     await specialist.goto(base+route,{waitUntil:'domcontentloaded'});
     await specialist.locator('.writer-layout').waitFor({timeout:15000});
@@ -156,7 +169,8 @@ try{
   for(const [route,name] of [
     ['/admin/clients','admin-private-accounts'],
     ['/admin/writers','admin-specialist-applications'],
-    ['/admin/services','admin-service-assignments']
+    ['/admin/services','admin-service-assignments'],
+    ['/admin/payments','admin-specialist-payout-reconciliation']
   ])await check('Administrator workflow '+route,async()=>{
     await admin.goto(base+route,{waitUntil:'domcontentloaded'});
     await admin.locator('.admin-layout').waitFor({timeout:15000});
