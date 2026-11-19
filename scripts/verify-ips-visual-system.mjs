@@ -75,6 +75,12 @@ try{
       await page.locator('.client-sidebar').waitFor();
       const bg=await page.locator('.client-sidebar').evaluate(el=>getComputedStyle(el).backgroundColor);
       assert.equal(bg,'rgb(20, 43, 61)');
+      const headerGeometry=await page.evaluate(()=>({
+        sidebar:document.querySelector('.client-sidebar').getBoundingClientRect().top,
+        banner:document.querySelector('.ips-evaluation-banner').getBoundingClientRect().bottom
+      }));
+      assert.ok(headerGeometry.sidebar>=headerGeometry.banner-1,
+        'Client workspace branding must not be concealed by evaluation notice');
       assert.ok(await page.getByText('Private · written communication').count()>=1);
       await noHorizontalOverflow(page);
       await picture(page,'02-client-overview');
@@ -153,11 +159,13 @@ try{
         return {position:s.position,top:s.top,height:el.getBoundingClientRect().height};
       });
       assert.equal(style.position,'sticky');
-      assert.ok(style.height<96,'Safety banner must stay compact on mobile');
+      assert.ok(style.height<=40,'Safety banner must stay a single compact row on mobile');
       await noHorizontalOverflow(page);
       await picture(page,'10-mobile-evaluation-guide');
       await login(page,'/login','client.evaluation@example.org','EvalClient2026!',/open my workspace/i);
       await page.locator('.client-layout').waitFor();
+      const mobileSidebarTop=await page.locator('.client-sidebar').evaluate(el=>el.getBoundingClientRect().top);
+      assert.ok(mobileSidebarTop>=0,'The mobile sidebar must remain correctly positioned beneath the evaluation notice');
       await noHorizontalOverflow(page);
       await picture(page,'11-mobile-client-workspace');
     }finally{await page.close();}
