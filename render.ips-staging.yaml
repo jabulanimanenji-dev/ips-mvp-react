@@ -52,5 +52,13 @@ services:
         sync: false
       - key: CONTACT_EMAIL_NOTIFICATIONS_ENABLED
         value: 'false'
+      - key: IPS_STAGING_ALLOWLIST_EMAILS
+        sync: false
+      # Only test-mode sk_test_* and its separate test-mode webhook may be used.
+      # Real customer charges are never permitted in this isolated environment.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
       - key: PUBLIC_APP_URL
         sync: false
