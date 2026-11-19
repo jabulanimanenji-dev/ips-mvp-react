@@ -21,6 +21,7 @@ const ContactEnquirySchema=new mongoose.Schema({
   study_level:{type:String,default:'',maxlength:70},
   preferred_deadline:{type:String,default:'',maxlength:10},
   telegram_username:{type:String,default:'',maxlength:32},
+  contact_thread_id:{type:String,default:'',index:true},
   contact_verified:{type:Boolean,default:false},
   contact_verified_at:{type:Date},
   verification_status:{type:String,enum:['awaiting_verification','verified'],default:'awaiting_verification'},
