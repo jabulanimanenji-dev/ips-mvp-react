@@ -128,8 +128,8 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
     if(session.role!=='client')return res.sendStatus(403);
     try{
       const rows=await ContactEnquiry.find({
-        request_type:'quote',client_id:session.id,contact_verified:true
-      }).select('enquiry_id username service discipline study_level preferred_deadline subject status preferred_channel service_request_id next_update_at messages createdAt updatedAt')
+        request_type:'quote',client_id:session.id,contact_verified:true,contact_consent:true
+      }).select('enquiry_id username service discipline study_level preferred_deadline subject status preferred_channel service_request_id review_started_at next_update_at messages createdAt updatedAt')
         .sort({createdAt:-1}).limit(50).lean();
       res.set('Cache-Control','no-store');
       res.json({success:true,quotes:rows});
@@ -144,7 +144,7 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
     try{
       const row=await ContactEnquiry.findOneAndUpdate({
         enquiry_id:req.params.id,request_type:'quote',client_id:session.id,
-        preferred_channel:'workspace',contact_verified:true,status:{$ne:'closed'}
+        contact_verified:true,contact_consent:true,status:{$ne:'closed'}
       },{$push:{messages:{direction:'inbound',channel:'website',body,author:session.id,delivery_status:'received',created_at:new Date()}},
         $set:{status:'in_progress',last_activity_at:new Date()}},{new:true,runValidators:true}).select('enquiry_id messages status');
       if(!row)return res.status(404).json({success:false,error:'Private quotation unavailable or closed.'});
