@@ -29,9 +29,11 @@
   z-index: 1;
 }
 
-.visual-page-has-custom-background > .visual-page-content > * {
-  background-color: transparent !important;
-  background-image: none !important;
+/* Custom page backgrounds live behind the page. Never strip every descendant
+   portal's backgrounds: that exposed overlays behind CMS cards and obliterated
+   text contrast. CMS backgrounds remain editable without flattening content. */
+.visual-page-has-custom-background > .visual-page-content {
+  isolation:isolate;
 }
 
 .visual-page-layer.is-studio-preview [data-studio-editable="true"] {
