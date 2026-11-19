@@ -6,6 +6,7 @@ import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
 import PrivateQuoteInbox from './PrivateQuoteInbox.jsx';
 
 const closed = ['Completed', 'Cancelled'];
+const academicLaunch=import.meta.env.VITE_STUDENT_LAUNCH==='true';
 
 export default function ClientOverviewMongo() {
   const { user } = useAuth();
@@ -68,7 +69,7 @@ export default function ClientOverviewMongo() {
             {user?.first_login?'Welcome to IPS':`Welcome back, ${user?.username||'there'}`}.
           </h1>
           <p style={{ maxWidth: 640, color: 'rgba(255,255,255,.76)', marginBottom: '1.25rem' }}>
-            One place for professional services, odd jobs, academic support, quotes, files and delivery progress.
+            {academicLaunch?'Track your academic support requests, private quotations, project files and written correspondence in one secure place.':'One place for professional services, odd jobs, academic support, quotes, files and delivery progress.'}
           </p>
           <ConfigurableActionGroup portal="client" area="hero" style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }} />
         </div>
@@ -95,6 +96,24 @@ export default function ClientOverviewMongo() {
       </DashboardZone>
 
       <DashboardZone portal="client" id="serviceLaunchers">
+      {academicLaunch?
+      <div className="grid grid-3 gap-4" style={{marginBottom:'1.5rem'}}>
+        <Link to="/#request-support" className="card" style={{textDecoration:'none',color:'inherit',borderTop:'4px solid #c4a06a'}}>
+          <small style={{color:'var(--primary)',fontWeight:800}}>START HERE</small>
+          <h3 style={{margin:'.5rem 0'}}>Get a Quote</h3>
+          <p style={{color:'var(--text-muted)'}}>Explain what you need, choose a written contact method and receive a reviewed quotation.</p>
+        </Link>
+        <Link to="/client/services" className="card" style={{textDecoration:'none',color:'inherit',borderTop:'4px solid #254964'}}>
+          <small style={{color:'var(--primary)',fontWeight:800}}>MY WORK</small>
+          <h3 style={{margin:'.5rem 0'}}>My Projects</h3>
+          <p style={{color:'var(--text-muted)'}}>Follow academic support work after IPS accepts and confirms your request.</p>
+        </Link>
+        <Link to="/client/profile" className="card" style={{textDecoration:'none',color:'inherit',borderTop:'4px solid #72938f'}}>
+          <small style={{color:'var(--primary)',fontWeight:800}}>MY PRIVACY</small>
+          <h3 style={{margin:'.5rem 0'}}>My Private Account</h3>
+          <p style={{color:'var(--text-muted)'}}>Manage your chosen username, verified email and account security.</p>
+        </Link>
+      </div>:
       <div className="grid grid-3 gap-4" style={{ marginBottom: '1.5rem' }}>
         <Link to="/services?type=professional" className="card" style={{ textDecoration: 'none', color: 'inherit', borderTop: '4px solid #a305a6' }}>
           <small style={{ color: 'var(--primary)', fontWeight: 800 }}>START HERE</small>
@@ -112,6 +131,8 @@ export default function ClientOverviewMongo() {
           <p style={{ color: 'var(--text-muted)' }}>Structured writing, editing and research orders.</p>
         </Link>
       </div>
+
+      }
       </DashboardZone>
 
       <DashboardZone portal="client" id="activity">
