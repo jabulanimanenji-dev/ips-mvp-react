@@ -37,8 +37,8 @@ export default function ChannelLinkControls(){
     }catch(err){setError(err.message);}
   }
   return <section className="card" style={{marginTop:'1rem'}}>
-    <h3>Speak with IPS on WhatsApp or Telegram</h3>
-    <p>Optional messaging for questions and updates. Your official project records, confidential files, quotes and payments remain inside IPS.</p>
+    <h3>Message IPS on WhatsApp or Telegram</h3>
+    <p>Optional written-only communication for updates and questions. IPS never calls you. Confidential files, quotations and payments remain in your secure IPS workspace.</p>
     <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Telegram bots do not support end-to-end encrypted Secret Chats. WhatsApp Business may use cloud processing. Avoid sensitive files, personal research data, passwords or bank details in external chats.</p>
     {linked.length>0&&<div aria-label="Linked external channels">{linked.map(item=><div key={item.channel} style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap',marginBottom:7}}>
       <strong>{item.channel==='telegram'?'Telegram':'WhatsApp'} account linked</strong>
