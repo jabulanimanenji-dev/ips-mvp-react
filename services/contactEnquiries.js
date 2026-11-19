@@ -124,13 +124,15 @@ export function registerEnquiryRoutes(app,{requireSession}){
     if(session.role!=='admin')return res.sendStatus(403);
     try{
       const now=new Date();
-      const [overdue_updates,new_requests]=await Promise.all([
+      const [overdue_updates,new_requests,unassigned_requests]=await Promise.all([
         ContactEnquiry.countDocuments({next_update_at:{$lte:now},status:{$in:['new','in_progress']},
           contact_consent:true,contact_verified:true}),
-        ContactEnquiry.countDocuments({status:'new',contact_verified:true,contact_consent:true})
+        ContactEnquiry.countDocuments({status:'new',contact_verified:true,contact_consent:true}),
+        ContactEnquiry.countDocuments({status:{$in:['new','in_progress']},assigned_admin_id:'',
+          contact_verified:true,contact_consent:true})
       ]);
       res.set('Cache-Control','no-store');
-      res.json({success:true,overdue_updates,new_requests,as_of:now.toISOString()});
+      res.json({success:true,overdue_updates,new_requests,unassigned_requests,as_of:now.toISOString()});
     }catch{return res.status(503).json({success:false,error:'The private review queue could not be checked.'});}
   });
   app.get('/api/contact-enquiries/admin',async(req,res)=>{
@@ -140,6 +142,26 @@ export function registerEnquiryRoutes(app,{requireSession}){
       const leads=await ContactEnquiry.find().sort({last_activity_at:-1}).limit(120).lean();
       res.set('Cache-Control','no-store');return res.json({success:true,enquiries:leads});
     }catch{return res.status(503).json({success:false,error:'Could not load the enquiry inbox.'});}
+  });
+  app.post('/api/contact-enquiries/admin/:id/claim',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='admin')return res.sendStatus(403);
+    try{
+      const now=new Date();
+      const lead=await ContactEnquiry.findOneAndUpdate({
+        enquiry_id:req.params.id,assigned_admin_id:'',status:{$in:['new','in_progress']},
+        contact_verified:true,contact_consent:true
+      },{$set:{assigned_admin_id:session.id,assigned_at:now,status:'in_progress',
+        review_started_at:now,last_activity_at:now}},{new:true});
+      if(!lead){
+        const previous=await ContactEnquiry.findOne({enquiry_id:req.params.id})
+          .select('assigned_admin_id').lean();
+        if(previous?.assigned_admin_id===session.id)return res.json({success:true,already_assigned:true,enquiry:previous});
+        return res.status(409).json({success:false,error:'This enquiry is not verified, has been closed, or is already owned by another reviewer.'});
+      }
+      res.set('Cache-Control','no-store');
+      res.json({success:true,enquiry:lead});
+    }catch{return res.status(503).json({success:false,error:'Unable to claim this private review.'});}
   });
   app.patch('/api/contact-enquiries/admin/:id',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
