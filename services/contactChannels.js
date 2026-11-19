@@ -225,7 +225,11 @@ export function registerContactApi(app,{requireSession}){
     try{const session=requireSession(req,res);if(!session)return;
       if(session.role!=='admin')return res.sendStatus(403);
       const threads=await ChannelContact.find().select('channel display_name external_id client_id verified_at last_inbound_at last_message_at unread_count status').sort({last_message_at:-1}).limit(100).lean();
-      res.set('Cache-Control','no-store');res.json({success:true,threads});
+      const verified=await ContactEnquiry.find({request_type:'quote',contact_verified:true,contact_thread_id:{$in:threads.map(t=>String(t._id))}})
+        .select('contact_thread_id').lean();
+      const verifiedIds=new Set(verified.map(q=>q.contact_thread_id));
+      const rows=threads.map(t=>({...t,verified_quote:verifiedIds.has(String(t._id))}));
+      res.set('Cache-Control','no-store');res.json({success:true,threads:rows});
     }catch{res.status(500).json({success:false,error:'Unable to load channel inbox.'});}
   });
 
