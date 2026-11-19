@@ -118,6 +118,8 @@ export default function AdminEnquiries(){
           <p style={{marginTop:10}}><b>Preferred contact:</b> {current.preferred_channel}</p>
           <p><b>Written contact:</b> {current.email||current.telegram_username||current.phone||'Private workspace'} · {current.contact_verified?'Verified':'Awaiting verification'}</p>
           {current.request_type==='quote'&&<p><b>Quotation:</b> {serviceTitle(current.service)} · {current.discipline||'Unspecified discipline'} · {current.study_level||'Unspecified level'} · {current.preferred_deadline||'No deadline selected'}</p>}
+          <p><b>Human review:</b> {current.review_started_at?'Started '+new Date(current.review_started_at).toLocaleString():'Not yet marked under review'}</p>
+          {needsUpdate(current)&&<p role="alert" style={{color:'var(--danger)',fontWeight:700}}>Customer update overdue — contact the customer using the verified chosen channel.</p>}
           <p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>Enquiry-specific contact permission recorded: {current.contact_consent?'Yes':'No'} · {current.consent_at?new Date(current.consent_at).toLocaleString():''}</p>
           <ContactActions lead={current}/>
           <div style={{margin:'14px 0',padding:'13px 15px',border:'1px solid var(--border)',borderRadius:8}}>
@@ -137,6 +139,19 @@ export default function AdminEnquiries(){
               <option value="waiting_for_customer">Waiting for customer</option><option value="closed">Closed</option>
             </select>
           </label>
+          <div style={{display:'flex',gap:10,flexWrap:'wrap',alignItems:'end',marginBottom:18}}>
+            <label style={{flex:'1 1 230px'}}>Next promised written update (optional)
+              <input className="form-input" type="datetime-local" value={nextUpdate} disabled={busy||current.status==='closed'}
+                onChange={e=>setNextUpdate(e.target.value)} style={{marginTop:5}}/>
+            </label>
+            <button type="button" className="btn btn-ghost" disabled={busy||current.status==='closed'}
+              onClick={()=>update({next_update_at:nextUpdate?new Date(nextUpdate).toISOString():null})}>
+              Save update deadline
+            </button>
+          </div>
+          <p style={{fontSize:'.81rem',color:'var(--text-muted)',marginBottom:16}}>
+            Do not promise a date IPS cannot meet. Saving a deadline does not send a message; send any commitment through the customer's verified channel.
+          </p>
           <div style={{borderTop:'1px solid var(--border)',paddingTop:12,marginBottom:16}}>
             {(current.messages||[]).map((m,i)=><div key={m._id||i} style={{padding:13,marginBottom:9,border:'1px solid var(--border)',borderRadius:8,background:'var(--bg-surface-2)'}}>
               <small>{m.direction==='inbound'?'Customer':'IPS · '+m.channel} · {m.delivery_status}</small>
