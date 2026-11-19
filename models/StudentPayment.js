@@ -15,6 +15,8 @@ const StudentPaymentSchema = new mongoose.Schema({
   checkout_expires_at: Date,
   provider_payment_intent: { type: String, default: '' },
   paid_at: Date,
+  refunded_minor:{type:Number,default:0,min:0},
+  refund_lock:{type:String,default:''},
   last_event_id: { type: String, default: '' },
   problem: { type: String, default: '' }
 }, { timestamps: true });
