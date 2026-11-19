@@ -28,6 +28,7 @@ import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import { registerContactEmailWebhooks } from './services/contactEmailWebhooks.js';
 import { registerPrivateQuoteRoutes } from './services/quoteRequests.js';
+import {registerQuoteHandoffRoutes} from './services/quoteHandoff.js';
 import {registerPasswordRecoveryRoutes,sessionFilter,sessionVersion} from './services/passwordRecovery.js';
 import { usernameValid,usernameKey,normalizeUsername,passwordValid,emailValid,normalizeEmail } from './shared/privacyIdentity.js';
 import { verificationAvailable,issueEmailChallenge,confirmEmailChallenge,publicAccount,validateVerificationRequest } from './services/accountVerification.js';
@@ -269,6 +270,7 @@ app.use(async (req, res, next) => {
 registerPasswordRecoveryRoutes(app, {hashPassword});
 registerEnquiryRoutes(app, { requireSession });
 registerPrivateQuoteRoutes(app, { readSession, requireSession });
+registerQuoteHandoffRoutes(app, {requireSession});
 
 app.get('/api/health', (req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
