@@ -150,6 +150,27 @@ const requireSession = (req, res) => {
   return session;
 };
 
+// Every signed customer/specialist API request is rechecked against current
+// database identity state. A changed email, suspended account or withdrawn
+// specialist approval invalidates an otherwise unexpired signed cookie.
+app.use('/api',async(req,res,next)=>{
+  const session=readSession(req);
+  if(!session||!['client','writer'].includes(session.role))return next();
+  if(session.email_verified!==true)return res.status(401).json({success:false,error:'Email verification is required.'});
+  try{
+    if(mongoose.connection.readyState!==1)return res.status(503).json({success:false,error:'Account verification is temporarily unavailable.'});
+    const valid=session.role==='client'
+      ?await Client.exists({client_id:session.id,email_verified_at:{$ne:null},status:'Active'})
+      :await Writer.exists({writer_id:session.id,email_verified_at:{$ne:null},status:'Active',application_status:'approved'});
+    if(!valid){
+      res.set('Cache-Control','no-store');
+      res.setHeader('Set-Cookie','ips_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+      return res.status(401).json({success:false,error:'Account verification or access has changed. Please sign in again.'});
+    }
+    next();
+  }catch{return res.status(503).json({success:false,error:'Could not verify this account session.'});}
+});
+
 registerStudentPaymentRoutes(app, { requireSession, StudentPayment, ServiceRequest });
 registerContactApi(app, { requireSession });
 
