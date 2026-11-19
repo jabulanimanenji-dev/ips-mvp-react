@@ -1,7 +1,7 @@
 name: Student Support V1 Verification
 on:
   pull_request:
-    branches: [main]
+    branches: [main, commercial/student-support-v1]
   workflow_dispatch:
 jobs:
   verify:
