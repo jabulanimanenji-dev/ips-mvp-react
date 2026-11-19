@@ -32,6 +32,9 @@ export function verifyStripeSignature(payload, header, secret, now = Date.now())
   });
 }
 
+export const acceptsStripeEvent=(event,environment=process.env)=>
+  String(environment.IPS_STAGING_MODE||'').toLowerCase()!=='true'||event?.livemode===false;
+
 export function registerStudentWebhook(app, express, { StudentPayment, ServiceRequest }) {
   // This route MUST be registered before express.json so Stripe signs the exact raw bytes.
   app.post('/api/student-payments/stripe-webhook', express.raw({ type: 'application/json', limit: '256kb' }), async (req, res) => {
@@ -40,7 +43,7 @@ export function registerStudentWebhook(app, express, { StudentPayment, ServiceRe
     }
     try {
       const event = JSON.parse(req.body.toString('utf8'));
-      if(String(process.env.IPS_STAGING_MODE||'').toLowerCase()==='true'&&event.livemode!==false)
+      if(!acceptsStripeEvent(event))
         return res.status(400).json({success:false,error:'Staging accepts signed Stripe test-mode events only.'});
       if (!event.id || !event.type) return res.status(400).json({ success: false, error: 'Malformed payment event.' });
       if(['refund.created','refund.updated','refund.failed'].includes(event.type)){
