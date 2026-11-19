@@ -570,6 +570,7 @@ async function go(){
   assert.equal(financeLedger.status,200);
   assert.equal(financeLedger.body.payouts.find(p=>p.request_id===requestId)?.status,'paid');
   pass('Real MongoDB salary ledger enforces finance approval, one payout per completed engagement and staff-recorded bank transfer; specialist sees own record only');
+  await mongoose.connect(process.env.MONGODB_URI);
   const {issueStudentRefund}=await import('../services/studentRefunds.js');
   const refundEnv={STRIPE_SECRET_KEY:'sk_test_ci_not_live',STRIPE_WEBHOOK_SECRET:process.env.STRIPE_WEBHOOK_SECRET};
   const fakeRefundRequests=[];
@@ -643,6 +644,7 @@ async function go(){
   },{env:refundEnv,request:fakeStripeRefund,actor:'CI-FINANCE'});
   assert.equal(anotherRefund.status,409);
   pass('Real MongoDB provider-backed partial plus final refunds never exceed captured charge or create an additional refund');
+  await mongoose.disconnect();
 
   // Dedicated verified secondary specialist tests credential rotation without
   // modifying the specialist whose real completed project browser QA exercises.
