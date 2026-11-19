@@ -10,6 +10,7 @@ import QuotePage from './pages/QuotePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PasswordRecoveryPage from './pages/PasswordRecoveryPage.jsx';
+import EvaluationGateway from './pages/EvaluationGateway.jsx';
 import ServiceMarketplacePage from './pages/ServiceMarketplacePage';
 import ProviderApplicationPage from './pages/ProviderApplicationPage';
 import JoinPage from './pages/JoinPage';
@@ -188,7 +189,14 @@ function ProtectedWriterRoute({ children }) {
 export default function App() {
 
   return (
-
+    <>
+    {import.meta.env.VITE_IPS_EVALUATION==='true'&&
+      <div role="status" style={{position:'fixed',bottom:0,left:0,right:0,zIndex:9999,
+        background:'#f8e9c7',borderTop:'2px solid #c18435',padding:'8px 12px',
+        color:'#32281d',fontWeight:700,textAlign:'center',fontSize:'.79rem'}}>
+        IPS ISOLATED EVALUATION · SYNTHETIC USERS AND PAYMENTS · NO REAL PERSONAL DATA OR ORDERS ·
+        {' '}<a href="/evaluation" style={{color:'#164c76',textDecoration:'underline'}}>OPEN THREE-ROLE EVALUATION GUIDE</a>
+      </div>}
     <VisualPageLayer>
     <Routes>
 
@@ -211,6 +219,7 @@ export default function App() {
         <Route path="/student-support" element={<FeatureGate feature="serviceMarketplace"><StudentSupportPage /></FeatureGate>} />
         <Route path="/join" element={<JoinPage />} />
         <Route path="/privacy" element={<PrivacyPolicyPage />} />
+        <Route path="/evaluation" element={import.meta.env.VITE_IPS_EVALUATION==='true'?<EvaluationGateway/>:<Navigate to="/" replace/>}/>
         <Route path="/become-a-provider" element={<FeatureGate feature="providerApplications"><ProviderApplicationPage /></FeatureGate>} />
 
         <Route
@@ -461,7 +470,7 @@ export default function App() {
 
     </Routes>
     </VisualPageLayer>
-
+    </>
   );
 
 }
