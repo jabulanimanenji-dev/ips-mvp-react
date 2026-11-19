@@ -110,7 +110,7 @@ export function registerEnquiryRoutes(app,{requireSession}){
       if(!lead)return res.status(400).json({success:false,error:'Verification is unavailable.'});
       const outcome=await confirmEmailChallenge(lead,code);
       if(outcome.error)return res.status(outcome.status).json({success:false,error:outcome.error});
-      lead.contact_verified=true;lead.contact_verified_at=new Date();lead.verification_status='verified';
+      lead.contact_verified=true;lead.contact_verified_at=new Date();lead.verification_status='verified';lead.purge_at=undefined;
       await lead.save();
       try{await enqueueContactEmailJobs(lead);}catch{}
       res.set('Cache-Control','no-store');
