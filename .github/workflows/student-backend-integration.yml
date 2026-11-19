@@ -1,7 +1,7 @@
 name: IPS Student Full Backend Integration
 on:
   pull_request:
-    branches: [main]
+    branches: [main, commercial/student-support-v1]
   workflow_dispatch:
 permissions:
   contents: read
