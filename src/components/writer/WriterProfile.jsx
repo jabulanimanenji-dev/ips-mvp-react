@@ -25,7 +25,7 @@ export default function WriterProfile(){
     setSaving(true);setError('');setMessage('');
     try{
       const body={
-        full_name:fields.full_name.trim(),primary_expertise:fields.primary_expertise.trim(),
+        primary_expertise:fields.primary_expertise.trim(),
         secondary_expertise:fields.secondary_expertise.trim(),
         academic_level:fields.academic_level.trim(),availability:fields.availability,
         ...(fields.password?{password:fields.password,current_password:fields.current_password}:{})
@@ -53,8 +53,7 @@ export default function WriterProfile(){
     </header>
     <form className="card" style={{maxWidth:760}} onSubmit={submit}>
       <label className="form-group"><span className="form-label">Full professional name</span>
-        <input className="form-input" required minLength={2} maxLength={120} value={fields.full_name}
-          onChange={e=>update('full_name',e.target.value)}/></label>
+        <input className="form-input" required readOnly value={fields.full_name}/></label>
       <label className="form-group"><span className="form-label">Verified email address</span>
         <input className="form-input" type="email" value={writer?.email||''} readOnly/></label>
       <label className="form-group"><span className="form-label">Primary expertise</span>
