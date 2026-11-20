@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import Client from '../models/Client.js';
+import Writer from '../models/Writer.js';
 import {emailValid,normalizeEmail,passwordValid} from '../shared/privacyIdentity.js';
 import {verificationAvailable} from './accountVerification.js';
 import {sendBusinessEmail} from './businessEmailTransport.js';
@@ -18,8 +19,8 @@ export function recoveryOrigin(env=process.env){
 }
 export const recoveryReady=(env=process.env)=>
   verificationAvailable(env)&&Boolean(recoveryOrigin(env));
-export const tokenDigest=(token,secret)=>
-  crypto.createHmac('sha256',secret).update('client-password-recovery|'+token).digest('hex');
+export const tokenDigest=(token,secret,scope='client')=>
+  crypto.createHmac('sha256',secret).update((scope==='writer'?'writer':'client')+'-password-recovery|'+token).digest('hex');
 export const sessionVersion=client=>Math.max(1,Number(client?.session_version)||1);
 export const sessionFilter=session=>{
   const version=sessionVersion(session);
@@ -30,13 +31,14 @@ export const sessionFilter=session=>{
 
 export async function requestPasswordRecovery(email,{
   env=process.env,model=Client,send=sendBusinessEmail,now=()=>new Date(),
-  random=()=>crypto.randomBytes(32).toString('base64url')
+  random=()=>crypto.randomBytes(32).toString('base64url'),scope='client'
 }={}){
   if(!recoveryReady(env))return {unavailable:true};
   const normalized=normalizeEmail(email);
   // Never reveal whether the mailbox belongs to an IPS customer.
   if(!emailValid(normalized))return {accepted:true};
-  const customer=await model.findOne({email:normalized,email_verified_at:{$ne:null},status:'Active'})
+  const accountFilter=scope==='writer'?{email:normalized,email_verified_at:{$ne:null},status:{$in:['Active','Inactive','On Leave','Suspended']}}:{email:normalized,email_verified_at:{$ne:null},status:'Active'};
+  const customer=await model.findOne(accountFilter)
     .select('+password_reset_hash +password_reset_expires_at +password_reset_sent_at');
   if(!customer)return {accepted:true};
   const at=now();
@@ -44,15 +46,15 @@ export async function requestPasswordRecovery(email,{
     return {accepted:true,alreadySent:true};
   const token=random();
   if(!/^[A-Za-z0-9_-]{43}$/.test(token))throw Error('Password recovery token generator failed.');
-  const hash=tokenDigest(token,env.EMAIL_VERIFICATION_SECRET);
+  const hash=tokenDigest(token,env.EMAIL_VERIFICATION_SECRET,scope);
   customer.password_reset_hash=hash;
   customer.password_reset_sent_at=at;
   customer.password_reset_expires_at=new Date(at.getTime()+15*60000);
   await customer.save();
-  const link=recoveryOrigin(env)+'/reset-password#token='+token;
+  const link=recoveryOrigin(env)+(scope==='writer'?'/writer/reset-password':'/reset-password')+'#token='+token;
   try{
     await send({
-      to:normalized,subject:'Reset your IPS account password',
+      to:normalized,subject:scope==='writer'?'Reset your IPS specialist password':'Reset your IPS account password',
       body:'A password reset was requested for your IPS account.\n\n'+
         'Open this private one-time link (valid for 15 minutes):\n'+link+'\n\n'+
         'If you did not request this, ignore this message. Your password has not changed.\n'+
@@ -70,7 +72,7 @@ export async function requestPasswordRecovery(email,{
 }
 
 export async function completePasswordRecovery(token,password,{
-  env=process.env,model=Client,hashPassword,now=()=>new Date()
+  env=process.env,model=Client,hashPassword,now=()=>new Date(),scope='client'
 }={}){
   if(!recoveryReady(env))return {error:'Secure account recovery is unavailable.',status:503};
   if(typeof hashPassword!=='function')throw Error('Password hashing is required');
@@ -78,17 +80,17 @@ export async function completePasswordRecovery(token,password,{
     return {error:'This password reset link is invalid or has expired.',status:400};
   if(!passwordValid(password))
     return {error:'Use at least 8 characters with an uppercase letter, number and symbol.',status:400};
-  const hash=tokenDigest(token,env.EMAIL_VERIFICATION_SECRET);
+  const hash=tokenDigest(token,env.EMAIL_VERIFICATION_SECRET,scope);
   const at=now();
   const match={password_reset_hash:hash,password_reset_expires_at:{$gt:at},
-    email_verified_at:{$ne:null},status:'Active'};
+    email_verified_at:{$ne:null},...(scope==='writer'?{status:{$in:['Active','Inactive','On Leave','Suspended']}}:{status:'Active'})};
   const customer=await model.findOne(match).select('+password_reset_hash +password_reset_expires_at');
   if(!customer)return {error:'This password reset link is invalid or has expired.',status:400};
   const updated=await model.findOneAndUpdate({...match,_id:customer._id},{
     $set:{password:hashPassword(password),session_version:sessionVersion(customer)+1},
     $unset:{password_reset_hash:'',password_reset_expires_at:'',password_reset_sent_at:''}
   },{new:true});
-  return updated?{success:true}:{error:'This password reset link was already used.',status:400};
+  return updated?{success:true,account:updated}:{error:'This password reset link was already used.',status:400};
 }
 
 const buckets=new Map();
@@ -102,24 +104,39 @@ function rateLimited(req){
   buckets.set(ip,record);
   return record.n>8;
 }
-export function registerPasswordRecoveryRoutes(app,{hashPassword,model=Client}){
-  app.post('/api/client/password-recovery/request',async(req,res)=>{
-    res.set('Cache-Control','no-store');
-    if(rateLimited(req))return res.status(429).json({success:false,error:'Too many requests. Please try again later.'});
-    try{
-      const outcome=await requestPasswordRecovery(req.body?.email,{model});
-      if(outcome.unavailable)return res.status(503).json({success:false,error:'Password recovery email delivery is not configured.'});
-      return res.status(202).json({success:true,message:'If this verified IPS account exists, a private password-reset link will be sent to its email address.'});
-    }catch{return res.status(503).json({success:false,error:'Secure recovery is temporarily unavailable.'});}
-  });
-  app.post('/api/client/password-recovery/complete',async(req,res)=>{
-    res.set('Cache-Control','no-store');
-    if(rateLimited(req))return res.status(429).json({success:false,error:'Too many requests. Please try again later.'});
-    try{
-      const result=await completePasswordRecovery(req.body?.token,req.body?.password,{hashPassword,model});
-      if(result.error)return res.status(result.status).json({success:false,error:result.error});
-      res.setHeader('Set-Cookie','ips_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
-      return res.json({success:true,message:'Your password has been changed. Sign in with your new password.'});
-    }catch{return res.status(503).json({success:false,error:'Secure recovery is temporarily unavailable.'});}
-  });
+// Same verified-email proof and one-use reset workflow for clients and specialists.
+// Client and specialist HMAC scopes are independent. No token is sent to staff.
+export function registerPasswordRecoveryRoutes(app,{hashPassword,model=Client,writerModel=Writer,grantSession}){
+  for(const [scope,accountModel] of [['client',model],['writer',writerModel]]){
+    app.post('/api/'+scope+'/password-recovery/request',async(req,res)=>{
+      res.set('Cache-Control','no-store');
+      if(rateLimited(req))return res.status(429).json({success:false,error:'Too many requests. Please try again later.'});
+      try{
+        const result=await requestPasswordRecovery(req.body?.email,{model:accountModel,scope});
+        if(result.unavailable)return res.status(503).json({success:false,error:'Password recovery email delivery is not configured.'});
+        return res.status(202).json({success:true,message:'If this verified IPS account exists, a private password-reset link will be sent to its registered email.'});
+      }catch{return res.status(503).json({success:false,error:'Secure recovery is temporarily unavailable.'});}
+    });
+    app.post('/api/'+scope+'/password-recovery/complete',async(req,res)=>{
+      res.set('Cache-Control','no-store');
+      if(rateLimited(req))return res.status(429).json({success:false,error:'Too many requests. Please try again later.'});
+      try{
+        const result=await completePasswordRecovery(req.body?.token,req.body?.password,
+          {model:accountModel,scope,hashPassword});
+        if(result.error)return res.status(result.status).json({success:false,error:result.error});
+        let session_opened=false;
+        if(typeof grantSession==='function'){
+          const eligible=scope==='client'
+            ?result.account?.status==='Active'&&Boolean(result.account.email_verified_at)
+            :result.account?.status==='Active'&&result.account.application_status==='approved'&&Boolean(result.account.email_verified_at);
+          if(eligible){await grantSession(res,scope,result.account);session_opened=true;}
+        }
+        if(!session_opened)res.setHeader('Set-Cookie','ips_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+        return res.json({success:true,session_opened,
+          redirect:session_opened?(scope==='writer'?'/writer/dashboard':'/client/overview'):(scope==='writer'?'/writer/login':'/login'),
+          message:session_opened?'Your new password is saved and your private workspace is ready.':
+            'Your new password is saved. Sign in when your account is eligible.'});
+      }catch{return res.status(503).json({success:false,error:'Secure recovery is temporarily unavailable.'});}
+    });
+  }
 }
