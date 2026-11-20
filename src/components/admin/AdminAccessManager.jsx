@@ -49,7 +49,7 @@ export default function AdminAccessManager(){
   useEffect(()=>{if(canManage)reload();},[canManage,reload]);
 
   const rows=useMemo(()=>team.filter(x=>{
-    if(filter==='active'&&!['Active','Invited'].includes(x.status))return false;
+    if(filter==='active'&&!['Active','Invited','Locked'].includes(x.status))return false;
     if(filter==='invited'&&x.status!=='Invited')return false;
     if(filter==='archived'&&x.status!=='Archived')return false;
     const q=search.trim().toLowerCase();
@@ -96,6 +96,14 @@ export default function AdminAccessManager(){
       });
       setSelected(null);await reload();
       setNotice('Account archived, sessions revoked and outstanding work transferred where required.');
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function resendInvite(){
+    if(!selected||busy)return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      await get('/api/admin/company-team/members/'+encodeURIComponent(selected.id)+'/reinvite',{method:'POST'});
+      setSelected(null);await reload();setNotice('New invitation sent to the existing registered staff email.');
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
   async function adopt(target){
@@ -239,6 +247,8 @@ export default function AdminAccessManager(){
         </>:<>
           <p className="card" style={{padding:13,fontSize:'.8rem'}}>Department: <strong>{managerTeamTitle(selected.department)}</strong>. Role: <strong>{selected.company_role}</strong>. Manager: {selected.manager_id||'Company owner (appointment)'}. Never elevate another user to root.</p>
           <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBottom:14}}>
+            {['Invited','Locked'].includes(selected.status)&&
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={resendInvite}>Resend private invitation</button>}
             {selected.status==='Active'&&<button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>update({status:'Suspended',reason:'Suspended by company owner or manager'},'Staff suspended; sessions revoked.')}>Suspend access</button>}
             {selected.status==='Suspended'&&<button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>update({status:'Active'},'Staff access restored.')}>Restore access</button>}
             <button type="button" className="btn btn-secondary" onClick={()=>setOffboard(x=>!x)}>Governed offboarding</button>
