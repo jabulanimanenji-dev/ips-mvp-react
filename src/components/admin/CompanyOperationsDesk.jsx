@@ -72,7 +72,7 @@ export default function CompanyOperationsDesk(){
   const [busy,setBusy]=useState(false);
   const [detail,setDetail]=useState(null);
   const [search,setSearch]=useState('');
-  const [filter,setFilter]=useState('priority');
+  const [filter,setFilter]=useState('open');
   const [tab,setTab]=useState('brief');
   const [entryKind,setEntryKind]=useState('task');
   const [draft,setDraft]=useState('');
@@ -95,7 +95,7 @@ export default function CompanyOperationsDesk(){
       if(!r.ok||!data.success||!Array.isArray(data.cases))throw Error(data.error||'The company case index is unavailable.');
       setCases(data.cases);setScope(data.scope||[]);
       if(!requested&&data.cases[0]){
-        const first=data.cases.find(priorityItem)||data.cases[0];
+        const first=data.cases.find(priorityItem)||data.cases.find(isOpen)||data.cases[0];
         setParams(p=>{const next=new URLSearchParams(p);next.set('case',safeRef(first.kind,first.ref));return next;},{replace:true});
       }
     }catch(e){setFetchError(e.message);}
