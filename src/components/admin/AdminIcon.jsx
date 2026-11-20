@@ -1,6 +1,8 @@
 import React from 'react';
 
 const glyphs={
+  sun:<><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></>,
+  moon:<path d="M20.6 14.2A9 9 0 0 1 9.8 3.4 9 9 0 1 0 20.6 14.2z"/>,
   overview:<><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></>,
   quotes:<><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="m4.5 7 7.5 6 7.5-6"/></>,
   telegram:<><path d="m21 3-4 18-5.9-5.3-4.2 3.1.9-5.6L3 11z"/><path d="m8 13 9-7"/></>,
