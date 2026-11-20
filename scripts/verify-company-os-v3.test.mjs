@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {MODULES} from '../src/administration/core.jsx';
+import {MODULES} from '../src/administration/authority.js';
 import {isOpenCompanyCase,needsCompanyCaseOwner,isOverdueCompanyCase,summarizeCompanyCases} from '../shared/companyPulse.js';
 import {isProtectedOwnerRecord,ownerPrincipalEmail} from '../services/companyOperatingSystem.js';
 const read=p=>readFile(new URL('../'+p,import.meta.url),'utf8');
