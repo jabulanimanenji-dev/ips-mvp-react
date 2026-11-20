@@ -54,7 +54,7 @@ export default function AdminSidebar(){
     {mobileOpen&&<button type="button" aria-label="Close administration menu" className="ipsa-admin-overlay" onClick={()=>setMobileOpen(false)}/>}
     <aside className={'admin-sidebar ipsa-company-sidebar'+(mobileOpen?' sidebar-open':'')}
       style={{width:248,position:'fixed',left:0,top:0,height:'100vh',zIndex:100,display:'flex',flexDirection:'column',
-        background:'#14263a',borderRight:'1px solid rgba(225,234,244,.13)',boxShadow:'2px 0 16px rgba(0,0,0,.07)'}}>
+        background:'#142b3d',borderRight:'1px solid rgba(225,234,244,.13)',boxShadow:'2px 0 16px rgba(0,0,0,.07)'}}>
       <div style={{padding:'22px 16px 19px',borderBottom:'1px solid rgba(225,234,244,.12)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12}}>
           <span style={{width:39,height:39,display:'grid',placeItems:'center',border:'1px solid rgba(222,187,120,.5)',background:'#253c50',borderRadius:9,color:'#f4e5c9',fontWeight:800}}>IPS</span>
@@ -87,7 +87,7 @@ export default function AdminSidebar(){
       <div style={{borderTop:'1px solid rgba(225,234,244,.12)',padding:'13px 11px'}}>
         {logoutError&&<small role="alert" style={{color:'#ffb4b4',display:'block',marginBottom:8}}>{logoutError}</small>}
         <button type="button" className="btn btn-ghost" onClick={handleLogout}
-          style={{width:'100%',border:'1px solid rgba(255,255,255,.17)',color:'#f5f7f9'}}>Sign out</button>
+          style={{width:'100%',border:'1px solid rgba(255,255,255,.17)',color:'#f5f7f9'}}>Logout</button>
       </div>
     </aside>
     <style>{'.ipsa-admin-mobile-toggle{display:none!important;position:fixed;left:12px;top:13px;z-index:1100}.ipsa-admin-overlay{position:fixed;inset:0;border:0;background:rgba(0,0,0,.6);z-index:99}@media(max-width:850px){.ipsa-admin-mobile-toggle{display:inline-flex!important}.ipsa-company-sidebar{transform:translateX(-105%);max-width:82vw;transition:transform .22s}.ipsa-company-sidebar.sidebar-open{transform:translateX(0)}}'}</style>
