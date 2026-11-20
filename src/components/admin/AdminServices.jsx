@@ -2,6 +2,7 @@ import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {useAuth} from '../../context/AuthContext';
 import AdminIcon from './AdminIcon.jsx';
+import {allowedAdminServiceStatuses} from '../../../shared/serviceTransitions.js';
 
 // IPS owns academic work originating from verified, linked quotations.
 // Historical odd-job and generic marketplace requests must not surface in
@@ -10,12 +11,12 @@ export const isCompanyAcademicProject=req=>Boolean(req&&(
   req.source==='quote_intake'&&req.category==='Academic Support'||
   req.category==='Academic Support'&&req.source_quote_id
 ));
-const STATES=['New Request','Under Review','Clarification Required','Quoted','Quote Accepted','Awaiting Assignment','Assigned','In Progress','Waiting for Client','Submitted for Review','Correction Required','Ready for Client','Completed','On Hold','Cancelled','Disputed'];
 const money=(amount,currency)=>new Intl.NumberFormat('en-GB',{style:'currency',currency:currency||'PLN'}).format(Number(amount)||0);
 
 export default function AdminServices(){
   const {hasAdminPermission}=useAuth();
   const canManage=hasAdminPermission('services.manage');
+  const canSeeSpecialists=hasAdminPermission('providers.view');
   const [requests,setRequests]=useState([]);
   const [specialists,setSpecialists]=useState([]);
   const [filter,setFilter]=useState('active');
@@ -29,19 +30,25 @@ export default function AdminServices(){
   const load=useCallback(async()=>{
     setLoading(true);setError('');
     try{
-      const [jobsRes,peopleRes]=await Promise.all([
-        fetch('/api/services',{cache:'no-store',credentials:'same-origin'}),
-        fetch('/api/writers',{cache:'no-store',credentials:'same-origin'})
-      ]);
+      const jobsRes=await fetch('/api/services',{cache:'no-store',credentials:'same-origin'});
       const jobs=await jobsRes.json().catch(()=>({}));
-      const people=await peopleRes.json().catch(()=>({}));
-      if(!jobsRes.ok||!jobs.success||!peopleRes.ok||!people.success)
-        throw Error(jobs.error||people.error||'Academic project records are unavailable.');
+      if(!jobsRes.ok||!jobs.success)throw Error(jobs.error||'Academic project records are unavailable.');
       setRequests((jobs.requests||[]).filter(isCompanyAcademicProject));
-      setSpecialists((people.writers||[]).filter(w=>w.application_status==='approved'&&w.status==='Active'&&w.email_verified_at));
-    }catch(e){setError(e.message);}
+      // A Quality Assurance manager may manage projects without permission
+      // to read the specialist directory. Keep the project register usable.
+      if(canSeeSpecialists){
+        try{
+          const peopleRes=await fetch('/api/writers',{cache:'no-store',credentials:'same-origin'});
+          const people=await peopleRes.json().catch(()=>({}));
+          if(!peopleRes.ok||!people.success)throw Error('Directory unavailable');
+          setSpecialists((people.writers||[]).filter(w=>w.application_status==='approved'&&w.status==='Active'&&w.email_verified_at));
+        }catch{
+          setSpecialists([]);setError('Projects loaded. Specialist directory unavailable; assignment is disabled.');
+        }
+      }else setSpecialists([]);
+    }catch(e){setRequests([]);setSpecialists([]);setError(e.message);}
     finally{setLoading(false);}
-  },[]);
+  },[canSeeSpecialists]);
   useEffect(()=>{load();},[load]);
 
   const patch=async(id,updates)=>{
@@ -85,6 +92,7 @@ export default function AdminServices(){
   const delivering=requests.filter(j=>['Assigned','In Progress','Waiting for Client','Correction Required'].includes(j.status)).length;
   const review=requests.filter(j=>['Submitted for Review','Ready for Client','Disputed'].includes(j.status)).length;
   const complete=requests.filter(j=>j.status==='Completed').length;
+  const canEditQuote=Boolean(quoteJob&&['Under Review','Clarification Required','Quoted'].includes(quoteJob.status)&&quoteJob.payment_status!=='paid');
   return <section className="ips-projects-workspace" style={{maxWidth:1480,margin:'0 auto'}}>
     <div className="ips-case-top" style={{marginBottom:19}}>
       <div><span className="ips-eyebrow">Academic delivery · specialist coordination</span>
@@ -92,7 +100,7 @@ export default function AdminServices(){
         <p>Follow every approved academic engagement through quotation, specialist assignment, delivery and independent quality review. All project details stay confidential.</p>
       </div>
       <div style={{display:'flex',gap:9,flexWrap:'wrap'}}>
-        <Link to="/admin/enquiries" className="btn btn-primary"><AdminIcon name="plus" size={16}/> From client enquiries</Link>
+        {hasAdminPermission('support.view')&&<Link to="/admin/enquiries" className="btn btn-primary"><AdminIcon name="plus" size={16}/> From client enquiries</Link>}
         <button className="btn btn-secondary" type="button" onClick={load} disabled={loading||busy}><AdminIcon name="refresh" size={16}/>{loading?'Updating…':'Refresh projects'}</button>
       </div>
     </div>
@@ -118,15 +126,27 @@ export default function AdminServices(){
       <table className="data-table">
         <thead><tr><th>Academic project</th><th>Client reference</th><th>Status</th><th>Approved specialist</th><th>Progress</th><th>Quotation</th></tr></thead>
         <tbody>
-        {visible.length===0&&<tr><td colSpan={6} style={{padding:23,color:'var(--text-muted)'}}>No matching verified academic projects. New requests begin in <Link to="/admin/enquiries">Quotes & enquiries</Link>.</td></tr>}
+        {visible.length===0&&<tr><td colSpan={6} style={{padding:23,color:'var(--text-muted)'}}>No matching verified academic projects. {hasAdminPermission('support.view')?<span>New requests begin in <Link to="/admin/enquiries">Quotes & enquiries</Link>.</span>:<span>Projects arrive after verified intake by Client Relations.</span>}</td></tr>}
         {visible.map(j=><tr key={j.request_id}>
           <td><Link to={'/admin/services/'+encodeURIComponent(j.request_id)} style={{fontWeight:700}}>{j.title||j.request_id}</Link><small style={{display:'block',color:'var(--text-muted)'}}>{j.request_id} · {j.source_quote_id}</small></td>
           <td>{j.client_name||'Private client'}</td>
-          <td>{canManage?<select className="form-select" disabled={busy} value={j.status} onChange={e=>patch(j.request_id,{status:e.target.value,reason:'Authorized IPS academic project status update'})}>{STATES.map(x=><option key={x}>{x}</option>)}</select>:j.status}</td>
-          <td>{canManage?<select className="form-select" disabled={busy} value={j.provider_id||''} onChange={e=>{
-            const w=specialists.find(x=>x.writer_id===e.target.value);
-            patch(j.request_id,{provider_id:e.target.value,provider_name:w?.full_name||'',status:e.target.value?'Assigned':'Awaiting Assignment',reason:e.target.value?'Approved academic specialist assigned':'Assignment withdrawn'});
-          }}><option value="">Unassigned</option>{specialists.map(w=><option key={w.writer_id} value={w.writer_id}>{w.full_name}</option>)}</select>:(j.provider_name||'Unassigned')}</td>
+          <td>{canManage?<select className="form-select" aria-label={"Project status "+j.request_id} disabled={busy} value={j.status} onChange={e=>patch(j.request_id,{status:e.target.value,reason:'Authorized IPS academic project status update'})}>{allowedAdminServiceStatuses(j).map(x=><option key={x}>{x}</option>)}</select>:j.status}</td>
+          <td>{canManage&&canSeeSpecialists&&j.payment_status==='paid'&&
+            ['Quote Accepted','Awaiting Assignment','Assigned'].includes(j.status)&&
+            (j.status!=='Assigned'||Number(j.progress||0)===0)&&
+            (!j.provider_id||specialists.some(w=>w.writer_id===j.provider_id))
+            ?<select className="form-select" aria-label={"Assigned specialist "+j.request_id} disabled={busy} value={j.provider_id||''} onChange={e=>{
+              const w=specialists.find(x=>x.writer_id===e.target.value);
+              patch(j.request_id,{provider_id:e.target.value,provider_name:w?.full_name||'',
+                status:e.target.value?'Assigned':'Awaiting Assignment',
+                reason:e.target.value?'Approved academic specialist assigned':'Unstarted specialist assignment withdrawn'});
+            }}><option value="">Unassigned</option>{specialists.map(w=><option key={w.writer_id} value={w.writer_id}>{w.full_name}</option>)}</select>
+            :<span>{j.provider_name||'Unassigned'}<small style={{display:'block',color:'var(--text-muted)'}}>{
+              j.payment_status!=='paid'?'Payment required before assignment':
+              j.status==='In Progress'||Number(j.progress||0)>0?'Active work — escalation required':
+              !canSeeSpecialists?'Assignment handled by Academic Delivery':
+              'Assignment unavailable at this stage'
+            }</small></span>}</td>
           <td>{Number(j.progress||0)}%</td>
           <td>{canManage?<button type="button" disabled={busy} className="btn btn-secondary btn-sm" onClick={()=>openQuote(j)}>{j.quote?.total?money(j.quote.total,j.quote.currency):'Review quote'}</button>:(j.quote?.total?money(j.quote.total,j.quote.currency):'Not issued')}</td>
         </tr>)}
