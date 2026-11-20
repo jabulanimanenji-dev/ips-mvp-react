@@ -61,7 +61,8 @@ test('private case tasks are persisted with assigned staff and not sent by custo
   const source=await readFile(new URL('../services/companyCaseDesk.js',import.meta.url),'utf8');
   assert.match(model,/assigned_to/);
   assert.match(model,/case_kind/);
-  assert.match(source,/assigned_to:session\.id/);
+  assert.match(source,/assigned_to:assignedTo/);
+  assert.match(source,/administrators\.manage/);
   assert.match(source,/CompanyCaseAction\.create/);
   assert.match(source,/CompanyCaseAction\.findOneAndUpdate/);
   assert.doesNotMatch(source,/sendEmail|sendTelegram|deliverExternalMessage/);
