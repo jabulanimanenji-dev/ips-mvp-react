@@ -128,6 +128,14 @@ registerStudentWebhook(app, express, { StudentPayment, ServiceRequest });
 registerContactWebhooks(app, express);
 registerContactEmailWebhooks(app, express);
 app.use(express.json({ limit: '35mb' }));
+// The legacy multi-market service-engine studio belongs to the archived
+// universal-platform source, not this IPS Academic Services company release.
+// Retain its code and historical data, but reject its admin API in production.
+app.use('/api/admin/service-engine',(req,res,next)=>{
+  if(isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true')
+    return res.status(410).json({success:false,error:'This universal-platform management module is not part of IPS Academic Services.'});
+  return next();
+});
 
 const sessionSecret = process.env.SESSION_SECRET || process.env.ADMIN_PASSWORD || 'local-development-change-me';
 const hashPassword = password => {
