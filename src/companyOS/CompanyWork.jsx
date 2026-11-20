@@ -16,7 +16,7 @@ export default function CompanyWork({initialFilter}){
   const [search,setSearch]=useState(''),[detail,setDetail]=useState(null),[loadingDetail,setLoadingDetail]=useState(false),
     [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),
     [note,setNote]=useState(''),[entryKind,setEntryKind]=useState('task'),[due,setDue]=useState(''),
-    [priority,setPriority]=useState('standard'),[assigned,setAssigned]=useState(admin?.isRoot?'':admin?.id||''),[tab,setTab]=useState('brief');
+    [priority,setPriority]=useState('standard'),[assigned,setAssigned]=useState(admin?.id||''),[tab,setTab]=useState('brief');
   const cases=source.value||[];
   const sorted=useMemo(()=>cases.filter(c=>{
     if(filter==='open'&&!caseOpen(c))return false;
@@ -159,10 +159,9 @@ export default function CompanyWork({initialFilter}){
                 {entryKind==='task'&&<div className="os-fields">
                   <label className="os-field">Due date<input className="os-input" type="datetime-local" value={due} onChange={e=>setDue(e.target.value)}/></label>
                   <label className="os-field">Priority<select className="os-input" value={priority} onChange={e=>setPriority(e.target.value)}><option>standard</option><option>urgent</option></select></label>
-                  {!!staff.value?.length&&<label className="os-field">Accountable staff<select className="os-input" value={assigned} onChange={e=>setAssigned(e.target.value)}>{!admin?.isRoot&&<option value={admin?.id||''}>Myself</option>}{staff.value.filter(x=>x.id!==admin?.id).map(x=><option key={x.id} value={x.id}>{x.name} · {x.role}</option>)}</select></label>}
+                  {!!staff.value?.length&&<label className="os-field">Accountable staff<select className="os-input" value={assigned} onChange={e=>setAssigned(e.target.value)}><option value={admin?.id||''}>{admin?.isRoot?'Owner oversight':'Myself'}</option>{staff.value.filter(x=>x.id!==admin?.id).map(x=><option key={x.id} value={x.id}>{x.name} · {x.role}</option>)}</select></label>}
                 </div>}
-                {entryKind==='task'&&admin?.isRoot&&!staff.value?.length&&<div className="os-command-note">Appoint a department manager before delegating owner-created tasks. Root cannot become staff.</div>}
-                <button type="submit" className="os-action" disabled={busy||note.trim().length<3||(entryKind==='task'&&admin?.isRoot&&!assigned)}>{busy?'Saving…':'Record '+(entryKind==='task'?'task':'confidential note')}</button>
+                <button type="submit" className="os-action" disabled={busy||note.trim().length<3}>{busy?'Saving…':'Record '+(entryKind==='task'?'task':'confidential note')}</button>
               </form>}
             </>}
           </div>
