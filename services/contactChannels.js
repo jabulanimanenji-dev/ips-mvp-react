@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { PUBLIC_CONTACTS } from '../shared/publicContacts.js';
 import ChannelContact from '../models/ChannelContact.js';
 import ChannelMessage from '../models/ChannelMessage.js';
 import ChannelLinkToken from '../models/ChannelLinkToken.js';
@@ -191,11 +192,16 @@ export function registerContactWebhooks(app,express){
 
 export function publicContactConfig(env=process.env){
   const username=String(env.TELEGRAM_BOT_USERNAME||'').replace(/^@/,'').trim();
-  const number=String(env.WHATSAPP_PUBLIC_NUMBER||'').trim();
+  // Direct WhatsApp is a user-initiated wa.me link: no Meta API or webhook
+  // authority is claimed. API integration is opt-in if ever enabled later.
+  const number=String(env.WHATSAPP_PUBLIC_NUMBER||PUBLIC_CONTACTS.whatsapp.number).trim();
   const telegram=validTelegramUsername(username)&&Boolean(env.TELEGRAM_BOT_TOKEN&&env.TELEGRAM_WEBHOOK_SECRET);
-  const whatsapp=validWhatsappNumber(number)&&Boolean(env.WHATSAPP_PHONE_NUMBER_ID&&env.WHATSAPP_ACCESS_TOKEN&&env.WHATSAPP_APP_SECRET&&env.WHATSAPP_VERIFY_TOKEN);
-  return {telegram:telegram?{url:'https://t.me/'+username,available:true}:null,
-    whatsapp:whatsapp?{url:'https://wa.me/'+number,available:true}:null,
+  const apiMode=String(env.WHATSAPP_CONTACT_MODE||'direct').toLowerCase()==='api';
+  const apiReady=Boolean(env.WHATSAPP_PHONE_NUMBER_ID&&env.WHATSAPP_ACCESS_TOKEN&&env.WHATSAPP_APP_SECRET&&env.WHATSAPP_VERIFY_TOKEN);
+  const whatsapp=validWhatsappNumber(number)&&(!apiMode||apiReady);
+  return {telegram:telegram?{url:'https://t.me/'+username,available:true,connected:true,mode:'api'}:null,
+    whatsapp:whatsapp?{url:'https://wa.me/'+number,available:true,connected:apiMode,
+      mode:apiMode?'api':'direct',manual_confirmation:!apiMode}:null,
     confidentiality:'Messages in external apps are processed under those providers\' terms. Keep payment details, private academic files and sensitive data in your IPS account.'};
 }
 

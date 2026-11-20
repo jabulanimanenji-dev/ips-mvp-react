@@ -20,7 +20,9 @@ export function nonpaymentPublicationGaps(env=process.env){
     issues.push('written-confirmation-delivery-worker');
   const channels=publicContactConfig(env);
   if(!channels.telegram?.available)issues.push('telegram-business-channel');
-  if(!channels.whatsapp?.available)issues.push('whatsapp-business-channel');
+  // The owner selected direct WhatsApp rather than Meta Cloud API.
+  // A real outbound chat link is required; a simulated webhook is not.
+  if(!channels.whatsapp?.available||channels.whatsapp.mode!=='direct')issues.push('whatsapp-direct-contact');
   if(!String(env.CONTACT_RESEND_WEBHOOK_SECRET||'').startsWith('whsec_'))
     issues.push('email-delivery-receipts');
   let correctDomain=false;

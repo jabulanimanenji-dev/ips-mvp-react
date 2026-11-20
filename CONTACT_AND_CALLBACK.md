@@ -1,46 +1,63 @@
-# IPS Contact & Callback Desk — Source-bound Implementation
+# IPS written-contact desk — direct WhatsApp without Meta API
 
-This feature is built on the isolated `commercial/student-support-v1` branch and does not merge or change protected `main`.
+## Policy and configuration (owner decision, 2026-11-20)
 
-## Two distinct modes
+IPS never calls customers. Every quotation is reviewed by a human and
+replied to only by a customer-selected written method. Legal names are not
+required for initial confidential quotations. Academic documents, payment
+details and other sensitive files stay in the authenticated IPS workspace.
 
-1. **Static Vercel design preview** (`VITE_DESIGN_PREVIEW=true`): visitors can complete the contact form and prepare a WhatsApp message to the published IPS Business phone. The form **does not save** a request, and there is no automatically delivered lead. The visitor must press Send in WhatsApp. Telegram's public link opens @IPScontactBot but is not proof of a connected bot webhook.
-2. **Full IPS Express/MongoDB backend**: a visitor can submit `POST /api/contact-enquiries` without registering. The backend validates consent and email/phone, limits requests, then saves a unique reference and a record in the admin contact inbox. Authorized staff can open `/admin/enquiries`, view contact details and enquiry history, track status, and initiate the preferred follow-up.
+The owner's chosen WhatsApp workflow is **direct, manual chat** using
+https://wa.me/48794088714. This is a user-initiated link to the existing IPS
+business number, **not** a WhatsApp Cloud API integration. It requires no
+Meta developer application, PHONE_NUMBER_ID, ACCESS_TOKEN or APP_SECRET.
+No claim of automated WhatsApp delivery, webhooks, confirmed read receipts,
+centralized message synchronization or staff response is permitted.
 
-## Customer journey
+## Customer enquiry and quote flow
 
-1. Open `/#contact-ips` from the academic home page.
-2. Enter name, preferred contact method (email, call, WhatsApp or Telegram), relevant contact details, a subject and an enquiry message.
-3. Explicitly consent to IPS contacting the customer about **this enquiry only**. This is not marketing consent.
-4. Submit to the real API if available. The API returns a reference such as `ENQ-...`; it never starts a paid project or grants access to protected files.
-5. IPS staff see the lead in the role-protected admin queue and can contact the customer through the **chosen** method.
-6. For email, staff can send a verified email from the admin inbox **only** when a Resend key and a verified sending email are configured in the backend. Provider acceptance is recorded, not claimed recipient delivery.
-7. For manual phone calls and WhatsApp chat, staff can launch the OS/app using the callback details. This does not constitute a verified sent message in IPS; manual follow-up should be recorded honestly.
-8. Existing registered student support tickets and service workspaces continue to be used for confidential or paid project operations.
+1. Customer submits a request in the real IPS form, choosing WhatsApp and
+   providing the phone number that they will send the WhatsApp message from.
+   The stored reference is an IPS-Q-... or ENQ-... identifier.
+2. A message link opens the business WhatsApp chat with only the reference
+   prefilled. The customer must actively press **Send** within WhatsApp.
+   This does not silently send a message or expose the research brief.
+3. Until an authorized IPS reviewer manually observes a message containing
+   the **exact reference** from the **same WhatsApp number**, the contact
+   remains unverified in the database and cannot enter a governed quote
+   or approved project workflow.
+4. The reviewer signs into the IPS admin enquiries queue, inspects the
+   real incoming business WhatsApp conversation (outside IPS), types
+   the observed sender number and exact reference, and expressly attests
+   the match. The server atomically verifies a matching, still-consented,
+   open request. It records method, reviewer ID and timestamp without
+   importing chat contents or external contact names.
+5. The reviewer can then open the customer's WhatsApp chat link from the
+   authenticated admin queue and respond manually in writing. All
+   confidential deliverables and agreement/payment records must remain
+   in the protected IPS workspace. No external chat messages are copied
+   into the IPS inbox or marked as delivered by the app.
+6. If a customer withdraws consent or sends STOP, staff must record a
+   WhatsApp contact withdrawal in the admin queue, which closes that
+   request and prevents further replies.
 
-## Production backend variables
+The admin verification and withdrawal APIs are under **support.manage**
+permissions. The reference itself is not an authentication credential.
+Reviewers must not attest a message they have not personally inspected.
 
-Store these on the secure Express hosting service, **never** GitHub or `VITE_*`:
+## Deployment and verification
 
-- `CONTACT_RESEND_API_KEY`: production email provider API credential (stored on the backend only)
-- `CONTACT_FROM_EMAIL=support@ipsglobalservice.com`: verified IPS-only sender address
-- `CONTACT_REPLY_TO_EMAIL=contact@ipsglobalservice.com`: monitored Cloudflare routing alias; required before IPS email sending activates
+The existing public number is configured in `shared/publicContacts.js`.
+The server uses `WHATSAPP_PUBLIC_NUMBER` when supplied, falling back to
+the existing approved company number. The optional
+`WHATSAPP_CONTACT_MODE=api` is **not** part of this release.
 
-No provider credentials are required for the public click-to-chat links. SMS and automated telephone calls are **not** included without a verified communications provider and explicit customer permission.
+No WhatsApp Meta API credentials need to be installed in Render. The
+release checks require a valid direct WhatsApp link, while keeping
+Resend email verification, Telegram configuration, persistent MongoDB,
+private R2 storage, signed email receipts and the disabled-payment gate.
+Source CI and mocked tests are not substitutes for actual production
+delivery, account and storage verification.
 
-### Anti-abuse and privacy
-
-- No pre-checked consent. Intake is for the enquiry only, not bulk marketing.
-- Basic 4 requests per 15 minutes per instance, Origin check, input restrictions and a hidden bot trap. **Before production traffic** add a centrally enforced rate limit / bot defense (for example Cloudflare Turnstile and durable Redis limits); in-memory limits alone are not sufficient at scale.
-- Public requests are not an authentication method. The admin inbox requires an actual IPS admin session and `support.view`/`support.manage` permissions.
-- Do not send passwords, payment card data or sensitive academic files through contact channels.
-- Privacy notice, retention and deletion, consent evidence, vendor agreements and data access review require owner acceptance before exposing the API.
-- Telegram Bot API cannot initiate chats with users who have not started the bot. WhatsApp Business API outbound templates have provider policy constraints.
-
-## Qualification
-
-`npm run verify:student-support`, `npm run check`, real MongoDB GitHub integration and Chrome desktop/mobile website tests. The CI suite checks unregistered lead intake, owner-only visibility, callback status, disabled-email fail-closed, form fallback and prior quote/payment protections. No actual phone/email sending is claimed from mocked or missing credentials.
-
-## Still needed for go-live
-
-Live Express hosting, real MongoDB, verified sending domain/email service, legal privacy/retention notices, optional telephony/SMS service, owner-confirmed operating hours, and genuine human callback acceptance. The Vercel static website remains a design preview and not a transactional contact backend.
+Do not remove the currently deployed production fallback until the new
+company release passes its real nonpayment production qualification.

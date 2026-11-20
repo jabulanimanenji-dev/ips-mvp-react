@@ -8,6 +8,37 @@ import {usernameValid,normalizeUsername,normalizeEmail} from '../shared/privacyI
 import {verificationAvailable,issueEmailChallenge,confirmEmailChallenge} from './accountVerification.js';
 export { canSendContactEmail,sendEmailReply } from './businessEmailTransport.js';
 
+
+// Direct WhatsApp does not provide authenticated Meta webhooks.
+// A reviewer must inspect a customer-initiated WhatsApp message containing the
+// exact IPS reference, compare the actual sender to the submitted number, then
+// explicitly attest that check. This action is never available to a client.
+export async function attestManualWhatsAppContact({
+  enquiryId, observedReference, observedPhone, attested, reviewerId,
+  model=ContactEnquiry, now=()=>new Date()
+}={}){
+  const reference=String(enquiryId||'').trim();
+  const typedReference=String(observedReference||'').trim();
+  const phone=String(observedPhone||'').trim().replace(/[\s().-]/g,'');
+  if(!/^(?:IPS-Q|ENQ)-[A-F0-9]{18}$/.test(reference)||
+     typedReference!==reference||!/^[+][1-9][0-9]{7,14}$/.test(phone)||
+     attested!==true||!String(reviewerId||'').trim())
+    return {success:false,status:400,error:'Confirm the exact customer reference and WhatsApp sender number after inspecting the incoming chat.'};
+  const at=now();
+  const result=await model.updateOne({
+    enquiry_id:reference,preferred_channel:'whatsapp',phone,
+    contact_consent:true,contact_verified:false,status:{$ne:'closed'}
+  },{
+    $set:{contact_verified:true,verification_status:'verified',
+      contact_verified_at:at,contact_verification_method:'whatsapp_manual_attested',
+      contact_verified_by:String(reviewerId),last_activity_at:at},
+    $unset:{purge_at:''}
+  });
+  if(result.modifiedCount!==1)
+    return {success:false,status:409,error:'The WhatsApp enquiry is closed, already verified, withdrawn, or does not match the stated sender number.'};
+  return {success:true,verification_method:'whatsapp_manual_attested'};
+}
+
 export const PUBLIC_REPLY_METHODS=Object.freeze(['email','whatsapp','telegram']);
 const isText=x=>typeof x==='string';
 const within=(x,min,max)=>isText(x)&&x.trim().length>=min&&x.trim().length<=max;
@@ -143,6 +174,44 @@ export function registerEnquiryRoutes(app,{requireSession}){
       res.set('Cache-Control','no-store');return res.json({success:true,enquiries:leads});
     }catch{return res.status(503).json({success:false,error:'Could not load the enquiry inbox.'});}
   });
+
+  // Support.manage permission is enforced by the shared admin API middleware
+  // before this handler. Never allow a public quote reference to verify itself.
+  app.post('/api/contact-enquiries/admin/:id/whatsapp-manual-verify',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='admin'||!req.adminAccess)return res.sendStatus(403);
+    try{
+      const outcome=await attestManualWhatsAppContact({
+        enquiryId:req.params.id,observedReference:req.body?.observed_reference,
+        observedPhone:req.body?.observed_phone,attested:req.body?.attested,reviewerId:session.id
+      });
+      if(!outcome.success)return res.status(outcome.status).json(outcome);
+      const lead=await ContactEnquiry.findOne({enquiry_id:req.params.id}).lean();
+      if(lead)try{await enqueueContactEmailJobs(lead);}catch(error){
+        console.error('IPS manual WhatsApp staff notification unavailable:',error?.name||'error');
+      }
+      res.set('Cache-Control','no-store');
+      return res.json({success:true,verification_method:outcome.verification_method});
+    }catch(error){
+      return res.status(503).json({success:false,error:'Could not record the manual WhatsApp confirmation.'});
+    }
+  });
+  app.post('/api/contact-enquiries/admin/:id/whatsapp-contact-withdrawn',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='admin'||!req.adminAccess)return res.sendStatus(403);
+    if(req.body?.confirmed!==true)return res.status(400).json({success:false,error:'Confirm customer contact withdrawal.'});
+    try{
+      const result=await ContactEnquiry.updateOne({
+        enquiry_id:req.params.id,preferred_channel:'whatsapp',status:{$ne:'closed'}
+      },{$set:{contact_consent:false,contact_verified:false,
+        verification_status:'awaiting_verification',status:'closed',contact_verified_by:'',
+        last_activity_at:new Date()}});
+      if(result.modifiedCount!==1)return res.status(409).json({success:false,error:'No active WhatsApp enquiry was found.'});
+      res.set('Cache-Control','no-store');
+      return res.json({success:true});
+    }catch{return res.status(503).json({success:false,error:'Could not record WhatsApp contact withdrawal.'});}
+  });
+
   app.post('/api/contact-enquiries/admin/:id/claim',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
     if(session.role!=='admin')return res.sendStatus(403);

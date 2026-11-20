@@ -372,6 +372,39 @@ class R2ObjectStorage {
   }
 }
 
+
+
+// Publication cannot treat a successful bucket HEAD as proof that confidential
+// customer documents can actually be written, recovered and deleted. Never
+// touch an existing object: use an unpredictable, reserved and disposable key.
+// Run only at strict, non-evaluation production startup and before listening.
+export async function verifyPrivateStorageReadback(storage) {
+  if (!storage || storage.provider !== 'r2') {
+    throw new Error('IPS publication requires a private R2 storage provider.');
+  }
+  const key = '_ips_publication_probes/' + crypto.randomBytes(24).toString('hex') + '.bin';
+  const expected = crypto.randomBytes(64);
+  let written = false;
+  try {
+    await storage.write(key, expected, { contentType: 'application/octet-stream' });
+    written = true;
+    const retrieved = await storage.read(key);
+    if (
+      retrieved.status !== 200 ||
+      !Buffer.isBuffer(retrieved.body) ||
+      retrieved.body.length !== expected.length ||
+      !crypto.timingSafeEqual(retrieved.body, expected)
+    ) {
+      throw new Error('Private R2 write/readback failed byte integrity verification.');
+    }
+  } finally {
+    // If readback or validation failed, clean up our newly-created probe.
+    // A failed cleanup also blocks release instead of leaving silent debris.
+    if (written) await storage.remove(key);
+  }
+  return true;
+}
+
 export const createObjectStorage = async ({
   environment = process.env,
   defaultLocalRoot,

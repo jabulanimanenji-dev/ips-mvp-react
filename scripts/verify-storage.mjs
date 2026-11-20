@@ -6,7 +6,8 @@ import path from 'node:path';
 import {
   createObjectStorage,
   StorageObjectNotFoundError,
-  StorageRequestError
+  StorageRequestError,
+  verifyPrivateStorageReadback
 } from '../shared/objectStorage.js';
 
 const localRoot = await mkdtemp(path.join(tmpdir(), 'ips-object-storage-'));
@@ -208,5 +209,41 @@ await assert.rejects(
   }),
   /Unsupported storage provider/
 );
+
+// Publication uses actual write, byte-readback and deletion, never bucket HEAD alone.
+const oldRequestCount = r2Requests.length;
+assert.equal(await verifyPrivateStorageReadback(r2Storage), true);
+const canaryCalls = r2Requests.slice(oldRequestCount);
+assert.deepEqual(canaryCalls.map(r => r.method), ['PUT', 'GET', 'DELETE']);
+assert.match(canaryCalls[0].key, /^production\/_ips_publication_probes\/[a-f0-9]{48}\.bin$/);
+assert.equal(canaryCalls[0].key, canaryCalls[1].key);
+assert.equal(canaryCalls[1].key, canaryCalls[2].key);
+assert.equal(r2Objects.has(canaryCalls[0].key), false);
+await assert.rejects(
+  verifyPrivateStorageReadback({ provider: 'local' }),
+  /private R2 storage provider/
+);
+let tamperedDeleted = false;
+await assert.rejects(
+  verifyPrivateStorageReadback({
+    provider: 'r2',
+    async write(key, body) { assert.match(key, /^_ips_publication_probes\//); assert.equal(body.length, 64); },
+    async read() { return { status: 200, body: Buffer.alloc(64) }; },
+    async remove() { tamperedDeleted = true; }
+  }),
+  /byte integrity/
+);
+assert.equal(tamperedDeleted, true);
+let unavailableDeletes = 0;
+await assert.rejects(
+  verifyPrivateStorageReadback({
+    provider: 'r2',
+    async write() { throw new Error('unavailable'); },
+    async read() { throw new Error('read should not occur'); },
+    async remove() { unavailableDeletes++; }
+  }),
+  /unavailable/
+);
+assert.equal(unavailableDeletes, 0);
 
 console.log('Local and mocked Cloudflare R2 object storage verification passed.');

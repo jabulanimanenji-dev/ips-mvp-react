@@ -6,7 +6,9 @@ export const PUBLIC_CONTACTS = Object.freeze({
     display: '+48 794 088 714',
     url: 'https://wa.me/48794088714',
     available: true,
-    connected: false
+    connected: false,
+    mode: 'direct',
+    manual_confirmation: true
   }),
   telegram: Object.freeze({
     username: 'IPScontactBot',
