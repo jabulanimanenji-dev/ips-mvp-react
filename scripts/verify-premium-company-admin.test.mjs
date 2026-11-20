@@ -27,6 +27,7 @@ test('all operating responsibilities are governed by actual independent navigati
     '/admin/reports','/admin/settings','/admin/payments'])assert.ok(paths.includes(path),path);
   assert.ok(COMPANY_NAV.every(x=>x.permission&&x.icon&&x.sub));
   assert.equal(COMPANY_NAV.find(x=>x.path==='/admin/access').permission,'team.manage');
+  assert.equal(COMPANY_NAV.find(x=>x.path==='/admin/messages').permission,'messages.view');
   const app=await source('src/App.jsx');
   for(const permission of ['team.manage','providers.view','services.view','clients.view','support.view','messages.view','reports.view'])
     assert.ok(app.includes('permission="'+permission+'"'),permission);
@@ -34,6 +35,8 @@ test('all operating responsibilities are governed by actual independent navigati
 test('real new company command queue is powered by permission-filtered source cases and durable actions',async()=>{
   const [work,home,model]=await Promise.all([
     source('src/companyOS/CompanyWork.jsx'),source('src/companyOS/CompanyHome.jsx'),source('src/companyOS/model.js')]);
+  for(const route of ['/admin/intake/reply','/admin/support/tickets','/admin/channels/telegram','/admin/messages'])
+    assert.ok(work.includes(route),'Missing secure company business action entry '+route);
   for(const endpoint of ['/api/admin/company-cases','/api/contact-enquiries/admin/','/api/support-tickets/','/actions','/tasks/'])
     assert.ok(work.includes(endpoint),endpoint);
   assert.match(work,/Take ownership of verified enquiry/);
