@@ -72,7 +72,8 @@ export default function CompanyOperationsDesk(){
   const [busy,setBusy]=useState(false);
   const [detail,setDetail]=useState(null);
   const [search,setSearch]=useState('');
-  const [filter,setFilter]=useState('open');
+  const [filter,setFilter]=useState(()=>params.get('filter')||'open');
+  useEffect(()=>{const f=params.get('filter');if(['open','priority','enquiry','support','project','telegram'].includes(f))setFilter(f);},[params.get('filter')]);
   const [tab,setTab]=useState('brief');
   const [entryKind,setEntryKind]=useState('task');
   const [draft,setDraft]=useState('');
@@ -103,7 +104,7 @@ export default function CompanyOperationsDesk(){
   },[requested,setParams]);
   useEffect(()=>{fetchCases();},[refreshCount]); // Explicit refresh and periodic refresh only.
   useEffect(()=>{
-    if(!hasAdminPermission('administrators.manage'))return;
+    if(!hasAdminPermission('team.manage'))return;
     let active=true;
     fetch('/api/admin/company-cases/staff',{credentials:'same-origin',cache:'no-store'})
       .then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||!d.success)throw Error('Team directory unavailable.');return d;})
