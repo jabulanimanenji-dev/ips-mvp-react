@@ -10,7 +10,7 @@ import {requestPasswordRecovery,recoveryReady} from './passwordRecovery.js';
 import {emailValid,normalizeEmail} from '../shared/privacyIdentity.js';
 import {hasAdminPermission} from '../shared/adminPermissions.js';
 import {COMPANY_DEPARTMENTS,isCompanyDepartment,mayManageTeamMember,
-  permittedCompanyPermissions,managerTeamTitle} from '../shared/companyGovernance.js';
+  permittedCompanyPermissions,managerTeamTitle,companyStaffPasswordValid} from '../shared/companyGovernance.js';
 import {isIpsQaFixtureAdmin,isIpsQaFixtureClient} from '../shared/ipsCompanyScope.js';
 
 const emailRegex=/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
@@ -32,7 +32,6 @@ const appBase=env=>{
   }catch{}
   return null;
 };
-export const companyStaffPasswordValid=password=>typeof password==='string'&&password.length>=10&&password.length<=128&&/[A-Z]/.test(password)&&/[0-9]/.test(password)&&/[^A-Za-z0-9]/.test(password);
 export const staffInvitationReady=(env=process.env)=>Boolean(
   env.EMAIL_VERIFICATION_SECRET?.length>=32&&env.CONTACT_RESEND_API_KEY&&appBase(env)
 );
