@@ -22,27 +22,45 @@ export default function DirectMessaging({ role }) {
   const endRef = useRef(null);
 
   const loadConversations = useCallback(async () => {
-    const response = await fetch('/api/conversations', { headers });
-    const data = await response.json();
-    if (!response.ok) return setError(data.error || 'Could not load conversations.');
-    setConversations(data.conversations || []);
-    if (!selectedId && data.conversations?.length) setSelectedId(data.conversations[0].conversation_id);
-  }, [actor?.token, selectedId]);
+    try {
+      const response = await fetch('/api/conversations',{headers,credentials:'same-origin',cache:'no-store'});
+      const data = await response.json().catch(()=>({}));
+      if (!response.ok || !data.success) throw Error(data.error || 'Could not load private conversations.');
+      setConversations(data.conversations || []);
+      setSelectedId(current=>current || data.conversations?.[0]?.conversation_id || '');
+    } catch(error) { setError(error.message || 'Private conversations are temporarily unavailable.'); }
+  }, [actor?.token]);
 
   const loadThread = useCallback(async () => {
-    if (!selectedId) return;
-    const response = await fetch(`/api/conversations/${selectedId}/messages`, { headers });
-    const data = await response.json();
-    if (!response.ok) return setError(data.error || 'Could not open conversation.');
-    setThread(data.conversation); setMessages(data.messages || []); setViewerId(data.viewer_id || '');
-  }, [selectedId, actor?.token]);
+    if (!selectedId) { setThread(null);setMessages([]);return; }
+    try {
+      const response = await fetch('/api/conversations/'+encodeURIComponent(selectedId)+'/messages',
+        {headers,credentials:'same-origin',cache:'no-store'});
+      const data = await response.json().catch(()=>({}));
+      if (!response.ok || !data.success) throw Error(data.error || 'Could not open the selected private conversation.');
+      setThread(data.conversation);setMessages(data.messages || []);setViewerId(data.viewer_id || '');
+    } catch(error) { setError(error.message || 'The private conversation is temporarily unavailable.'); }
+  }, [selectedId,actor?.token]);
 
   useEffect(() => {
-    fetch('/api/messaging/directory', { headers }).then(r => r.json()).then(data => { if (data.success) setDirectory(data); }).catch(() => {});
+    let mounted=true;
+    (async()=>{
+      try{
+        const res=await fetch('/api/messaging/directory',{headers,credentials:'same-origin',cache:'no-store'});
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok || !data.success)throw Error(data.error||'Could not load verified IPS recipients.');
+        if(mounted)setDirectory(data);
+      }catch(error){if(mounted)setError(error.message);}
+    })();
     loadConversations();
-  }, [actor?.token]);
-  useEffect(() => { loadThread(); const timer = setInterval(() => { loadThread(); loadConversations(); }, 10000); return () => clearInterval(timer); }, [loadThread]);
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
+    return ()=>{mounted=false;};
+  }, [actor?.token,loadConversations]);
+  useEffect(() => {
+    loadThread();
+    const timer=setInterval(()=>{loadThread();loadConversations();},10000);
+    return ()=>clearInterval(timer);
+  }, [loadThread,loadConversations]);
+  useEffect(() => { endRef.current?.scrollIntoView({behavior:'smooth'}); }, [messages.length]);
 
   const filtered = useMemo(() => conversations.filter(item =>
     `${item.subject} ${item.last_message_preview} ${item.work_id} ${item.participants?.map(p => p.name).join(' ')}`.toLowerCase().includes(query.toLowerCase())
@@ -51,13 +69,13 @@ export default function DirectMessaging({ role }) {
   const createConversation = async event => {
     event.preventDefault();
     if (busy) return;
-    const [target_role, target_id, target_name] = draft.target.split('|');
+    const [target_role, target_id] = draft.target.split('|');
     setBusy(true); setError('');
     try {
       const response = await fetch('/api/conversations', {
         method: 'POST', credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', ...headers },
-        body: JSON.stringify({ ...draft, target_role, target_id, target_name })
+        body: JSON.stringify({ ...draft, target_role, target_id })
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || !data.success)
@@ -136,7 +154,7 @@ export default function DirectMessaging({ role }) {
     <section style={{ maxWidth: 1500, margin: '0 auto' }}>
       <div className="flex justify-between items-center" style={{ gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         <div><small style={{ color: 'var(--primary)', fontWeight: 800, letterSpacing: '.12em' }}>SECURE COMMUNICATIONS</small><h1 style={{ margin: '.25rem 0' }}>Messages</h1><p style={{ color: 'var(--text-muted)', margin: 0 }}>Private conversations, job context and protected attachments in one place.</p></div>
-        <div className="flex gap-1">{role === 'admin' && <Link className="btn btn-ghost" to="/admin/job-messages">Open job-message oversight</Link>}<button className="btn btn-primary" onClick={() => setShowNew(true)}>New conversation</button></div>
+        <div className="flex gap-1">{role === 'admin' && <Link className="btn btn-ghost" to="/admin/services">Academic projects</Link>}<button className="btn btn-primary" onClick={() => setShowNew(true)}>New conversation</button></div>
       </div>
       {error && <div className="card" style={{ color: 'var(--danger)', marginBottom: 10 }}>{error}</div>}
       {showNew && <form className="card" onSubmit={createConversation} style={{ marginBottom: 12 }}>
@@ -146,7 +164,7 @@ export default function DirectMessaging({ role }) {
           <label className="form-group"><span className="form-label">Conversation</span><select className="form-select" value={draft.type} onChange={e=>setDraft({...draft,type:e.target.value,target:'',work_id:''})}>
             {role === 'admin' ? <><option value="client_admin">Admin ↔ client</option><option value="writer_admin">Admin ↔ provider</option><option value="client_provider">Client ↔ provider (approved job)</option></> : <><option value={role === 'client' ? 'client_admin' : 'writer_admin'}>Message IPS Admin</option>{directJobs.length > 0 && <option value="client_provider">Approved client-provider job chat</option>}</>}
           </select></label>
-          {role === 'admin' && draft.type !== 'client_provider' && <label className="form-group"><span className="form-label">Recipient</span><select required className="form-select" value={draft.target} onChange={e=>setDraft({...draft,target:e.target.value})}><option value="">Choose recipient</option>{targetOptions.map(person => { const id=person.client_id||person.writer_id; return <option key={id} value={`${draft.type==='client_admin'?'client':'writer'}|${id}|${person.full_name}`}>{person.full_name} · {person.email}</option>; })}</select></label>}
+          {role === 'admin' && draft.type !== 'client_provider' && <label className="form-group"><span className="form-label">Recipient</span><select required className="form-select" value={draft.target} onChange={e=>setDraft({...draft,target:e.target.value})}><option value="">Choose recipient</option>{targetOptions.map(person => { const id=person.client_id||person.writer_id; return <option key={id} value={`${draft.type==='client_admin'?'client':'writer'}|${id}`}>{person.username||person.full_name||id} · {person.email}</option>; })}</select></label>}
           {(draft.type === 'client_provider' || role !== 'admin') && <label className="form-group"><span className="form-label">{draft.type === 'client_provider' ? 'Approved job' : 'Link a job (optional)'}</span><select required={draft.type==='client_provider'} className="form-select" value={draft.work_id} onChange={e=>setDraft({...draft,work_id:e.target.value})}><option value="">No linked job</option>{(draft.type==='client_provider'?directJobs:directory.jobs||[]).map(job=><option key={job.work_id} value={job.work_id}>{job.work_id} · {job.title}</option>)}</select></label>}
         </div>
         <button disabled={busy} className="btn btn-primary">{busy ? 'Creating…' : 'Create conversation'}</button>
