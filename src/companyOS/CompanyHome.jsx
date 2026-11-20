@@ -14,7 +14,7 @@ export default function CompanyHome(){
   const pulse=summarizeWork(cases.value);
   const coverage=departmentCoverage(team.value);
   const uncovered=coverage?.filter(d=>!d.managers.length)||[];
-  const decisions=(cases.value||[]).filter(caseNeedsDecision).sort((a,b)=>Number(caseLate(b))-Number(caseLate(a))||Number(caseNeedsOwner(b))-Number(caseNeedsOwner(a))).slice(0,9);
+  const decisions=(cases.value||[]).filter(c=>caseNeedsDecision(c)).sort((a,b)=>Number(caseLate(b))-Number(caseLate(a))||Number(caseNeedsOwner(b))-Number(caseNeedsOwner(a))).slice(0,9);
   const readyClients=clients.value?.filter(readyClient).length??null;
   const readyProviders=specialists.value?.filter(readySpecialist).length??null;
   const reload=()=>{cases.refresh();team.refresh();clients.refresh();specialists.refresh();};
