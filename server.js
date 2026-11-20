@@ -924,6 +924,13 @@ app.patch('/api/provider/applications/:id', async (req, res) => {
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const decision = String(req.body.decision || '').toLowerCase();
     if (!['approved', 'rejected', 'more_information'].includes(decision)) return res.status(400).json({ success: false, error: 'Invalid review decision.' });
+    if(!hasAdminPermission(req.adminAccess,'providers.manage'))
+      return res.status(403).json({success:false,error:'Specialist qualification management permission required.'});
+    if(decision==='approved'){
+      const candidate=await Writer.findOne({writer_id:req.params.id}).select('email_verified_at');
+      if(!candidate||!candidate.email_verified_at)
+        return res.status(409).json({success:false,error:'Specialist must prove registered email ownership before IPS can approve the application.'});
+    }
     const updates = {
       application_status: decision,
       status: decision === 'approved' ? 'Active' : 'Inactive',
