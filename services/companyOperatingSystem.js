@@ -7,6 +7,7 @@ import CompanyCaseAction from '../models/CompanyCaseAction.js';
 import AuditLog from '../models/AuditLog.js';
 import {sendBusinessEmail} from './businessEmailTransport.js';
 import {requestPasswordRecovery,recoveryReady} from './passwordRecovery.js';
+import {issueEmailChallenge,verificationAvailable} from './accountVerification.js';
 import {emailValid,normalizeEmail} from '../shared/privacyIdentity.js';
 import {hasAdminPermission} from '../shared/adminPermissions.js';
 import {COMPANY_DEPARTMENTS,isCompanyDepartment,mayManageTeamMember,
@@ -292,6 +293,39 @@ export function registerCompanyOperatingSystem(app,{
       details:{staff_id:memberId,replacement_id:replacementId||null,transferred:{tasks:actions,enquiries:quotes,support,staff:staffReports}}});
     res.set('Cache-Control','private, no-store');
     res.json({success:true,archived:true,replacement_id:replacementId||null,sessionsRevoked:true});
+  });
+
+  // An administrator may reissue a proof-of-email challenge, never mark an
+  // account verified. The account holder must complete the existing challenge.
+  app.post('/api/admin/clients/:id/resend-verification',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    const access=req.adminAccess;
+    if(session.role!=='admin'||!access||!hasAdminPermission(access,'clients.manage'))
+      return invalid(res,'Client account management permission required.',403);
+    const id=String(req.params.id||'');
+    const reason=String(req.body?.reason||'').trim();
+    if(!/^CID-[A-Za-z0-9_-]{5,60}$/.test(id)||reason.length<10||reason.length>500)
+      return invalid(res,'A client reference and a documented support reason are required.');
+    if(!verificationAvailable(env))
+      return invalid(res,'Verified email delivery is not configured.',503);
+    try{
+      const client=await clientModel.findOne({client_id:id})
+        .select('+verification_hash +verification_expires_at +verification_sent_at +verification_attempts');
+      if(!client||client.email_verified_at||
+        !['Active','Pending Verification'].includes(client.status)||
+        (production()&&isIpsQaFixtureClient(client)))
+        return invalid(res,'Only eligible unverified IPS clients can receive a new verification code.',409);
+      const result=await issueEmailChallenge(client,{env,send});
+      if(result.already_verified)return invalid(res,'This account is already verified.',409);
+      await log({actor:access.adminId,action:'company_client_verification_reissued',
+        details:{client_id:id,reason,delivery:'registered_account_email_only'}});
+      res.set('Cache-Control','private, no-store');
+      return res.status(202).json({success:true,
+        message:'Verification code accepted by the email provider. Only the account holder can complete verification.'});
+    }catch(error){
+      if(error.status===429)return invalid(res,'Wait at least 60 seconds before issuing another verification code.',429);
+      return invalid(res,'The email provider did not accept the verification request.',503);
+    }
   });
 
   app.post('/api/admin/clients/:id/password-recovery',async(req,res)=>{
