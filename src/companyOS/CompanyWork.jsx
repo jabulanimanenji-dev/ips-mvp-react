@@ -111,7 +111,7 @@ export default function CompanyWork({initialFilter}){
             </div>
             {selected.kind==='enquiry'&&!selected.verified&&<div className="os-command-note"><AdminIcon name="lock" size={16}/> Do not send private academic material or quotations before verified consent and channel authorization.</div>}
             <div className="os-pill-bar">{[['brief','Brief'],['timeline','Activity'],['tasks','Tasks'],['notes','Private notes']].map(([id,label])=>
-              <button key={id} type="button" className="os-pill" aria-pressed={tab===id} onClick={()=>setTab(id)}>{label}</button>)}</div>
+              <button key={id} type="button" className="os-pill" aria-pressed={tab===id} onClick={()=>{setTab(id);if(id==='notes')setEntryKind('note');if(id==='tasks')setEntryKind('task');}}>{label}</button>)}</div>
             {loadingDetail&&<Empty>Opening the protected source record…</Empty>}
             <ErrorState error={error} retry={()=>{source.refresh();}}/>
             {notice&&<div className="os-notice" role="status">{notice}</div>}
