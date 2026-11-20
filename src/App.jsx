@@ -29,12 +29,9 @@ import ClientServices from './components/client/ClientServices';
 import AdminLayout from './pages/AdminLayout';
 import AdminLogin from './components/admin/AdminLogin';
 import AdminDashboard from './components/admin/AdminDashboard';
-import AdminOrders from './components/admin/AdminOrders';
-import AdminOrderDetail from './components/admin/AdminOrderDetailMongo';
 import AdminClients from './components/admin/AdminClients';
 import AdminWriters from './components/admin/AdminWriters';
 import AdminPayments from './components/admin/AdminPayments';
-import AdminCMS from './components/admin/AdminCMS';
 import AdminMessages from './components/admin/AdminMessages';
 import AdminReports from './components/admin/AdminReports';
 import AdminSettings from './components/admin/AdminSettings';
@@ -380,19 +377,13 @@ export default function App() {
         />
 
 
-        <Route
-          path="orders"
-          element={<AdminOrders />}
-        />
+        <Route path="orders" element={<Navigate to="/admin/services" replace />} />
 
         <Route path="services" element={<AdminServices />} />
         <Route path="services/:requestId" element={<ServiceJobDetail role="admin" />} />
 
 
-        <Route
-          path="orders/:orderId"
-          element={<AdminOrderDetail />}
-        />
+        <Route path="orders/:orderId" element={<Navigate to="/admin/services" replace />} />
 
 
         <Route
@@ -413,10 +404,7 @@ export default function App() {
         />
 
 
-        <Route
-          path="cms"
-          element={<AdminCMS />}
-        />
+        <Route path="cms" element={<Navigate to="/admin/dashboard" replace />} />
 
 
         <Route
@@ -426,7 +414,7 @@ export default function App() {
         <Route path="job-messages" element={<AdminMessages />} />
         <Route path="external-chats" element={<ChannelInbox />} />
         <Route path="enquiries" element={<AdminEnquiries />} />
-        <Route path="actions" element={<ActionCenter role="admin" />} />
+        <Route path="actions" element={<Navigate to="/admin/enquiries" replace />} />
         <Route path="support" element={<AdminSupportTickets />} />
 
 

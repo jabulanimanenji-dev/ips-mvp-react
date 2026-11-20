@@ -826,6 +826,55 @@ async function go(){
   pass('Messenger unlink withdraws quote verification and blocks workspace access until new consent');
   pass('Student-controlled channel unlink');
 
+  // Real MongoDB + real signed Telegram webhook + authenticated admin.
+  // An unverified customer can receive *general support* after initiating
+  // contact, but never project data, account information or unsolicited spam.
+  const generalId='790004210';
+  const generalUpdate={update_id:1900000042,message:{
+    chat:{id:Number(generalId),type:'private'},
+    from:{username:'ips_company_test_visitor'},
+    date:Math.floor(Date.now()/1000),text:'Hello IPS, I would like general information.'
+  }};
+  const generalHook=await call('/api/channels/telegram/webhook',{
+    method:'POST',raw:JSON.stringify(generalUpdate),
+    headers:{'Content-Type':'application/json',
+      'x-telegram-bot-api-secret-token':'ci_telegram_secret_random_123'}
+  });
+  assert.equal(generalHook.status,200,JSON.stringify(generalHook.body));
+  const generalThreads=await call('/api/contact-channels/admin/threads',{session:admin.cookie});
+  assert.equal(generalThreads.status,200);
+  const generalThread=generalThreads.body.threads.find(t=>t.channel==='telegram'&&t.external_id===generalId);
+  assert.ok(generalThread,'Signed webhook must persist the new Telegram contact.');
+  assert.equal(generalThread.verified_contact,false);
+  assert.equal(generalThread.support_reply_allowed,true);
+  assert.equal(generalThread.reply_mode,'general_support');
+  const generalForbidden=await call('/api/contact-channels/admin/threads/'+generalThread._id+'/reply',{
+    method:'POST',session:admin.cookie,json:{body:'Send your private quote via https://example.com/123'}
+  });
+  assert.equal(generalForbidden.status,400);
+  const generalNoAuth=await call('/api/contact-channels/admin/threads/'+generalThread._id+'/reply',{
+    method:'POST',session:alice.cookie,json:{body:'Hello from an unauthorized client'}
+  });
+  assert.equal(generalNoAuth.status,403);
+  pass('Signed Telegram customer-initiated general support is reply-eligible without granting private project access');
+  const generalStop={...generalUpdate,update_id:1900000043,
+    message:{...generalUpdate.message,text:'STOP'}};
+  const stopTelegram=await call('/api/channels/telegram/webhook',{
+    method:'POST',raw:JSON.stringify(generalStop),
+    headers:{'Content-Type':'application/json',
+      'x-telegram-bot-api-secret-token':'ci_telegram_secret_random_123'}
+  });
+  assert.equal(stopTelegram.status,200);
+  const afterTelegramStop=await call('/api/contact-channels/admin/threads',{session:admin.cookie});
+  const closedGeneral=afterTelegramStop.body.threads.find(t=>t._id===generalThread._id);
+  assert.equal(closedGeneral?.status,'closed');
+  assert.equal(closedGeneral?.support_reply_allowed,false);
+  const forbiddenAfterStop=await call('/api/contact-channels/admin/threads/'+generalThread._id+'/reply',{
+    method:'POST',session:admin.cookie,json:{body:'No messaging after consent withdrawal'}
+  });
+  assert.equal(forbiddenAfterStop.status,409);
+  pass('Telegram customer STOP immediately disables general support replies and preserves project privacy');
+
   console.log('ALL '+cases.length+' database-backed workflow gates passed.');
 }
 go().catch(async err=>{

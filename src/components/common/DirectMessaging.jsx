@@ -49,19 +49,28 @@ export default function DirectMessaging({ role }) {
   ), [conversations, query]);
 
   const createConversation = async event => {
-    event.preventDefault(); setBusy(true); setError('');
+    event.preventDefault();
+    if (busy) return;
     const [target_role, target_id, target_name] = draft.target.split('|');
-    const response = await fetch('/api/conversations', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({ ...draft, target_role, target_id, target_name })
-    });
-    const data = await response.json();
-    if (!response.ok) setError(data.error || 'Conversation could not be created.');
-    else {
-      setShowNew(false); setDraft({ subject: '', type: role === 'client' ? 'client_admin' : role === 'writer' ? 'writer_admin' : 'client_admin', target: '', work_id: '' });
-      setSelectedId(data.conversation.conversation_id); await loadConversations();
+    setBusy(true); setError('');
+    try {
+      const response = await fetch('/api/conversations', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ ...draft, target_role, target_id, target_name })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success)
+        throw Error(data.error || 'The conversation was not created. Your draft is preserved.');
+      setShowNew(false);
+      setDraft({ subject: '', type: role === 'client' ? 'client_admin' : role === 'writer' ? 'writer_admin' : 'client_admin', target: '', work_id: '' });
+      setSelectedId(data.conversation.conversation_id);
+      await loadConversations();
+    } catch (error) {
+      setError(error.message || 'The conversation was not created. Your draft is preserved.');
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   };
 
   const chooseFiles = async event => {
@@ -79,23 +88,45 @@ export default function DirectMessaging({ role }) {
   };
 
   const send = async () => {
-    if (!body.trim() && !attachments.length) return;
+    if (busy || !selectedId || (!body.trim() && !attachments.length)) return;
     setBusy(true); setError('');
-    const response = await fetch(`/api/conversations/${selectedId}/messages`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({ body, attachments })
-    });
-    const data = await response.json();
-    if (!response.ok) setError(data.error || 'Message could not be sent.');
-    else { setBody(''); setAttachments([]); await loadThread(); await loadConversations(); }
-    setBusy(false);
+    try {
+      const response = await fetch(`/api/conversations/${encodeURIComponent(selectedId)}/messages`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ body: body.trim(), attachments })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success)
+        throw Error(data.error || 'The private message was not accepted by IPS. Your draft is still here.');
+      setBody(''); setAttachments([]);
+      await Promise.all([loadThread(),loadConversations()]);
+    } catch (error) {
+      setError(error.message || 'The private message could not be sent. Your draft is still here.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const patchConversation = async updates => {
-    const response = await fetch(`/api/conversations/${selectedId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...headers }, body: JSON.stringify(updates) });
-    const data = await response.json();
-    if (!response.ok) setError(data.error || 'Conversation could not be updated.');
-    else { setThread(data.conversation); await loadConversations(); }
+    if (busy || !selectedId) return;
+    setBusy(true); setError('');
+    try {
+      const response = await fetch(`/api/conversations/${encodeURIComponent(selectedId)}`, {
+        method: 'PATCH', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify(updates)
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success)
+        throw Error(data.error || 'The conversation update could not be saved.');
+      setThread(data.conversation);
+      await loadConversations();
+    } catch (error) {
+      setError(error.message || 'The conversation update could not be saved.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const directJobs = directory.jobs?.filter(job => job.direct_contact_enabled) || [];

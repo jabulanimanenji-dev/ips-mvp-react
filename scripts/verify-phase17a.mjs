@@ -913,10 +913,11 @@ assert.ok(
   'Legacy service-request updates must remain available.'
 );
 
-assert.match(
-  legacyAdminServices,
-  /Service Operations/
-);
+// The historical Phase 17 engine remains available for archival source
+// continuity, but the live IPS company workspace no longer surfaces generic
+// professional/odd-job service operations.
+assert.match(legacyAdminServices,/Academic projects/);
+assert.match(legacyAdminServices,/isCompanyAcademicProject/);
 
 const platformDefaults =
   normalisePlatformConfig(

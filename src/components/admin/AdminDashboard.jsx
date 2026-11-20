@@ -1,98 +1,116 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useCMS } from '../../context/CMSContext';
-import { fmtCur, fmtDate } from '../../utils/formatters';
-import { BADGE_STYLES } from '../../utils/constants';
-import DashboardZone from '../common/DashboardZone';
-import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
+import React,{useCallback,useEffect,useState} from 'react';
+import {Link} from 'react-router-dom';
+import {useAuth} from '../../context/AuthContext';
 
-export default function AdminDashboard() {
-  const { cms } = useCMS();
-  const [analytics, setAnalytics] = useState(null);
-  const [error, setError] = useState('');
+const panelLink=(to,title,description)=>(
+  <Link to={to} key={to} style={{display:'block',textDecoration:'none',color:'var(--text-primary)',border:'1px solid var(--border)',
+    borderRadius:11,padding:'15px 17px',background:'var(--bg-surface-2)'}}>
+    <strong style={{display:'block',fontSize:'.95rem'}}>{title}</strong>
+    <small style={{color:'var(--text-muted)',display:'block',marginTop:5,lineHeight:1.5}}>{description}</small>
+  </Link>
+);
 
-  useEffect(() => {
-    fetch('/api/admin/analytics')
-      .then(async response => {
-        const data = await response.json();
-        if (!response.ok || !data.success) throw new Error(data.error || 'Dashboard could not be loaded.');
-        setAnalytics(data.analytics);
-      })
-      .catch(loadError => setError(loadError.message));
-  }, []);
+export default function AdminDashboard(){
+  const {hasAdminPermission}=useAuth();
+  const [summary,setSummary]=useState({newRequests:null,unassigned:null,overdue:null,unread:null,openSupport:null});
+  const [error,setError]=useState('');
+  const [loading,setLoading]=useState(true);
+  const [updated,setUpdated]=useState(null);
 
-  const counts = analytics?.counts || {};
-  const finance = analytics?.finance || {};
-  const attention = analytics?.attention || [];
-  const activity = analytics?.recentActivity || [];
-  const statCards = [
-    { title: 'Academic paid', value: fmtCur(finance.paidAcademic || 0), description:'Verified payments' },
-    { title: 'Active work', value: counts.activeWork || 0, description:'Engagements in progress' },
-    { title: 'New registrations', value: counts.newSignups30d || 0, description:'Past 30 days' },
-    { title: 'Open support', value: counts.openTickets || 0, description:'Requiring attention' }
-  ];
+  const refresh=useCallback(async()=>{
+    setLoading(true);setError('');
+    const next={newRequests:null,unassigned:null,overdue:null,unread:null,openSupport:null};
+    const errors=[];
+    async function get(path){
+      const response=await fetch(path,{cache:'no-store',credentials:'same-origin'});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!data.success)throw Error(data.error||'Operational feed unavailable.');
+      return data;
+    }
+    const checks=[];
+    if(hasAdminPermission('support.view'))checks.push((async()=>{
+      try{
+        const data=await get('/api/contact-enquiries/admin/attention');
+        next.newRequests=Number(data.new_requests||0);
+        next.unassigned=Number(data.unassigned_requests||0);
+        next.overdue=Number(data.overdue_updates||0);
+      }catch(e){errors.push('Quotation queue: '+e.message);}
+    })());
+    if(hasAdminPermission('messages.view'))checks.push((async()=>{
+      try{
+        const data=await get('/api/contact-channels/admin/threads');
+        next.unread=(data.threads||[]).filter(t=>t.channel==='telegram').reduce((sum,t)=>sum+Number(t.unread_count||0),0);
+      }catch(e){errors.push('Telegram inbox: '+e.message);}
+    })());
+    if(hasAdminPermission('support.view'))checks.push((async()=>{
+      try{
+        const data=await get('/api/support-tickets');
+        next.openSupport=(data.tickets||[]).filter(t=>!['Resolved','Closed'].includes(t.status)).length;
+      }catch(e){errors.push('Support cases: '+e.message);}
+    })());
+    await Promise.all(checks);
+    setSummary(next);
+    setUpdated(new Date());
+    setError(errors.join(' '));
+    setLoading(false);
+  },[hasAdminPermission]);
 
-  return (
-    <div>
-      <div className="flex justify-between items-end" style={{ marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
-        <div><div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>MongoDB mission control</div><h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '.35rem 0' }}>Dashboard</h2></div>
-        <small style={{ color: 'var(--text-muted)' }}>One source of truth across every IPS service</small>
+  useEffect(()=>{refresh();},[refresh]);
+
+  const metrics=[
+    {label:'New private enquiries',value:summary.newRequests,path:'/admin/enquiries',permission:'support.view'},
+    {label:'Unassigned requests',value:summary.unassigned,path:'/admin/enquiries',permission:'support.view'},
+    {label:'Updates overdue',value:summary.overdue,path:'/admin/enquiries',permission:'support.view'},
+    {label:'Unread Telegram messages',value:summary.unread,path:'/admin/external-chats',permission:'messages.view'},
+    {label:'Open support cases',value:summary.openSupport,path:'/admin/support',permission:'support.view'}
+  ].filter(m=>hasAdminPermission(m.permission));
+
+  return <div style={{maxWidth:1350,margin:'0 auto'}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'start',flexWrap:'wrap',marginBottom:22}}>
+      <div>
+        <small style={{color:'var(--text-secondary)',fontWeight:750,letterSpacing:'.13em'}}>IPS ACADEMIC SERVICES</small>
+        <h1 style={{margin:'5px 0 8px',fontSize:'1.75rem'}}>Company operations</h1>
+        <p style={{margin:0,maxWidth:720,color:'var(--text-muted)',lineHeight:1.6}}>
+          Manage confidential enquiries, written customer support, specialists and academic projects. Only production IPS work belongs in this workspace.
+        </p>
       </div>
-      {error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{error}</div>}
-
-      <div className="grid grid-3 gap-4">
-        <DashboardZone portal="admin" id="stats">
-          <div className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
-            {statCards.map(card => (
-              <div key={card.title} className="card ips-metric-card">
-                <span className="ips-metric-label">{card.title}</span>
-                <strong className="ips-metric-value">{card.value}</strong>
-                <span className="ips-metric-caption">{card.description}</span>
-              </div>
-            ))}
-          </div>
-        </DashboardZone>
-
-        <DashboardZone portal="admin" id="attention">
-          <div className="card" style={{ gridColumn: 'span 2' }}>
-            <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}><h3>Academic Orders Needing Attention</h3><Link to="/admin/orders" className="btn btn-secondary btn-sm">View All</Link></div>
-            {attention.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>All clear.</p> : (
-              <div style={{ overflowX: 'auto' }}><table className="data-table"><thead><tr><th>ID</th><th>Client</th><th>Service</th><th>Deadline</th><th>Status</th></tr></thead><tbody>
-                {attention.map(item => <tr key={item.order_id}><td><Link to={`/admin/orders/${item.order_id}`}>{item.order_id}</Link></td><td>{item.client_name}</td><td>{item.service_type}</td><td>{fmtDate(item.deadline)}</td><td><span className={`badge ${BADGE_STYLES[item.status] || 'badge-new'}`}>{item.status}</span></td></tr>)}
-              </tbody></table></div>
-            )}
-          </div>
-        </DashboardZone>
-
-        <DashboardZone portal="admin" id="quickActions">
-          <div className="card"><h3 style={{ marginBottom: '1rem' }}>Quick Actions</h3><ConfigurableActionGroup portal="admin" area="quickActions" className="flex flex-col gap-2" /></div>
-        </DashboardZone>
-
-        <DashboardZone portal="admin" id="activity">
-          <div className="card" style={{ gridColumn: 'span 2' }}>
-            <h3 style={{ marginBottom: '1rem' }}>Recent Platform Activity</h3>
-            {activity.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>No activity yet.</p> : activity.map(item => (
-              <Link key={`${item.kind}-${item.id}`} to={item.target} className="flex justify-between items-center" style={{ padding: '.7rem 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
-                <span><strong>{item.text}</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>{fmtDate(item.date)} · {item.kind}</small></span>
-                <span className={`badge ${BADGE_STYLES[item.status] || 'badge-review'}`}>{item.status}</span>
-              </Link>
-            ))}
-          </div>
-        </DashboardZone>
-
-        <DashboardZone portal="admin" id="cmsStatus">
-          <div className="card">
-            <h3 style={{ marginBottom: '1rem' }}>Platform Status</h3>
-            <div className="flex flex-col gap-3">
-              <div className="flex justify-between"><span>Brand</span><strong>{cms?.brand?.name || 'IPS'}</strong></div>
-              <div className="flex justify-between"><span>Clients</span><strong>{counts.clients || 0}</strong></div>
-              <div className="flex justify-between"><span>Providers</span><strong>{counts.providers || 0}</strong></div>
-              <div className="flex justify-between"><span>Service requests</span><strong>{counts.serviceRequests || 0}</strong></div>
-              <Link to="/admin/cms" className="btn btn-primary btn-sm">Open Visual Builder</Link>
-            </div>
-          </div>
-        </DashboardZone>
-      </div>
+      <button type="button" className="btn btn-secondary" onClick={refresh} disabled={loading}>{loading?'Updating…':'Refresh status'}</button>
     </div>
-  );
+    {error&&<p role="alert" className="card" style={{color:'var(--danger)',borderLeft:'4px solid var(--danger)',marginBottom:18}}>Some live feeds are unavailable: {error}. Unavailable figures are shown as —, not zero.</p>}
+    <div className="card" style={{borderLeft:'4px solid #c7a46e',marginBottom:22,padding:'14px 18px'}}>
+      <strong>Publication state · payments not activated</strong>
+      <p style={{fontSize:'.85rem',color:'var(--text-muted)',margin:'6px 0 0'}}>IPS communicates in writing. Customer names are not required for initial quotations, and project files remain private. Payment records are not evidence of real collections until a verified provider is active.</p>
+    </div>
+    <div className="ipsa-company-metrics" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:14,marginBottom:24}}>
+      {metrics.map(m=><Link key={m.label} to={m.path} className="card" style={{color:'inherit',textDecoration:'none',padding:'17px 18px'}}>
+        <small style={{color:'var(--text-muted)',display:'block',minHeight:32}}>{m.label}</small>
+        <strong style={{fontSize:'1.85rem',display:'block',fontVariantNumeric:'tabular-nums',marginTop:4}}>{m.value===null?'—':m.value}</strong>
+        <small style={{color:'var(--text-secondary)'}}>Open queue</small>
+      </Link>)}
+    </div>
+    <div className="ipsa-company-actions" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(275px,1fr))',gap:16}}>
+      {hasAdminPermission('support.view')&&<section className="card">
+        <h2 style={{fontSize:'1.12rem',margin:'0 0 13px'}}>Client intake & care</h2>
+        <div style={{display:'grid',gap:10}}>
+          {panelLink('/admin/enquiries','Review quotations','Assign a reviewer, verify the selected written contact and respond to the client.')}
+          {panelLink('/admin/support','Resolve support cases','Manage outstanding support cases and agreed follow-ups.')}
+        </div>
+      </section>}
+      {hasAdminPermission('messages.view')&&<section className="card">
+        <h2 style={{fontSize:'1.12rem',margin:'0 0 13px'}}>Confidential communication</h2>
+        <div style={{display:'grid',gap:10}}>
+          {panelLink('/admin/external-chats','Respond on Telegram','Answer fresh customer enquiries; require verification for private project details.')}
+          {panelLink('/admin/messages','Secure IPS conversations','Use the protected workspace for client, specialist and project messages.')}
+        </div>
+      </section>}
+      {(hasAdminPermission('orders.view')||hasAdminPermission('providers.view'))&&<section className="card">
+        <h2 style={{fontSize:'1.12rem',margin:'0 0 13px'}}>Delivery & quality</h2>
+        <div style={{display:'grid',gap:10}}>
+          {hasAdminPermission('orders.view')&&panelLink('/admin/orders','Academic project oversight','Review assigned work, deadlines and quality decisions.')}
+          {hasAdminPermission('providers.view')&&panelLink('/admin/writers','Specialist applications','Review qualifications and activate approved specialists.')}
+        </div>
+      </section>}
+    </div>
+    {updated&&<p style={{color:'var(--text-muted)',fontSize:'.75rem',marginTop:16}}>Live operational feeds last checked: {updated.toLocaleString()}.</p>}
+  </div>;
 }

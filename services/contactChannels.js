@@ -6,6 +6,7 @@ import ChannelLinkToken from '../models/ChannelLinkToken.js';
 import {quoteReferenceFromMessage,confirmQuoteMessengerContact} from './quoteRequests.js';
 import ContactEnquiry from '../models/ContactEnquiry.js';
 import {enqueueContactEmailJobs} from './contactEmailQueue.js';
+import {canReplyToPublicTelegramSupport,isSubstantiveTelegramInbound,safePublicSupportReply,TELEGRAM_GENERAL_SUPPORT_WINDOW_MS} from './telegramSupportPolicy.js';
 
 const maxBodyLength = 3000;
 const safeText = input => typeof input === 'string' ? input.trim().slice(0,maxBodyLength) : '';
@@ -205,11 +206,11 @@ export function publicContactConfig(env=process.env){
     confidentiality:'Messages in external apps are processed under those providers\' terms. Keep payment details, private academic files and sensitive data in your IPS account.'};
 }
 
-async function deliverExternalMessage(contact,body){
+export async function deliverExternalMessage(contact,body,{request=fetch,env=process.env}={}){
   if(contact.channel==='telegram'){
-    const token=process.env.TELEGRAM_BOT_TOKEN;
+    const token=env.TELEGRAM_BOT_TOKEN;
     if(!token)throw Error('Telegram transport is not configured');
-    const response=await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{
+    const response=await request('https://api.telegram.org/bot'+token+'/sendMessage',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:contact.external_id,text:body}),
       signal:AbortSignal.timeout(12000)});
     const data=await response.json().catch(()=>({}));
@@ -217,13 +218,13 @@ async function deliverExternalMessage(contact,body){
     return 'tg:sent:'+String(data.result.message_id);
   }
   if(contact.channel==='whatsapp'){
-    if(!process.env.WHATSAPP_ACCESS_TOKEN||!process.env.WHATSAPP_PHONE_NUMBER_ID)throw Error('WhatsApp transport is not configured');
+    if(!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID)throw Error('WhatsApp transport is not configured');
     // Free-form WhatsApp Cloud API text only within the customer service window.
     if(!contact.last_inbound_at||Date.now()-new Date(contact.last_inbound_at).getTime()>23*3600000)
       throw Error('WhatsApp session has ended; customer must message first or an approved template is required');
-    const endpoint='https://graph.facebook.com/'+String(process.env.WHATSAPP_GRAPH_VERSION||'v23.0')+'/'+encodeURIComponent(process.env.WHATSAPP_PHONE_NUMBER_ID)+'/messages';
-    const response=await fetch(endpoint,{method:'POST',
-      headers:{Authorization:'Bearer '+process.env.WHATSAPP_ACCESS_TOKEN,'Content-Type':'application/json'},
+    const endpoint='https://graph.facebook.com/'+String(env.WHATSAPP_GRAPH_VERSION||'v23.0')+'/'+encodeURIComponent(env.WHATSAPP_PHONE_NUMBER_ID)+'/messages';
+    const response=await request(endpoint,{method:'POST',
+      headers:{Authorization:'Bearer '+env.WHATSAPP_ACCESS_TOKEN,'Content-Type':'application/json'},
       body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to:contact.external_id,type:'text',text:{body}}),
       signal:AbortSignal.timeout(12000)});
     const data=await response.json().catch(()=>({}));
@@ -231,6 +232,16 @@ async function deliverExternalMessage(contact,body){
     return 'wa:sent:'+String(data.messages[0].id);
   }
   throw Error('Unsupported channel');
+}
+async function generalSupportReplyAllowed(contact){
+  if(!contact||contact.channel!=='telegram'||contact.status!=='open')return false;
+  const recent=await ChannelMessage.find({
+    contact_id:contact._id,channel:'telegram',
+    createdAt:{$gte:new Date(Date.now()-TELEGRAM_GENERAL_SUPPORT_WINDOW_MS)}
+  }).select('direction body createdAt').sort({createdAt:-1}).limit(80).lean();
+  const inbound=recent.find(m=>m.direction==='inbound'&&isSubstantiveTelegramInbound(m.body));
+  const outbound=recent.find(m=>m.direction==='outbound');
+  return canReplyToPublicTelegramSupport(contact,{inbound,outbound});
 }
 export function registerContactApi(app,{requireSession}){
   app.get('/api/contact-channels/config',(_req,res)=>{
@@ -280,7 +291,31 @@ export function registerContactApi(app,{requireSession}){
       const verified=await ContactEnquiry.find({contact_consent:true,contact_verified:true,status:{$ne:'closed'},contact_thread_id:{$in:threads.map(t=>String(t._id))}})
         .select('contact_thread_id').lean();
       const verifiedIds=new Set(verified.map(q=>q.contact_thread_id));
-      const rows=threads.map(t=>({...t,verified_contact:t.status==='open'&&verifiedIds.has(String(t._id))}));
+      // A general-support reply is permitted after a fresh, substantive
+      // customer-initiated Telegram message, even before account verification.
+      // This does not authorize discussion of projects or private quotes.
+      const eligible=threads.filter(t=>t.channel==='telegram'&&t.status==='open'&&!verifiedIds.has(String(t._id)));
+      const supportById=new Map();
+      if(eligible.length){
+        const recent=await ChannelMessage.find({
+          contact_id:{$in:eligible.map(t=>t._id)},channel:'telegram',
+          createdAt:{$gte:new Date(Date.now()-TELEGRAM_GENERAL_SUPPORT_WINDOW_MS)}
+        }).select('contact_id direction body createdAt').sort({createdAt:-1}).limit(3000).lean();
+        for(const message of recent){
+          const key=String(message.contact_id);
+          const state=supportById.get(key)||{};
+          if(message.direction==='outbound'&&!state.outbound)state.outbound=message;
+          if(message.direction==='inbound'&&!state.inbound&&isSubstantiveTelegramInbound(message.body))state.inbound=message;
+          supportById.set(key,state);
+        }
+      }
+      const rows=threads.map(t=>{
+        const verified=t.status==='open'&&verifiedIds.has(String(t._id));
+        const state=supportById.get(String(t._id))||{};
+        const support=!verified&&canReplyToPublicTelegramSupport(t,state);
+        return {...t,verified_contact:verified,support_reply_allowed:support,
+          reply_mode:verified?'verified':support?'general_support':'unavailable'};
+      });
       res.set('Cache-Control','no-store');res.json({success:true,threads:rows});
     }catch{res.status(500).json({success:false,error:'Unable to load channel inbox.'});}
   });
@@ -310,14 +345,21 @@ export function registerContactApi(app,{requireSession}){
         contact_thread_id:String(contact._id),preferred_channel:contact.channel,
         contact_verified:true,contact_consent:true,status:{$ne:'closed'}
       });
-      if(!authorized)return res.status(409).json({success:false,error:'Verified written-contact consent is required before replying through this conversation.'});
+      // General support is distinct from private project messaging.
+      // The user has already contacted the bot, so IPS staff may issue a
+      // single short reply; after that the customer must message again.
+      const generalSupport=!authorized&&await generalSupportReplyAllowed(contact);
+      if(!authorized&&!generalSupport)
+        return res.status(409).json({success:false,error:'This contact has no verified project request or fresh customer-initiated Telegram support message. Ask them to message IPS again.'});
+      if(generalSupport&&!safePublicSupportReply(body))
+        return res.status(400).json({success:false,error:'General Telegram support must be 1–650 characters, without links, reference numbers or private records. Move confidential discussion into the IPS workspace.'});
       let msgId;
       try{msgId=await deliverExternalMessage(contact,body);}
       catch(error){return res.status(502).json({success:false,error:error.message});}
       await ChannelMessage.create({contact_id:contact._id,channel:contact.channel,external_message_id:msgId,
         direction:'outbound',body,status:'sent',sent_by:session.id});
       await ChannelContact.updateOne({_id:contact._id},{$set:{last_message_at:new Date()}});
-      res.json({success:true});
+      res.json({success:true,delivery:'provider_accepted',reply_mode:generalSupport?'general_support':'verified'});
     }catch(error){res.status(500).json({success:false,error:'Reply may have been sent; refresh before retrying.'});}
   });
 }
