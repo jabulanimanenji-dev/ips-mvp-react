@@ -2,18 +2,18 @@
 // Legacy universal marketplace, Studio and cross-project controls stay archived
 // in source but are not operational IPS admin navigation.
 export const IPS_COMPANY_ADMIN_NAV = Object.freeze([
-  {label:'Overview',target:'/admin/dashboard',permission:'dashboard.view',icon:'▦',group:'Company'},
-  {label:'Quotes & enquiries',target:'/admin/enquiries',permission:'support.view',icon:'✉',group:'Company'},
-  {label:'Telegram support',target:'/admin/external-chats',permission:'messages.view',icon:'↗',group:'Company'},
-  {label:'Private messages',target:'/admin/messages',permission:'messages.view',icon:'◉',group:'Company'},
-  {label:'Support cases',target:'/admin/support',permission:'support.view',icon:'?',group:'Company'},
-  {label:'Clients',target:'/admin/clients',permission:'clients.view',icon:'◌',group:'Operations'},
-  {label:'Specialists',target:'/admin/writers',permission:'providers.view',icon:'◆',group:'Operations'},
-  {label:'Academic projects',target:'/admin/services',permission:'services.view',icon:'▤',group:'Operations'},
-  {label:'Reports',target:'/admin/reports',permission:'reports.view',icon:'▥',group:'Management'},
-  {label:'Team & access',target:'/admin/access',permission:'administrators.manage',icon:'♙',group:'Management'},
-  {label:'Settings',target:'/admin/settings',permission:'settings.view',icon:'⚙',group:'Management'},
-  {label:'Payments — pending',target:'/admin/payments',permission:'payments.view',icon:'◷',group:'Management'}
+  {label:'Overview',target:'/admin/dashboard',permission:'dashboard.view',icon:'overview',group:'Workspace'},
+  {label:'Quotes & enquiries',target:'/admin/enquiries',permission:'support.view',icon:'quotes',group:'Workspace'},
+  {label:'Telegram support',target:'/admin/external-chats',permission:'messages.view',icon:'telegram',group:'Workspace'},
+  {label:'Private messages',target:'/admin/messages',permission:'messages.view',icon:'messages',group:'Workspace'},
+  {label:'Support cases',target:'/admin/support',permission:'support.view',icon:'support',group:'Workspace'},
+  {label:'Academic projects',target:'/admin/services',permission:'services.view',icon:'projects',group:'Delivery'},
+  {label:'Specialists',target:'/admin/writers',permission:'providers.view',icon:'specialists',group:'Delivery'},
+  {label:'Clients',target:'/admin/clients',permission:'clients.view',icon:'clients',group:'Delivery'},
+  {label:'Reports',target:'/admin/reports',permission:'reports.view',icon:'reports',group:'Company'},
+  {label:'Team & access',target:'/admin/access',permission:'administrators.manage',icon:'access',group:'Company'},
+  {label:'Settings',target:'/admin/settings',permission:'settings.view',icon:'settings',group:'Company'},
+  {label:'Payments — pending',target:'/admin/payments',permission:'payments.view',icon:'payments',group:'Company'}
 ]);
 // Production historical data may contain synthetic records from earlier
 // platform/marketplace development. Do not delete or leak them into live
