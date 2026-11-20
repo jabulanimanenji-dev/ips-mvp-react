@@ -414,7 +414,7 @@ export default function App() {
         <Route path="job-messages" element={<AdminMessages />} />
         <Route path="external-chats" element={<ChannelInbox />} />
         <Route path="enquiries" element={<AdminEnquiries />} />
-        <Route path="actions" element={<ActionCenter role="admin" />} />
+        <Route path="actions" element={<Navigate to="/admin/enquiries" replace />} />
         <Route path="support" element={<AdminSupportTickets />} />
 
 
