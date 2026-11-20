@@ -1,4 +1,5 @@
 import {COMPANY_DEPARTMENTS} from '../../shared/companyGovernance.js';
+import {isOpenCompanyCase,isOverdueCompanyCase,needsCompanyCaseOwner,requiresManagementAttention} from '../../shared/companyPulse.js';
 import {isIpsQaFixtureClient,isIpsQaFixtureEmail} from '../../shared/ipsCompanyScope.js';
 
 export const COMPANY_NAV=Object.freeze([
@@ -35,10 +36,10 @@ export const DEPARTMENT_DESCRIPTIONS={
 };
 export const departmentNames=Object.fromEntries(Object.entries(COMPANY_DEPARTMENTS).map(([k,v])=>[k,v.label]));
 export const OPEN_STATES=new Set(['new','in_progress','waiting_for_customer','Open','In Progress','Waiting for Client','New Request','Awaiting Quote','Quote Sent','Quote Accepted','Awaiting Payment','Awaiting Assignment','Assigned','In Progress','Submitted for Review','Correction Required','Disputed','paused','pending']);
-export const caseOpen=c=>!['closed','Closed','Resolved','Completed','Cancelled','cancelled','completed'].includes(String(c?.status||''));
-export const caseNeedsOwner=c=>caseOpen(c)&&!c?.owner&&c?.kind!=='telegram';
-export const caseLate=c=>caseOpen(c)&&Boolean((c?.tasks?.overdue||0)>0||(c?.due_at&&new Date(c.due_at).getTime()<Date.now()));
-export const caseNeedsDecision=c=>caseOpen(c)&&(caseLate(c)||caseNeedsOwner(c)||c?.new_message||c?.priority==='urgent'||['Submitted for Review','Correction Required','Disputed'].includes(c?.status));
+export const caseOpen=isOpenCompanyCase;
+export const caseNeedsOwner=needsCompanyCaseOwner;
+export const caseLate=isOverdueCompanyCase;
+export const caseNeedsDecision=requiresManagementAttention;
 export const caseKey=c=>c.kind+':'+c.ref;
 export const caseUrl=c=>'/admin/case-desk?case='+encodeURIComponent(caseKey(c));
 export const shortDate=v=>{if(!v)return 'Not set';const d=new Date(v);return Number.isNaN(d.getTime())?'Not set':d.toLocaleString(undefined,{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});};
