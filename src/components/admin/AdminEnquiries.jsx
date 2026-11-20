@@ -1,5 +1,7 @@
 import React,{useEffect,useState} from 'react';
-import {Link} from 'react-router-dom';
+import {Link,useSearchParams} from 'react-router-dom';
+import AdminIcon from './AdminIcon.jsx';
+import {isIpsQaFixtureEmail} from '../../../shared/ipsCompanyScope.js';
 import {useAuth} from '../../context/AuthContext';
 import {serviceTitle,quoteSubjectTitle,quoteStatusTitle,contactChannelTitle} from '../../utils/quoteLabels.js';
 const needsUpdate=lead=>Boolean(lead?.next_update_at&&lead.status!=='closed'&&lead.status!=='waiting_for_customer'&&new Date(lead.next_update_at).getTime()<=Date.now());
@@ -28,6 +30,9 @@ function ContactActions({lead}){
 }
 export default function AdminEnquiries(){
   const {hasAdminPermission}=useAuth();
+  const [params,setParams]=useSearchParams();
+  const requestedCase=params.get('case');
+  const requestedFilter=params.get('filter');
   const [leads,setLeads]=useState([]),[selected,setSelected]=useState('');
   const [filter,setFilter]=useState('open'),[query,setQuery]=useState('');
   const [message,setMessage]=useState('');
@@ -51,11 +56,20 @@ export default function AdminEnquiries(){
       const response=await fetch('/api/contact-enquiries/admin',{cache:'no-store'});
       const result=await response.json();
       if(!response.ok||!result.success)throw Error(result.error||'Cannot load enquiries.');
-      setLeads(result.enquiries||[]);
-      setSelected(prev=>prev||result.enquiries?.[0]?.enquiry_id||'');
+      const companyLeads=(result.enquiries||[]).filter(q=>!isIpsQaFixtureEmail(q.email)&&
+        !/^(?:TEST|DEMO|EVAL)-/i.test(String(q.enquiry_id||'')));
+      setLeads(companyLeads);
+      setSelected(prev=>prev||companyLeads[0]?.enquiry_id||'');
     }catch(ex){setError(ex.message);}
   }
   useEffect(()=>{refresh();fetch('/api/contact-enquiries/config',{cache:'no-store'}).then(r=>r.json()).then(r=>setEmailReady(Boolean(r.email_replies_configured))).catch(()=>{});},[]);
+  useEffect(()=>{if(requestedCase&&leads.some(x=>x.enquiry_id===requestedCase))setSelected(requestedCase);},[requestedCase,leads.length]);
+  useEffect(()=>{if(['open','all','new','in_progress','waiting_for_customer','overdue','closed'].includes(requestedFilter))setFilter(requestedFilter);},[requestedFilter]);
+  function chooseCase(id){
+    setSelected(id);setMessage('');
+    const next=new URLSearchParams(params);next.set('case',id);
+    setParams(next,{replace:true});
+  }
   useEffect(()=>{setNextUpdate(localDateTime(current?.next_update_at));},[selected,current?.next_update_at]);
   useEffect(()=>{setObservedNumber('');setObservedReference('');setManualAttestation(false);setWithdrawalConfirmed(false);},[selected]);
   useEffect(()=>{
@@ -157,36 +171,76 @@ export default function AdminEnquiries(){
     }catch(ex){setError(ex.message);}
     finally{setBusy(false);}
   }
-  return <div className="ips-contact-admin">
-    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12,marginBottom:24}}>
-      <div><h1 style={{color:'#1d344b'}}>Private Quotes & Enquiries</h1><p style={{color:'#52667a'}}>Review private requests and reply only through each customer's verified, selected written channel.</p></div>
-      <button className="btn btn-ghost" type="button" onClick={()=>refresh()}>Refresh</button>
+  return <div className="ips-contact-admin ips-case-workspace">
+    <div className="ips-case-top">
+      <div><span className="ips-eyebrow">Client services · case management</span>
+        <h1>Private cases & quotations</h1>
+        <p>One controlled desk for the client request, contact verification, reviewer ownership, written correspondence and academic project handoff.</p>
+      </div>
+      <button className="btn btn-secondary" type="button" onClick={()=>refresh()}>
+        <AdminIcon name="refresh" size={16}/> Refresh case desk
+      </button>
     </div>
-    <p className="card" style={{marginBottom:15,fontSize:'.86rem'}}>Written communication only — no phone or voice calls. Never send private academic documents, research participant records, passwords or payment credentials through external messaging. Use only verified customer-selected contact channels.</p>
+    <div className="ips-case-overview" aria-label="Current case queue summary">
+      <article><span>Requests in this view</span><strong>{leads.length}</strong></article>
+      <article><span>Awaiting verification</span><strong>{leads.filter(x=>!x.contact_verified&&x.status!=='closed').length}</strong></article>
+      <article><span>Ready for review</span><strong>{leads.filter(x=>x.contact_verified&&x.status==='new').length}</strong></article>
+      <article><span>Written updates overdue</span><strong>{leads.filter(needsUpdate).length}</strong></article>
+    </div>
+    <div className="ips-panel" style={{padding:'12px 17px',fontSize:'.79rem',color:'#536c73',display:'flex',gap:11,alignItems:'center'}}>
+      <AdminIcon name="shield" size={19}/> Written contact only. No calls; sensitive academic records belong in the protected IPS project workspace, not external chat.
+    </div>
     {error&&<div role="alert" className="card" style={{color:'var(--danger)',marginBottom:12}}>{error}</div>}
     {statusMessage&&<div role="status" className="card" style={{marginBottom:12}}>{statusMessage}</div>}
-    <div className="grid grid-2 gap-3" style={{alignItems:'start'}}>
-      <section className="card">
-        <h3>Contact queue ({leads.length})</h3>
-        <div style={{display:'flex',gap:8,margin:'12px 0'}}>
+    <div className="ips-case-grid">
+      <section className="card ips-case-list">
+        <div className="ips-panel-head"><div><span className="ips-eyebrow">Incoming requests</span><h3 style={{marginTop:5}}>Case queue ({visible.length})</h3><p>Choose a request to review its full history</p></div></div>
+        <div className="ips-case-filters">
           <input className="form-input" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search username or reference" aria-label="Search enquiries"/>
-          <select className="form-select" value={filter} onChange={e=>setFilter(e.target.value)} aria-label="Filter enquiries">
+          <select className="form-select" value={filter} onChange={e=>{
+            setFilter(e.target.value);
+            const next=new URLSearchParams(params);next.set('filter',e.target.value);setParams(next,{replace:true});
+          }} aria-label="Filter enquiries">
             <option value="open">Active</option><option value="all">All</option><option value="new">New</option>
             <option value="in_progress">In progress</option><option value="waiting_for_customer">Waiting</option><option value="overdue">Updates overdue</option><option value="closed">Closed</option>
           </select>
         </div>
-        {visible.length===0&&<p>No enquiries in this view.</p>}
-        <div style={{display:'grid',gap:7}}>
-          {visible.map(x=><button key={x.enquiry_id} onClick={()=>{setSelected(x.enquiry_id);setMessage('');}}
-            style={{background:selected===x.enquiry_id?'var(--bg-active)':'transparent',padding:13,textAlign:'left',color:'var(--text-primary)',border:'1px solid var(--border)',borderRadius:8,cursor:'pointer'}}>
-            <strong>{quoteSubjectTitle(x)}</strong><small style={{display:'block',marginTop:6,color:'var(--text-muted)'}}>{x.username||x.name||'Private visitor'} · {contactChannelTitle(x.preferred_channel)} · {quoteStatusTitle(x.status)}{needsUpdate(x)?' · UPDATE OVERDUE':''}</small>
+        <div className="ips-case-items">
+          {visible.length===0&&<div className="ips-zero-state">No matching cases. Choose a different status or clear your search.</div>}
+          {visible.map(x=><button key={x.enquiry_id} type="button" onClick={()=>chooseCase(x.enquiry_id)}
+            aria-pressed={selected===x.enquiry_id}
+            className={'ips-case-item'+(selected===x.enquiry_id?' is-selected':'')}>
+            <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'start'}}>
+              <strong style={{minWidth:0,overflow:'hidden',textOverflow:'ellipsis'}}>{quoteSubjectTitle(x)}</strong>
+              {needsUpdate(x)&&<span className="ips-status-pill urgent">Overdue</span>}
+            </div>
+            <small>{x.username||'Private visitor'} · {contactChannelTitle(x.preferred_channel)}</small>
+            <small>{quoteStatusTitle(x.status)} · {x.contact_verified?'Contact verified':'Verification pending'}</small>
           </button>)}
         </div>
       </section>
-      <section className="card">
-        {!current?<p>Select a contact request.</p>:<>
-          <h3 style={{marginBottom:8}}>{quoteSubjectTitle(current)}</h3>
-          <small>{current.enquiry_id} · {current.username||current.name||'Private visitor'} · {new Date(current.createdAt).toLocaleString()}</small>
+      <section className="card ips-case-detail">
+        {!current?<div className="ips-zero-state"><AdminIcon name="file" size={25}/><div><strong>Select a case</strong>Choose a client request on the left to review its status and perform permitted actions.</div></div>:<>
+          <div className="ips-panel-head"><div><span className="ips-eyebrow">Active case file</span>
+            <h3 style={{margin:'6px 0 0',fontSize:'1.3rem'}}>{quoteSubjectTitle(current)}</h3>
+            <p>{current.enquiry_id} · {current.username||'Private visitor'} · {new Date(current.createdAt).toLocaleString()}</p>
+          </div>
+          <span className={'ips-status-pill'+(needsUpdate(current)?' urgent':current.contact_verified?'':' pending')}>
+            {needsUpdate(current)?'Update overdue':quoteStatusTitle(current.status)}
+          </span></div>
+          <div className="ips-case-detail-body">
+            <div className="ips-case-stage-grid" aria-label="Case progression">
+              {[
+                {label:'Request received',done:true},
+                {label:'Contact verified',done:current.contact_verified&&current.contact_consent},
+                {label:'Reviewer assigned',done:!!current.assigned_admin_id},
+                {label:'Project handoff',done:!!current.service_request_id}
+              ].map((stage,i)=><div key={stage.label}
+                className={'ips-case-stage'+(stage.done?' done':!stage.done&&
+                  (i===1||(i===2&&current.contact_verified)||(i===3&&current.assigned_admin_id))?' current':'')}>
+                {stage.label}
+              </div>)}
+            </div>
           <p style={{marginTop:10}}><b>Preferred contact:</b> {current.preferred_channel}</p>
           <p><b>Written contact:</b> {current.email||current.telegram_username||current.phone||'Private workspace'} · {current.contact_verified?'Verified':'Awaiting verification'}</p>
           {current.request_type==='quote'&&<p><b>Quotation:</b> {serviceTitle(current.service)} · {current.discipline||'Unspecified discipline'} · {current.study_level||'Unspecified level'} · {current.preferred_deadline||'No deadline selected'}</p>}
@@ -288,6 +342,7 @@ export default function AdminEnquiries(){
           </form>}
           {current.preferred_channel==='email'&&!emailReady&&<p style={{fontSize:'.8rem',color:'var(--text-muted)',marginTop:10}}>Email requires a verified IPS sender and backend mail provider. Do not use a personal account or change the customer's selected channel.</p>}
           {['telegram','whatsapp'].includes(current.preferred_channel)&&<p style={{fontSize:'.8rem',color:'var(--text-muted)',marginTop:10}}>Reply only through the verified, customer-selected external chat. WhatsApp is manually handled and no chat history is imported into this IPS inbox. No phone or voice calls.</p>}
+          </div>
         </>}
       </section>
     </div>

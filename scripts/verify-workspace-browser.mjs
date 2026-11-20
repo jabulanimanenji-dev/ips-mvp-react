@@ -191,6 +191,27 @@ try{
     assert.equal(await admin.getByText('Contact & callbacks').count(),0);
     await evidence(admin,'admin-private-quotation-queue');
   });
+  await check('Premium IPS command center, case desk and keyboard-searchable administration are rendered in real Chrome',async()=>{
+    await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
+    await admin.locator('.ips-command-hero').waitFor({timeout:15000});
+    assert.equal(await admin.locator('.ips-premium-admin').count(),1);
+    assert.equal(await admin.getByRole('heading',{name:'Everything that needs your attention.'}).count(),1);
+    assert.ok(await admin.locator('.ips-stat-card').count()>0);
+    const palette=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
+    assert.equal(palette,'rgb(247, 247, 243)','Administration must be warm, light-first, not a dark internal console.');
+    await evidence(admin,'ips-premium-command-center');
+    await admin.getByRole('button',{name:'Search administration sections'}).click();
+    const dialog=admin.getByRole('dialog',{name:'Search IPS workspaces'});
+    await dialog.getByRole('searchbox',{name:'Find workspace'}).fill('Academic projects');
+    await dialog.getByRole('link',{name:/Academic projects/}).click();
+    await admin.waitForURL(/\/admin\/services/,{timeout:15000});
+    await admin.locator('.ips-projects-workspace').waitFor({timeout:15000});
+    await evidence(admin,'ips-premium-academic-projects');
+    await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
+    await admin.locator('.ips-case-grid').waitFor({timeout:15000});
+    await admin.locator('.ips-case-overview').waitFor({timeout:15000});
+    await evidence(admin,'ips-premium-case-workspace');
+  });
   for(const [route,name] of [
     ['/admin/clients','admin-private-accounts'],
     ['/admin/writers','admin-specialist-applications'],

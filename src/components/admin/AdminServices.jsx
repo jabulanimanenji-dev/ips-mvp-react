@@ -1,6 +1,7 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {useAuth} from '../../context/AuthContext';
+import AdminIcon from './AdminIcon.jsx';
 
 // IPS owns academic work originating from verified, linked quotations.
 // Historical odd-job and generic marketplace requests must not surface in
@@ -80,21 +81,40 @@ export default function AdminServices(){
   };
   const visible=useMemo(()=>requests.filter(j=>filter==='all'||
     (filter==='complete'?j.status==='Completed':!['Completed','Cancelled'].includes(j.status))),[requests,filter]);
-  return <section style={{maxWidth:1400,margin:'0 auto'}}>
-    <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'start',flexWrap:'wrap',marginBottom:20}}>
-      <div><small style={{color:'var(--text-secondary)',fontWeight:750,letterSpacing:'.1em'}}>IPS · CONFIDENTIAL DELIVERY</small>
-        <h1 style={{fontSize:'1.6rem',margin:'5px 0'}}>Academic projects</h1>
-        <p style={{color:'var(--text-muted)',maxWidth:740,margin:0}}>Only verified academic quotation handoffs appear here. Manage the assigned specialist, work status, scope and itemized quotation. Payments are not active.</p>
+  const awaiting= requests.filter(j=>['New Request','Under Review','Clarification Required','Quoted','Quote Accepted','Awaiting Assignment'].includes(j.status)).length;
+  const delivering=requests.filter(j=>['Assigned','In Progress','Waiting for Client','Correction Required'].includes(j.status)).length;
+  const review=requests.filter(j=>['Submitted for Review','Ready for Client','Disputed'].includes(j.status)).length;
+  const complete=requests.filter(j=>j.status==='Completed').length;
+  return <section className="ips-projects-workspace" style={{maxWidth:1480,margin:'0 auto'}}>
+    <div className="ips-case-top" style={{marginBottom:19}}>
+      <div><span className="ips-eyebrow">Academic delivery · specialist coordination</span>
+        <h1>Academic projects</h1>
+        <p>Follow every approved academic engagement through quotation, specialist assignment, delivery and independent quality review. All project details stay confidential.</p>
       </div>
-      <button className="btn btn-secondary" type="button" onClick={load} disabled={loading||busy}>{loading?'Updating…':'Refresh projects'}</button>
+      <div style={{display:'flex',gap:9,flexWrap:'wrap'}}>
+        <Link to="/admin/enquiries" className="btn btn-primary"><AdminIcon name="plus" size={16}/> From client enquiries</Link>
+        <button className="btn btn-secondary" type="button" onClick={load} disabled={loading||busy}><AdminIcon name="refresh" size={16}/>{loading?'Updating…':'Refresh projects'}</button>
+      </div>
     </div>
-    <div className="card" style={{padding:'12px 16px',borderLeft:'3px solid #c7a46e',marginBottom:18}}>No odd jobs, marketplace activity or cross-project fixtures belong in the IPS academic operations queue. Existing historical records are preserved outside this view.</div>
+    <div className="ips-case-overview" style={{marginBottom:18}}>
+      <article><span>Awaiting quotation or assignment</span><strong>{awaiting}</strong></article>
+      <article><span>Specialist delivery</span><strong>{delivering}</strong></article>
+      <article><span>Quality decisions</span><strong>{review}</strong></article>
+      <article><span>Completed projects</span><strong>{complete}</strong></article>
+    </div>
+    <p className="ips-panel" style={{fontSize:'.8rem',color:'#607680',padding:'14px 18px',marginBottom:18,display:'flex',gap:10,alignItems:'center'}}><AdminIcon name="shield" size={20}/> Source-bound academic cases only. Payment collection is disabled; do not treat accepted quotations as paid work.</p>
     {error&&<p role="alert" className="card" style={{color:'var(--danger)'}}>{error}</p>}
     {notice&&<p role="status" className="card">{notice}</p>}
-    <div style={{display:'flex',gap:8,marginBottom:15,flexWrap:'wrap'}}>
-      {[['active','Active work'],['complete','Completed'],['all','All academic work']].map(([value,label])=><button key={value} type="button" className={filter===value?'btn btn-primary':'btn btn-ghost'} onClick={()=>setFilter(value)}>{label}</button>)}
-    </div>
-    <div className="card" style={{overflowX:'auto',padding:0}}>
+    <div className="ips-panel" style={{overflow:'hidden'}}>
+      <div className="ips-panel-head" style={{flexWrap:'wrap'}}>
+        <div><span className="ips-eyebrow">Project register</span><h3 style={{marginTop:5}}>Managed academic engagements</h3><p>Open project details to review the entire work file</p></div>
+        <div style={{display:'flex',gap:7,flexWrap:'wrap'}}>
+          {[['active','Active work'],['complete','Completed'],['all','All work']].map(([value,label])=>
+            <button key={value} type="button" className={filter===value?'btn btn-primary':'btn btn-secondary'} aria-pressed={filter===value}
+              onClick={()=>setFilter(value)} style={{padding:'8px 11px',minHeight:37,fontSize:'.76rem'}}>{label}</button>)}
+        </div>
+      </div>
+      <div style={{overflowX:'auto'}}>
       <table className="data-table">
         <thead><tr><th>Academic project</th><th>Client reference</th><th>Status</th><th>Approved specialist</th><th>Progress</th><th>Quotation</th></tr></thead>
         <tbody>
@@ -112,6 +132,7 @@ export default function AdminServices(){
         </tr>)}
         </tbody>
       </table>
+      </div>
     </div>
     {quoteJob&&<div role="dialog" aria-modal="true" aria-label="Review academic quotation" style={{position:'fixed',inset:0,zIndex:1100,background:'rgba(0,0,0,.7)',display:'grid',placeItems:'center',padding:16}}>
       <form className="card" onSubmit={saveQuote} style={{width:'100%',maxWidth:620,maxHeight:'90vh',overflowY:'auto'}}>

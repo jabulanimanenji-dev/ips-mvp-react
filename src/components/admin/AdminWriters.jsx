@@ -83,13 +83,19 @@ export default function AdminWriters(){
     finally{setWorking(false);}
   }
 
-  return <section style={{maxWidth:1430,margin:'0 auto'}}>
-    <div style={{display:'flex',justifyContent:'space-between',gap:15,flexWrap:'wrap',alignItems:'start',marginBottom:21}}>
-      <div><small style={{color:'var(--text-secondary)',fontWeight:750,letterSpacing:'.1em'}}>IPS · SPECIALIST NETWORK</small>
-        <h1 style={{fontSize:'1.65rem',margin:'5px 0 8px'}}>Specialist applications & approvals</h1>
-        <p style={{color:'var(--text-muted)',maxWidth:800,margin:0}}>Review real applications, credentials, expertise and availability. Specialists provide their legal full names and verify their own email. Administrators cannot set their passwords.</p>
+  return <section className="ips-premium-specialists" style={{maxWidth:1480,margin:'0 auto'}}>
+    <div className="ips-case-top" style={{marginBottom:19}}>
+      <div><span className="ips-eyebrow">Academic delivery · specialist network</span>
+        <h1>Specialist applications</h1>
+        <p>Review identity, email verification, qualifications and subject expertise before granting professional access. Specialist passwords remain self-managed.</p>
       </div>
       <button type="button" className="btn btn-secondary" disabled={loading||working} onClick={reload}>{loading?'Updating…':'Refresh specialists'}</button>
+    </div>
+    <div className="ips-case-overview" style={{marginBottom:18}}>
+      <article><span>Pending applications</span><strong>{counts.pending||0}</strong></article>
+      <article><span>More information needed</span><strong>{counts.more_information||0}</strong></article>
+      <article><span>Approved specialists</span><strong>{counts.approved||0}</strong></article>
+      <article><span>Rejected applications</span><strong>{counts.rejected||0}</strong></article>
     </div>
     <div className="card" style={{padding:'13px 17px',marginBottom:17,borderLeft:'3px solid #c7a46e'}}>
       New specialists apply through the approved IPS specialist-registration process. IPS reviews their application before workspace activation; no automatic access is granted.
