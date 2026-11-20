@@ -405,6 +405,15 @@ async function go(){
   assert.equal(badQuote.body.request.quote.total,219);
   pass('Server computes quote from components regardless of submitted total');
 
+  const fakeStaffAcceptance=await call('/api/services/'+requestId,{
+    method:'PATCH',session:admin.cookie,json:{status:'Quote Accepted'}
+  });
+  assert.equal(fakeStaffAcceptance.status,403);
+  const unaccepted=await call('/api/services/'+requestId,{session:alice.cookie});
+  assert.equal(unaccepted.body.request.quote.accepted,false);
+  pass('Company staff cannot impersonate customer quotation acceptance');
+
+
   const otherQuote=await call('/api/services/'+requestId,{method:'PATCH',session:bob.cookie,json:{quote:{accepted:true}}});
   assert.equal(otherQuote.status,403);
 
@@ -491,6 +500,23 @@ async function go(){
       reason:'Approved paid work allocated to vetted specialist'}});
   assert.equal(assignedSpecialist.status,200,JSON.stringify(assignedSpecialist.body));
   assert.equal(assignedSpecialist.body.request.provider_id,specialistId);
+  const unassignedBeforeWork=await call('/api/services/'+requestId,{
+    method:'PATCH',session:admin.cookie,json:{
+      provider_id:'',status:'Awaiting Assignment',
+      reason:'Manager withdrew unstarted allocation'
+    }
+  });
+  assert.equal(unassignedBeforeWork.status,200,JSON.stringify(unassignedBeforeWork.body));
+  assert.equal(unassignedBeforeWork.body.request.provider_id,'');
+  const restoredAssignment=await call('/api/services/'+requestId,{
+    method:'PATCH',session:admin.cookie,json:{
+      provider_id:specialistId,status:'Assigned',
+      reason:'Manager restored vetted specialist after review'
+    }
+  });
+  assert.equal(restoredAssignment.status,200,JSON.stringify(restoredAssignment.body));
+  pass('Manager can revoke and restore a not-yet-started paid specialist allocation');
+
   const specialistJobs=await call('/api/services?provider_id='+specialistId,{session:specialist.cookie});
   assert.equal(specialistJobs.status,200);
   assert.equal(specialistJobs.body.requests.some(job=>job.request_id===requestId),true);

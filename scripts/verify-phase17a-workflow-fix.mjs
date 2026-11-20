@@ -1,13 +1,19 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { buildServiceRequestSnapshot } from '../shared/serviceEngine.js';
+import {canTransitionService,allowedAdminServiceStatuses} from '../shared/serviceTransitions.js';
 
 const server = fs.readFileSync(new URL('../server.js', import.meta.url), 'utf8');
 const servicesUi = fs.readFileSync(new URL('../src/components/admin/AdminServices.jsx', import.meta.url), 'utf8');
 const actionCenter = fs.readFileSync(new URL('../src/components/common/ActionCenter.jsx', import.meta.url), 'utf8');
 
-assert.match(server, /'New Request': \[[^\]]*'Awaiting Assignment'[^\]]*'Assigned'/s,
-  'An administrator must be able to assign a provider directly from New Request.');
+assert.equal(canTransitionService('New Request','Assigned','admin'),true,
+  'An administrator can transition New Request to Assigned when payment is genuinely verified.');
+assert.equal(allowedAdminServiceStatuses({
+  category:'Academic Support',status:'New Request',payment_status:'unpaid'
+}).includes('Assigned'),false,'The company screen must not offer unpaid academic assignment.');
+assert.match(server,/import \{canTransitionService,PAYMENT_REQUIRED_SERVICE_STATES\} from '\.\/shared\/serviceTransitions\.js'/,
+  'The API and company UI must share one authoritative workflow map.');
 assert.match(server, /status: 'Active',[\s\S]*application_status: 'approved'/,
   'Provider assignment must validate that the provider is active and approved.');
 assert.match(server, /req\.body\.provider_name = provider\.full_name/,

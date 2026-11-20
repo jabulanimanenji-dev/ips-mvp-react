@@ -41,6 +41,7 @@ import {registerStudentRefundRoutes} from './services/studentRefunds.js';
 import {registerPasswordRecoveryRoutes,sessionFilter,sessionVersion} from './services/passwordRecovery.js';
 import { usernameValid,usernameKey,normalizeUsername,passwordValid,emailValid,normalizeEmail } from './shared/privacyIdentity.js';
 import {enforcePublicationGate} from './shared/publicationReadiness.js';
+import {canTransitionService,PAYMENT_REQUIRED_SERVICE_STATES} from './shared/serviceTransitions.js';
 import { verificationAvailable,issueEmailChallenge,confirmEmailChallenge,publicAccount,validateVerificationRequest } from './services/accountVerification.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
 import ServiceCategory from './models/ServiceCategory.js';
@@ -1895,33 +1896,6 @@ const findWork = async id => {
 const canAccessWork = (session, work) => session.role === 'admin'
   || (session.role === 'client' && work.record.client_id === session.id)
   || (session.role === 'writer' && (work.record.writer_id === session.id || work.record.provider_id === session.id));
-const serviceTransitions = {
-  'New Request': ['Under Review', 'Clarification Required', 'Awaiting Assignment', 'Assigned', 'Cancelled'],
-  'Under Review': ['Clarification Required', 'Quoted', 'Cancelled', 'On Hold'],
-  'Clarification Required': ['Under Review', 'Quoted', 'Cancelled'],
-  'Quoted': ['Quote Accepted', 'Under Review', 'Cancelled'],
-  'Quote Accepted': ['Awaiting Assignment', 'Assigned', 'Cancelled'],
-  'Awaiting Assignment': ['Assigned', 'On Hold', 'Cancelled'],
-  'Assigned': ['Scheduled', 'In Progress', 'On Hold', 'Cancelled'],
-  'Scheduled': ['In Progress', 'On Hold', 'Cancelled'],
-  'In Progress': ['Waiting for Client', 'Submitted for Review', 'On Hold', 'Disputed'],
-  'Waiting for Client': ['In Progress', 'Submitted for Review', 'On Hold'],
-  'Submitted for Review': ['Correction Required', 'Ready for Client'],
-  'Correction Required': ['In Progress', 'Submitted for Review'],
-  'Ready for Client': ['Completed', 'Correction Required', 'Disputed'],
-  'On Hold': ['Under Review', 'Assigned', 'In Progress', 'Cancelled'],
-  'Disputed': ['In Progress', 'Completed', 'Cancelled'],
-  'Completed': [],
-  'Cancelled': []
-};
-const canTransitionService = (from, to, role) => {
-  if (from === to) return true;
-  if (role === 'admin') return (serviceTransitions[from] || []).includes(to);
-  if (role === 'writer') return ['Assigned','Scheduled','In Progress','Waiting for Client','Submitted for Review'].includes(to)
-    && (serviceTransitions[from] || []).includes(to);
-  return (from === 'Quoted' && ['Quote Accepted','Under Review'].includes(to))
-    || (from === 'Ready for Client' && ['Completed','Correction Required','Disputed'].includes(to));
-};
 const academicTransitions = {
   'New': ['Pending', 'Awaiting Assignment', 'Cancelled'],
   'Pending': ['Assigned', 'Cancelled', 'On Hold'],
@@ -2574,6 +2548,10 @@ app.patch('/api/services/:id', async (req, res) => {
         { accepted: true, accepted_by: session.id, accepted_at: new Date() }
       );
     }
+    // A company administrator may issue and revise a quote, but may never
+    // impersonate a customer's acceptance through a status-only update.
+    if(session.role==='admin'&&req.body.status==='Quote Accepted'&&existing.status!=='Quote Accepted')
+      return res.status(403).json({success:false,error:'Only the client can accept an academic quotation.'});
     if (req.body.status && !canTransitionService(existing.status, req.body.status, session.role)) {
       return res.status(409).json({ success: false, error: 'This service status transition is not permitted.' });
     }
@@ -2612,6 +2590,10 @@ app.patch('/api/services/:id', async (req, res) => {
       && Object.prototype.hasOwnProperty.call(req.body, 'provider_id');
     if (isAdminAssignmentUpdate) {
       const providerId = String(req.body.provider_id || '').trim();
+      // Reassignment before work begins is allowed; releasing an active
+      // specialist requires a separately governed dispute or change workflow.
+      if(!providerId&&existing.status==='Assigned'&&Number(existing.progress||0)>0)
+        return res.status(409).json({success:false,error:'Active specialist work must be escalated before reassignment.'});
       if (providerId) {
         const provider = await Writer.findOne({
           writer_id: providerId,
@@ -2631,7 +2613,7 @@ app.patch('/api/services/:id', async (req, res) => {
       }
     }
     if (existing.category === 'Academic Support' && existing.payment_status !== 'paid' &&
-        ['Assigned','Scheduled','In Progress','Submitted for Review','Ready for Client','Completed'].includes(req.body.status)) {
+        PAYMENT_REQUIRED_SERVICE_STATES.includes(req.body.status)) {
       return res.status(409).json({ success: false, error: 'Verified payment is required before academic-support fulfillment.' });
     }
     if (req.body.status && !canTransitionService(existing.status, req.body.status, session.role)) {

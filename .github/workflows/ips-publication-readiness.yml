@@ -18,3 +18,7 @@ jobs:
         env:
           IPS_PROBE_MODE: baseline
         run: node scripts/probe-ips-publication.mjs
+      - name: Enforce actual public nonpayment service readiness without test writes
+        env:
+          IPS_PROBE_MODE: publication
+        run: node scripts/probe-ips-publication.mjs
