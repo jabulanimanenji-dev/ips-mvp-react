@@ -87,5 +87,5 @@ test('company reporting and supporting departments use actual IPS data and premi
   assert.match(support,/Reply recorded in the protected IPS support case/);
   assert.match(clients,/ChosenName|chosen usernames|chosen username/);
   assert.match(specialists,/ips-case-overview/);
-  assert.match(access,/Team & access/);
+  assert.match(access,/Company management|My department/);
 });
