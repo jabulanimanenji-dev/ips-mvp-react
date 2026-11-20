@@ -49,8 +49,8 @@ export const eligibleStaff=m=>m?.company_role==='manager'||m?.company_role==='st
 export function summarizeWork(cases){
   if(!Array.isArray(cases))return null;
   const open=cases.filter(caseOpen);
-  return {open:open.length,decision:open.filter(caseNeedsDecision).length,
-    overdue:open.filter(caseLate).length,unowned:open.filter(caseNeedsOwner).length,
+  return {open:open.length,decision:open.filter(c=>caseNeedsDecision(c)).length,
+    overdue:open.filter(c=>caseLate(c)).length,unowned:open.filter(caseNeedsOwner).length,
     quotes:open.filter(c=>c.kind==='enquiry').length,
     support:open.filter(c=>c.kind==='support').length,
     projects:open.filter(c=>c.kind==='project').length,
