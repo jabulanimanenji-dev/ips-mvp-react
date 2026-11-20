@@ -32,7 +32,7 @@ test('premium nav groups are case-first and permission gated',async()=>{
   const layout=await source('src/pages/AdminLayout.jsx');
   assert.match(nav,/hasAdminPermission\(item\.permission\)/);
   assert.match(layout,/hasAdminPermission\(item\.permission\)/);
-  assert.match(nav,/>Logout/);
+  assert.match(nav,/aria-label="Logout"/);
   assert.match(layout,/role="dialog"/);
   assert.match(layout,/aria-label="Search IPS workspaces"/);
 });
