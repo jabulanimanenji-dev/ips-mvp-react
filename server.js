@@ -194,7 +194,7 @@ const publicAuthPaths=new Set([
   '/client/login','/clients','/client/verify-email',
   '/writer/login','/writer/verify-email','/writer/resend-verification',
   '/client/resend-verification','/client/password-recovery/request',
-  '/client/password-recovery/complete','/logout'
+  '/client/password-recovery/complete','/admin/company-team/accept','/logout'
 ]);
 app.use('/api',async(req,res,next)=>{
   // Expired cookies must not stop people signing in or recovering an account.
