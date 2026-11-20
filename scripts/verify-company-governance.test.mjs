@@ -49,7 +49,7 @@ test('department permission ceiling excludes all owner, cross-department and uns
 });
 test('staff self-selected password must include uppercase, digit, symbol and sufficient length',()=>{
   assert.equal(companyStaffPasswordValid('SecureTeamPassword2026!'),true);
-  for(const password of ['short1!A','lowercase2026!','NO_SYMBOL_2026','NODIGITS!!','A'.repeat(129),''])
+  for(const password of ['short1!A','lowercase2026!','NOSYMBOL2026','NODIGITS!!','A'.repeat(129),''])
     assert.equal(companyStaffPasswordValid(password),false,password);
 });
 test('invitation tokens are HMAC-digested and only sent via a verified business origin',()=>{
