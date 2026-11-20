@@ -26,6 +26,8 @@ import { registerStudentWebhook, registerStudentPaymentRoutes } from './services
 import { registerContactWebhooks, registerContactApi } from './services/contactChannels.js';
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { registerCompanyCaseDesk } from './services/companyCaseDesk.js';
+import {registerCompanyOperatingSystem} from './services/companyOperatingSystem.js';
+import {permittedCompanyPermissions} from './shared/companyGovernance.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
 import { qualifyOwnerTelegramInbound } from './services/telegramInboundEvidence.js';
@@ -271,9 +273,10 @@ const resolveAdminAccess = async session => {
   const customRole = admin.custom_role_id
     ? await AdminRole.findOne({ role_id: admin.custom_role_id }).lean()
     : null;
-  const permissions = customRole
-    ? rolePermissions('custom', customRole.permissions)
-    : rolePermissions(admin.role, admin.permissions);
+  const permissions=admin.company_role
+    ?permittedCompanyPermissions(admin.department,admin.company_role,admin.permissions)
+    :customRole?rolePermissions('custom',customRole.permissions):
+      rolePermissions(admin.role==='superadmin'?'moderator':admin.role,admin.permissions);
   return {
     adminId: admin.id,
     name: admin.name,
@@ -282,8 +285,11 @@ const resolveAdminAccess = async session => {
     customRoleId: admin.custom_role_id || '',
     customRoleName: customRole?.name || '',
     permissions,
-    isSuperAdmin: admin.role === 'superadmin' || permissions.includes('*'),
+    isSuperAdmin: false,
     isRoot: false,
+    companyRole:admin.company_role||'legacy',
+    department:admin.department||'',
+    managerId:admin.manager_id||'',
     mustChangePassword: Boolean(admin.must_change_password)
   };
 };
@@ -315,6 +321,7 @@ app.use(async (req, res, next) => {
 registerPasswordRecoveryRoutes(app, {hashPassword});
 registerEnquiryRoutes(app, { requireSession });
 registerCompanyCaseDesk(app,{requireSession});
+registerCompanyOperatingSystem(app,{requireSession,hashPassword,validAdminPassword});
 registerPrivateQuoteRoutes(app, { readSession, requireSession });
 registerQuoteHandoffRoutes(app, {requireSession});
 registerSpecialistPayoutRoutes(app,{requireSession});
@@ -1069,9 +1076,10 @@ app.post('/api/admin/login', async (req, res) => {
       const customRole = admin.custom_role_id
         ? await AdminRole.findOne({ role_id: admin.custom_role_id })
         : null;
-      const permissions = customRole
-        ? rolePermissions('custom', customRole.permissions)
-        : rolePermissions(admin.role, admin.permissions);
+      const permissions=admin.company_role
+        ?permittedCompanyPermissions(admin.department,admin.company_role,admin.permissions)
+        :customRole?rolePermissions('custom',customRole.permissions):
+          rolePermissions(admin.role==='superadmin'?'moderator':admin.role,admin.permissions);
       admin.last_login_at = new Date();
       await admin.save();
       const token = signSession({
@@ -1100,8 +1108,11 @@ app.post('/api/admin/login', async (req, res) => {
           customRoleId: admin.custom_role_id || '',
           customRoleName: customRole?.name || '',
           permissions,
-          isSuperAdmin: admin.role === 'superadmin' || permissions.includes('*'),
-          isRoot: false,
+          isSuperAdmin:false,
+          isRoot:false,
+          companyRole:admin.company_role||'legacy',
+          department:admin.department||'',
+          managerId:admin.manager_id||'',
           mustChangePassword: Boolean(admin.must_change_password)
         }
       });
@@ -1331,21 +1342,14 @@ app.patch('/api/admins/:id', async (req, res) => {
 });
 
 app.delete('/api/admins/:id', async (req, res) => {
+  // A staff account is never hard-deleted from IPS company administration.
+  // Use governed offboarding with transfer of open cases, tasks and reports.
   try {
     const session = requireSession(req, res);
     if (!session) return;
     if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
-    if (req.adminAccess.adminId === req.params.id) return res.status(409).json({ success: false, error: 'You cannot delete your own administrator account.' });
-    const removed = await Admin.findOneAndDelete({ id: req.params.id });
-    if (!removed) return res.status(404).json({ success: false, error: 'Administrator not found.' });
-    await AuditLog.create({
-      order_id: 'ADMIN-ACCESS',
-      actor_id: req.adminAccess.adminId,
-      actor_role: 'superadmin',
-      action: 'administrator_deleted',
-      details: { admin_id: removed.id, role: removed.role }
-    });
-    res.json({ success: true });
+    return res.status(410).json({success:false,
+      error:'Permanent administrator deletion is prohibited. Use governed company-team offboarding and reassign all work.'});
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
