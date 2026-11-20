@@ -1237,6 +1237,8 @@ app.post('/api/admins', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    return res.status(410).json({success:false,
+      error:'Legacy administrator creation is retired. Root can appoint department managers only through IPS People & Managers.'});
     const name = String(req.body?.name || '').trim();
     const email = String(req.body?.email || '').trim().toLowerCase();
     const temporaryPassword = String(req.body?.password || '');
@@ -1285,6 +1287,8 @@ app.patch('/api/admins/:id', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
+    return res.status(410).json({success:false,
+      error:'Legacy administrator changes are retired. Use governed IPS team management.'});
     if (req.adminAccess.adminId === req.params.id && (req.body?.status || req.body?.role)) {
       return res.status(409).json({ success: false, error: 'Use another Super Admin to change your own authority or status.' });
     }
