@@ -36,8 +36,10 @@ export function canTransitionService(from,to,role){
 export function allowedAdminServiceStatuses(project){
   if(!project)return [];
   return [project.status,...(SERVICE_TRANSITIONS[project.status]||[])].filter((status,index,array)=>
-    array.indexOf(status)===index&&status!=='Quote Accepted'&&
-    !(status==='Quoted'&&!project.quote?.total)&&
-    !(project.category==='Academic Support'&&project.payment_status!=='paid'&&PAYMENT_REQUIRED_SERVICE_STATES.includes(status))
+    array.indexOf(status)===index&&(status===project.status||(
+      status!=='Quote Accepted'&&
+      !(status==='Quoted'&&!project.quote?.total)&&
+      !(project.category==='Academic Support'&&project.payment_status!=='paid'&&PAYMENT_REQUIRED_SERVICE_STATES.includes(status))
+    ))
   );
 }
