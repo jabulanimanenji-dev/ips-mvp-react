@@ -228,6 +228,45 @@ try{
     await admin.locator('.ips-case-overview').waitFor({timeout:15000});
     await evidence(admin,'ips-premium-case-workspace');
   });
+  await check('Root company screen protects owner, shows manager hierarchy and has no destructive Remove action',async()=>{
+    await admin.goto(base+'/admin/access',{waitUntil:'domcontentloaded'});
+    await admin.getByRole('heading',{name:'Company management'}).waitFor({timeout:15000});
+    await admin.getByText('Protected company owner').waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'Company staff directory'}).waitFor({timeout:15000});
+    assert.equal(await admin.locator('.ips-company-people').getByRole('button',{name:/^Remove$/}).count(),0);
+    assert.equal(await admin.locator('.ips-company-people').getByRole('button',{name:/^Delete$/}).count(),0);
+    await admin.getByRole('heading',{name:'Invite department manager'}).waitFor({timeout:15000});
+    await evidence(admin,'ips-root-company-manager-hierarchy');
+  });
+  await check('Root can initiate but cannot see the password in verified client recovery controls',async()=>{
+    await admin.goto(base+'/admin/clients',{waitUntil:'domcontentloaded'});
+    const row=admin.locator('tr').filter({hasText:'CID-TEST-ALICE'}).first();
+    await row.waitFor({timeout:15000});
+    await row.getByRole('button',{name:'Manage'}).click();
+    const dialog=admin.getByRole('dialog',{name:'Manage private student account'});
+    await dialog.getByText('Client password recovery').waitFor({timeout:15000});
+    await dialog.getByRole('button',{name:'Start secure password recovery'}).click();
+    await dialog.getByRole('button',{name:'Email private recovery link'}).waitFor({timeout:15000});
+    assert.equal(await dialog.getByText('Send only to: alice.test@example.org').count(),1);
+    assert.equal(await dialog.locator('input[type=password]').count(),0);
+    await evidence(admin,'ips-client-private-account-recovery');
+    await dialog.getByRole('button',{name:'Cancel'}).click();
+  });
+  const departmentManager=await open();
+  await check('Department manager sees only their staff and cannot invite another manager',async()=>{
+    await departmentManager.goto(base+'/ips-mission-control',{waitUntil:'domcontentloaded'});
+    await departmentManager.locator('input[type=email]').fill('manager-client-ci@example.org');
+    await departmentManager.locator('input[type=password]').fill('TestCompanyPassword2026!');
+    await departmentManager.getByRole('button',{name:'Sign In'}).click();
+    await departmentManager.waitForURL(/\/admin\//,{timeout:15000});
+    await departmentManager.goto(base+'/admin/access',{waitUntil:'domcontentloaded'});
+    await departmentManager.getByRole('heading',{name:'My department'}).waitFor({timeout:15000});
+    await departmentManager.getByText('Client Care Officer B').waitFor({timeout:15000});
+    assert.equal(await departmentManager.getByText('Academic Reviewer').count(),0);
+    await departmentManager.getByRole('heading',{name:'Invite team member'}).waitFor({timeout:15000});
+    assert.equal(await departmentManager.getByRole('heading',{name:'Invite department manager'}).count(),0);
+    await evidence(departmentManager,'ips-manager-only-own-team');
+  });
   for(const [route,name] of [
     ['/admin/clients','admin-private-accounts'],
     ['/admin/writers','admin-specialist-applications'],
