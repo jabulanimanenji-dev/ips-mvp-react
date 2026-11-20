@@ -14,7 +14,8 @@ export const COMPANY_NAV=Object.freeze([
   {group:'DELIVERY',name:'Project delivery',path:'/admin/services',permission:'services.view',icon:'projects',sub:'Payment and assignment gates'},
   {group:'DELIVERY',name:'Quality control',path:'/admin/quality',permission:'services.view',icon:'check',sub:'Reviews and release'},
   {group:'CLIENT CARE',name:'Support operations',path:'/admin/support',permission:'support.view',icon:'support',sub:'Client problems and resolution'},
-  {group:'CLIENT CARE',name:'Written channels',path:'/admin/external-chats',permission:'messages.view',icon:'messages',sub:'Telegram and secure messaging'},
+  {group:'CLIENT CARE',name:'Written channels',path:'/admin/external-chats',permission:'messages.view',icon:'messages',sub:'Verified Telegram conversations'},
+  {group:'CLIENT CARE',name:'Secure IPS messages',path:'/admin/messages',permission:'messages.view',icon:'messages',sub:'Private client and specialist replies'},
   {group:'INTELLIGENCE',name:'Company intelligence',path:'/admin/reports',permission:'reports.view',icon:'reports',sub:'Real work, capacity and quality'},
   {group:'INTELLIGENCE',name:'Billing readiness',path:'/admin/payments',permission:'payments.view',icon:'payments',sub:'Payments not yet activated'},
   {group:'INTELLIGENCE',name:'Security & policy',path:'/admin/settings',permission:'settings.view',icon:'lock',sub:'Controls and audit posture'}
