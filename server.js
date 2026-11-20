@@ -359,7 +359,7 @@ app.get('/api/clients', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (session.role !== 'admin'||!hasAdminPermission(req.adminAccess,'clients.view')) return res.status(403).json({ success: false, error: 'Client directory permission required.' });
     const [clients, orderTotals] = await Promise.all([
       Client.find().select('-password -full_name').sort({ createdAt: -1 }).lean(),
       Order.aggregate([
@@ -460,7 +460,8 @@ app.patch('/api/clients/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin' && !(session.role === 'client' && session.id === req.params.id)) return res.status(403).json({ success: false, error: 'You cannot update this client.' });
+    if (!(session.role==='client'&&session.id===req.params.id)&&
+        !(session.role==='admin'&&hasAdminPermission(req.adminAccess,'clients.manage'))) return res.status(403).json({ success: false, error: 'Client management permission required.' });
     const clientFields = ['username', 'phone', 'country', 'password'];
     const adminFields = ['username', 'phone', 'country', 'email', 'status', 'notes'];
     const allowedFields = session.role === 'admin' ? adminFields : clientFields;
@@ -503,18 +504,11 @@ app.patch('/api/clients/:id', async (req, res) => {
   }
 });
 
-// Delete client
-app.delete('/api/clients/:id', async (req, res) => {
-  try {
-    const session = requireSession(req, res);
-    if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    await Client.findOneAndDelete({ client_id: req.params.id });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+// Permanent client deletion is retired: company records, customer privacy, and
+// case ownership are governed with suspension, not destructive endpoints.
+app.delete('/api/clients/:id',(req,res)=>res.status(410).json({
+  success:false,error:'Permanent client deletion is prohibited. Use authorized account suspension.'
+}));
 
 // Client login
 app.post('/api/client/login', async (req, res) => {
@@ -708,7 +702,7 @@ app.get('/api/writers', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (session.role !== 'admin'||!hasAdminPermission(req.adminAccess,'providers.view')) return res.status(403).json({ success: false, error: 'Specialist directory permission required.' });
     const writers = await Writer.find().select('-password').lean();
     const companyWriters=isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'
       ?writers.filter(w=>!isIpsQaFixtureEmail(w.email)):writers;
@@ -718,43 +712,21 @@ app.get('/api/writers', async (req, res) => {
   }
 });
 
-app.post('/api/writers', async (req, res) => {
-  try {
-    const session = requireSession(req, res);
-    if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    if(!passwordValid(req.body?.password)||!emailValid(normalizeEmail(req.body?.email))||String(req.body?.full_name||'').trim().length<2)
-      return res.status(400).json({success:false,error:'Specialists must supply a full name, a valid email and a strong password.'});
-    const newId='WID-'+crypto.randomBytes(8).toString('hex').toUpperCase();
-    const writer = new Writer({ ...req.body,email:normalizeEmail(req.body.email),password:hashPassword(req.body.password),
-      writer_id:newId,email_verified_at:null,application_status:'approved',application_source:'admin',
-      status:req.body.status||'Active',reviewed_at:new Date(),reviewed_by:session.id });
-    await writer.save();
-    const safeWriter = writer.toObject();
-    delete safeWriter.password;
-    res.json({ success: true, writer: safeWriter });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.delete('/api/writers/:id', async (req, res) => {
-  try {
-    const session = requireSession(req, res);
-    if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    await Writer.findOneAndDelete({ writer_id: req.params.id });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+// Staff do not invent specialist accounts or know specialist passwords.
+// Real specialists register themselves and verify email; company reviewers
+// then approve eligibility. Neither hard deletion nor staff-set passwords exist.
+app.post('/api/writers',(req,res)=>res.status(410).json({
+  success:false,error:'Administrator-created specialist credentials are retired. Specialists must register and verify their own accounts.'
+}));
+app.delete('/api/writers/:id',(req,res)=>res.status(410).json({
+  success:false,error:'Permanent specialist deletion is prohibited. Use governed availability or suspension.'
+}));
 
 app.patch('/api/writers/:id/status', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (session.role !== 'admin'||!hasAdminPermission(req.adminAccess,'providers.manage')) return res.status(403).json({ success: false, error: 'Admin access required.' });
     const writer = await Writer.findOneAndUpdate(
       { writer_id: req.params.id },
       { status: req.body.status },
@@ -771,8 +743,9 @@ app.patch('/api/writers/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin' && !(session.role === 'writer' && session.id === req.params.id)) {
-      return res.status(403).json({ success: false, error: 'You cannot update this provider.' });
+    if (!(session.role==='writer'&&session.id===req.params.id)&&
+        !(session.role==='admin'&&hasAdminPermission(req.adminAccess,'providers.manage'))) {
+      return res.status(403).json({ success: false, error: 'Specialist management permission required.' });
     }
     const allowedUpdates = [
       'full_name',
