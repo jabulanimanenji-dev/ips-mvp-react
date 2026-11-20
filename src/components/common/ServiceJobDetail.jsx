@@ -44,11 +44,11 @@ export default function ServiceJobDetail({ role }) {
   return (
     <div>
       <Link to={back} className="btn btn-ghost btn-sm">← Back to services</Link>
-      <section style={{ margin: '1rem 0', padding: '2rem', borderRadius: 22, color: '#fff', background: 'linear-gradient(125deg,#081b38,#48135f 70%,#a12681)' }}>
-        <small style={{ fontWeight: 800, letterSpacing: '.12em', opacity: .75 }}>{job.family === 'odd_job' ? 'ODD JOB' : 'PROFESSIONAL SERVICE'} · {job.request_id}</small>
-        <h1 style={{ color: '#fff', margin: '.4rem 0' }}>{job.title}</h1>
-        <p style={{ color: 'rgba(255,255,255,.75)', maxWidth: 720 }}>{job.description}</p>
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><span className="btn btn-sm" style={{ background: 'rgba(255,255,255,.12)', color: '#fff' }}>{job.status}</span><span className="btn btn-sm" style={{ background: 'rgba(255,255,255,.12)', color: '#fff' }}>{job.progress || 0}% complete</span></div>
+      <section className="ips-project-hero">
+        <small className="ips-project-hero-reference">{job.family === 'odd_job' ? 'SERVICE' : 'MANAGED PROFESSIONAL SERVICE'} · {job.request_id}</small>
+        <h1>{job.title}</h1>
+        <p className="ips-project-hero-description">{job.description}</p>
+        <div className="ips-project-tags"><span>{job.status}</span><span>{job.progress || 0}% complete</span></div>
       </section>
 
       <div className="grid grid-3 gap-4">
