@@ -160,6 +160,39 @@ export function registerCompanyOperatingSystem(app,{
     res.json({success:true,message:'Your IPS company account is activated. Sign in using your work email and password.'});
   });
 
+  app.post('/api/admin/company-team/members/:id/reinvite',async(req,res)=>{
+    const actor=actorAllowed(req,res,requireSession);if(!actor)return;
+    const account=await adminModel.findOne({id:req.params.id})
+      .select('+invite_token_hash +invite_expires_at +invite_sent_at');
+    if(!account||!mayManageTeamMember(actor,account))
+      return invalid(res,'This invitation does not belong to your team.',403);
+    if(!['Invited','Locked'].includes(account.status))
+      return invalid(res,'Only pending or failed invitations can be resent.',409);
+    if(!staffInvitationReady(env))return invalid(res,'Staff invitation email delivery is not configured.',503);
+    if(account.invite_sent_at&&Date.now()-new Date(account.invite_sent_at).getTime()<60000)
+      return invalid(res,'Please wait at least one minute before resending this invitation.',429);
+    const token=crypto.randomBytes(32).toString('base64url');
+    account.invite_token_hash=invitationDigest(token,env.EMAIL_VERIFICATION_SECRET);
+    account.invite_sent_at=new Date();
+    account.invite_expires_at=new Date(Date.now()+48*3600000);
+    account.status='Invited';
+    await account.save();
+    try{
+      await send({to:account.email,subject:'Your refreshed IPS staff invitation',
+        body:staffEmailText({name:account.name,department:account.department,
+          role:account.company_role,
+          link:appBase(env)+'/ips-staff-onboarding#id='+encodeURIComponent(account.id)+'&token='+token}),env});
+    }catch{
+      account.status='Locked';account.invite_token_hash=undefined;account.invite_expires_at=undefined;
+      await account.save().catch(()=>{});
+      return invalid(res,'The provider did not accept the invitation. Contact company email support.',503);
+    }
+    await log({actor:actor.adminId,action:'company_staff_invitation_resent',
+      details:{staff_id:account.id,department:account.department}});
+    res.set('Cache-Control','private, no-store');
+    res.json({success:true,member:safeAccount(account),message:'A new private invitation was sent to the registered work email.'});
+  });
+
   app.post('/api/admin/company-team/legacy/:id/adopt',async(req,res)=>{
     const actor=actorAllowed(req,res,requireSession);if(!actor)return;
     if(!actor.isRoot)return invalid(res,'Only the company owner can assign existing legacy staff to managers.',403);
