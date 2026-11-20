@@ -9,7 +9,7 @@ export const IPS_COMPANY_ADMIN_NAV = Object.freeze([
   {label:'Support cases',target:'/admin/support',permission:'support.view',icon:'?',group:'Company'},
   {label:'Clients',target:'/admin/clients',permission:'clients.view',icon:'◌',group:'Operations'},
   {label:'Specialists',target:'/admin/writers',permission:'providers.view',icon:'◆',group:'Operations'},
-  {label:'Projects',target:'/admin/orders',permission:'orders.view',icon:'▤',group:'Operations'},
+  {label:'Academic projects',target:'/admin/services',permission:'services.view',icon:'▤',group:'Operations'},
   {label:'Review queue',target:'/admin/actions',permission:'actions.view',icon:'✓',group:'Operations'},
   {label:'Reports',target:'/admin/reports',permission:'reports.view',icon:'▥',group:'Management'},
   {label:'Team & access',target:'/admin/access',permission:'administrators.manage',icon:'♙',group:'Management'},
