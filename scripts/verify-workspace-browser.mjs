@@ -250,7 +250,7 @@ try{
     assert.equal(await dialog.getByText('Send only to: alice.test@example.org').count(),1);
     assert.equal(await dialog.locator('input[type=password]').count(),0);
     await evidence(admin,'ips-client-private-account-recovery');
-    await dialog.getByRole('button',{name:'Cancel'}).click();
+    await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
   });
   const departmentManager=await open();
   await check('Department manager sees only their staff and cannot invite another manager',async()=>{
