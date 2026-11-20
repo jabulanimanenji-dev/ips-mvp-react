@@ -215,7 +215,7 @@ try{
     await evidence(mobile,'company-os-mobile');
     await mobile.getByRole('button',{name:'Toggle company navigation'}).click();
     await mobile.getByRole('link',{name:'People & authority'}).click();
-    await mobile.waitForURL(/\\/admin\\/access/,{timeout:15000});
+    await mobile.waitForURL(/\/admin\/access/,{timeout:15000});
     await mobile.getByRole('heading',{name:'People, authority and responsibility'}).waitFor();
   });
   await check('New real work desk handles protected case evidence and audit-safe internal notes',async()=>{
@@ -236,7 +236,7 @@ try{
     const command=admin.getByRole('dialog',{name:'Find authorized company workspace'});
     await command.locator('input').fill('Project delivery');
     await command.getByRole('button',{name:/Project delivery/}).click();
-    await admin.waitForURL(/\\/admin\\/services/,{timeout:15000});
+    await admin.waitForURL(/\/admin\/services/,{timeout:15000});
     await admin.getByRole('heading',{name:'Academic delivery governance'}).waitFor({timeout:15000});
     await evidence(admin,'company-os-academic-delivery');
   });
