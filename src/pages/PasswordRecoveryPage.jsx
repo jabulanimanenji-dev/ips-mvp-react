@@ -45,7 +45,13 @@ export default function PasswordRecoveryPage(){
       setNotice(result.message||'Your request has been received.');
       if(!requestMode){
         setComplete(true);setToken('');setPassword('');setConfirm('');
-        if(result.session_opened&&result.redirect){navigate(result.redirect,{replace:true});return;}
+        if(result.session_opened&&result.redirect){
+          // A reset grants a fresh HttpOnly cookie. Reload so AuthContext
+          // rehydrates the correct recovered principal from server evidence;
+          // SPA navigation alone would still hold a null anonymous identity.
+          window.location.replace(result.redirect);
+          return;
+        }
       }
     }catch(err){setError(err.message||'Secure account recovery is temporarily unavailable.');}
     finally{setBusy(false);}
