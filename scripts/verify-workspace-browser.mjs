@@ -193,10 +193,20 @@ try{
   });
   await check('Premium IPS command center, case desk and keyboard-searchable administration are rendered in real Chrome',async()=>{
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
-    await admin.locator('.ips-command-hero').waitFor({timeout:15000});
+    await admin.locator('.ips-operations-console').waitFor({timeout:15000});
     assert.equal(await admin.locator('.ips-premium-admin').count(),1);
-    assert.equal(await admin.getByRole('heading',{name:'Everything that needs your attention.'}).count(),1);
-    assert.ok(await admin.locator('.ips-stat-card').count()>0);
+    assert.equal(await admin.getByRole('heading',{name:'Operations command desk'}).count(),1);
+    assert.equal(await admin.locator('.ips-ops-stat').count(),4);
+    await admin.locator('.ips-ops-case-row').first().waitFor({timeout:15000});
+    await admin.locator('.ips-ops-case-row').first().click();
+    await admin.locator('.ips-ops-case-brief').waitFor({timeout:15000});
+    await admin.getByRole('tab',{name:/Follow-ups/}).click();
+    await admin.locator('.ips-ops-action-editor').waitFor({timeout:15000});
+    await admin.locator('.ips-ops-action-editor textarea').fill('Review this case in the centrally managed IPS operational workflow.');
+    await admin.locator('.ips-ops-action-editor').getByRole('button',{name:'Add follow-up task'}).click();
+    await admin.getByRole('status').filter({hasText:'Internal follow-up task recorded.'}).waitFor({timeout:15000});
+    await admin.getByRole('button',{name:'Refresh live work'}).click();
+    await admin.locator('.ips-ops-case-brief').waitFor({timeout:15000});
     const palette=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
     assert.equal(palette,'rgb(247, 247, 243)','Administration must be warm, light-first, not a dark internal console.');
     await evidence(admin,'ips-premium-command-center');
