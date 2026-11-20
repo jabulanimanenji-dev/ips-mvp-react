@@ -69,3 +69,19 @@ test('premium project board preserves managed academic-source gates, professiona
   assert.match(s,/Payment collection is disabled/);
   assert.ok(s.includes('/api/services/'));
 });
+
+test('company reporting and supporting departments use actual IPS data and premium headers',async()=>{
+  const reports=await source('src/components/admin/AdminReports.jsx');
+  const support=await source('src/components/admin/AdminSupportTickets.jsx');
+  const clients=await source('src/components/admin/AdminClients.jsx');
+  const specialists=await source('src/components/admin/AdminWriters.jsx');
+  const access=await source('src/components/admin/AdminAccessManager.jsx');
+  assert.match(reports,/q\.request_type==='quote'/);
+  assert.doesNotMatch(reports,/q\.source==='academic-quote'/);
+  assert.match(reports,/ips-case-overview/);
+  assert.doesNotMatch(support,/Phase 9 help desk/);
+  assert.match(support,/Reply recorded in the protected IPS support case/);
+  assert.match(clients,/ChosenName|chosen usernames|chosen username/);
+  assert.match(specialists,/ips-case-overview/);
+  assert.match(access,/Team & access/);
+});

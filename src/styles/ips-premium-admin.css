@@ -209,3 +209,16 @@
 @media(prefers-reduced-motion:reduce){
  .ips-premium-admin *{transition:none!important;scroll-behavior:auto!important;animation:none!important;}
 }
+
+/* Cohesive remaining department screens */
+.ips-premium-admin .ips-premium-support .card,
+.ips-premium-admin .ips-premium-team-access .card{border-radius:16px;}
+.ips-premium-admin :is(.ips-premium-support,.ips-premium-team-access,.ips-premium-specialists,.ips-premium-report)>:first-child{min-width:0;}
+.ips-premium-admin .ips-premium-team-access :is(.form-input,.form-select){background:#fff;}
+.ips-premium-admin .ips-premium-specialists .data-table{min-width:790px;}
+.ips-premium-admin .ips-admin-customers .data-table{min-width:790px;}
+.ips-premium-admin .ips-projects-workspace .data-table{min-width:870px;}
+.ips-premium-admin .ips-case-overview article small{font-size:.7rem;color:#72848b;}
+.ips-premium-admin .ips-premium-support .toast{border-radius:11px;}
+.ips-premium-admin .ips-premium-support .card>div{min-width:0;}
+@media(max-width:900px){.ips-premium-admin .ips-support-columns{grid-template-columns:1fr!important}}

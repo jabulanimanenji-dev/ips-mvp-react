@@ -1,7 +1,7 @@
 {
   "name": "ips-mvp-react",
   "version": "1.0.0",
-  "description": "I P S — Complete MVP with React, Express, and God Mode CMS",
+  "description": "IPS Academic Services — confidential client, specialist and company operations",
   "private": true,
   "type": "module",
   "scripts": {

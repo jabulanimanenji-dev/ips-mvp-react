@@ -34,9 +34,12 @@ export default function AdminSettings(){
     ['Payments',checks.payments===null?'Not checked':checks.payments?'Enabled':'Pending integration','No payment collection until provider verification']
   ];
   return <section style={{maxWidth:1150,margin:'0 auto'}}>
-    <small style={{color:'var(--text-secondary)',fontWeight:750,letterSpacing:'.12em'}}>IPS · COMPANY SETTINGS</small>
-    <h1 style={{fontSize:'1.6rem',margin:'5px 0 8px'}}>Administration & company channels</h1>
-    <p style={{color:'var(--text-muted)',maxWidth:700}}>Operational access and written communication status for IPS Academic Services. Technical credentials are managed privately in the secure deployment environment.</p>
+    <div className="ips-case-top" style={{marginBottom:20}}>
+      <div><span className="ips-eyebrow">Company · governance & communication</span>
+        <h1>Company settings</h1>
+        <p>Manage IPS company identity, authorized staff and written-channel readiness. Sensitive credentials stay in the secure deployment environment.</p>
+      </div>
+    </div>
     {error&&<p role="alert" className="card" style={{color:'var(--danger)'}}>{error}</p>}
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(285px,1fr))',gap:16,marginTop:22}}>
       <section className="card">

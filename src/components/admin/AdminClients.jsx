@@ -37,15 +37,19 @@ export default function AdminClients(){
     }catch(e){setError(e.message||'Account changes could not be saved.');}
     finally{setBusy(false);}
   };
-  return <section className="ips-admin-customers">
-    <div style={{display:'flex',gap:16,justifyContent:'space-between',alignItems:'start',flexWrap:'wrap',marginBottom:24}}>
-      <div>
-        <h1>Students & Researchers</h1>
-        <p style={{color:'var(--text-muted)'}}>
-          Manage private IPS accounts by chosen username. Do not collect legal names or handle passwords here.
-        </p>
+  return <section className="ips-admin-customers" style={{maxWidth:1450,margin:'0 auto'}}>
+    <div className="ips-case-top" style={{marginBottom:19}}>
+      <div><span className="ips-eyebrow">Client services · private identities</span>
+        <h1>Students & researchers</h1>
+        <p>Manage private IPS accounts using chosen usernames and verified email addresses. Legal names and passwords are not collected by administrators at enquiry stage.</p>
       </div>
-      <button type="button" className="btn btn-ghost" onClick={reload}>Refresh Accounts</button>
+      <button type="button" className="btn btn-secondary" onClick={reload}>Refresh clients</button>
+    </div>
+    <div className="ips-case-overview" style={{marginBottom:19}}>
+      <article><span>Client accounts</span><strong>{clients.length}</strong></article>
+      <article><span>Email verified</span><strong>{clients.filter(c=>c.email_verified_at).length}</strong></article>
+      <article><span>Verification pending</span><strong>{clients.filter(c=>!c.email_verified_at).length}</strong></article>
+      <article><span>Active accounts</span><strong>{clients.filter(c=>c.status==='Active').length}</strong></article>
     </div>
     {qaExcluded>0&&<p className="card" role="status" style={{fontSize:'.83rem',borderLeft:'3px solid #c7a46e'}}>Archived development records ({qaExcluded}) are excluded from live IPS accounts. They were preserved for source audit, not deleted.</p>}
     <p className="card" style={{fontSize:'.85rem',lineHeight:1.6,borderLeft:'4px solid var(--primary)',marginBottom:17}}>

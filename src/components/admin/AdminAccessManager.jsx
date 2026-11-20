@@ -212,7 +212,7 @@ export default function AdminAccessManager() {
     return (
       <div className="card" style={{ maxWidth: 720 }}>
         <div className="badge badge-review">Restricted</div>
-        <h2>Super Admin authority required</h2>
+        <h2>Company owner authority required</h2>
         <p style={{ color: 'var(--text-muted)' }}>Only a Super Admin can create administrators, assign authority, reset their passwords, or revoke access.</p>
       </div>
     );
@@ -224,19 +224,19 @@ export default function AdminAccessManager() {
   ];
 
   return (
-    <div>
-      <div className="flex justify-between items-center gap-3" style={{ marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+    <div className="ips-premium-team-access" style={{maxWidth:1450,margin:'0 auto'}}>
+      <div className="ips-case-top" style={{ marginBottom: '1.5rem' }}>
         <div>
-          <div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>Identity & authority</div>
-          <h2 style={{ margin: '.35rem 0' }}>Administrator Access Control</h2>
-          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Create least-privilege teams, reset credentials, suspend accounts, and revoke sessions centrally.</p>
+          <span className="ips-eyebrow">Company · staff governance</span>
+          <h1>Team & access</h1>
+          <p>Create least-privilege staff accounts, assign scoped access, manage professional roles and revoke sessions when appropriate.</p>
         </div>
         <button className="btn btn-secondary" onClick={load} disabled={working === 'load'}>Refresh</button>
       </div>
 
       {notice.text && <div className={`toast ${notice.type}`} style={{ position: 'static', maxWidth: 'none', marginBottom: '1rem' }}>{notice.text}</div>}
 
-      <div className="card" style={{ marginBottom: '1rem', borderColor: 'rgba(163,5,166,.45)' }}>
+      <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid #b59a6a' }}>
         <div className="flex justify-between items-center gap-3" style={{ flexWrap: 'wrap' }}>
           <div>
             <span className="badge badge-success">Immutable root</span>
