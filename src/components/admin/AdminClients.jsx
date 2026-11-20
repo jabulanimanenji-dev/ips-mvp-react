@@ -5,12 +5,13 @@ export default function AdminClients(){
   const [clients,setClients]=useState([]),[search,setSearch]=useState(''),[selected,setSelected]=useState(null);
   const [edit,setEdit]=useState({status:'Active',notes:''}),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[notice,setNotice]=useState('');
+  const [qaExcluded,setQaExcluded]=useState(0);
   const reload=useCallback(async()=>{
     try{
       const res=await fetch('/api/clients',{cache:'no-store',credentials:'same-origin'});
       const data=await res.json().catch(()=>({}));
       if(!res.ok||!data.success)throw Error(data.error||'Unable to load accounts.');
-      setClients(data.clients||[]);setError('');
+      setClients(data.clients||[]);setQaExcluded(Number(data.hidden_legacy_qa_accounts||0));setError('');
     }catch(e){setError(e.message||'Accounts are temporarily unavailable.');}
   },[]);
   useEffect(()=>{reload();},[reload]);
@@ -46,6 +47,7 @@ export default function AdminClients(){
       </div>
       <button type="button" className="btn btn-ghost" onClick={reload}>Refresh Accounts</button>
     </div>
+    {qaExcluded>0&&<p className="card" role="status" style={{fontSize:'.83rem',borderLeft:'3px solid #c7a46e'}}>Archived development records ({qaExcluded}) are excluded from live IPS accounts. They were preserved for source audit, not deleted.</p>}
     <p className="card" style={{fontSize:'.85rem',lineHeight:1.6,borderLeft:'4px solid var(--primary)',marginBottom:17}}>
       Registration and email verification must be completed by the account holder.
       IPS staff cannot choose a student's password or bypass verification.
