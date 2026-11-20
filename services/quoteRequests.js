@@ -59,7 +59,7 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
     if(preferred==='telegram'&&!channels.telegram?.available)
       return res.status(503).json({success:false,error:'Telegram quoting is not yet connected. Choose another available method.'});
     if(preferred==='whatsapp'&&!channels.whatsapp?.available)
-      return res.status(503).json({success:false,error:'WhatsApp quoting is not yet connected. Choose another available method.'});
+      return res.status(503).json({success:false,error:'Direct WhatsApp contact is not available. Choose another written method.'});
     const validation=validatePrivateQuote({...req.body,username:account?.username||req.body?.username},{signedIn:Boolean(account),
       verifiedChannels:[]});
     if(validation.error)return res.status(400).json({success:false,error:validation.error});
@@ -95,7 +95,9 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
           'Request received. IPS will review it. No work or payment is authorized.':
           c.preferred_channel==='email'?
             'Quote reference saved. Verify your email code to submit the request for review.':
-            'Quote saved. Open your selected messaging app and send the quote reference to IPS to verify the conversation.'
+            c.preferred_channel==='whatsapp'?
+              'Quote saved. Open WhatsApp and send the reference. IPS staff must manually match your sender number and exact reference before reviewing or replying. WhatsApp is not synchronized with the IPS inbox.':
+              'Quote saved. Open Telegram and send the reference to IPS to verify the conversation.'
       });
     }catch(error){console.error('Quote storage failed:',error?.name||'error');return res.status(503).json({success:false,error:'We could not securely save your request.'});}
   });
