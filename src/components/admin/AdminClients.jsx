@@ -9,6 +9,8 @@ export default function AdminClients(){
   const canManage=hasAdminPermission('clients.manage');
   const [resetIntent,setResetIntent]=useState(false);
   const [resetReason,setResetReason]=useState('');
+  const [verifyIntent,setVerifyIntent]=useState(false);
+  const [verifyReason,setVerifyReason]=useState('');
   const [clients,setClients]=useState([]),[search,setSearch]=useState(''),[selected,setSelected]=useState(null);
   const [edit,setEdit]=useState({status:'Active',notes:''}),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -27,7 +29,7 @@ export default function AdminClients(){
     return clients.filter(c=>!term||[c.client_id,c.username,c.email,c.status].some(v=>String(v||'').toLowerCase().includes(term)));
   },[clients,search]);
   const open=client=>{
-    setSelected(client);setEdit({status:client.status||'Active',notes:client.notes||''});setError('');setNotice('');setResetIntent(false);setResetReason('');
+    setSelected(client);setEdit({status:client.status||'Active',notes:client.notes||''});setError('');setNotice('');setResetIntent(false);setResetReason('');setVerifyIntent(false);setVerifyReason('');
   };
   const save=async(event)=>{
     event.preventDefault();
@@ -57,6 +59,21 @@ export default function AdminClients(){
       if(!res.ok||!data.success)throw Error(data.error||'The provider did not accept the recovery message.');
       setNotice('Secure password reset link accepted for the client’s verified email. IPS staff cannot see the link or password.');
       setResetIntent(false);setResetReason('');setSelected(null);
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  };
+  const sendVerification=async()=>{
+    if(!selected||!canManage||busy||!verifyIntent||verifyReason.trim().length<10)return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      const res=await fetch('/api/admin/clients/'+encodeURIComponent(selected.client_id)+'/resend-verification',{
+        method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({reason:verifyReason.trim()})
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok||!data.success)throw Error(data.error||'Verification message was not accepted by the email provider.');
+      setNotice('Verification code accepted by the email provider. The client must complete the code challenge themselves; delivery to the inbox is not guaranteed.');
+      setVerifyIntent(false);setVerifyReason('');setSelected(null);await reload();
     }catch(e){setError(e.message);}finally{setBusy(false);}
   };
   return <section className="ips-admin-customers" style={{maxWidth:1450,margin:'0 auto'}}>
@@ -118,6 +135,31 @@ export default function AdminClients(){
           <textarea className="form-textarea" maxLength={2000} rows={4} value={edit.notes}
             onChange={e=>setEdit(p=>({...p,notes:e.target.value}))}/>
         </label>}
+        {canManage&&!selected.email_verified_at&&['Active','Pending Verification'].includes(selected.status)&&
+          <div className="card" style={{padding:15,margin:'10px 0',border:'1px solid var(--border)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:8}}>
+              <AdminIcon name="shield" size={18}/><strong>Help client verify their email</strong>
+            </div>
+            <p style={{color:'var(--text-muted)',fontSize:'.79rem',lineHeight:1.6}}>
+              A new eight-digit verification code can be emailed to the registered address.
+              Staff cannot see the code or verify the account themselves. Once the client completes verification,
+              secure password recovery becomes available.
+            </p>
+            {!verifyIntent?<button type="button" className="btn btn-secondary" disabled={busy}
+              onClick={()=>setVerifyIntent(true)}>Reissue verification code</button>:
+              <div style={{display:'grid',gap:10}}>
+                <label className="form-group"><span className="form-label">Support reason (recorded for audit)</span>
+                  <textarea className="form-textarea" rows={2} minLength={10} maxLength={500} required
+                    value={verifyReason} onChange={e=>setVerifyReason(e.target.value)}
+                    placeholder="Client requested a new email verification code through IPS support." /></label>
+                <strong style={{fontSize:'.76rem'}}>Registered address: {selected.email}</strong>
+                <div style={{display:'flex',gap:9,flexWrap:'wrap'}}>
+                  <button type="button" className="btn btn-primary" disabled={busy||verifyReason.trim().length<10}
+                    onClick={sendVerification}>{busy?'Sending…':'Send verification code'}</button>
+                  <button type="button" className="btn btn-ghost" disabled={busy} onClick={()=>setVerifyIntent(false)}>Cancel</button>
+                </div>
+              </div>}
+          </div>}
         {canRecover&&<div className="card" style={{padding:15,margin:'10px 0',border:'1px solid var(--border)'}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
             <AdminIcon name="lock" size={18}/><strong>Client password recovery</strong>
