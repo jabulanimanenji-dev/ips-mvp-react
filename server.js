@@ -28,7 +28,7 @@ import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
 import { qualifyOwnerTelegramInbound } from './services/telegramInboundEvidence.js';
-import {isIpsQaFixtureAdmin,isIpsQaFixtureClient,isIpsQaFixtureEmail} from './shared/ipsCompanyScope.js';
+import {isIpsQaFixtureAdmin,isIpsQaFixtureClient,isIpsQaFixtureEmail,scopeIpsMessagingDirectory} from './shared/ipsCompanyScope.js';
 import { sendPublicationEmailProbe } from './services/publicationEmailProbe.js';
 import { registerContactEmailWebhooks } from './services/contactEmailWebhooks.js';
 import { registerPrivateQuoteRoutes } from './services/quoteRequests.js';
@@ -2711,15 +2711,14 @@ app.get('/api/messaging/directory', async (req, res) => {
     if (!session) return;
     if (session.role === 'admin') {
       const [clients, providers, orders, services] = await Promise.all([
-        Client.find().select('client_id full_name email').lean(),
-        Writer.find({ status: 'Active' }).select('writer_id full_name email').lean(),
+        Client.find().select('client_id username email status email_verified_at').lean(),
+        Writer.find({ status: 'Active' }).select('writer_id full_name email status application_status email_verified_at').lean(),
         Order.find({ status: activeAcademicStatuses }).select('order_id topic_title client_id client_name writer_id writer_name direct_contact_enabled').lean(),
-        ServiceRequest.find({ status: activeServiceStatuses }).select('request_id title client_id client_name provider_id provider_name direct_contact_enabled').lean()
+        ServiceRequest.find({ status: activeServiceStatuses }).select('request_id source source_quote_id category title client_id client_name provider_id provider_name direct_contact_enabled').lean()
       ]);
-      return res.json({ success: true, clients, providers, jobs: [
-        ...orders.map(item => ({ work_id: item.order_id, work_kind: 'academic', title: item.topic_title, ...item })),
-        ...services.map(item => ({ work_id: item.request_id, work_kind: 'service', title: item.title, ...item }))
-      ] });
+      const companyMode=isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true';
+      res.set('Cache-Control','no-store');
+      return res.json({success:true,...scopeIpsMessagingDirectory({clients,providers,orders,services},{production:companyMode})});
     }
     const jobs = session.role === 'client'
       ? [...await Order.find({ client_id: session.id }).lean(), ...await ServiceRequest.find({ client_id: session.id }).lean()]
@@ -2771,12 +2770,27 @@ app.post('/api/conversations', async (req, res) => {
       ];
     } else if (session.role === 'admin') {
       if (!['client', 'writer'].includes(target_role) || !target_id) return res.status(400).json({ success: false, error: 'Choose a client or provider.' });
+      // The browser may choose a reference, but never gets to invent a
+      // messaging recipient, their identity or their verified status.
+      const recipient=target_role==='client'
+        ?await Client.findOne({client_id:target_id,status:'Active',email_verified_at:{$ne:null}})
+          .select('client_id username email status email_verified_at').lean()
+        :await Writer.findOne({writer_id:target_id,status:'Active',application_status:'approved',email_verified_at:{$ne:null}})
+          .select('writer_id full_name email status application_status email_verified_at').lean();
+      const companyMode=isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true';
+      if(!recipient||(companyMode&&(target_role==='client'
+        ?isIpsQaFixtureClient(recipient):isIpsQaFixtureEmail(recipient.email))))
+        return res.status(404).json({success:false,error:'Choose a verified active IPS customer or approved specialist.'});
       type = target_role === 'client' ? 'client_admin' : 'writer_admin';
-      participants = [{ role: 'admin', id: session.id, name: 'Admin' }, { role: target_role, id: target_id, name: target_name }];
+      const recipientName=target_role==='client'?recipient.username||recipient.client_id:recipient.full_name||recipient.writer_id;
+      participants = [{ role: 'admin', id: session.id, name: 'IPS team' },
+        { role: target_role, id: target_id, name: recipientName }];
     } else {
       type = session.role === 'client' ? 'client_admin' : 'writer_admin';
       const profile = session.role === 'client' ? await Client.findOne({ client_id: session.id }) : await Writer.findOne({ writer_id: session.id });
-      participants = [{ role: session.role, id: session.id, name: profile?.full_name || session.id }, { role: 'admin', id: 'admin', name: 'IPS Admin' }];
+      participants = [{role:session.role,id:session.id,
+        name:session.role==='client'?(profile?.username||session.id):(profile?.full_name||session.id)},
+        {role:'admin',id:'admin',name:'IPS team'}];
     }
     const work = work_id ? await findWork(work_id) : null;
     if (work_id && !work) return res.status(404).json({ success: false, error: 'Linked job not found.' });
