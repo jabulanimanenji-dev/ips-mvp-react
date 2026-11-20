@@ -7,7 +7,7 @@ import Client from '../models/Client.js';
 import Writer from '../models/Writer.js';
 import CompanyCaseAction from '../models/CompanyCaseAction.js';
 import {registerCompanyOperatingSystem} from '../services/companyOperatingSystem.js';
-import {completePasswordRecovery} from '../services/passwordRecovery.js';
+import {completePasswordRecovery,registerPasswordRecoveryRoutes} from '../services/passwordRecovery.js';
 import {permittedCompanyPermissions} from '../shared/companyGovernance.js';
 
 const hashPassword=password=>{
@@ -53,6 +53,8 @@ try{
   registerCompanyOperatingSystem(app,{requireSession,hashPassword,
     validAdminPassword:p=>typeof p==='string'&&p.length>=10&&/[A-Za-z]/.test(p)&&/[0-9]/.test(p),
     env,send});
+  registerPasswordRecoveryRoutes(app,{hashPassword,env,send,
+    grantSession:(res,scope)=>res.setHeader('Set-Cookie','ips_ci_role='+scope+'; HttpOnly; SameSite=Strict; Path=/')});
   server=await new Promise(resolve=>{
     const srv=app.listen(0,'127.0.0.1',()=>resolve(srv));
   });
@@ -62,7 +64,7 @@ try{
       ...(actor?{'x-ci-company-actor':actor}:{}),...(json?{'Content-Type':'application/json'}:{})
     },body:json?JSON.stringify(json):undefined});
     const data=await response.json().catch(()=>({}));
-    return {status:response.status,data};
+    return {status:response.status,data,cookie:response.headers.get('set-cookie')};
   }
   async function issueInvite(actor,name,email,department,role){
     const r=await call('/api/admin/company-team/invite',{actor,method:'POST',
@@ -220,6 +222,52 @@ try{
     json:{reason:'Cannot initiate specialist recovery before mailbox proof'}});
   assert.equal(deniedUnverified.status,409);
   pass('Real specialist manager initiates verified-email reset; one-use token rotates specialist session, cross-team, unverified and replay blocked');
+  // Real HTTP evidence: the recipient follows the verified-mailbox link,
+  // selects a strong new password and immediately obtains a role-specific
+  // authenticated cookie. Reuse must fail for both client and specialist.
+  const publicClientId='CID-'+crypto.randomBytes(9).toString('hex').toUpperCase();
+  const publicClientEmail='public-client-recovery-ci@example.org';
+  await Client.create({client_id:publicClientId,username:'BrowserRecoveryCandidate',
+    username_key:'browserrecoverycandidate',email:publicClientEmail,
+    password:hashPassword('BeforeClientRecovery123!'),status:'Active',
+    email_verified_at:new Date(),session_version:1});
+  const publicClientRequest=await call('/api/client/password-recovery/request',{
+    method:'POST',json:{email:publicClientEmail}});
+  assert.equal(publicClientRequest.status,202,JSON.stringify(publicClientRequest.data));
+  assert.ok(!JSON.stringify(publicClientRequest.data).includes('token='));
+  const publicClientToken=sent[sent.length-1].body.match(/\/reset-password#token=([A-Za-z0-9_-]{43})/)?.[1];
+  assert.ok(publicClientToken);
+  const publicClientCompleted=await call('/api/client/password-recovery/complete',{
+    method:'POST',json:{token:publicClientToken,password:'ClientRecoveredPassword2026!'}});
+  assert.equal(publicClientCompleted.status,200,JSON.stringify(publicClientCompleted.data));
+  assert.equal(publicClientCompleted.data.redirect,'/client/overview');
+  assert.equal(publicClientCompleted.data.session_opened,true);
+  assert.ok(publicClientCompleted.cookie?.includes('ips_ci_role=client'));
+  assert.equal((await Client.findOne({client_id:publicClientId})).session_version,2);
+  assert.equal((await call('/api/client/password-recovery/complete',{
+    method:'POST',json:{token:publicClientToken,password:'ClientRecoveredPassword2026!'}})).status,400);
+
+  const publicWriterId='WID-'+crypto.randomBytes(9).toString('hex').toUpperCase();
+  const publicWriterEmail='public-writer-recovery-ci@example.org';
+  await Writer.create({writer_id:publicWriterId,full_name:'Public Reset Verified Specialist',
+    email:publicWriterEmail,password:hashPassword('BeforeWriterRecovery123!'),
+    status:'Active',application_status:'approved',email_verified_at:new Date(),session_version:1});
+  const publicWriterRequest=await call('/api/writer/password-recovery/request',{
+    method:'POST',json:{email:publicWriterEmail}});
+  assert.equal(publicWriterRequest.status,202,JSON.stringify(publicWriterRequest.data));
+  const publicWriterToken=sent[sent.length-1].body.match(/\/writer\/reset-password#token=([A-Za-z0-9_-]{43})/)?.[1];
+  assert.ok(publicWriterToken);
+  const publicWriterCompleted=await call('/api/writer/password-recovery/complete',{
+    method:'POST',json:{token:publicWriterToken,password:'WriterRecoveredPassword2026!'}});
+  assert.equal(publicWriterCompleted.status,200,JSON.stringify(publicWriterCompleted.data));
+  assert.equal(publicWriterCompleted.data.redirect,'/writer/dashboard');
+  assert.equal(publicWriterCompleted.data.session_opened,true);
+  assert.ok(publicWriterCompleted.cookie?.includes('ips_ci_role=writer'));
+  assert.equal((await Writer.findOne({writer_id:publicWriterId})).session_version,2);
+  assert.equal((await call('/api/writer/password-recovery/complete',{
+    method:'POST',json:{token:publicWriterToken,password:'WriterRecoveredPassword2026!'}})).status,400);
+  pass('Client and specialist complete genuine one-use email-link HTTP reset and enter their own authorized workspaces; replay blocked');
+
 
   await CompanyCaseAction.create({case_kind:'enquiry',case_ref:'IPS-Q-TEST-TEAM-001',entry_kind:'task',
     body:'Follow up on a customer response',created_by:ids['manager-client'],assigned_to:ids['staff-a'],
