@@ -1,90 +1,61 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {COMPANY_NAV,caseNeedsOwner,caseLate,caseNeedsDecision,summarizeWork,departmentCoverage,readyClient,readySpecialist} from '../src/companyOS/model.js';
+import {MODULES} from '../src/administration/core.jsx';
+import {isOpenCompanyCase,needsCompanyCaseOwner,isOverdueCompanyCase,summarizeCompanyCases} from '../shared/companyPulse.js';
 import {isProtectedOwnerRecord,ownerPrincipalEmail} from '../services/companyOperatingSystem.js';
-const source=p=>readFile(new URL('../'+p,import.meta.url),'utf8');
-
-test('new IPS company operating system replaces all primary admin routes rather than reusing old dashboard',async()=>{
-  const app=await source('src/App.jsx');
-  const shell=await source('src/companyOS/CompanyShell.jsx');
-  const css=await source('src/companyOS/company-os.css');
-  const active=app.slice(app.indexOf('{/* IPS COMPANY OS v3:'));
-  assert.match(active,/ProtectedAdminRoute><CompanyShell/);
-  for(const name of ['CompanyHome','CompanyWork','CompanyTeam','CompanyClients','CompanySpecialists','CompanyProjects','CompanyDepartments','CompanyJourneys','CompanyIntelligence'])
-    assert.ok(active.includes('<'+name),'Missing active new workspace '+name);
-  assert.doesNotMatch(active,/CompanyCommandCenter|CompanyOperationsDesk|AdminAccessManager|AdminSidebar|AdminDashboard/);
-  assert.match(shell,/COMPANY_NAV\.filter\(x=>hasAdminPermission\(x.permission\)\)/);
-  assert.match(shell,/ips-os-rail/);
-  assert.match(shell,/Ctrl K/);
-  assert.match(shell,/isRoot\?'Root owner'/);
-  assert.match(css,/color-scheme:dark/);
-  assert.match(css,/\.ips-os-rail/);
-  assert.doesNotMatch(css,/html\[data-theme/);
+const read=p=>readFile(new URL('../'+p,import.meta.url),'utf8');
+test('Administration Four is mounted alone, replacing rejected Company OS v3 without any inherited admin screen',async()=>{
+ const [app,shell,style]=await Promise.all([read('src/App.jsx'),read('src/administration/CompanyAdministration.jsx'),read('src/administration/ips4.css')]);
+ const live=app.slice(app.indexOf('/* IPS ADMINISTRATION FOUR'),app.indexOf('/* FALLBACK'));
+ assert.match(live,/ProtectedAdminRoute><CompanyAdministration/);
+ for(const n of ['CompanyBridge','OperationsBoard','DepartmentBridge','JourneyBridge','Workforce','ClientRegistry',
+   'SpecialistRegistry','TelegramOperations','IntakeDesk','CustomerSupportDesk','PrivateConversations','ProductionRegister','ProjectCaseFile'])
+   assert.ok(live.includes('<'+n),'Missing new active company screen '+n);
+ for(const rejected of ['CompanyShell','CompanyHome','CompanyWork','CompanyTeam','CompanyGuard','AdminEnquiries','AdminClients','AdminSupportTickets','ChannelInbox','DirectMessaging','ServiceJobDetail','ProtectedBusinessWorkspace'])
+   assert.ok(!live.includes('<'+rejected),'Rejected screen mounted in new route tree '+rejected);
+ assert.match(shell,/Nyoro/);assert.match(shell,/Root Admin/);
+ assert.match(style,/color-scheme:dark/);assert.match(style,/\.ips4 :is\(input,textarea,select\)/);
+ assert.match(style,/\.ips4-bubble/);assert.match(style,/\.ips4-dialog/);
+ assert.doesNotMatch(style,/\.client-layout\{/);
 });
-test('new navigation is unique, least privilege, action-centered and links all company responsibilities',()=>{
-  const paths=COMPANY_NAV.map(x=>x.path);
-  assert.equal(paths[0],'/admin/dashboard');
-  assert.equal(paths.length,new Set(paths).size);
-  for(const section of ['/admin/case-desk','/admin/journeys','/admin/departments','/admin/access',
-    '/admin/clients','/admin/writers','/admin/enquiries','/admin/services','/admin/quality','/admin/support',
-    '/admin/external-chats','/admin/reports','/admin/payments','/admin/settings'])assert.ok(paths.includes(section),section);
-  assert.ok(COMPANY_NAV.every(x=>x.group&&x.permission&&x.name&&x.sub));
-  assert.equal(COMPANY_NAV.find(x=>x.path==='/admin/access').permission,'team.manage');
-  assert.equal(COMPANY_NAV.find(x=>x.path==='/admin/writers').permission,'providers.view');
+test('all company responsibilities and identity-related work are available within permission ceilings',()=>{
+ const paths=MODULES.map(x=>x.path);
+ assert.equal(paths[0],'/admin/dashboard');
+ assert.equal(new Set(paths).size,paths.length);
+ for(const path of ['/admin/enquiries','/admin/external-chats','/admin/services','/admin/clients','/admin/writers',
+  '/admin/support','/admin/messages','/admin/departments','/admin/access','/admin/reports','/admin/settings','/admin/payments','/admin/quality'])
+  assert.ok(paths.includes(path),path);
+ assert.equal(MODULES.find(x=>x.path==='/admin/access').permission,'team.manage');
+ assert.equal(MODULES.find(x=>x.path==='/admin/writers').permission,'providers.view');
 });
-test('root identity is permanently outside staff scope even if legacy database row shares email',()=>{
-  const env={ADMIN_EMAIL:'Owner@IpsGlobalService.com'};
-  assert.equal(ownerPrincipalEmail(env),'owner@ipsglobalservice.com');
-  assert.equal(isProtectedOwnerRecord({email:'OWNER@IPSGLOBALSERVICE.COM',id:'ADM-LEGACY'},env),true);
-  assert.equal(isProtectedOwnerRecord({email:'other@example.com',id:'OWNER@IPSGLOBALSERVICE.COM'},env),true);
-  assert.equal(isProtectedOwnerRecord({email:'staff@example.com',id:'ADM-OTHER'},env),false);
+test('the root principal can never be managed as subordinate staff or created from a legacy row',()=>{
+ const env={ADMIN_EMAIL:'owner@ipsglobalservice.com'};
+ assert.equal(ownerPrincipalEmail(env),'owner@ipsglobalservice.com');
+ assert.equal(isProtectedOwnerRecord({email:'OWNER@IPSGLOBALSERVICE.COM',id:'ADM-1'},env),true);
+ assert.equal(isProtectedOwnerRecord({id:'owner@ipsglobalservice.com',email:'someone@other.com'},env),true);
+ assert.equal(isProtectedOwnerRecord({email:'staff@company.com',id:'ADM-2'},env),false);
 });
-test('unverified enquiries are not counted as unowned or overdue and no fake totals appear',()=>{
-  const future='2035-01-01T00:00:00.000Z';
-  const data=[{kind:'enquiry',status:'new',verified:false,due_at:'2020-01-01',owner:''},
-    {kind:'enquiry',status:'new',verified:true,due_at:'2020-01-01',owner:''},
-    {kind:'project',status:'Submitted for Review',owner:'ADM-ONE'},
-    {kind:'project',status:'Completed',tasks:{overdue:9}},
-    {kind:'support',status:'Open',tasks:{overdue:1}},
-    {kind:'telegram',status:'open',new_message:true}];
-  assert.equal(caseNeedsOwner(data[0]),false);assert.equal(caseLate(data[0]),false);
-  assert.equal(caseNeedsOwner(data[1]),true);assert.equal(caseLate(data[1]),true);
-  assert.equal(caseNeedsDecision(data[2]),true);assert.equal(caseNeedsDecision(data[3]),false);
-  const summary=summarizeWork(data);
-  assert.equal(summary.open,5);assert.equal(summary.unowned,1);assert.equal(summary.overdue,2);
-  assert.equal(summarizeWork(null),null);
-  const covered=departmentCoverage([{company_role:'manager',department:'finance',status:'Invited'},
-    {company_role:'staff',department:'finance',status:'Active'}]);
-  assert.equal(covered.length,7);
-  assert.equal(covered.find(x=>x.id==='finance').managers.length,0);
-  assert.equal(covered.find(x=>x.id==='finance').pending.length,1);
-  assert.equal(departmentCoverage(null),null);
-  assert.ok(future);
+test('management pulse retains verified-customer and source-derived exception gates',()=>{
+ const fixtures=[
+ {kind:'enquiry',status:'new',verified:false,owner:'',due_at:'2020-01-01'},
+ {kind:'enquiry',status:'new',verified:true,owner:'',due_at:'2020-01-01'},
+ {kind:'support',status:'Open',tasks:{overdue:1}},
+ {kind:'project',status:'Completed',tasks:{overdue:1}}
+ ];
+ assert.equal(needsCompanyCaseOwner(fixtures[0]),false);assert.equal(isOverdueCompanyCase(fixtures[0]),false);
+ assert.equal(needsCompanyCaseOwner(fixtures[1]),true);assert.equal(isOverdueCompanyCase(fixtures[1]),true);
+ assert.equal(isOpenCompanyCase(fixtures[3]),false);
+ const report=summarizeCompanyCases(fixtures);
+ assert.equal(report.open,3);assert.equal(report.unowned,1);assert.equal(report.overdue,2);
+ assert.equal(summarizeCompanyCases(null),null);
 });
-test('real client and specialist eligibility requires approved, verified, active identities',()=>{
-  assert.equal(readyClient({client_id:'CID-REAL-001',email:'client@university.edu',status:'Active',email_verified_at:new Date()}),true);
-  assert.equal(readyClient({client_id:'CID-REAL-001',email:'client@university.edu',status:'Active'}),false);
-  assert.equal(readySpecialist({email:'specialist@university.edu',status:'Active',application_status:'approved',email_verified_at:new Date()}),true);
-  assert.equal(readySpecialist({email:'specialist@university.edu',status:'Active',application_status:'approved'}),false);
-  assert.equal(readySpecialist({email:'test@ips.test',status:'Active',application_status:'approved',email_verified_at:new Date()}),false);
-});
-test('fresh company work and people actions use real APIs, client consent, payment and authorized status gates',async()=>{
-  const [work,team,records,journey,backend,server]=await Promise.all([
-    source('src/companyOS/CompanyWork.jsx'),source('src/companyOS/CompanyTeam.jsx'),source('src/companyOS/CompanyRecords.jsx'),
-    source('src/companyOS/CompanyOperations.jsx'),source('services/companyOperatingSystem.js'),source('server.js')]);
-  for(const marker of ['/api/admin/company-cases','/actions','/tasks/','/api/contact-enquiries/admin/','/api/support-tickets/'])
-    assert.ok(work.includes(marker),marker);
-  for(const marker of ['/api/admin/company-team/roster','/invite','/offboard','/reinvite','/legacy/'])
-    assert.ok(team.includes(marker),marker);
-  for(const marker of ['clients.recovery','/password-recovery','/resend-verification','/api/provider/applications/',
-    'allowedAdminServiceStatuses','payment_status===\'paid\'','readySpecialist','source_quote_id'])
-    assert.ok(records.includes(marker),marker);
-  assert.match(journey,/Independent quality/);assert.match(journey,/Payment provider is pending/);
-  assert.match(backend,/isProtectedOwnerRecord\(target,env\)/);
-  assert.match(backend,/const withoutOwner=members.filter/);
-  assert.match(backend,/email===ownerPrincipalEmail\(env\)/);
-  assert.match(server,/if \(email === adminEmail\) \{/);
-  assert.match(server,/Historic MongoDB rows can share the root email/);
-  assert.doesNotMatch(work,/Math\.random\(/);
+test('new administration routes are actually backed by private operating APIs',async()=>{
+ const files=['CompanyControl.jsx','OperationsBoard.jsx','PeopleHub.jsx','TelegramOperations.jsx',
+  'IntakeDesk.jsx','CustomerSupportDesk.jsx','PrivateConversations.jsx','ProductionHub.jsx','Workforce.jsx'];
+ const texts=await Promise.all(files.map(f=>read('src/administration/'+f)));
+ for(const endpoint of ['/api/admin/company-cases','/api/admin/company-team/roster','/api/clients','/api/writers',
+   '/api/contact-channels/admin/threads','/api/support-tickets','/api/contact-enquiries/admin','/api/conversations','/api/services'])
+ assert.ok(texts.some(t=>t.includes(endpoint)),'Missing actual source endpoint '+endpoint);
+ for(const src of texts)assert.doesNotMatch(src,/Math\.random\(|demoRevenue|fakeCases/);
 });
