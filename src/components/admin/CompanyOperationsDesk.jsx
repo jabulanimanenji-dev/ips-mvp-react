@@ -78,6 +78,8 @@ export default function CompanyOperationsDesk(){
   const [draft,setDraft]=useState('');
   const [taskDate,setTaskDate]=useState('');
   const [taskPriority,setTaskPriority]=useState('standard');
+  const [staff,setStaff]=useState([]);
+  const [assignee,setAssignee]=useState(admin?.id||'');
   const [updateDate,setUpdateDate]=useState('');
   const [refreshCount,setRefreshCount]=useState(0);
   const selection=useMemo(()=>cases.find(c=>safeRef(c.kind,c.ref)===requested)||null,[cases,requested]);
@@ -100,6 +102,15 @@ export default function CompanyOperationsDesk(){
     finally{setLoading(false);}
   },[requested,setParams]);
   useEffect(()=>{fetchCases();},[refreshCount]); // Explicit refresh and periodic refresh only.
+  useEffect(()=>{
+    if(!hasAdminPermission('administrators.manage'))return;
+    let active=true;
+    fetch('/api/admin/company-cases/staff',{credentials:'same-origin',cache:'no-store'})
+      .then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok||!d.success)throw Error('Team directory unavailable.');return d;})
+      .then(d=>{if(active)setStaff(d.staff||[]);})
+      .catch(()=>{if(active)setStaff([]);});
+    return()=>{active=false;};
+  },[admin?.id]);
   useEffect(()=>{
     const timer=setInterval(()=>setRefreshCount(n=>n+1),90000);
     return()=>clearInterval(timer);
@@ -173,7 +184,8 @@ export default function CompanyOperationsDesk(){
     const content=draft.trim();
     if(!content||!canManage)return;
     const payload={entry_kind:entryKind,body:content,priority:taskPriority,
-      ...(entryKind==='task'&&taskDate?{due_at:new Date(taskDate).toISOString()}:{})};
+      ...(entryKind==='task'&&taskDate?{due_at:new Date(taskDate).toISOString()}:{}),
+      ...(entryKind==='task'&&assignee?{assigned_to:assignee}:{})};
     const saved=await act(refUrl+'/actions','POST',payload,
       entryKind==='task'?'Internal follow-up task recorded.':'Confidential staff note saved.');
     if(saved){setDraft('');setTaskDate('');}
@@ -402,6 +414,12 @@ export default function CompanyOperationsDesk(){
                 <textarea required value={draft} onChange={e=>setDraft(e.target.value)} maxLength={2000} minLength={3}
                   placeholder={entryKind==='task'?'E.g. Review the brief and provide a written update to the client.':'Record a decision, context or a review finding. Not visible to the client.'}/></label>
               {entryKind==='task'&&<div className="ips-ops-editor-options">
+                {staff.length>0&&<label>Assigned IPS staff
+                  <select value={assignee||admin?.id||''} onChange={e=>setAssignee(e.target.value)}>
+                    {!staff.some(x=>x.id===admin?.id)&&<option value={admin?.id||''}>Myself</option>}
+                    {staff.map(x=><option value={x.id} key={x.id}>{x.name} · {x.role}</option>)}
+                  </select>
+                </label>}
                 <label>Due date (optional)<input type="datetime-local" value={taskDate} onChange={e=>setTaskDate(e.target.value)}/></label>
                 <label>Priority<select value={taskPriority} onChange={e=>setTaskPriority(e.target.value)}>
                   <option value="standard">Standard</option><option value="urgent">Urgent</option></select></label>
