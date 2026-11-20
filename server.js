@@ -28,6 +28,7 @@ import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
 import { qualifyOwnerTelegramInbound } from './services/telegramInboundEvidence.js';
+import {isIpsQaFixtureAdmin,isIpsQaFixtureClient,isIpsQaFixtureEmail} from './shared/ipsCompanyScope.js';
 import { sendPublicationEmailProbe } from './services/publicationEmailProbe.js';
 import { registerContactEmailWebhooks } from './services/contactEmailWebhooks.js';
 import { registerPrivateQuoteRoutes } from './services/quoteRequests.js';
@@ -255,7 +256,8 @@ const resolveAdminAccess = async session => {
     };
   }
   const admin = await Admin.findOne({ id: session?.id }).lean();
-  if (!admin || (admin.status || 'Active') !== 'Active') return null;
+  if (!admin || (admin.status || 'Active') !== 'Active' ||
+      (isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true' && isIpsQaFixtureAdmin(admin))) return null;
   if (Number(session?.session_version || 1) !== Number(admin.session_version || 1)) return null;
   const customRole = admin.custom_role_id
     ? await AdminRole.findOne({ role_id: admin.custom_role_id }).lean()
@@ -343,12 +345,15 @@ app.get('/api/clients', async (req, res) => {
     const totalsByClient = new Map(
       orderTotals.map(total => [total._id, total])
     );
-    const clientsWithTotals = clients.map(client => ({
+    const companyClients=isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'
+      ?clients.filter(client=>!isIpsQaFixtureClient(client)):clients;
+    const clientsWithTotals = companyClients.map(client => ({
       ...client,
       total_orders: totalsByClient.get(client.client_id)?.total_orders || 0,
       total_spent: totalsByClient.get(client.client_id)?.total_spent || 0
     }));
-    res.json({ success: true, clients: clientsWithTotals });
+    res.json({ success: true, clients: clientsWithTotals,
+      hidden_legacy_qa_accounts:clients.length-companyClients.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -674,8 +679,10 @@ app.get('/api/writers', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    const writers = await Writer.find().select('-password');
-    res.json({ success: true, writers });
+    const writers = await Writer.find().select('-password').lean();
+    const companyWriters=isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'
+      ?writers.filter(w=>!isIpsQaFixtureEmail(w.email)):writers;
+    res.json({ success: true, writers:companyWriters,hidden_legacy_qa_accounts:writers.length-companyWriters.length });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -1043,7 +1050,9 @@ app.post('/api/admin/login', async (req, res) => {
     }
 
     const admin = await Admin.findOne({ email });
-    if (admin && (admin.status || 'Active') === 'Active' && verifyPassword(password, admin.password)) {
+    if (admin && (admin.status || 'Active') === 'Active' &&
+        !(isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true' && isIpsQaFixtureAdmin(admin)) &&
+        verifyPassword(password, admin.password)) {
       if (!admin.password.startsWith('scrypt$')) {
         admin.password = hashPassword(password);
       }
@@ -1181,7 +1190,9 @@ app.get('/api/admins', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (!req.adminAccess?.isSuperAdmin) return res.status(403).json({ success: false, error: 'Super Admin access required.' });
-    const admins = await Admin.find().select('-password').sort({ createdAt: -1 });
+    const adminRecords = await Admin.find().select('-password').sort({ createdAt: -1 }).lean();
+    const admins=isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'
+      ?adminRecords.filter(a=>!isIpsQaFixtureAdmin(a)):adminRecords;
     res.json({
       success: true,
       rootAdmin: {
@@ -1192,7 +1203,8 @@ app.get('/api/admins', async (req, res) => {
         status: 'Active',
         isRoot: true
       },
-      admins
+      admins,
+      archived_legacy_qa_admin_count:adminRecords.length-admins.length
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
