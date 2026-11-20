@@ -57,12 +57,20 @@ try {
   for (const [path, label] of [
     ['/api/contact-enquiries/admin','admin-enquiry-privacy'],
     ['/api/contact-channels/admin/threads','admin-channel-privacy'],
-    ['/api/quote-requests/me','client-private-quotes-privacy']
+    ['/api/quote-requests/me','client-private-quotes-privacy'],
+    ['/api/clients','client-directory-privacy'],
+    ['/api/writers','specialist-directory-privacy'],
+    ['/api/admins','staff-directory-privacy'],
+    ['/api/services','private-projects-privacy']
   ]) {
     const result = await request(path);
     assert.equal(result.status, 401, label + ' must reject anonymous visitors');
     outcomes.push(label + ':PASS');
   }
+
+  const archivedStudio = await request('/api/admin/service-engine');
+  assert.equal(archivedStudio.status, 410, 'Archived universal-platform admin API must not be available in live IPS.');
+  outcomes.push('no-cross-project-service-studio-api:PASS');
 
   for (const [path, label] of [
     ['/','public-website'],
