@@ -516,7 +516,20 @@ app.post('/api/client/login', async (req, res) => {
     const email=normalizeEmail(req.body?.email),password=String(req.body?.password||'');
     const client = await Client.findOne({email});
     if (client && !(isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'&&isIpsQaFixtureClient(client))&&verifyPassword(password, client.password)) {
-      if(!client.email_verified_at)return res.status(403).json({success:false,verification_required:true,message:'Verify your email before accessing your account.'});
+      if(!client.email_verified_at){
+        // Correct credentials on a pending account automatically retrigger its
+        // verification link when the send cooldown allows. Admins do not need
+        // to issue verification codes or mark email addresses verified.
+        let attempted=false;
+        try{
+          const pending=await Client.findOne({client_id:client.client_id,email_verified_at:null})
+            .select('+verification_hash +verification_expires_at +verification_sent_at +verification_attempts');
+          if(pending){const sent=await issueEmailChallenge(pending);attempted=Boolean(sent?.verification_required);}
+        }catch{}
+        return res.status(403).json({success:false,verification_required:true,
+          message:attempted?'We emailed a fresh verification link. Open it to confirm your address and enter your account.':
+            'Your account email is not verified. Open the IPS verification link sent to your mailbox.'});
+      }
       if (client.status==='Suspended'||client.status==='Inactive')return res.status(403).json({success:false,message:'Account access is currently unavailable.'});
       if (!client.password.startsWith('scrypt$')) {
         client.password = hashPassword(password);
@@ -958,7 +971,17 @@ app.post('/api/writer/login', async (req, res) => {
     const password = String(req.body?.password || '');
     const writer = await Writer.findOne({ email });
     if (!writer || (isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'&&isIpsQaFixtureEmail(writer.email)) || !verifyPassword(password, writer.password)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    if(!writer.email_verified_at)return res.status(403).json({success:false,verification_required:true,message:'Verify your specialist email address first.'});
+    if(!writer.email_verified_at){
+      let attempted=false;
+      try{
+        const pending=await Writer.findOne({writer_id:writer.writer_id,email_verified_at:null})
+          .select('+verification_hash +verification_expires_at +verification_sent_at +verification_attempts');
+        if(pending){const sent=await issueEmailChallenge(pending);attempted=Boolean(sent?.verification_required);}
+      }catch{}
+      return res.status(403).json({success:false,verification_required:true,
+        message:attempted?'IPS emailed you a fresh specialist verification link. Open it to confirm your mailbox.':
+          'Verify your registered specialist email using the IPS link already sent to you.'});
+    }
     const applicationStatus = writer.application_status || 'approved';
     if (applicationStatus === 'pending') return res.status(403).json({ success: false, message: 'Your service-provider application is awaiting review.' });
     if (applicationStatus === 'more_information') return res.status(403).json({ success: false, message: 'IPS needs more information before your application can be approved. Please contact administration.' });
