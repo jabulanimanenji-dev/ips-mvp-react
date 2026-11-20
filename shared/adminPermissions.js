@@ -6,7 +6,9 @@ export const ADMIN_PERMISSION_CATALOG = [
   ['services.view', 'View service operations', 'Inspect professional and odd-job requests.'],
   ['services.manage', 'Manage service operations', 'Quote, assign, update, and close service requests.'],
   ['clients.view', 'View clients', 'View client profiles and history.'],
-  ['clients.manage', 'Manage clients', 'Edit, suspend, or remove clients.'],
+  ['clients.manage', 'Manage clients', 'Edit or suspend client accounts.'],
+  ['clients.recovery', 'Initiate client recovery', 'Email a one-time password recovery link to a verified client; never see passwords.'],
+  ['team.manage', 'Manage assigned company team', 'Invite, delegate and offboard staff within the permitted department.'],
   ['providers.view', 'View providers', 'View provider profiles and work.'],
   ['providers.manage', 'Manage providers', 'Create, edit, suspend, and assign providers.'],
   ['files.view', 'View files and evidence', 'Inspect governed job files.'],
@@ -36,7 +38,7 @@ const all = ADMIN_PERMISSION_CATALOG.map(item => item.id);
 export const BUILT_IN_ADMIN_ROLES = {
   superadmin: {
     label: 'Super Admin',
-    description: 'Full God Mode authority across the platform.',
+    description: 'Protected company owner; creates department managers and governs overall company authority.',
     permissions: ['*'],
     protected: true
   },
@@ -120,7 +122,7 @@ export const ADMIN_NAV_PERMISSIONS = {
   '/admin/actions': 'actions.view',
   '/admin/reports': 'reports.view',
   '/admin/settings': 'settings.view',
-  '/admin/access': 'administrators.manage'
+  '/admin/access': 'team.manage'
 };
 
 const mutationPermission = (method, view, manage) => method === 'GET' ? view : manage;
@@ -131,6 +133,9 @@ export const permissionForAdminRequest = (method, path) => {
     '/api/admin/login', '/api/admin/me', '/api/logout', '/api/health', '/api/platform-config'
   ].includes(String(path))) return null;
   if (/^\/api\/media\/[^/]+$/.test(path) && method === 'GET') return null;
+  if(path.startsWith('/api/admin/company-team/accept'))return null;
+  if(path.startsWith('/api/admin/company-team/'))return 'team.manage';
+  if(/^\/api\/admin\/clients\/[^/]+\/password-recovery$/.test(path))return 'clients.recovery';
   if (path.startsWith('/api/admins') || path.startsWith('/api/admin-roles') || path.startsWith('/api/admin/permissions')) return 'administrators.manage';
   if (path.startsWith('/api/admin/platform-config')) {
     if (method === 'GET') return 'design.view';
