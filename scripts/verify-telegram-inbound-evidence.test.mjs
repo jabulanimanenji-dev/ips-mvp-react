@@ -15,7 +15,13 @@ const fake=(records)=>({
     assert.equal(query.channel,'telegram');
     assert.equal(query.direction,'inbound');
     assert.ok(query.createdAt.$gte instanceof Date);
-    return {select(fields){assert.equal(fields,'body');return {sort(){return {limit(n){assert.equal(n,500);return {lean:async()=>records};}}}}};
+    const chain={
+      select(fields){assert.equal(fields,'body');return chain;},
+      sort(){return chain;},
+      limit(n){assert.equal(n,500);return chain;},
+      async lean(){return records;}
+    };
+    return chain;
   }
 });
 test('opt-in diagnostic verifies persisted inbound Telegram message by SHA, not chat identities',async()=>{
