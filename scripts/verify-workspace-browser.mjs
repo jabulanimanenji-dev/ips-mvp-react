@@ -310,7 +310,7 @@ try{
   });
   await check('Administrator sign-out invalidates backend authentication',async()=>{
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
-    await admin.locator('.admin-sidebar').getByRole('button',{name:'Logout'}).click();
+    await admin.locator('.ips-os-rail').getByRole('button',{name:'Sign out securely'}).click();
     await admin.waitForURL(url=>url.pathname===adminEntry,{timeout:15000});
     assert.equal((await admin.request.get(base+'/api/admin/me')).status(),401);
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
