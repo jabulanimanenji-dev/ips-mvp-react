@@ -51,7 +51,7 @@ test('rebuilt administration opens actual records rather than a generic counter-
   assert.match(app,/ProtectedAdminRoute><CompanyShell/);
   assert.match(app,/CompanyWork initialFilter="enquiry"/);
   for(const endpoint of ['/api/admin/company-cases','/actions','/tasks/'])assert.ok(work.includes(endpoint));
-  for(const token of ['os-case-list','selected','Contact authorization','Timeline','Private notes',
+  for(const token of ['os-case-list','selected','Contact authorization','Activity','Private notes',
     'Take ownership of verified enquiry','Assign to myself','Record '])assert.ok(work.includes(token),token);
   assert.match(css,/\.os-case-workspace/);
   assert.match(server,/registerCompanyCaseDesk\(app,\{requireSession\}\)/);
