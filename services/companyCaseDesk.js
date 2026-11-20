@@ -4,8 +4,9 @@ import ServiceRequest from '../models/ServiceRequest.js';
 import ChannelContact from '../models/ChannelContact.js';
 import ChannelMessage from '../models/ChannelMessage.js';
 import CompanyCaseAction from '../models/CompanyCaseAction.js';
+import Admin from '../models/Admin.js';
 import {hasAdminPermission} from '../shared/adminPermissions.js';
-import {isIpsAcademicProject,isIpsQaFixtureEmail} from '../shared/ipsCompanyScope.js';
+import {isIpsAcademicProject,isIpsQaFixtureEmail,isIpsQaFixtureAdmin} from '../shared/ipsCompanyScope.js';
 
 export const COMPANY_KIND_PERMISSIONS=Object.freeze({
   enquiry:{view:'support.view',manage:'support.manage'},
@@ -92,6 +93,24 @@ const error=(res,msg='The IPS company case desk is temporarily unavailable.')=>
   res.status(503).json({success:false,error:msg});
 
 export function registerCompanyCaseDesk(app,{requireSession}){
+  // Only company owners / authorized team managers can view other admin identities
+  // and delegate tasks. Ordinary support staff retain self-assignment.
+  app.get('/api/admin/company-cases/staff',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    if(session.role!=='admin'||!req.adminAccess||
+      !hasAdminPermission(req.adminAccess,'administrators.manage'))
+      return res.status(403).json({success:false,error:'Team-management permission required.'});
+    try{
+      const accounts=await Admin.find({status:'Active'})
+        .select('id name role status email').sort({name:1}).lean();
+      const staff=accounts.filter(a=>!companyMode()||!isIpsQaFixtureAdmin(a))
+        .map(a=>({id:a.id,name:a.name||a.id,role:a.role}));
+      if(!staff.some(a=>a.id===session.id))
+        staff.unshift({id:session.id,name:req.adminAccess.name||'IPS owner',role:req.adminAccess.role||'admin'});
+      res.set('Cache-Control','private, no-store');
+      res.json({success:true,staff});
+    }catch{return error(res,'The IPS team directory is temporarily unavailable.');}
+  });
   app.get('/api/admin/company-cases',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
     if(session.role!=='admin'||!req.adminAccess)return res.sendStatus(403);
@@ -202,12 +221,27 @@ export function registerCompanyCaseDesk(app,{requireSession}){
       due_at=d;
     }
     const priority=req.body?.priority==='urgent'?'urgent':'standard';
+    let assignedTo=session.id;
+    const requestedAssignee=entry_kind==='task'?String(req.body?.assigned_to||'').trim():'';
+    if(requestedAssignee&&requestedAssignee!==session.id){
+      if(!hasAdminPermission(req.adminAccess,'administrators.manage'))
+        return res.status(403).json({success:false,error:'Team-management permission is required to delegate work.'});
+      if(!validRef.test(requestedAssignee))
+        return res.status(400).json({success:false,error:'Invalid assigned staff reference.'});
+      try{
+        const colleague=await Admin.findOne({id:requestedAssignee,status:'Active'})
+          .select('id email status').lean();
+        if(!colleague||(companyMode()&&isIpsQaFixtureAdmin(colleague)))
+          return res.status(400).json({success:false,error:'Choose an active approved IPS administrator.'});
+        assignedTo=colleague.id;
+      }catch{return error(res,'Could not verify the assigned staff member.');}
+    }
     try{
       const target=await findCase(kind,ref);
       if(!allowedCompanyCase(kind,target,{production:companyMode()}))
         return res.status(404).json({success:false,error:'This IPS case does not exist.'});
       const entry=await CompanyCaseAction.create({case_kind:kind,case_ref:ref,entry_kind,
-        body,priority,due_at,created_by:session.id,assigned_to:session.id});
+        body,priority,due_at,created_by:session.id,assigned_to:assignedTo});
       res.set('Cache-Control','private, no-store');
       return res.status(201).json({success:true,action:entry});
     }catch{return error(res,'Could not save the internal case action.');}
