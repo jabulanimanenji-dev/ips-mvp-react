@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {deliverExternalMessage} from '../services/contactChannels.js';
 import {
   IPS_COMPANY_ADMIN_NAV,isIpsQaFixtureEmail,isIpsQaFixtureAdmin,isIpsQaFixtureClient
 } from '../shared/ipsCompanyScope.js';
@@ -64,4 +65,29 @@ test('general support replies cannot carry links, quote references or private re
   assert.equal(safePublicSupportReply('See https://phishing.test/anything'),false);
   assert.equal(safePublicSupportReply('Your quote IPS-Q-ABCDEF0123456789AB is ready'),false);
   assert.equal(safePublicSupportReply('Secret card 1234 5678 1234 5678'),false);
+});
+
+test('real Telegram sendMessage transport requires actual provider acceptance before marking success',async()=>{
+  const requests=[];
+  const request=async (url,opts)=>{
+    requests.push({url,opts});
+    return {ok:true,status:200,json:async()=>({ok:true,result:{message_id:301}})};
+  };
+  const sent=await deliverExternalMessage({channel:'telegram',external_id:'123456789'},
+    'IPS supports general academic enquiries.',{
+      request,env:{TELEGRAM_BOT_TOKEN:'ci-bot-token-not-production'}
+    });
+  assert.equal(sent,'tg:sent:301');
+  assert.equal(requests.length,1);
+  assert.equal(requests[0].url,'https://api.telegram.org/botci-bot-token-not-production/sendMessage');
+  assert.equal(requests[0].opts.method,'POST');
+  assert.deepEqual(JSON.parse(requests[0].opts.body),
+    {chat_id:'123456789',text:'IPS supports general academic enquiries.'});
+  await assert.rejects(deliverExternalMessage({channel:'telegram',external_id:'12345'},'Support reply',{
+    env:{TELEGRAM_BOT_TOKEN:'ci-token'},request:async()=>({ok:false,status:401,json:async()=>({ok:false})})
+  }),/Telegram rejected the reply/);
+  await assert.rejects(deliverExternalMessage({channel:'telegram',external_id:'12345'},'Support reply',{
+    env:{},request:async()=>{throw Error('Never call')}
+  }),/not configured/);
+  assert.equal(requests.length,1);
 });
