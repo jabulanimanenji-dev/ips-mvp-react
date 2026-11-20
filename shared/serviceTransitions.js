@@ -21,7 +21,8 @@ export const SERVICE_TRANSITIONS=Object.freeze({
   'Cancelled':[]
 });
 export const PAYMENT_REQUIRED_SERVICE_STATES=Object.freeze([
-  'Assigned','Scheduled','In Progress','Submitted for Review','Ready for Client','Completed'
+  'Assigned','Scheduled','In Progress','Waiting for Client','Submitted for Review',
+  'Correction Required','Ready for Client','Disputed','Completed'
 ]);
 export function canTransitionService(from,to,role){
   if(from===to)return true;
