@@ -5,11 +5,13 @@ import {Link,Outlet,useLocation} from 'react-router-dom';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import AdminIcon from '../components/admin/AdminIcon';
 import {useAuth} from '../context/AuthContext';
+import {useTheme} from '../context/ThemeContext';
 import {IPS_COMPANY_ADMIN_NAV} from '../../shared/ipsCompanyScope.js';
 
 export default function AdminLayout(){
   const location=useLocation();
   const {admin,hasAdminPermission}=useAuth();
+  const {theme,toggleTheme}=useTheme();
   const [searchOpen,setSearchOpen]=useState(false);
   const [term,setTerm]=useState('');
   const searchRef=useRef(null);
@@ -35,7 +37,7 @@ export default function AdminLayout(){
     return()=>document.removeEventListener('keydown',keydown);
   },[]);
   useEffect(()=>{if(searchOpen)searchRef.current?.focus();},[searchOpen]);
-  return <div className="admin-layout ips-premium-admin" style={{display:'flex',minHeight:'100vh'}}>
+  return <div className={"admin-layout ips-premium-admin"+(theme==='dark'?" ips-dark-admin":"")} style={{display:'flex',minHeight:'100vh'}}>
     <AdminSidebar/>
     <div className="admin-layout-content" style={{marginLeft:264,flex:1,minWidth:0,display:'flex',flexDirection:'column'}}>
       <header className="ips-premium-topbar">
@@ -47,6 +49,10 @@ export default function AdminLayout(){
           <h1>{heading}</h1>
         </div>
         <div className="ips-premium-toolbar">
+          <button type="button" className="ips-premium-theme-toggle"
+            aria-label={theme==='dark'?'Switch administration to light mode':'Switch administration to dark mode'}
+            title={theme==='dark'?'Use light workspace':'Use dark workspace'}
+            onClick={toggleTheme}><AdminIcon name={theme==='dark'?'sun':'moon'} size={18}/></button>
           <button type="button" className="ips-premium-search" aria-label="Search administration sections"
             onClick={()=>setSearchOpen(true)}>
             <span style={{display:'flex',alignItems:'center',gap:9}}><AdminIcon name="search" size={16}/> Search workspace</span>
