@@ -31,3 +31,5 @@ export const mayManageTeamMember=(actor,target)=>Boolean(actor&&target&&!target.
   (actor.isRoot?['manager',undefined].includes(target.company_role):actor.companyRole==='manager'&&target.company_role==='staff'&&
     target.department===actor.department&&target.manager_id===actor.adminId));
 export const managerTeamTitle=department=>isCompanyDepartment(department)?COMPANY_DEPARTMENTS[department].label:'Unassigned';
+
+export const companyStaffPasswordValid=password=>typeof password==='string'&&password.length>=10&&password.length<=128&&/[A-Z]/.test(password)&&/[0-9]/.test(password)&&/[^A-Za-z0-9]/.test(password);
