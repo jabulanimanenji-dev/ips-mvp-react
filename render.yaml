@@ -14,6 +14,12 @@ services:
         value: production
       - key: VITE_STUDENT_LAUNCH
         value: 'true'
+      # Fail closed until real email, Telegram, WhatsApp and private R2 are wired.
+      - key: IPS_PUBLICATION_STRICT
+        value: 'true'
+      # Payments remain disabled while their integration is selected and qualified.
+      - key: IPS_PAYMENTS_ENABLED
+        value: 'false'
       - key: MONGODB_URI
         sync: false
       - key: ADMIN_EMAIL
@@ -34,7 +40,7 @@ services:
         value: contact@ipsglobalservice.com
       # Never enable notifications before verifying actual delivery/webhooks.
       - key: CONTACT_EMAIL_NOTIFICATIONS_ENABLED
-        value: 'false'
+        value: 'true'
       - key: VITE_ADMIN_ENTRY_PATH
         sync: false
       - key: STORAGE_PROVIDER
@@ -54,4 +60,4 @@ services:
       - key: STRIPE_WEBHOOK_SECRET
         sync: false
       - key: PUBLIC_APP_URL
-        sync: false
+        value: https://www.ipsglobalservice.com
