@@ -227,10 +227,6 @@ export function registerCompanyCaseDesk(app,{requireSession}){
     const priority=req.body?.priority==='urgent'?'urgent':'standard';
     let assignedTo=session.id;
     const requestedAssignee=entry_kind==='task'?String(req.body?.assigned_to||'').trim():'';
-    // Root operates through accountable managers, never as a subordinate staff
-    // member. Owner-created tasks must be delegated to a verified manager.
-    if(entry_kind==='task'&&req.adminAccess.isRoot&&(!requestedAssignee||requestedAssignee===session.id))
-      return res.status(409).json({success:false,error:'Appoint an active department manager and assign this task to that manager. The owner cannot be operational staff.'});
     if(requestedAssignee&&requestedAssignee!==session.id){
       if(!hasAdminPermission(req.adminAccess,'team.manage'))
         return res.status(403).json({success:false,error:'Team-management permission is required to delegate work.'});
