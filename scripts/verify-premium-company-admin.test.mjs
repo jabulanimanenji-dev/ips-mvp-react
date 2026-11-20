@@ -58,7 +58,7 @@ test('new client, specialist and academic delivery administration enforce produc
     'email_verified_at','allowedAdminServiceStatuses','payment_status===\'paid\''])assert.ok(records.includes(needle),needle);
   assert.match(team,/ROOT OWNER/);
   assert.match(team,/Never staff/);
-  assert.match(team,//api/admin/company-team/invite/);
+  assert.ok(team.includes('/api/admin/company-team/invite'));
   assert.match(team,/Governed offboarding/);
   assert.match(departments,/CompanyDepartments/);
   assert.match(departments,/CompanyJourneys/);
