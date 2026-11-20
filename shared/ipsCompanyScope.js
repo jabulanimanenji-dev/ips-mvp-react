@@ -30,3 +30,18 @@ export function isIpsQaFixtureClient(record){
   return isIpsQaFixtureEmail(record?.email) ||
     /^(?:EVAL|TEST|DEMO)-/i.test(String(record?.client_id||''));
 }
+
+export function isIpsAcademicProject(request){
+  return Boolean(request && request.category==='Academic Support' &&
+    (request.source==='quote_intake'||Boolean(request.source_quote_id)));
+}
+export function scopeIpsMessagingDirectory({clients=[],providers=[],orders=[],services=[]},{production=false}={}){
+  const scopedClients=production?clients.filter(c=>c.status==='Active'&&Boolean(c.email_verified_at)&&!isIpsQaFixtureClient(c)):clients;
+  const scopedProviders=production?providers.filter(w=>w.status==='Active'&&w.application_status==='approved'&&Boolean(w.email_verified_at)&&!isIpsQaFixtureEmail(w.email)):providers;
+  const jobs=production?services.filter(isIpsAcademicProject).map(x=>({
+    work_id:x.request_id,work_kind:'service',title:x.title,...x
+  })):[...orders.map(x=>({work_id:x.order_id,work_kind:'academic',title:x.topic_title,...x})),
+    ...services.map(x=>({work_id:x.request_id,work_kind:'service',title:x.title,...x}))];
+  return {clients:scopedClients.map(c=>({client_id:c.client_id,username:c.username||'',email:c.email})),
+    providers:scopedProviders.map(w=>({writer_id:w.writer_id,full_name:w.full_name,email:w.email})),jobs};
+}

@@ -32,7 +32,7 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import AdminClients from './components/admin/AdminClients';
 import AdminWriters from './components/admin/AdminWriters';
 import AdminPayments from './components/admin/AdminPayments';
-import AdminMessages from './components/admin/AdminMessages';
+
 import AdminReports from './components/admin/AdminReports';
 import AdminSettings from './components/admin/AdminSettings';
 import AdminServices from './components/admin/AdminServices';
@@ -411,7 +411,7 @@ export default function App() {
           path="messages"
           element={<DirectMessaging role="admin" />}
         />
-        <Route path="job-messages" element={<AdminMessages />} />
+        <Route path="job-messages" element={<Navigate to="/admin/messages" replace />} />
         <Route path="external-chats" element={<ChannelInbox />} />
         <Route path="enquiries" element={<AdminEnquiries />} />
         <Route path="actions" element={<Navigate to="/admin/enquiries" replace />} />

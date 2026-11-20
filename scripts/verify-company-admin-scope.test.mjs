@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {deliverExternalMessage} from '../services/contactChannels.js';
 import {
-  IPS_COMPANY_ADMIN_NAV,isIpsQaFixtureEmail,isIpsQaFixtureAdmin,isIpsQaFixtureClient
+  IPS_COMPANY_ADMIN_NAV,isIpsQaFixtureEmail,isIpsQaFixtureAdmin,isIpsQaFixtureClient,scopeIpsMessagingDirectory,isIpsAcademicProject
 } from '../shared/ipsCompanyScope.js';
 import {
   canReplyToPublicTelegramSupport,isSubstantiveTelegramInbound,safePublicSupportReply,
@@ -90,4 +90,50 @@ test('real Telegram sendMessage transport requires actual provider acceptance be
     env:{},request:async()=>{throw Error('Never call')}
   }),/not configured/);
   assert.equal(requests.length,1);
+});
+
+test('production private messenger directory lists only verified actual IPS identities and academic projects',()=>{
+  const clients=[
+    {client_id:'CID-LIVE',username:'ChosenName',email:'valid@university.edu',status:'Active',email_verified_at:new Date()},
+    {client_id:'CID-TEST-1',username:'Sample',email:'sample@ips.test',status:'Active',email_verified_at:new Date()},
+    {client_id:'CID-UNVERIFIED',username:'NoVerifiedEmail',email:'unverified@university.edu',status:'Active',email_verified_at:null},
+    {client_id:'CID-SUSPENDED',username:'Suspended',email:'suspended@university.edu',status:'Suspended',email_verified_at:new Date()}
+  ];
+  const providers=[
+    {writer_id:'WID-LIVE',full_name:'Approved Specialist',email:'staff@university.edu',status:'Active',application_status:'approved',email_verified_at:new Date()},
+    {writer_id:'WID-TEST',full_name:'Imported Provider',email:'writer@ips.test',status:'Active',application_status:'approved',email_verified_at:new Date()},
+    {writer_id:'WID-PENDING',full_name:'Pending Specialist',email:'pending@university.edu',status:'Active',application_status:'pending',email_verified_at:new Date()},
+    {writer_id:'WID-NOVERIFY',full_name:'Not Verified',email:'nv@university.edu',status:'Active',application_status:'approved',email_verified_at:null}
+  ];
+  const orders=[{order_id:'OLD-1',topic_title:'Old unrelated universal platform order'}];
+  const services=[
+    {request_id:'SRV-ACADEMIC',title:'Academic guidance',category:'Academic Support',source:'quote_intake',source_quote_id:'IPS-Q-ABCDEF123456ABCDEF'},
+    {request_id:'SRV-ODD',title:'Imported odd job',category:'Car wash',source:'legacy'},
+    {request_id:'SRV-OTHER',title:'Imported platform consulting',category:'Digital Consultancy',source:'legacy'}
+  ];
+  assert.equal(isIpsAcademicProject(services[0]),true);
+  assert.equal(isIpsAcademicProject(services[1]),false);
+  const all=scopeIpsMessagingDirectory({clients,providers,orders,services},{production:false});
+  assert.equal(all.clients.length,4);
+  assert.equal(all.providers.length,4);
+  assert.equal(all.jobs.length,4);
+  const company=scopeIpsMessagingDirectory({clients,providers,orders,services},{production:true});
+  assert.deepEqual(company.clients,[{client_id:'CID-LIVE',username:'ChosenName',email:'valid@university.edu'}]);
+  assert.deepEqual(company.providers,[{writer_id:'WID-LIVE',full_name:'Approved Specialist',email:'staff@university.edu'}]);
+  assert.equal(company.jobs.length,1);
+  assert.equal(company.jobs[0].work_id,'SRV-ACADEMIC');
+  assert.ok(!JSON.stringify(company).includes('Old unrelated'));
+  assert.ok(!JSON.stringify(company).includes('Car wash'));
+  assert.ok(!JSON.stringify(company).includes('ips.test'));
+});
+test('private messaging source never sends client full names or trusts browser-supplied recipient names',async()=>{
+  const server=await readFile(new URL('../server.js',import.meta.url),'utf8');
+  const messenger=await readFile(new URL('../src/components/common/DirectMessaging.jsx',import.meta.url),'utf8');
+  assert.match(server,/scopeIpsMessagingDirectory/);
+  assert.match(server,/Choose a verified active IPS customer or approved specialist/);
+  assert.match(server,/recipient\.username\|\|recipient\.client_id/);
+  assert.match(messenger,/person\.username\|\|person\.full_name/);
+  assert.doesNotMatch(messenger,/\{ \.\.\.draft, target_role, target_id, target_name \}/);
+  const app=await readFile(new URL('../src/App.jsx',import.meta.url),'utf8');
+  assert.match(app,/path="job-messages" element=\{<Navigate to="\/admin\/messages"/);
 });
