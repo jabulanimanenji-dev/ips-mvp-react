@@ -4,6 +4,16 @@ const formatTotal = quote => new Intl.NumberFormat('en', { style: 'currency', cu
 
 export default function StudentCheckout({ job, onRefresh }) {
   const [state, setState] = useState({ working: false, error: '', status: job.payment_status || 'unpaid' });
+  const [paymentReady,setPaymentReady]=useState(false);
+  useEffect(()=>{
+    let active=true;
+    fetch('/api/student-payments/config',{cache:'no-store'}).then(async response=>{
+      if(!response.ok)throw Error('Payment service unavailable');
+      const data=await response.json();
+      if(active)setPaymentReady(data.enabled===true);
+    }).catch(()=>{if(active)setPaymentReady(false);});
+    return ()=>{active=false;};
+  },[]);
   const paymentState=state.status||job.payment_status||'unpaid';
   const paid=paymentState==='paid';
   const refunded=paymentState==='refunded';
@@ -38,6 +48,8 @@ export default function StudentCheckout({ job, onRefresh }) {
   }, [job.request_id, returned]);
 
   const start = async () => {
+    if(!paymentReady)return setState(previous=>({...previous,
+      error:'IPS has not activated its payment service. Do not transfer funds until a secure provider is announced.'}));
     setState(previous => ({ ...previous, working: true, error: '' }));
     try {
       const response = await fetch('/api/student-payments/checkout', {
@@ -55,15 +67,17 @@ export default function StudentCheckout({ job, onRefresh }) {
   };
 
   return <section className="card" style={{ marginTop: '1rem', borderLeft: '4px solid var(--primary)' }}>
-    <h3>Secure payment</h3>
-    <p>Payment is required only after you accept the final academic-support quotation.</p>
+    <h3>{paymentReady?'Secure payment':'Payment integration pending'}</h3>
+    <p>{paymentReady?'Payment is required only after you accept the final academic-support quotation.':
+      'IPS can review your request and provide an itemized quotation. A secure payment method has not yet been activated. Do not send money or card details to IPS through email, Telegram or WhatsApp.'}</p>
     <p><strong>Quotation: {eligible ? formatTotal(job.quote) : 'Awaiting your approval'}</strong></p>
     {settled ? <p role="status" style={{ color: 'var(--success, green)' }}>
       {refunded?'This quotation was fully refunded. No further payment is due for this project.':
       partiallyRefunded?'This quotation was paid and partially refunded. You cannot be charged again for the same accepted quote.':
       'Payment verified. Your support request is eligible for fulfillment.'}
     </p>
-      : !eligible ? <p>Review and accept your quotation from the Service Hub before paying.</p>
+      : !eligible ? <p>Review and accept your quotation from the Service Hub. IPS will explain the payment arrangements only after a verified provider is activated.</p>
+      : !paymentReady ? <p role="status">Your accepted quotation is recorded securely. Checkout is unavailable until IPS connects and verifies its payment provider. No payment has been taken.</p>
       : <>
         <p role="status">{state.status === 'processing' || returned ? 'Checking payment confirmation with the provider…' : 'Payment has not been confirmed.'}</p>
         <button className="btn btn-primary" disabled={state.working} onClick={start}>{state.working ? 'Preparing secure checkout…' : 'Pay ' + formatTotal(job.quote)}</button>
