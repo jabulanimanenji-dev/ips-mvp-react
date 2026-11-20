@@ -258,7 +258,7 @@ const resolveAdminAccess = async session => {
   if (session?.root_admin) {
     return {
       adminId: session.id,
-      name: 'Primary Super Admin',
+      name: 'Nyoro',
       email: session.id,
       role: 'superadmin',
       permissions: ['*'],
@@ -1060,7 +1060,7 @@ app.post('/api/admin/login', async (req, res) => {
         admin: {
           id: email,
           email,
-          name: 'Primary Super Admin',
+          name: 'Nyoro',
           role: 'superadmin',
           permissions: ['*'],
           isSuperAdmin: true,
@@ -1229,7 +1229,7 @@ app.get('/api/admins', async (req, res) => {
       success: true,
       rootAdmin: {
         id: String(process.env.ADMIN_EMAIL || 'admin@ipsglobal.com').trim().toLowerCase(),
-        name: 'Primary Super Admin',
+        name: 'Nyoro',
         email: String(process.env.ADMIN_EMAIL || 'admin@ipsglobal.com').trim().toLowerCase(),
         role: 'superadmin',
         status: 'Active',
