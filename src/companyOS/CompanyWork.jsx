@@ -72,6 +72,12 @@ export default function CompanyWork({initialFilter}){
       <Refresh onClick={()=>{source.refresh();if(selected)companyRequest(url).then(setDetail).catch(e=>setError(e.message));}} loading={source.loading}/>
     </PageHeading>
     <ErrorState error={source.error} retry={source.refresh}/>
+    <div className="os-pill-bar" aria-label="Open full secure service action desks">
+      {hasAdminPermission('support.view')&&<Link className="os-action secondary" to="/admin/intake/reply">Private quotation & written replies</Link>}
+      {hasAdminPermission('support.view')&&<Link className="os-action secondary" to="/admin/support/tickets">Support conversations</Link>}
+      {hasAdminPermission('messages.view')&&<Link className="os-action secondary" to="/admin/channels/telegram">Verified Telegram inbox</Link>}
+      {hasAdminPermission('messages.view')&&<Link className="os-action secondary" to="/admin/messages">Secure IPS messages</Link>}
+    </div>
     <div className="os-pill-bar" aria-label="Filter accountable company work">
       {FILTERS.map(([id,label])=><button key={id} type="button" className="os-pill" aria-pressed={filter===id} onClick={()=>changeFilter(id)}>{label}</button>)}
     </div>
