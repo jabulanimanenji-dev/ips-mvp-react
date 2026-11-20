@@ -44,3 +44,12 @@ test('server and browser use the same service transition authority, not duplicat
  assert.match(ui,/disabled=\{!canEditQuote\}/);
  assert.doesNotMatch(ui,/\{STATES\.map/);
 });
+
+test('read-only support employees see cases without being offered mutations',async()=>{
+ const ui=await readFile(new URL('../src/components/admin/AdminSupportTickets.jsx',import.meta.url),'utf8');
+ assert.match(ui,/hasAdminPermission\('support\.manage'\)/);
+ assert.match(ui,/if \(!selected\|\|!canManage\) return/);
+ assert.match(ui,/!reply\.trim\(\) \|\| !canManage/);
+ assert.match(ui,/disabled=\{!canManage\|\|state\.saving\}/);
+ assert.match(ui,/canManage&&selected\.status !== 'Closed'/);
+});
