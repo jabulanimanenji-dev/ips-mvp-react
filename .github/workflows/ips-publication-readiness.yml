@@ -18,3 +18,9 @@ jobs:
         env:
           IPS_PROBE_MODE: baseline
         run: node scripts/probe-ips-publication.mjs
+      - name: Verify live production nonpayment configuration through the company domain
+        env:
+          IPS_PROBE_MODE: publication
+        run: node scripts/probe-ips-publication.mjs
+      - name: Verify role entrypoints, privacy API boundaries and disabled payments
+        run: node scripts/probe-ips-live-company.mjs
