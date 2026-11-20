@@ -384,6 +384,7 @@ export default function App() {
         <Route path="support/tickets" element={<CompanyGuard permission="support.view"><ProtectedBusinessWorkspace><AdminSupportTickets/></ProtectedBusinessWorkspace></CompanyGuard>}/>
         <Route path="channels/telegram" element={<CompanyGuard permission="messages.view"><ProtectedBusinessWorkspace><ChannelInbox/></ProtectedBusinessWorkspace></CompanyGuard>}/>
         <Route path="messages" element={<CompanyGuard permission="messages.view"><ProtectedBusinessWorkspace><DirectMessaging role="admin"/></ProtectedBusinessWorkspace></CompanyGuard>}/>
+        <Route path="job-messages" element={<Navigate to="/admin/messages" replace/>}/>
         <Route path="orders" element={<Navigate to="/admin/services" replace/>}/>
         <Route path="orders/:orderId" element={<Navigate to="/admin/services" replace/>}/>
         <Route path="actions" element={<Navigate to="/admin/case-desk" replace/>}/>
