@@ -1,4 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import {useSearchParams} from 'react-router-dom';
 import {useAuth} from '../../context/AuthContext';
 import {COMPANY_DEPARTMENTS,permittedCompanyPermissions,managerTeamTitle} from '../../../shared/companyGovernance.js';
 import AdminIcon from './AdminIcon.jsx';
@@ -17,10 +18,15 @@ const accountTemplate={name:'',email:'',department:'client_relations',permission
 export default function AdminAccessManager(){
   const {admin,hasAdminPermission}=useAuth();
   const isRoot=Boolean(admin?.isRoot);
+  const [queryParams]=useSearchParams();
+  const requestedDepartment=queryParams.get('department');
   const canManage=hasAdminPermission('team.manage');
   const [team,setTeam]=useState([]);
   const [root,setRoot]=useState(null);
-  const [form,setForm]=useState(accountTemplate);
+  const [form,setForm]=useState(()=>({...accountTemplate,
+    department:COMPANY_DEPARTMENTS[requestedDepartment]?requestedDepartment:'client_relations'}));
+  useEffect(()=>{if(isRoot&&COMPANY_DEPARTMENTS[requestedDepartment])
+    setForm(f=>({...f,department:requestedDepartment,permissions:[]}));},[requestedDepartment,isRoot]);
   const [selected,setSelected]=useState(null);
   const [selectionPerms,setSelectionPerms]=useState([]);
   const [replacement,setReplacement]=useState('');
