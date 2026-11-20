@@ -24,8 +24,8 @@ export default function AdminAccessManager(){
   const [team,setTeam]=useState([]);
   const [root,setRoot]=useState(null);
   const [form,setForm]=useState(()=>({...accountTemplate,
-    department:COMPANY_DEPARTMENTS[requestedDepartment]?requestedDepartment:'client_relations'}));
-  useEffect(()=>{if(isRoot&&COMPANY_DEPARTMENTS[requestedDepartment])
+    department:Object.hasOwn(COMPANY_DEPARTMENTS,requestedDepartment)?requestedDepartment:'client_relations'}));
+  useEffect(()=>{if(isRoot&&Object.hasOwn(COMPANY_DEPARTMENTS,requestedDepartment))
     setForm(f=>({...f,department:requestedDepartment,permissions:[]}));},[requestedDepartment,isRoot]);
   const [selected,setSelected]=useState(null);
   const [selectionPerms,setSelectionPerms]=useState([]);
