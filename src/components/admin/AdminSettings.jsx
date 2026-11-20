@@ -46,7 +46,7 @@ export default function AdminSettings(){
         <h2 style={{fontSize:'1.12rem'}}>My administrator account</h2>
         <p style={{lineHeight:1.8}}><strong>{admin?.name||'IPS administrator'}</strong><small style={{color:'var(--text-muted)',display:'block'}}>{admin?.email||''}</small></p>
         <p style={{fontSize:'.85rem',color:'var(--text-muted)'}}>Role: {admin?.customRoleName||admin?.role||'Administrator'}. Staff permissions are enforced on the server.</p>
-        {admin?.isSuperAdmin&&<Link className="btn btn-secondary" to="/admin/access">Manage authorized IPS staff</Link>}
+        {hasAdminPermission('team.manage')&&<Link className="btn btn-secondary" to="/admin/access">Manage my company team</Link>}
       </section>
       <section className="card">
         <h2 style={{fontSize:'1.12rem'}}>Communication status</h2>
