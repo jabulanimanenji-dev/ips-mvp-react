@@ -875,6 +875,102 @@ async function go(){
   assert.equal(forbiddenAfterStop.status,409);
   pass('Telegram customer STOP immediately disables general support replies and preserves project privacy');
 
+  // The IPS administration is now an executable governed case console, not
+  // unrelated page counters. Exercise genuine persisted MongoDB actions.
+  const forbiddenDesk=await call('/api/admin/company-cases');
+  assert.equal(forbiddenDesk.status,401);
+  const customerDesk=await call('/api/admin/company-cases',{session:alice.cookie});
+  assert.equal(customerDesk.status,403);
+  const caseIndex=await call('/api/admin/company-cases',{session:admin.cookie});
+  assert.equal(caseIndex.status,200,JSON.stringify(caseIndex.body));
+  assert.equal(caseIndex.body.success,true);
+  const liveQuote=caseIndex.body.cases.find(x=>x.kind==='enquiry'&&x.ref===reference);
+  assert.ok(liveQuote,'Verified real quote must appear in the integrated company case queue.');
+  assert.equal(liveQuote.person,'PrivateAlice');
+  assert.equal(liveQuote.verified,true);
+  const caseDetail=await call('/api/admin/company-cases/enquiry/'+reference,{session:admin.cookie});
+  assert.equal(caseDetail.status,200,JSON.stringify(caseDetail.body));
+  assert.equal(caseDetail.body.case.ref,reference);
+  assert.ok(Array.isArray(caseDetail.body.events));
+  pass('Only authenticated, authorized administrators can inspect the unified live IPS company case index and quote timeline');
+
+  const deniedNote=await call('/api/admin/company-cases/enquiry/'+reference+'/actions',{
+    method:'POST',session:alice.cookie,json:{entry_kind:'note',body:'A private customer may not write an IPS staff note.'}
+  });
+  assert.equal(deniedNote.status,403);
+  const missingNote=await call('/api/admin/company-cases/enquiry/IPS-Q-000000000000000000/actions',{
+    method:'POST',session:admin.cookie,json:{entry_kind:'note',body:'This case does not exist.'}
+  });
+  assert.equal(missingNote.status,404);
+  const privateNote=await call('/api/admin/company-cases/enquiry/'+reference+'/actions',{
+    method:'POST',session:admin.cookie,
+    json:{entry_kind:'note',body:'Verified source quote reviewed by IPS, pending centrally managed academic intake.'}
+  });
+  assert.equal(privateNote.status,201,JSON.stringify(privateNote.body));
+  assert.equal(privateNote.body.action.created_by,admin.body.admin.id);
+  assert.equal(privateNote.body.action.assigned_to,admin.body.admin.id);
+  const taskDue=new Date(Date.now()+2*86400000).toISOString();
+  const followup=await call('/api/admin/company-cases/enquiry/'+reference+'/actions',{
+    method:'POST',session:admin.cookie,json:{entry_kind:'task',
+      body:'Review the academic brief and send the requested written update.',due_at:taskDue,priority:'urgent'}
+  });
+  assert.equal(followup.status,201,JSON.stringify(followup.body));
+  assert.equal(followup.body.action.task_status,'open');
+  assert.equal(followup.body.action.assigned_to,admin.body.admin.id);
+  const taskId=followup.body.action._id;
+  const updatedIndex=await call('/api/admin/company-cases',{session:admin.cookie});
+  const updatedQuote=updatedIndex.body.cases.find(x=>x.kind==='enquiry'&&x.ref===reference);
+  assert.ok(updatedQuote.tasks.open>=1);
+  const caseTaskCompleted=await call('/api/admin/company-cases/enquiry/'+reference+'/tasks/'+taskId,{
+    method:'PATCH',session:admin.cookie,json:{task_status:'done'}
+  });
+  assert.equal(caseTaskCompleted.status,200,JSON.stringify(caseTaskCompleted.body));
+  assert.equal(caseTaskCompleted.body.action.task_status,'done');
+  const persisted=await call('/api/admin/company-cases/enquiry/'+reference,{session:admin.cookie});
+  assert.equal(persisted.status,200);
+  assert.ok(persisted.body.actions.some(x=>x.entry_kind==='note'&&x.body.includes('Verified source quote')));
+  assert.ok(persisted.body.actions.some(x=>x._id===taskId&&x.task_status==='done'));
+  const crossRef=await call('/api/admin/company-cases/support/'+reference+'/tasks/'+taskId,{
+    method:'PATCH',session:admin.cookie,json:{task_status:'open'}
+  });
+  assert.equal(crossRef.status,404);
+  pass('Real MongoDB case notes, accountable staff tasks, completion, and cross-case isolation persist end-to-end');
+
+  // The video showed empty and reportedly unsendable private IPS conversations.
+  // Validate real authenticated admin-to-client delivery and the reply path.
+  const ipsConversation=await call('/api/conversations',{
+    method:'POST',session:admin.cookie,json:{
+      subject:'IPS private case support — real delivery test',
+      type:'client_admin',target_role:'client',target_id:aliceId,
+      target_name:'UNTRUSTED_CLIENT_DISPLAY_NAME',work_id:''
+    }
+  });
+  assert.equal(ipsConversation.status,201,JSON.stringify(ipsConversation.body));
+  assert.equal(ipsConversation.body.conversation.participants.find(p=>p.role==='client').name,'PrivateAlice');
+  const ipsConversationId=ipsConversation.body.conversation.conversation_id;
+  const ipsFirstMessage=await call('/api/conversations/'+ipsConversationId+'/messages',{
+    method:'POST',session:admin.cookie,json:{
+      body:'IPS team: your secure request is recorded and under private review.',attachments:[]
+    }
+  });
+  assert.equal(ipsFirstMessage.status,201,JSON.stringify(ipsFirstMessage.body));
+  const ipsClientInbox=await call('/api/conversations/'+ipsConversationId+'/messages',{session:alice.cookie});
+  assert.equal(ipsClientInbox.status,200,JSON.stringify(ipsClientInbox.body));
+  assert.equal(ipsClientInbox.body.messages.some(m=>m.body.includes('your secure request is recorded')),true);
+  const ipsOtherClient=await call('/api/conversations/'+ipsConversationId+'/messages',{session:bob.cookie});
+  assert.equal(ipsOtherClient.status,403);
+  const ipsCustomerReply=await call('/api/conversations/'+ipsConversationId+'/messages',{
+    method:'POST',session:alice.cookie,json:{
+      body:'Thank you. Please continue the written support through this private workspace.',attachments:[]
+    }
+  });
+  assert.equal(ipsCustomerReply.status,201,JSON.stringify(ipsCustomerReply.body));
+  const ipsAdminReadback=await call('/api/conversations/'+ipsConversationId+'/messages',{session:admin.cookie});
+  assert.equal(ipsAdminReadback.status,200);
+  assert.equal(ipsAdminReadback.body.messages.length,2);
+  assert.equal(ipsAdminReadback.body.messages[1].sender_role,'client');
+  pass('Real IPS admin-to-client secure messages send, persist, arrive and receive a private client reply; third-party client blocked');
+
   console.log('ALL '+cases.length+' database-backed workflow gates passed.');
 }
 go().catch(async err=>{
