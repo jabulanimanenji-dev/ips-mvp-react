@@ -106,13 +106,14 @@ function rateLimited(req){
 }
 // Same verified-email proof and one-use reset workflow for clients and specialists.
 // Client and specialist HMAC scopes are independent. No token is sent to staff.
-export function registerPasswordRecoveryRoutes(app,{hashPassword,model=Client,writerModel=Writer,grantSession}){
+export function registerPasswordRecoveryRoutes(app,{hashPassword,model=Client,writerModel=Writer,grantSession,
+  env=process.env,send=sendBusinessEmail}={}){
   for(const [scope,accountModel] of [['client',model],['writer',writerModel]]){
     app.post('/api/'+scope+'/password-recovery/request',async(req,res)=>{
       res.set('Cache-Control','no-store');
       if(rateLimited(req))return res.status(429).json({success:false,error:'Too many requests. Please try again later.'});
       try{
-        const result=await requestPasswordRecovery(req.body?.email,{model:accountModel,scope});
+        const result=await requestPasswordRecovery(req.body?.email,{model:accountModel,scope,env,send});
         if(result.unavailable)return res.status(503).json({success:false,error:'Password recovery email delivery is not configured.'});
         return res.status(202).json({success:true,message:'If this verified IPS account exists, a private password-reset link will be sent to its registered email.'});
       }catch{return res.status(503).json({success:false,error:'Secure recovery is temporarily unavailable.'});}
@@ -122,7 +123,7 @@ export function registerPasswordRecoveryRoutes(app,{hashPassword,model=Client,wr
       if(rateLimited(req))return res.status(429).json({success:false,error:'Too many requests. Please try again later.'});
       try{
         const result=await completePasswordRecovery(req.body?.token,req.body?.password,
-          {model:accountModel,scope,hashPassword});
+          {model:accountModel,scope,hashPassword,env});
         if(result.error)return res.status(result.status).json({success:false,error:result.error});
         let session_opened=false;
         if(typeof grantSession==='function'){
