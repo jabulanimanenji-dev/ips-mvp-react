@@ -25,6 +25,7 @@ import { getStudentOffer } from './shared/studentOffers.js';
 import { registerStudentWebhook, registerStudentPaymentRoutes } from './services/studentPayments.js';
 import { registerContactWebhooks, registerContactApi } from './services/contactChannels.js';
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
+import { registerCompanyCaseDesk } from './services/companyCaseDesk.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
 import { qualifyOwnerTelegramInbound } from './services/telegramInboundEvidence.js';
@@ -313,6 +314,7 @@ app.use(async (req, res, next) => {
 
 registerPasswordRecoveryRoutes(app, {hashPassword});
 registerEnquiryRoutes(app, { requireSession });
+registerCompanyCaseDesk(app,{requireSession});
 registerPrivateQuoteRoutes(app, { readSession, requireSession });
 registerQuoteHandoffRoutes(app, {requireSession});
 registerSpecialistPayoutRoutes(app,{requireSession});
