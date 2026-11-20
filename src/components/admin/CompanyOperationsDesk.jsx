@@ -386,7 +386,7 @@ export default function CompanyOperationsDesk(){
               {(tab==='tasks'?tasks:notes).map(x=><div className="ips-ops-action-row" key={x._id}>
                 <span className={'ips-ops-action-mark '+(x.task_status==='done'?'finished':'')}><AdminIcon name={x.entry_kind==='task'?(x.task_status==='done'?'check':'clock'):'file'} size={18}/></span>
                 <div style={{flex:1,minWidth:0}}><strong>{x.body}</strong>
-                  <small>By {x.created_by} · {fmt(x.createdAt)}{x.due_at?' · Due '+fmt(x.due_at):''}
+                  <small>Assigned: {x.assigned_to||x.created_by} · recorded by {x.created_by} · {fmt(x.createdAt)}{x.due_at?' · Due '+fmt(x.due_at):''}
                     {x.entry_kind==='task'?' · '+x.task_status:''}</small></div>
                 {x.entry_kind==='task'&&canManage&&<button className="ips-ops-task-toggle" disabled={busy}
                   onClick={()=>toggleTask(x)}>{x.task_status==='done'?'Reopen':'Complete'}</button>}
