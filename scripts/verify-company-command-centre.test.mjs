@@ -66,3 +66,16 @@ test('company homepage and desk are separate, role protected, and dark theme doe
  assert.match(styles,/\.ips-premium-admin\.ips-dark-admin/);
  assert.doesNotMatch(styles,/html\[data-theme="dark"\] \.ips-premium-admin/);
 });
+
+test('administrative recovery never bypasses client mailbox verification or account-holder code proof',async()=>{
+ const backend=await readFile(new URL('../services/companyOperatingSystem.js',import.meta.url),'utf8');
+ const ui=await readFile(new URL('../src/components/admin/AdminClients.jsx',import.meta.url),'utf8');
+ assert.match(backend,/\/api\/admin\/clients\/:id\/resend-verification/);
+ assert.match(backend,/hasAdminPermission\(access,'clients.manage'\)/);
+ assert.match(backend,/await issueEmailChallenge\(client,\{env,send\}\)/);
+ assert.match(backend,/company_client_verification_reissued/);
+ assert.match(backend,/Only active email-verified IPS clients can receive recovery links/);
+ assert.match(ui,/Reissue verification code/);
+ assert.match(ui,/secure password recovery becomes available/i);
+ assert.doesNotMatch(backend,/email_verified_at\s*=\s*new Date\(\)/);
+});
