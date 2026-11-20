@@ -29,27 +29,26 @@ test('unstarted assignment can be withdrawn; active-work reassignment is separat
  assert.equal(canTransitionService('In Progress','Awaiting Assignment','admin'),false);
  assert.equal(canTransitionService('Completed','Assigned','admin'),false);
 });
-test('server and browser use the same service transition authority, not duplicated client rules',async()=>{
+test('server and fresh Administration Four share governed, payment-aware project transitions',async()=>{
  const [server,ui]=await Promise.all([
   readFile(new URL('../server.js',import.meta.url),'utf8'),
-  readFile(new URL('../src/components/admin/AdminServices.jsx',import.meta.url),'utf8')
+  readFile(new URL('../src/administration/ProductionHub.jsx',import.meta.url),'utf8')
  ]);
  assert.match(server,/import \{canTransitionService,PAYMENT_REQUIRED_SERVICE_STATES\} from '\.\/shared\/serviceTransitions\.js'/);
  assert.doesNotMatch(server,/const serviceTransitions =/);
  assert.match(server,/Only the client can accept an academic quotation/);
  assert.match(server,/Active specialist work must be escalated before reassignment/);
- assert.match(ui,/if\(canSeeSpecialists\)/);
- assert.match(ui,/allowedAdminServiceStatuses\(j\)/);
- assert.match(ui,/Payment required before assignment/);
- assert.match(ui,/disabled=\{!canEditQuote\}/);
+ assert.match(ui,/allowedAdminServiceStatuses\(focus\)/);
+ assert.match(ui,/payment_status==='paid'/);
+ assert.match(ui,/No administrator can claim that an unpaid quotation is settled/);
  assert.doesNotMatch(ui,/\{STATES\.map/);
 });
-
-test('read-only support employees see cases without being offered mutations',async()=>{
- const ui=await readFile(new URL('../src/components/admin/AdminSupportTickets.jsx',import.meta.url),'utf8');
- assert.match(ui,/hasAdminPermission\('support\.manage'\)/);
- assert.match(ui,/if \(!selected\|\|!canManage\) return/);
- assert.match(ui,/!reply\.trim\(\) \|\| !canManage/);
- assert.match(ui,/disabled=\{!canManage\|\|state\.saving\}/);
- assert.match(ui,/canManage&&selected\.status !== 'Closed'/);
+test('view-only support and quality staff cannot perform write actions',async()=>{
+ const support=await readFile(new URL('../src/administration/CustomerSupportDesk.jsx',import.meta.url),'utf8');
+ const quality=await readFile(new URL('../src/administration/ProductionHub.jsx',import.meta.url),'utf8');
+ assert.match(support,/hasAdminPermission\('support\.manage'\)/);
+ assert.match(support,/if\(!mine\|\|!text\.trim\(\)\|\|!manage\)return/);
+ assert.match(support,/\{manage&&/);
+ assert.match(quality,/hasAdminPermission\('services\.manage'\)/);
+ assert.match(quality,/\{manage&&/);
 });
