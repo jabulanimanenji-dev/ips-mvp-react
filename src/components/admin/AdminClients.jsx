@@ -1,7 +1,14 @@
 import React,{useCallback,useEffect,useMemo,useState} from 'react';
 import {fmtDate} from '../../utils/formatters';
+import {useAuth} from '../../context/AuthContext';
+import AdminIcon from './AdminIcon.jsx';
 
 export default function AdminClients(){
+  const {hasAdminPermission}=useAuth();
+  const canRecover=hasAdminPermission('clients.recovery');
+  const canManage=hasAdminPermission('clients.manage');
+  const [resetIntent,setResetIntent]=useState(false);
+  const [resetReason,setResetReason]=useState('');
   const [clients,setClients]=useState([]),[search,setSearch]=useState(''),[selected,setSelected]=useState(null);
   const [edit,setEdit]=useState({status:'Active',notes:''}),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -20,7 +27,7 @@ export default function AdminClients(){
     return clients.filter(c=>!term||[c.client_id,c.username,c.email,c.status].some(v=>String(v||'').toLowerCase().includes(term)));
   },[clients,search]);
   const open=client=>{
-    setSelected(client);setEdit({status:client.status||'Active',notes:client.notes||''});setError('');setNotice('');
+    setSelected(client);setEdit({status:client.status||'Active',notes:client.notes||''});setError('');setNotice('');setResetIntent(false);setResetReason('');
   };
   const save=async(event)=>{
     event.preventDefault();
@@ -36,6 +43,21 @@ export default function AdminClients(){
       setSelected(null);setNotice('Account status and internal notes updated.');await reload();
     }catch(e){setError(e.message||'Account changes could not be saved.');}
     finally{setBusy(false);}
+  };
+  const sendRecovery=async()=>{
+    if(!selected||!canRecover||busy||!resetIntent||resetReason.trim().length<10)return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      const res=await fetch('/api/admin/clients/'+encodeURIComponent(selected.client_id)+'/password-recovery',{
+        method:'POST',credentials:'same-origin',cache:'no-store',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({reason:resetReason.trim()})
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok||!data.success)throw Error(data.error||'The provider did not accept the recovery message.');
+      setNotice('Secure password reset link accepted for the client’s verified email. IPS staff cannot see the link or password.');
+      setResetIntent(false);setResetReason('');setSelected(null);
+    }catch(e){setError(e.message);}finally{setBusy(false);}
   };
   return <section className="ips-admin-customers" style={{maxWidth:1450,margin:'0 auto'}}>
     <div className="ips-case-top" style={{marginBottom:19}}>
@@ -54,7 +76,7 @@ export default function AdminClients(){
     {qaExcluded>0&&<p className="card" role="status" style={{fontSize:'.83rem',borderLeft:'3px solid #c7a46e'}}>Archived development records ({qaExcluded}) are excluded from live IPS accounts. They were preserved for source audit, not deleted.</p>}
     <p className="card" style={{fontSize:'.85rem',lineHeight:1.6,borderLeft:'4px solid var(--primary)',marginBottom:17}}>
       Registration and email verification must be completed by the account holder.
-      IPS staff cannot choose a student's password or bypass verification.
+      Authorized staff can initiate secure recovery for an already verified client. The one-time link goes only to the client’s verified email; IPS staff cannot see it, choose the password or bypass verification.
       Legal and billing details should only be requested when necessary for an agreed paid engagement.
     </p>
     {error&&<p className="card" role="alert" style={{color:'var(--danger)'}}>{error}</p>}
@@ -87,17 +109,41 @@ export default function AdminClients(){
         <h2>Manage Account</h2>
         <p style={{fontSize:'.85rem',color:'var(--text-muted)'}}>Reference: {selected.client_id} · Username: {selected.username||'Not set'}</p>
         <p style={{fontSize:'.83rem',color:'var(--text-muted)'}}>Email verification: {selected.email_verified_at?'Completed':'Pending'}. IPS staff cannot mark an unverified email as verified.</p>
-        <label className="form-group"><span className="form-label">Account status</span>
+        {canManage&&<label className="form-group"><span className="form-label">Account status</span>
           <select className="form-select" value={edit.status} onChange={e=>setEdit(p=>({...p,status:e.target.value}))}>
             <option value="Active">Active</option><option value="Suspended">Suspended</option><option value="Inactive">Inactive</option><option value="Pending Verification">Pending Verification</option>
           </select>
-        </label>
-        <label className="form-group"><span className="form-label">Internal notes (avoid unnecessary personal information)</span>
+        </label>}
+        {canManage&&<label className="form-group"><span className="form-label">Internal notes (avoid unnecessary personal information)</span>
           <textarea className="form-textarea" maxLength={2000} rows={4} value={edit.notes}
             onChange={e=>setEdit(p=>({...p,notes:e.target.value}))}/>
-        </label>
+        </label>}
+        {canRecover&&<div className="card" style={{padding:15,margin:'10px 0',border:'1px solid var(--border)'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8}}>
+            <AdminIcon name="lock" size={18}/><strong>Client password recovery</strong>
+          </div>
+          <p style={{color:'var(--text-muted)',fontSize:'.79rem',lineHeight:1.5}}>
+            Staff never receive or set customer passwords. A verified active account can receive a one-time 15-minute recovery link by email. Completing recovery revokes old sessions.
+          </p>
+          {!selected.email_verified_at||selected.status!=='Active'?
+            <p role="note" style={{color:'var(--warning)',fontSize:'.8rem'}}>Recovery is not available: email verification and active status are required.</p>:
+            !resetIntent?<button type="button" className="btn btn-secondary" disabled={busy}
+              onClick={()=>setResetIntent(true)}>Start secure password recovery</button>:
+              <div style={{display:'grid',gap:11}}>
+                <label className="form-group"><span className="form-label">Why is recovery needed? (audited)</span>
+                  <textarea className="form-textarea" rows={2} minLength={10} maxLength={500} required
+                    value={resetReason} onChange={e=>setResetReason(e.target.value)}
+                    placeholder="E.g. Verified customer requested account recovery in the secure support case." /></label>
+                <strong style={{fontSize:'.76rem'}}>Send only to: {selected.email}</strong>
+                <div style={{display:'flex',gap:9,flexWrap:'wrap'}}>
+                  <button type="button" className="btn btn-primary" disabled={busy||resetReason.trim().length<10}
+                    onClick={sendRecovery}>{busy?'Requesting…':'Email private recovery link'}</button>
+                  <button type="button" className="btn btn-ghost" onClick={()=>setResetIntent(false)} disabled={busy}>Cancel recovery</button>
+                </div>
+              </div>}
+        </div>}
         <div style={{display:'flex',gap:12,flexWrap:'wrap'}}>
-          <button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Saving…':'Save Account'}</button>
+          {canManage&&<button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Saving…':'Save Account'}</button>}
           <button type="button" className="btn btn-ghost" disabled={busy} onClick={()=>setSelected(null)}>Cancel</button>
         </div>
       </form>
