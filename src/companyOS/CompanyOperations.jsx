@@ -41,7 +41,7 @@ export function CompanyDepartments(){
           <p>{DEPARTMENT_DESCRIPTIONS[id]}</p>
           {authorized&&<div className="os-coverage"><strong>{c?.managers.length??'—'}</strong> active managers
             <p>{c?.managers.map(m=>m.name).join(', ')||'Leadership vacancy'} · {c?.team.length||0} staff</p></div>}
-          {cases.value&&permitted&&<div className="os-coverage"><strong>{work.length}</strong> open related records · {work.filter(caseNeedsDecision).length} exceptions</div>}
+          {cases.value&&permitted&&<div className="os-coverage"><strong>{work.length}</strong> open related records · {work.filter(c=>caseNeedsDecision(c)).length} exceptions</div>}
           <div className="os-row">
             {admin?.isRoot&&<Link className="os-action secondary" to={'/admin/access?department='+id}><AdminIcon name="access" size={16}/> {c?.managers.length?'Manage leadership':'Appoint manager'}</Link>}
             {!admin?.isRoot&&admin?.department===id&&hasAdminPermission('team.manage')&&<Link className="os-action secondary" to="/admin/access">Govern my team</Link>}
@@ -115,7 +115,7 @@ export function CompanyIntelligence({view='reports'}){
     enquiry:open.filter(c=>c.kind==='enquiry').length,project:open.filter(c=>c.kind==='project').length,
     support:open.filter(c=>c.kind==='support').length,telegram:open.filter(c=>c.kind==='telegram').length
   };
-  const overdue=open.filter(caseLate),unowned=open.filter(caseNeedsOwner);
+  const overdue=open.filter(c=>caseLate(c)),unowned=open.filter(caseNeedsOwner);
   const staff=(team.value||[]).filter(x=>['staff','manager'].includes(x.company_role));
   return <>
     <PageHeading eyebrow={view==='security'?'POLICY / AUDIT':view==='payments'?'FINANCE / PAYMENT INTEGRATION':'INTELLIGENCE / ACCOUNTABILITY'}
