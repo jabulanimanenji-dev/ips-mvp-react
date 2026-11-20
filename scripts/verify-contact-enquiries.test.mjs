@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validatePublicEnquiry,canSendContactEmail,sendEmailReply } from '../services/contactEnquiries.js';
+import { validatePublicEnquiry,canSendContactEmail,sendEmailReply,attestManualWhatsAppContact } from '../services/contactEnquiries.js';
+import {permissionForAdminRequest} from '../shared/adminPermissions.js';
 import { IPS_EMAILS, IPS_EMAIL_DOMAIN, isIPSEmail } from '../shared/businessEmails.js';
 
 const enquiry={
@@ -65,4 +66,42 @@ test('IPS email identities use only the verified business domain and five intent
   assert.equal(IPS_EMAILS.privacy,'privacy@ipsglobalservice.com');
   assert.equal(isIPSEmail('support@ipsglobalservice.com'),true);
   assert.equal(isIPSEmail('personal@gmail.com'),false);
+});
+
+test('manual WhatsApp confirmation requires exact reference, observed sender and explicit staff attestation',async()=>{
+  const ref='IPS-Q-ABCDEF0123456789AB';
+  const calls=[];
+  const model={updateOne:async(filter,update)=>{calls.push({filter,update});return {modifiedCount:1};}};
+  const input={enquiryId:ref,observedReference:ref,observedPhone:'+48 794 088 714',
+    attested:true,reviewerId:'IPS-REVIEWER-17',model,now:()=>new Date('2026-11-20T15:00:00Z')};
+  const accepted=await attestManualWhatsAppContact(input);
+  assert.equal(accepted.success,true);
+  assert.equal(accepted.verification_method,'whatsapp_manual_attested');
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].filter.phone,'+48794088714');
+  assert.equal(calls[0].filter.contact_consent,true);
+  assert.equal(calls[0].filter.contact_verified,false);
+  assert.equal(calls[0].filter.preferred_channel,'whatsapp');
+  assert.deepEqual(calls[0].filter.status,{$ne:'closed'});
+  assert.equal(calls[0].update.$set.contact_verified_by,'IPS-REVIEWER-17');
+  assert.equal(calls[0].update.$set.contact_verification_method,'whatsapp_manual_attested');
+  assert.equal(calls[0].update.$unset.purge_at,'');
+  for(const override of [
+    {observedReference:'IPS-Q-000000000000000000'},
+    {observedPhone:'invalid'},
+    {observedPhone:'+48111111111',attested:false},
+    {reviewerId:''},
+    {attested:false}
+  ]){
+    const rejected=await attestManualWhatsAppContact({...input,...override});
+    assert.equal(rejected.status,400);
+    assert.equal(rejected.success,false);
+  }
+  assert.equal(calls.length,1);
+  assert.equal((await attestManualWhatsAppContact({...input,model:{updateOne:async()=>({modifiedCount:0})}})).status,409);
+});
+test('manual WhatsApp actions belong to support.manage and are never public authentication',()=>{
+  const id='IPS-Q-ABCDEF0123456789AB';
+  assert.equal(permissionForAdminRequest('POST','/api/contact-enquiries/admin/'+id+'/whatsapp-manual-verify'),'support.manage');
+  assert.equal(permissionForAdminRequest('POST','/api/contact-enquiries/admin/'+id+'/whatsapp-contact-withdrawn'),'support.manage');
 });
