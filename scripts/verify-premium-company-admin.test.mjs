@@ -5,7 +5,7 @@ import {IPS_COMPANY_ADMIN_NAV} from '../shared/ipsCompanyScope.js';
 
 const source=async path=>readFile(new URL('../'+path,import.meta.url),'utf8');
 
-test('premium IPS design is light-first and strictly scoped to company administration',async()=>{
+test('premium IPS design supports readable dark/light modes and remains scoped to company administration',async()=>{
   const css=await source('src/styles/ips-premium-admin.css');
   const layout=await source('src/pages/AdminLayout.jsx');
   assert.match(css,/\.ips-premium-admin\{/);
@@ -13,7 +13,10 @@ test('premium IPS design is light-first and strictly scoped to company administr
   assert.match(css,/#f7f7f3/);
   assert.match(css,/#142b3d/);
   assert.match(css,/\.ips-premium-admin \.admin-main-content/);
-  assert.match(layout,/className="admin-layout ips-premium-admin"/);
+  assert.match(layout,/admin-layout ips-premium-admin/);
+  assert.match(layout,/toggleTheme/);
+  assert.match(layout,/ips-dark-admin/);
+  assert.match(css,/data-theme="dark"/);
   assert.match(layout,/ips-premium-admin\.css/);
   assert.doesNotMatch(css,/\.client-layout\{|\.writer-layout\{|\.ipsa-site-header\{/);
   assert.doesNotMatch(layout,/AdminCMS|ServiceEngine|OpenMarketplace/);
@@ -36,18 +39,19 @@ test('premium nav groups are case-first and permission gated',async()=>{
   assert.match(layout,/role="dialog"/);
   assert.match(layout,/aria-label="Search IPS workspaces"/);
 });
-test('command center uses actual authenticated feeds and marks unknown data unavailable',async()=>{
-  const s=await source('src/components/admin/AdminDashboard.jsx');
-  for(const endpoint of ['/api/contact-enquiries/admin','/api/contact-channels/admin/threads','/api/services','/api/support-tickets'])
+test('real operations command center uses the secured company case index and durable case actions',async()=>{
+  const s=await source('src/components/admin/CompanyOperationsDesk.jsx');
+  const app=await source('src/App.jsx');
+  assert.match(app,/element=\{<CompanyOperationsDesk \/>\}/);
+  for(const endpoint of ['/api/admin/company-cases','/api/contact-enquiries/admin/','/api/support-tickets/'])
     assert.ok(s.includes(endpoint),endpoint);
-  assert.match(s,/isIpsAcademicProject/);
-  assert.match(s,/isIpsQaFixtureEmail/);
-  assert.match(s,/IPS Academic Services|academic services/i);
-  assert.match(s,/value===null\?'—'/);
-  assert.match(s,/\/admin\/enquiries\?case=/);
-  assert.match(s,/\['general','quote'\]/);
+  assert.match(s,/Operations command desk/);
+  assert.match(s,/Assigned IPS staff/);
+  assert.match(s,/one|One governed workspace/i);
+  assert.match(s,/Internal notes/);
+  assert.match(s,/Timeline/);
+  assert.match(s,/loading&&!cases\.length\?'—'/);
   assert.doesNotMatch(s,/random\(|Math\.random\(|fakeRevenue|DEMO_/);
-  assert.ok(s.includes('Payments not activated'));
 });
 test('case desk retains verified-contact workflows and adds one case-centered journey',async()=>{
   const s=await source('src/components/admin/AdminEnquiries.jsx');
