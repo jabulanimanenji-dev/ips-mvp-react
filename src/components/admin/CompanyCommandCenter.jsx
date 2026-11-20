@@ -129,7 +129,7 @@ export default function CompanyCommandCenter(){
           </Link>)}</div>}
       </section>
       <section className="ips-exec-panel ips-exec-side">
-        <PanelTitle eyebrow="DELIVERY / SERVICE MIX" title="Where the work is" link="/admin/reports" linkText="Reports"/>
+        <PanelTitle eyebrow="DELIVERY / SERVICE MIX" title="Where the work is" link={hasAdminPermission('reports.view')?'/admin/reports':undefined} linkText="Reports"/>
         {visibleCases?<div className="ips-exec-workstreams">
           {[
             ['enquiry','Private quotations','/admin/enquiries'],
