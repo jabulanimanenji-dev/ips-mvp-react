@@ -1,0 +1,20 @@
+name: IPS Existing Production Nonpayment Baseline Audit
+on:
+  pull_request:
+    branches: [commercial/student-support-v1,main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  observe-existing-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Read-only domain and external provider configuration audit
+        env:
+          IPS_PROBE_MODE: baseline
+        run: node scripts/probe-ips-publication.mjs
