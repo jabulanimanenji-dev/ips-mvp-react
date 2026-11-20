@@ -1,37 +1,37 @@
 {
   "brand": {
     "name": "I P S",
-    "tagline": "Your Academic Success, Our Expert Craft",
-    "email": "admin@ips-services.com",
+    "tagline": "Confidential academic and professional services",
+    "email": "contact@ipsglobalservice.com",
     "whatsapp": ""
   },
   "hero": {
-    "badge": "🎓 Trusted by 1,500+ students worldwide",
-    "headline": "Expert Academic Writing Services — Original Work, Full Ownership",
-    "subheadline": "Theses, Dissertations, Assignments, Projects & Professional Odd Jobs. Confidential. Secure. Yours Alone.",
+    "badge": "Human-reviewed academic and professional support",
+    "headline": "Private Academic & Professional Services",
+    "subheadline": "Coaching, editing, research-method guidance, data support and professional consulting, centrally coordinated by IPS.",
     "ctaPrimary": "Request a Quote",
     "ctaSecondary": "View Pricing"
   },
   "services": [
     {
       "icon": "📖",
-      "title": "Thesis & Dissertation",
-      "description": "Undergraduate, Master's, and PhD level. Custom research, literature review, methodology, data analysis."
+      "title": "Research & Dissertation Guidance",
+      "description": "Research methodology, supervision-style coaching, draft feedback and academic editing within institutional rules."
     },
     {
       "icon": "📝",
-      "title": "Assignments & Coursework",
-      "description": "Essays, reports, case studies, and presentations across all subjects and academic levels."
+      "title": "Coursework Coaching",
+      "description": "Concept guidance, learning support, explanations and feedback on the student’s own work."
     },
     {
       "icon": "📊",
-      "title": "Research Projects",
-      "description": "Full project reports, business plans, technical documentation, data analysis and visualization."
+      "title": "Research & Data Services",
+      "description": "Data cleaning, statistical analysis guidance, visualization and professional research consulting."
     },
     {
       "icon": "🛠️",
-      "title": "Odd Jobs",
-      "description": "Accommodation finding, document processing, administrative tasks — any support you need."
+      "title": "Other Professional Services",
+      "description": "Administrative, technical and creative support when eligible and agreed in writing."
     }
   ],
   "pricing": {
@@ -46,60 +46,47 @@
   },
   "faq": [
     {
-      "q": "Is the work really mine to publish?",
-      "a": "\"Yes. Upon completion, you receive full authorship rights. The work is yours exclusively — confidential, plagiarism-free, and never attributed to IPS or our team.\""
+      "q": "Can I submit IPS work as my own assessed assignment?",
+      "a": "IPS offers research coaching, editorial support, data services and permitted professional work. Assessed submissions must remain your own and follow institutional rules."
     },
     {
-      "q": "How do installments work?",
-      "a": "Pay per milestone. For a thesis: 20% deposit, then 20% per milestone. Work only proceeds after each payment is confirmed. No hidden fees, ever."
+      "q": "When do I need to pay?",
+      "a": "An IPS manager reviews the request and issues a written quotation. Online payment integration is pending and no payments are collected through this website yet."
     },
     {
-      "q": "What currencies do you accept?",
-      "a": "We accept all major currencies. Stripe auto-converts to your local currency at checkout. You see your price in your currency — we receive USD on our end."
+      "q": "How will IPS contact me?",
+      "a": "Choose a verified written channel such as email, your IPS workspace or an available messaging service. IPS does not call customers."
     },
     {
       "q": "How do I track progress?",
-      "a": "Every client gets a private portal with real-time milestone tracking, file sharing, and direct communication with our admin team. Access via your unique Client ID."
+      "a": "Use your confidential IPS workspace for your requests, written replies, reviewed files, project milestones and support."
     },
     {
-      "q": "Who are your writers?",
-      "a": "Verified professionals with advanced degrees. Each writer is vetted, rated, and bound by strict NDAs. You never interact with them directly — we manage everything for your privacy."
+      "q": "How do specialists work?",
+      "a": "IPS checks specialist applications and suitability before assigning eligible, authorized work. Communication stays centrally managed."
     },
     {
-      "q": "What if I need revisions?",
-      "a": "Two free revisions per milestone, provided the request is within the original scope. Additional revisions are available at a small fee. Your satisfaction is our priority."
+      "q": "How are revisions handled?",
+      "a": "Review the permitted revisions and delivery terms in the written project scope. Submit and follow change requests in your workspace."
     }
   ],
-  "testimonials": [
-    {
-      "text": "I P S handled my entire Master's thesis. The milestone system made it affordable, and the final work was publishable quality.",
-      "client": "Client, Poland"
-    },
-    {
-      "text": "Found accommodation in Belarus within a week through their odd jobs service. Professional, fast, and incredibly helpful.",
-      "client": "Client, Belarus"
-    },
-    {
-      "text": "Provides complete peace of mind. My PhD dissertation was original, well researched and delivered on every milestone.",
-      "client": "Client, Germany"
-    }
-  ],
+  "testimonials": [],
   "about": {
     "headline": "We Exist to Eliminate Barriers",
     "p1": "We believe every student, researcher, and professional worldwide deserves access to quality academic and professional services they can afford and trust.",
-    "p2": "I P S operates as a professional ghostwriting and academic consulting service — legally analogous to hiring a speechwriter or memoir ghostwriter. We provide original, custom-written work as a work-for-hire, with full copyright transfer to you upon payment.",
-    "stat1": "1,500+",
-    "stat1Label": "Clients Served",
-    "stat2": "20+",
-    "stat2Label": "Countries",
-    "stat3": "98%",
-    "stat3Label": "Satisfaction"
+    "p2": "IPS centrally coordinates confidential research-method coaching, academic editing, data support and independent professional consulting. Academic submissions must comply with institutional rules.",
+    "stat1": "Private",
+    "stat1Label": "Requests",
+    "stat2": "Written",
+    "stat2Label": "Contact",
+    "stat3": "Human",
+    "stat3Label": "Review"
   },
   "trustBadges": [
-    "🔒 Secure Payments",
-    "🛡️ Confidential Process",
-    "✅ 100% Original",
-    "📄 Full Ownership"
+    "Private Accounts",
+    "Written Communication",
+    "Human Review",
+    "Managed Services"
   ],
   "footer": {
     "copyright": "2025 I P S"
