@@ -25,6 +25,8 @@ const ContactEnquirySchema=new mongoose.Schema({
   contact_thread_id:{type:String,default:'',index:true},
   contact_verified:{type:Boolean,default:false},
   contact_verified_at:{type:Date},
+  contact_verification_method:{type:String,enum:['','email_code','messenger_webhook','whatsapp_manual_attested'],default:''},
+  contact_verified_by:{type:String,default:'',maxlength:120},
   verification_status:{type:String,enum:['awaiting_verification','verified'],default:'awaiting_verification'},
   email_verified_at:{type:Date,default:null},
   verification_hash:{type:String,select:false},

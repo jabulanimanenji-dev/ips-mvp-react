@@ -44,7 +44,9 @@ if(!resolvedSite){
           telegram:body.telegram===true,whatsapp:body.whatsapp===true};
       else if(name==='messaging')
         features[name]={endpoint:http===200,telegram:body.telegram?.available===true,
-          whatsapp:body.whatsapp?.available===true};
+          whatsapp:body.whatsapp?.available===true,
+          whatsapp_mode:body.whatsapp?.mode||'unavailable',
+          whatsapp_manual:body.whatsapp?.manual_confirmation===true};
       else if(name==='payments')
         features[name]={endpoint:http===200,enabled:body.enabled===true,pending:body.pending===true};
     }catch{features[name]={endpoint:false,error:'public endpoint inaccessible'};}
@@ -54,7 +56,8 @@ if(!resolvedSite){
     features.enquiries?.accepting&&features.enquiries?.delivery_ready&&
     features.private_quotes?.accepting&&features.private_quotes?.verified_email&&
     features.private_quotes?.workspace&&features.private_quotes?.telegram&&
-    features.private_quotes?.whatsapp&&features.messaging?.telegram&&features.messaging?.whatsapp;
+    features.private_quotes?.whatsapp&&features.messaging?.telegram&&features.messaging?.whatsapp&&
+    features.messaging?.whatsapp_mode==='direct'&&features.messaging?.whatsapp_manual;
   const paymentPending=features.payments?.endpoint&&features.payments.pending&&
     !features.payments.enabled;
   if(mode==='publication'&&(!operational||!paymentPending)){
@@ -63,5 +66,5 @@ if(!resolvedSite){
   }
   if(mode==='baseline')console.log('PASS READ_ONLY_PREPUBLICATION_PROBE: production status captured; no live users, payment or provider accounts altered.');
   if(mode==='publication'&&operational&&paymentPending)
-    console.log('PASS IPS_NONPAYMENT_PUBLICATION_CONFIGURATION: Email, channels, database, storage and explicit payment hold enabled (provider delivery still requires end-to-end receipt tests).');
+    console.log('PASS IPS_NONPAYMENT_PUBLICATION_CONFIGURATION: Email, Telegram and manual direct WhatsApp contact, database, storage and explicit payment hold enabled (provider delivery still requires end-to-end receipt tests).');
 }

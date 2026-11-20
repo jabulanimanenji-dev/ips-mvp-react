@@ -4,19 +4,27 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {validTelegramUsername,validWhatsappNumber,verifyWhatsappSignature,verifyTelegramSecret,parseTelegramUpdate,parseWhatsappUpdate,publicContactConfig} from '../services/contactChannels.js';
 
-test('public channels remain disabled until actual verified business settings exist',()=>{
-  assert.deepEqual(publicContactConfig({}).whatsapp,null);
+test('public WhatsApp is a direct contact link without Meta API credentials',()=>{
+  const direct=publicContactConfig({});
+  assert.equal(direct.whatsapp.url,'https://wa.me/48794088714');
+  assert.equal(direct.whatsapp.available,true);
+  assert.equal(direct.whatsapp.mode,'direct');
+  assert.equal(direct.whatsapp.connected,false);
+  assert.equal(direct.whatsapp.manual_confirmation,true);
   assert.deepEqual(publicContactConfig({TELEGRAM_BOT_USERNAME:'IPS_Bot'}).telegram,null);
-  assert.deepEqual(publicContactConfig({WHATSAPP_PUBLIC_NUMBER:'48123123123'}).whatsapp,null);
+  assert.equal(publicContactConfig({WHATSAPP_PUBLIC_NUMBER:'bad'}).whatsapp,null);
+  assert.equal(publicContactConfig({WHATSAPP_CONTACT_MODE:'api'}).whatsapp,null);
   const config=publicContactConfig({
     TELEGRAM_BOT_USERNAME:'IPSAcademicBot',TELEGRAM_BOT_TOKEN:'not-a-real-token',
     TELEGRAM_WEBHOOK_SECRET:'not-a-real-secret',
-    WHATSAPP_PUBLIC_NUMBER:'48123123123',WHATSAPP_PHONE_NUMBER_ID:'test-id',
+    WHATSAPP_CONTACT_MODE:'api',WHATSAPP_PUBLIC_NUMBER:'48123123123',WHATSAPP_PHONE_NUMBER_ID:'test-id',
     WHATSAPP_ACCESS_TOKEN:'not-a-real-token',WHATSAPP_APP_SECRET:'not-a-real-secret',
     WHATSAPP_VERIFY_TOKEN:'not-a-real-token'
   });
   assert.equal(config.telegram.url,'https://t.me/IPSAcademicBot');
   assert.equal(config.whatsapp.url,'https://wa.me/48123123123');
+  assert.equal(config.whatsapp.mode,'api');
+  assert.equal(config.whatsapp.connected,true);
   assert.ok(!JSON.stringify(config).includes('not-a-real'));
 });
 
@@ -80,6 +88,8 @@ test('public links use configured business identities without exposing secrets',
   assert.equal(PUBLIC_CONTACTS.whatsapp.available,true);
   assert.equal(PUBLIC_CONTACTS.telegram.available,true);
   assert.equal(PUBLIC_CONTACTS.whatsapp.connected,false);
+  assert.equal(PUBLIC_CONTACTS.whatsapp.mode,'direct');
+  assert.equal(PUBLIC_CONTACTS.whatsapp.manual_confirmation,true);
   assert.equal(PUBLIC_CONTACTS.telegram.connected,false);
   assert.equal(JSON.stringify(PUBLIC_CONTACTS).includes('token'),false);
 });

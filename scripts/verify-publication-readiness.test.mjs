@@ -20,10 +20,6 @@ const safeFixture=()=>{
     TELEGRAM_BOT_TOKEN:'CI-no-network-bot-token',
     TELEGRAM_WEBHOOK_SECRET:'CI-private-webhook-token',
     WHATSAPP_PUBLIC_NUMBER:'48794088714',
-    WHATSAPP_PHONE_NUMBER_ID:'CI-whatsapp-account',
-    WHATSAPP_ACCESS_TOKEN:'CI-whatsapp-test-token',
-    WHATSAPP_APP_SECRET:'CI-signed-app-secret',
-    WHATSAPP_VERIFY_TOKEN:'CI-webhook-verification',
     PUBLIC_APP_URL:'https://www.ipsglobalservice.com'
   };
   return env;
@@ -32,7 +28,7 @@ test('production refuses to claim only-payments-left when all nonpayment provide
   const missing=nonpaymentPublicationGaps({NODE_ENV:'production',IPS_PUBLICATION_STRICT:'true'});
   assert.ok(missing.includes('real-verified-email-signups-and-account-recovery'));
   assert.ok(missing.includes('telegram-business-channel'));
-  assert.ok(missing.includes('whatsapp-business-channel'));
+  assert.ok(missing.includes('whatsapp-direct-contact')===false); // company-approved public number has a valid direct link
   assert.ok(missing.includes('persistent-private-object-storage'));
   assert.throws(()=>enforcePublicationGate({NODE_ENV:'production',IPS_PUBLICATION_STRICT:'true'}),
     /nonpayment publication gate rejected/);
@@ -48,7 +44,7 @@ test('the launch gate catches missing mail, messaging, receipt, storage and comp
   const broken=[
     [{CONTACT_RESEND_API_KEY:''},'real-verified-email-signups-and-account-recovery'],
     [{TELEGRAM_BOT_TOKEN:''},'telegram-business-channel'],
-    [{WHATSAPP_ACCESS_TOKEN:''},'whatsapp-business-channel'],
+    [{WHATSAPP_PUBLIC_NUMBER:'bad-number'},'whatsapp-direct-contact'],
     [{CONTACT_RESEND_WEBHOOK_SECRET:''},'email-delivery-receipts'],
     [{CONTACT_EMAIL_NOTIFICATIONS_ENABLED:'false'},'written-confirmation-delivery-worker'],
     [{STORAGE_PROVIDER:'local'},'persistent-private-object-storage'],
@@ -56,6 +52,15 @@ test('the launch gate catches missing mail, messaging, receipt, storage and comp
   ];
   for(const [override,expected] of broken)
     assert.ok(nonpaymentPublicationGaps({...env,...override}).includes(expected),expected);
+});
+test('direct WhatsApp needs no Meta Cloud API or webhook credentials',()=>{
+  const env=safeFixture();
+  assert.equal(env.WHATSAPP_ACCESS_TOKEN,undefined);
+  assert.equal(env.WHATSAPP_APP_SECRET,undefined);
+  assert.equal(env.WHATSAPP_PHONE_NUMBER_ID,undefined);
+  assert.equal(nonpaymentPublicationGaps(env).includes('whatsapp-direct-contact'),false);
+  assert.ok(nonpaymentPublicationGaps({...env,WHATSAPP_CONTACT_MODE:'api'})
+    .includes('whatsapp-direct-contact'));
 });
 test('evaluation deliberately remains separate and never receives production provider authority',()=>{
   assert.deepEqual(nonpaymentPublicationGaps({NODE_ENV:'production',IPS_EVALUATION_MODE:'true'}),[]);
