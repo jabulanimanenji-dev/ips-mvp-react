@@ -875,6 +875,67 @@ async function go(){
   assert.equal(forbiddenAfterStop.status,409);
   pass('Telegram customer STOP immediately disables general support replies and preserves project privacy');
 
+  // The IPS administration is now an executable governed case console, not
+  // unrelated page counters. Exercise genuine persisted MongoDB actions.
+  const forbiddenDesk=await call('/api/admin/company-cases');
+  assert.equal(forbiddenDesk.status,401);
+  const customerDesk=await call('/api/admin/company-cases',{session:alice.cookie});
+  assert.equal(customerDesk.status,403);
+  const caseIndex=await call('/api/admin/company-cases',{session:admin.cookie});
+  assert.equal(caseIndex.status,200,JSON.stringify(caseIndex.body));
+  assert.equal(caseIndex.body.success,true);
+  const liveQuote=caseIndex.body.cases.find(x=>x.kind==='enquiry'&&x.ref===reference);
+  assert.ok(liveQuote,'Verified real quote must appear in the integrated company case queue.');
+  assert.equal(liveQuote.person,'PrivateAlice');
+  assert.equal(liveQuote.verified,true);
+  const caseDetail=await call('/api/admin/company-cases/enquiry/'+reference,{session:admin.cookie});
+  assert.equal(caseDetail.status,200,JSON.stringify(caseDetail.body));
+  assert.equal(caseDetail.body.case.ref,reference);
+  assert.ok(Array.isArray(caseDetail.body.events));
+  pass('Only authenticated, authorized administrators can inspect the unified live IPS company case index and quote timeline');
+
+  const deniedNote=await call('/api/admin/company-cases/enquiry/'+reference+'/actions',{
+    method:'POST',session:alice.cookie,json:{entry_kind:'note',body:'A private customer may not write an IPS staff note.'}
+  });
+  assert.equal(deniedNote.status,403);
+  const missingNote=await call('/api/admin/company-cases/enquiry/IPS-Q-000000000000000000/actions',{
+    method:'POST',session:admin.cookie,json:{entry_kind:'note',body:'This case does not exist.'}
+  });
+  assert.equal(missingNote.status,404);
+  const privateNote=await call('/api/admin/company-cases/enquiry/'+reference+'/actions',{
+    method:'POST',session:admin.cookie,
+    json:{entry_kind:'note',body:'Verified source quote reviewed by IPS, pending centrally managed academic intake.'}
+  });
+  assert.equal(privateNote.status,201,JSON.stringify(privateNote.body));
+  assert.equal(privateNote.body.action.created_by,admin.body.admin.id);
+  assert.equal(privateNote.body.action.assigned_to,admin.body.admin.id);
+  const taskDue=new Date(Date.now()+2*86400000).toISOString();
+  const followup=await call('/api/admin/company-cases/enquiry/'+reference+'/actions',{
+    method:'POST',session:admin.cookie,json:{entry_kind:'task',
+      body:'Review the academic brief and send the requested written update.',due_at:taskDue,priority:'urgent'}
+  });
+  assert.equal(followup.status,201,JSON.stringify(followup.body));
+  assert.equal(followup.body.action.task_status,'open');
+  assert.equal(followup.body.action.assigned_to,admin.body.admin.id);
+  const taskId=followup.body.action._id;
+  const updatedIndex=await call('/api/admin/company-cases',{session:admin.cookie});
+  const updatedQuote=updatedIndex.body.cases.find(x=>x.kind==='enquiry'&&x.ref===reference);
+  assert.ok(updatedQuote.tasks.open>=1);
+  const completed=await call('/api/admin/company-cases/enquiry/'+reference+'/tasks/'+taskId,{
+    method:'PATCH',session:admin.cookie,json:{task_status:'done'}
+  });
+  assert.equal(completed.status,200,JSON.stringify(completed.body));
+  assert.equal(completed.body.action.task_status,'done');
+  const persisted=await call('/api/admin/company-cases/enquiry/'+reference,{session:admin.cookie});
+  assert.equal(persisted.status,200);
+  assert.ok(persisted.body.actions.some(x=>x.entry_kind==='note'&&x.body.includes('Verified source quote')));
+  assert.ok(persisted.body.actions.some(x=>x._id===taskId&&x.task_status==='done'));
+  const crossRef=await call('/api/admin/company-cases/support/'+reference+'/tasks/'+taskId,{
+    method:'PATCH',session:admin.cookie,json:{task_status:'open'}
+  });
+  assert.equal(crossRef.status,404);
+  pass('Real MongoDB case notes, accountable staff tasks, completion, and cross-case isolation persist end-to-end');
+
   console.log('ALL '+cases.length+' database-backed workflow gates passed.');
 }
 go().catch(async err=>{
