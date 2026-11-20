@@ -79,16 +79,24 @@ export default function DirectMessaging({ role }) {
   };
 
   const send = async () => {
-    if (!body.trim() && !attachments.length) return;
+    if (busy || !selectedId || (!body.trim() && !attachments.length)) return;
     setBusy(true); setError('');
-    const response = await fetch(`/api/conversations/${selectedId}/messages`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify({ body, attachments })
-    });
-    const data = await response.json();
-    if (!response.ok) setError(data.error || 'Message could not be sent.');
-    else { setBody(''); setAttachments([]); await loadThread(); await loadConversations(); }
-    setBusy(false);
+    try {
+      const response = await fetch(`/api/conversations/${encodeURIComponent(selectedId)}/messages`, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: JSON.stringify({ body: body.trim(), attachments })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success)
+        throw Error(data.error || 'The private message was not accepted by IPS. Your draft is still here.');
+      setBody(''); setAttachments([]);
+      await Promise.all([loadThread(),loadConversations()]);
+    } catch (error) {
+      setError(error.message || 'The private message could not be sent. Your draft is still here.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const patchConversation = async updates => {
