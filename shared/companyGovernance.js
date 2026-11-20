@@ -28,6 +28,6 @@ export function delegatedPermissions(actor,targetLevel,requested){
     (actor.isRoot||actor.permissions?.includes(x)));
 }
 export const mayManageTeamMember=(actor,target)=>Boolean(actor&&target&&!target.isRoot&&
-  (actor.isRoot||(actor.companyRole==='manager'&&target.company_role==='staff'&&
-    target.department===actor.department&&target.manager_id===actor.adminId)));
+  (actor.isRoot?['manager',undefined].includes(target.company_role):actor.companyRole==='manager'&&target.company_role==='staff'&&
+    target.department===actor.department&&target.manager_id===actor.adminId));
 export const managerTeamTitle=department=>isCompanyDepartment(department)?COMPANY_DEPARTMENTS[department].label:'Unassigned';
