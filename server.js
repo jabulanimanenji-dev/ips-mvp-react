@@ -27,6 +27,7 @@ import { registerContactWebhooks, registerContactApi } from './services/contactC
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
+import { sendPublicationEmailProbe } from './services/publicationEmailProbe.js';
 import { registerContactEmailWebhooks } from './services/contactEmailWebhooks.js';
 import { registerPrivateQuoteRoutes } from './services/quoteRequests.js';
 import {registerQuoteHandoffRoutes} from './services/quoteHandoff.js';
@@ -233,6 +234,8 @@ if (isProduction && String(process.env.IPS_PUBLICATION_STRICT || '').toLowerCase
   const channel = await qualifyCompanyTelegramWebhook();
   if (!channel.connected) throw new Error('IPS Telegram webhook was not established.');
   console.log('IPS verified company Telegram bot identity and signed webhook registration.');
+  const emailProbe=await sendPublicationEmailProbe();
+  if(emailProbe.accepted)console.log('IPS Resend accepted one internal production delivery check: '+emailProbe.run_id);
 }
 
 const resolveAdminAccess = async session => {
