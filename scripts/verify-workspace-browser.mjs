@@ -209,6 +209,28 @@ try{
     await admin.getByRole('button',{name:'Switch administration to dark mode'}).click();
     await admin.locator('.ips-dark-admin').waitFor({timeout:10000});
   });
+  await check('Executive company administration works in mobile Chrome without clipped controls',async()=>{
+    const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
+    pages.push(mobile);
+    await mobile.goto(base+'/ips-mission-control',{waitUntil:'domcontentloaded'});
+    await mobile.locator('input[type=email]').fill(process.env.ADMIN_EMAIL);
+    await mobile.locator('input[type=password]').fill(process.env.ADMIN_PASSWORD);
+    await mobile.getByRole('button',{name:'Sign In'}).click();
+    await mobile.waitForURL(/\/admin\//,{timeout:15000});
+    await mobile.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
+    await mobile.locator('.ips-exec').waitFor({timeout:15000});
+    await mobile.getByRole('heading',{name:'Executive command centre'}).waitFor();
+    assert.equal(await mobile.locator('.ips-exec-metric').count(),4);
+    const width=await mobile.evaluate(()=>({viewport:innerWidth,body:document.body.scrollWidth,html:document.documentElement.scrollWidth}));
+    assert.ok(width.body<=width.viewport+5&&width.html<=width.viewport+5,
+      'Administration must not overflow at phone width: '+JSON.stringify(width));
+    await evidence(mobile,'ips-company-command-mobile');
+    await mobile.getByRole('button',{name:'Open administration menu'}).click();
+    await mobile.getByRole('link',{name:/People & managers/}).waitFor({timeout:15000});
+    await mobile.getByRole('link',{name:/People & managers/}).click();
+    await mobile.waitForURL(/\/admin\/access/,{timeout:15000});
+    await mobile.getByRole('heading',{name:'Company management'}).waitFor();
+  });
   await check('Premium IPS case desk, follow-up actions and keyboard-searchable administration work in Chrome',async()=>{
     await admin.goto(base+'/admin/case-desk',{waitUntil:'domcontentloaded'});
     await admin.locator('.ips-operations-console').waitFor({timeout:15000});
