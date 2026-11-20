@@ -2,20 +2,15 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {Link} from 'react-router-dom';
 import {useAuth} from '../../context/AuthContext.jsx';
 import {COMPANY_DEPARTMENTS} from '../../../shared/companyGovernance.js';
+import {isOpenCompanyCase as open,isOverdueCompanyCase as overdue,
+  needsCompanyCaseOwner as needsOwner,requiresManagementAttention as attention,
+  summarizeCompanyCases} from '../../../shared/companyPulse.js';
 import AdminIcon from './AdminIcon.jsx';
 import './company-command-centre.css';
 
-const CLOSED=new Set(['closed','Closed','Resolved','Completed','Cancelled','cancelled']);
 const TITLES={enquiry:'Quotation',support:'Client support',project:'Academic project',telegram:'Telegram'};
 const ICONS={enquiry:'quotes',support:'support',project:'projects',telegram:'telegram'};
 const N=n=>n===null?'—':new Intl.NumberFormat('en').format(n);
-const open=c=>!CLOSED.has(c.status);
-const overdue=c=>open(c)&&((c.tasks?.overdue||0)>0||
-  (c.kind==='enquiry'&&c.due_at&&new Date(c.due_at).getTime()<Date.now()));
-const needsOwner=c=>c.kind==='enquiry'&&open(c)&&c.verified&&!c.owner;
-const attention=c=>open(c)&&(overdue(c)||needsOwner(c)||c.new_message||
-  c.priority==='urgent'||['Submitted for Review','Disputed','Correction Required'].includes(c.status)||
-  (c.kind==='enquiry'&&c.verified&&c.status==='new'));
 const caseHref=c=>'/admin/case-desk?case='+encodeURIComponent(c.kind+':'+c.ref);
 const dateText=d=>d?new Date(d).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'}):'';
 const departmentEntries=Object.entries(COMPANY_DEPARTMENTS);
@@ -66,6 +61,7 @@ export default function CompanyCommandCenter(){
   },[admin?.id,refresh]);
   const cases=snapshot.cases||[];
   const live=cases.filter(open);
+  const pulse=summarizeCompanyCases(snapshot.cases);
   const priority=useMemo(()=>live.filter(attention).sort((a,b)=>
     Number(overdue(b))-Number(overdue(a))||
     Number(needsOwner(b))-Number(needsOwner(a))||
@@ -81,13 +77,13 @@ export default function CompanyCommandCenter(){
   const unverifiedClients=clients.filter(c=>c.status==='Active'&&!c.email_verified_at).length;
   const pendingSpecialists=specialists.filter(s=>(s.application_status||'pending')==='pending').length;
   const missingSpecialistVerification=specialists.filter(s=>s.application_status==='approved'&&!s.email_verified_at).length;
-  const openTasks=live.reduce((n,c)=>n+(c.tasks?.open||0),0);
+  const openTasks=pulse?.tasks??null;
   const visibleCases=snapshot.cases!==null;
   const cards=[
-    {label:'Open company cases',value:visibleCases?live.length:null,caption:'Within your authorized service scope',icon:'projects',to:'/admin/case-desk'},
-    {label:'Needs management attention',value:visibleCases?priority.length:null,caption:'Priority requests and delivery exceptions',icon:'alert',to:'/admin/case-desk?filter=priority',tone:'attention'},
-    {label:'Unassigned quotations',value:visibleCases?unowned.length:null,caption:'Verified, active and without an owner',icon:'clients',to:'/admin/case-desk?filter=enquiry',tone:'attention'},
-    {label:'Overdue case follow-ups',value:visibleCases?late.length:null,caption:'Cases with overdue tasks or written updates',icon:'clock',to:'/admin/case-desk?filter=priority',tone:'attention'}
+    {label:'Open company cases',value:pulse?.open??null,caption:'Within your authorized service scope',icon:'projects',to:'/admin/case-desk'},
+    {label:'Needs management attention',value:pulse?.attention??null,caption:'Priority requests and delivery exceptions',icon:'alert',to:'/admin/case-desk?filter=priority',tone:'attention'},
+    {label:'Unassigned quotations',value:pulse?.unowned??null,caption:'Verified, active and without an owner',icon:'clients',to:'/admin/case-desk?filter=enquiry',tone:'attention'},
+    {label:'Overdue case follow-ups',value:pulse?.overdue??null,caption:'Cases with overdue tasks or written updates',icon:'clock',to:'/admin/case-desk?filter=priority',tone:'attention'}
   ];
   return <div className="ips-exec">
     <header className="ips-exec-hero">
