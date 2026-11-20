@@ -67,7 +67,8 @@ import {
 import {
   createObjectStorage,
   StorageObjectNotFoundError,
-  StorageRequestError
+  StorageRequestError,
+  verifyPrivateStorageReadback
 } from './shared/objectStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -80,6 +81,17 @@ const objectStorage = await createObjectStorage({
   environment: process.env,
   defaultLocalRoot: path.join(__dirname, 'uploads')
 });
+// A configured R2 endpoint alone is not evidence of functioning confidential storage.
+// Strict company publication proves actual opaque byte storage and readback first.
+if (
+  isProduction &&
+  String(process.env.IPS_PUBLICATION_STRICT || '').toLowerCase() === 'true' &&
+  String(process.env.IPS_EVALUATION_MODE || '').toLowerCase() !== 'true'
+) {
+  await verifyPrivateStorageReadback(objectStorage);
+  console.log('IPS publication private R2 byte-integrity check passed.');
+}
+
 const storageKey = (scope, storedName) => {
   const safeName = String(storedName || '');
   if (
