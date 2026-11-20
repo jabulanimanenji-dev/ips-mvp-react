@@ -195,6 +195,7 @@ const publicAuthPaths=new Set([
   '/client/login','/clients','/client/verify-email',
   '/writer/login','/writer/verify-email','/writer/resend-verification',
   '/client/resend-verification','/client/password-recovery/request',
+   '/writer/password-recovery/request','/writer/password-recovery/complete',
   '/client/password-recovery/complete','/admin/company-team/accept','/logout'
 ]);
 app.use('/api',async(req,res,next)=>{
@@ -323,7 +324,14 @@ app.use(async (req, res, next) => {
   }
 });
 
-registerPasswordRecoveryRoutes(app, {hashPassword});
+registerPasswordRecoveryRoutes(app,{hashPassword,grantSession:async(res,scope,account)=>{
+  // A finished verified-mailbox recovery automatically enters only the
+  // recovered principal's own authorized workspace. All older sessions are
+  // revoked through incremented session_version.
+  const id=scope==='writer'?account.writer_id:account.client_id;
+  setSessionCookie(res,signSession({id,role:scope==='writer'?'writer':'client',
+    email_verified:true,session_version:sessionVersion(account)}));
+}});
 registerEnquiryRoutes(app, { requireSession });
 registerCompanyCaseDesk(app,{requireSession});
 registerCompanyOperatingSystem(app,{requireSession,hashPassword,validAdminPassword});
