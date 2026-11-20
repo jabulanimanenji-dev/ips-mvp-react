@@ -49,27 +49,26 @@ test('department manager coverage distinguishes vacant, invited and active',()=>
  staff.push({company_role:'manager',department:'finance',status:'Active'});
  assert.equal(departmentLeadershipState(staff,'finance'),'appointed');
 });
-test('new root command, action queue and department coverage are independent permission-bound dark workspaces',async()=>{
- const [app,shell,work,home,styles]=await Promise.all([
+test('Nyoro receives a real independent Administration Four bridge with role-bound cases and leadership coverage',async()=>{
+ const [app,shell,operations,bridge,styles]=await Promise.all([
   readFile(new URL('../src/App.jsx',import.meta.url),'utf8'),
-  readFile(new URL('../src/companyOS/CompanyShell.jsx',import.meta.url),'utf8'),
-  readFile(new URL('../src/companyOS/CompanyWork.jsx',import.meta.url),'utf8'),
-  readFile(new URL('../src/companyOS/CompanyHome.jsx',import.meta.url),'utf8'),
-  readFile(new URL('../src/companyOS/company-os.css',import.meta.url),'utf8')
+  readFile(new URL('../src/administration/CompanyAdministration.jsx',import.meta.url),'utf8'),
+  readFile(new URL('../src/administration/OperationsBoard.jsx',import.meta.url),'utf8'),
+  readFile(new URL('../src/administration/CompanyControl.jsx',import.meta.url),'utf8'),
+  readFile(new URL('../src/administration/ips4.css',import.meta.url),'utf8')
  ]);
- assert.match(app,/path="dashboard" element={<CompanyGuard permission="dashboard.view"><CompanyHome/);
- assert.match(app,/path="case-desk" element={<CompanyGuard permission="dashboard.view"><CompanyWork/);
- assert.match(shell,/COMPANY_NAV.filter/);
- assert.match(work,/hasAdminPermission\(CASE_TYPES\[selected.kind\]\?\.manage/);
- assert.match(home,/departmentCoverage/);
- assert.match(home,/caseNeedsDecision/);
+ assert.match(app,/path="dashboard" element={<Restricted permission="dashboard.view"><CompanyBridge/);
+ assert.match(app,/path="case-desk" element={<Restricted permission="dashboard.view"><OperationsBoard/);
+ assert.match(shell,/Nyoro/);assert.match(shell,/Root Admin/);
+ assert.match(operations,/api\/admin\/company-cases/);
+ assert.match(bridge,/summarizeCompanyCases/);assert.match(bridge,/COMPANY_DEPARTMENTS/);
  assert.match(styles,/color-scheme:dark/);
  assert.doesNotMatch(styles,/\.client-layout\{/);
 });
 
 test('administrative recovery never bypasses client mailbox verification or account-holder code proof',async()=>{
  const backend=await readFile(new URL('../services/companyOperatingSystem.js',import.meta.url),'utf8');
- const ui=await readFile(new URL('../src/components/admin/AdminClients.jsx',import.meta.url),'utf8');
+ const ui=await readFile(new URL('../src/administration/PeopleHub.jsx',import.meta.url),'utf8');
  assert.match(backend,/\/api\/admin\/clients\/:id\/resend-verification/);
  assert.match(backend,/hasAdminPermission\(access,'clients.manage'\)/);
  assert.match(backend,/await issueEmailChallenge\(client,\{env,send\}\)/);
