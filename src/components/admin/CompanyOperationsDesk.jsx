@@ -120,6 +120,7 @@ export default function CompanyOperationsDesk(){
     }catch(e){if(e.name!=='AbortError')setDetailError(e.message);}
     finally{if(!controller.signal.aborted)setDetailLoading(false);}
   },[selectedRef]);
+  useEffect(()=>{setTab('brief');},[selectedRef]);
   useEffect(()=>{fetchDetail();return()=>detailAbort.current?.abort();},[fetchDetail]);
   const chosen=(record)=>{
     const next=new URLSearchParams(params);next.set('case',safeRef(record.kind,record.ref));
