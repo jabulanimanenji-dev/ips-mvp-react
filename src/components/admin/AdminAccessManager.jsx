@@ -30,6 +30,7 @@ const roleKey = admin => admin.custom_role_id ? `custom:${admin.custom_role_id}`
 export default function AdminAccessManager() {
   const { admin: signedInAdmin, hasAdminPermission } = useAuth();
   const [accounts, setAccounts] = useState([]);
+  const [archivedQaAdmins,setArchivedQaAdmins]=useState(0);
   const [rootAdmin, setRootAdmin] = useState(null);
   const [roles, setRoles] = useState([]);
   const [builtInRoles, setBuiltInRoles] = useState({});
@@ -65,6 +66,7 @@ export default function AdminAccessManager() {
         request('/api/admin/audit-logs')
       ]);
       setAccounts(accountData.admins || []);
+      setArchivedQaAdmins(Number(accountData.archived_legacy_qa_admin_count||0));
       setRootAdmin(accountData.rootAdmin || null);
       setRoles(roleData.roles || []);
       setPermissions(permissionData.permissions || []);
@@ -242,7 +244,7 @@ export default function AdminAccessManager() {
             <div style={{ color: 'var(--text-muted)' }}>{rootAdmin?.email || signedInAdmin?.email}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <strong>Full God Mode</strong>
+            <strong>Company owner</strong>
             <small style={{ display: 'block', color: 'var(--text-muted)' }}>Protected by deployment environment credentials</small>
           </div>
         </div>
@@ -277,7 +279,7 @@ export default function AdminAccessManager() {
 
       <section className="card" style={{ marginTop: '1rem' }}>
         <div className="flex justify-between items-center">
-          <div><h3 style={{ margin: 0 }}>Managed administrators</h3><small style={{ color: 'var(--text-muted)' }}>Every authority or status change immediately invalidates old sessions.</small></div>
+          <div><h3 style={{ margin: 0 }}>Authorized IPS administrators</h3>{archivedQaAdmins>0&&<small style={{color:'var(--text-muted)',display:'block',maxWidth:650}}>Archived development staff records excluded: {archivedQaAdmins}. These test logins and sessions are blocked in production; records are retained for audit.</small>}<small style={{ color: 'var(--text-muted)' }}>Every authority or status change immediately invalidates old sessions.</small></div>
           <span className="badge">{accounts.length} accounts</span>
         </div>
         <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
