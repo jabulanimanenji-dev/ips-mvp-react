@@ -8,7 +8,7 @@ export default function TelegramOperations(){
   const [params,setParams]=useSearchParams();
   const threads=useFeed('/api/contact-channels/admin/threads','threads',hasAdminPermission('messages.view'));
   const items=(threads.records||[]).filter(x=>x.channel==='telegram');
-  const [selected,setSelected]=useState(params.get('thread')||''),[thread,setThread]=useState(null),
+  const [selected,setSelected]=useState(''),[thread,setThread]=useState(null),
     [messages,setMessages]=useState([]),[loading,setLoading]=useState(false),
     [error,setError]=useState(''),[filter,setFilter]=useState('all'),[search,setSearch]=useState(''),
     [draft,setDraft]=useState(''),[sending,setSending]=useState(false),[notice,setNotice]=useState('');
