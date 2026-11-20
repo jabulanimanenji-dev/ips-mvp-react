@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { isStudentSupportRequest } from '../shared/studentOffers.js';
 import {processStudentRefundEvent} from './studentRefunds.js';
+import {paymentLaunchState} from '../shared/paymentLaunch.js';
 
 const allowedCurrencies = new Set(['usd', 'eur', 'pln']);
 const safeError = error => error instanceof Error ? error.message : 'Unexpected payment error';
@@ -87,6 +88,12 @@ export function registerStudentWebhook(app, express, { StudentPayment, ServiceRe
 }
 
 export function registerStudentPaymentRoutes(app, { requireSession, StudentPayment, ServiceRequest }) {
+  app.get('/api/student-payments/config',(_req,res)=>{
+    const launch=paymentLaunchState();
+    res.set('Cache-Control','no-store');
+    res.json({success:true,enabled:launch.enabled,pending:launch.pending,
+      label:launch.label,notice:launch.notice});
+  });
   app.get('/api/student-payments/admin', async (req, res) => {
     try {
       const session = requireSession(req, res);
@@ -124,6 +131,11 @@ export function registerStudentPaymentRoutes(app, { requireSession, StudentPayme
       if (session.role !== 'client') return res.status(403).json({ success: false, error: 'Client access is required.' });
       const order = await ServiceRequest.findOne({ request_id: String(req.body?.request_id || ''), client_id: session.id });
       if (!order) return res.status(404).json({ success: false, error: 'Request not found.' });
+      if(!paymentLaunchState().enabled){
+        res.set('Cache-Control','no-store');
+        return res.status(503).json({success:false,error:
+          'Payment integration is pending. IPS can review your quotation but cannot collect payments until a verified provider is activated.'});
+      }
       const { amountMinor, currency, quoteVersion } = validateStudentQuote(order);
       if (order.payment_status === 'paid') return res.status(409).json({ success: false, error: 'This order is already paid.' });
       if (!process.env.STRIPE_SECRET_KEY || !process.env.STRIPE_WEBHOOK_SECRET || !process.env.PUBLIC_APP_URL) {
