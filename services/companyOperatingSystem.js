@@ -65,8 +65,21 @@ export function registerCompanyOperatingSystem(app,{
       const query=actor.isRoot?{}:{company_role:'staff',department:actor.department,manager_id:actor.adminId};
       const members=await adminModel.find(query).sort({createdAt:-1}).select('-password -invite_token_hash').lean();
       const filtered=production()?members.filter(a=>!isIpsQaFixtureAdmin(a)):members;
+      const ids=filtered.map(x=>x.id);
+      const [taskCounts,quoteCounts,ticketCounts]=ids.length?await Promise.all([
+        CompanyCaseAction.aggregate([{$match:{assigned_to:{$in:ids},entry_kind:'task',task_status:'open'}},
+          {$group:{_id:'$assigned_to',count:{$sum:1}}}]),
+        ContactEnquiry.aggregate([{$match:{assigned_admin_id:{$in:ids},status:{$nin:['closed','cancelled']}}},
+          {$group:{_id:'$assigned_admin_id',count:{$sum:1}}}]),
+        SupportTicket.aggregate([{$match:{assigned_admin:{$in:ids},status:{$nin:['Resolved','Closed']}}},
+          {$group:{_id:'$assigned_admin',count:{$sum:1}}}])
+      ]):[[],[],[]];
+      const countMap=rows=>new Map(rows.map(x=>[String(x._id),x.count]));
+      const [tasks,quotes,tickets]=[taskCounts,quoteCounts,ticketCounts].map(countMap);
+      const withLoad=filtered.map(x=>({...safeAccount(x),
+        workload:{tasks:tasks.get(x.id)||0,enquiries:quotes.get(x.id)||0,support:tickets.get(x.id)||0}}));
       res.set('Cache-Control','private, no-store');
-      res.json({success:true,members:filtered.map(safeAccount),
+      res.json({success:true,members:withLoad,
         departments:actor.isRoot?Object.fromEntries(Object.entries(COMPANY_DEPARTMENTS).map(([key,v])=>[key,v.label])):
           {[actor.department]:managerTeamTitle(actor.department)},
         self:{id:actor.adminId,role:actor.isRoot?'root':actor.companyRole,department:actor.department||'',manager_id:actor.managerId||null},
@@ -143,6 +156,25 @@ export function registerCompanyOperatingSystem(app,{
       details:{staff_id:account.id,department:account.department,company_role:account.company_role}});
     res.set('Cache-Control','no-store');
     res.json({success:true,message:'Your IPS company account is activated. Sign in using your work email and password.'});
+  });
+
+  app.post('/api/admin/company-team/legacy/:id/adopt',async(req,res)=>{
+    const actor=actorAllowed(req,res,requireSession);if(!actor)return;
+    if(!actor.isRoot)return invalid(res,'Only the company owner can assign existing legacy staff to managers.',403);
+    const target=await adminModel.findOne({id:req.params.id});
+    if(!target||target.company_role||target.status!=='Active'||target.id===actor.adminId)
+      return invalid(res,'Only an existing active, unassigned legacy administrator can be adopted.',409);
+    const manager=await adminModel.findOne({id:String(req.body?.manager_id||''),company_role:'manager',status:'Active'});
+    if(!manager||!isCompanyDepartment(manager.department))
+      return invalid(res,'Choose an active department manager.',400);
+    const allowed=permittedCompanyPermissions(manager.department,'staff');
+    target.company_role='staff';target.department=manager.department;target.manager_id=manager.id;
+    target.role='moderator';target.custom_role_id='';
+    target.permissions=allowed;target.session_version=Number(target.session_version||1)+1;
+    await target.save();
+    await log({actor:actor.adminId,action:'company_legacy_staff_assigned',
+      details:{staff_id:target.id,manager_id:manager.id,department:target.department}});
+    return res.json({success:true,member:safeAccount(target),sessionsRevoked:true});
   });
 
   app.patch('/api/admin/company-team/members/:id',async(req,res)=>{
