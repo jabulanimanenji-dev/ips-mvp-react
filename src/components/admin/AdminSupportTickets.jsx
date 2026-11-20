@@ -3,7 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminSupportTickets() {
-  const { admin } = useAuth();
+  const { admin,hasAdminPermission } = useAuth();
+  const canManage=hasAdminPermission('support.manage');
   const [searchParams, setSearchParams] = useSearchParams();
   const [tickets, setTickets] = useState([]);
   const [filter, setFilter] = useState('active');
@@ -38,7 +39,7 @@ export default function AdminSupportTickets() {
   }), [tickets, filter, search]);
 
   const updateTicket = async updates => {
-    if (!selected) return;
+    if (!selected||!canManage) return;
     setState(previous => ({ ...previous, saving: true, error: '', success: '' }));
     try {
       const response = await fetch(`/api/support-tickets/${selected.ticket_id}`, {
@@ -57,7 +58,7 @@ export default function AdminSupportTickets() {
 
   const sendReply = async event => {
     event.preventDefault();
-    if (!selected || !reply.trim()) return;
+    if (!selected || !reply.trim() || !canManage) return;
     setState(previous => ({ ...previous, saving: true, error: '', success: '' }));
     try {
       const response = await fetch(`/api/support-tickets/${selected.ticket_id}/messages`, {
@@ -88,6 +89,7 @@ export default function AdminSupportTickets() {
 
       {state.error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{state.error}</div>}
       {state.success && <div className="toast success" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{state.success}</div>}
+      {!canManage&&<p role="note" className="card">Read-only support access. Replies, assignments and case decisions belong to an authorized Client Relations manager or support agent.</p>}
 
       <div className="ips-support-columns" style={{ display:'grid',gap:18,gridTemplateColumns:'minmax(280px,.9fr) minmax(0,1.55fr)' }}>
         <div className="card">
@@ -118,10 +120,10 @@ export default function AdminSupportTickets() {
               <div className="flex justify-between items-start" style={{ gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                 <div><h3 style={{ margin: 0 }}>{selected.subject}</h3><small style={{ color: 'var(--text-muted)' }}>{selected.ticket_id} · {selected.client_name} · {selected.client_email}</small></div>
                 <div className="flex gap-2">
-                  <select className="form-select" value={selected.priority} onChange={event => updateTicket({ priority: event.target.value })}>
+                  <select className="form-select" aria-label="Ticket priority" disabled={!canManage||state.saving} value={selected.priority} onChange={event => updateTicket({ priority: event.target.value })}>
                     <option value="standard">Standard</option><option value="urgent">Urgent</option>
                   </select>
-                  <select className="form-select" value={selected.status} onChange={event => updateTicket({ status: event.target.value })}>
+                  <select className="form-select" aria-label="Ticket status" disabled={!canManage||state.saving} value={selected.status} onChange={event => updateTicket({ status: event.target.value })}>
                     <option>Open</option><option>In Progress</option><option>Waiting for Client</option><option>Resolved</option><option>Closed</option>
                   </select>
                 </div>
@@ -129,7 +131,7 @@ export default function AdminSupportTickets() {
 
               <div className="flex gap-2" style={{ marginBottom: '1rem' }}>
                 <input className="form-input" value={selected.assigned_admin || ''} readOnly placeholder="Unassigned" />
-                <button className="btn btn-secondary" type="button" disabled={state.saving} onClick={() => updateTicket({ assigned_admin: admin?.email || admin?.name || 'admin' })}>Assign to me</button>
+                {canManage&&<button className="btn btn-secondary" type="button" disabled={state.saving} onClick={() => updateTicket({ assigned_admin: admin?.email || admin?.name || 'admin' })}>Assign to me</button>}
               </div>
 
               <div className="flex flex-col gap-2" style={{ maxHeight: 450, overflowY: 'auto', marginBottom: '1rem' }}>
@@ -142,7 +144,7 @@ export default function AdminSupportTickets() {
                 ))}
               </div>
 
-              {selected.status !== 'Closed' && (
+              {canManage&&selected.status !== 'Closed' && (
                 <form onSubmit={sendReply}>
                   <label className="form-label">Reply to client</label>
                   <textarea className="form-textarea" rows={3} value={reply} onChange={event => setReply(event.target.value)} required />
