@@ -3,16 +3,21 @@ import { useCMS } from '../../context/CMSContext';
 
 export default function Testimonials() {
   const { cms } = useCMS();
-  const testimonials = cms?.testimonials || [];
+  // Legacy CMS contained illustrative/unverified testimonials. Never publish
+  // private academic work or implied endorsements without explicit approval.
+  const testimonials=(Array.isArray(cms?.testimonials)?cms.testimonials:[])
+    .filter(item=>item?.verified===true&&item?.consent_for_publication===true&&
+      typeof item?.text==='string'&&item.text.trim().length>=10);
+  if(!testimonials.length)return null;
 
   return (
     <section className="section">
       <div className="container">
         <div className="section-header">
           <div className="label">Client Stories</div>
-          <h2 className="section-title">Trusted by Students Worldwide</h2>
+          <h2 className="section-title">Client Feedback</h2>
           <p className="section-subtitle">
-            Real feedback from real clients who achieved their goals with I P S.
+            Reviews shown here are published only with verified client permission.
           </p>
         </div>
 
