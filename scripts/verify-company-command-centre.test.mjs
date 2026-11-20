@@ -74,7 +74,8 @@ test('administrative recovery never bypasses client mailbox verification or acco
  assert.match(backend,/await issueEmailChallenge\(client,\{env,send\}\)/);
  assert.match(backend,/company_client_verification_reissued/);
  assert.match(backend,/Only active email-verified IPS clients can receive recovery links/);
- assert.match(ui,/Reissue verification code/);
- assert.match(ui,/secure password recovery becomes available/i);
+ assert.match(ui,/Email ownership is not yet proved/);
+ assert.match(ui,/Send private password reset link/);
+ assert.match(ui,/SpecialistRegistry/);
  assert.doesNotMatch(backend,/email_verified_at\s*=\s*new Date\(\)/);
 });
