@@ -28,7 +28,7 @@ import ClientServices from './components/client/ClientServices';
 
 import AdminLayout from './pages/AdminLayout';
 import AdminLogin from './components/admin/AdminLogin';
-import AdminDashboard from './components/admin/AdminDashboard';
+import CompanyOperationsDesk from './components/admin/CompanyOperationsDesk.jsx';
 import AdminClients from './components/admin/AdminClients';
 import AdminWriters from './components/admin/AdminWriters';
 import AdminPayments from './components/admin/AdminPayments';
@@ -373,7 +373,7 @@ export default function App() {
 
         <Route
           path="dashboard"
-          element={<AdminDashboard />}
+          element={<CompanyOperationsDesk />}
         />
 
 
