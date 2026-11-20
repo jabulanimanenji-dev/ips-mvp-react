@@ -10,6 +10,7 @@ import QuotePage from './pages/QuotePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PasswordRecoveryPage from './pages/PasswordRecoveryPage.jsx';
+import StaffOnboardingPage from './pages/StaffOnboardingPage.jsx';
 import EvaluationGateway from './pages/EvaluationGateway.jsx';
 import ServiceMarketplacePage from './pages/ServiceMarketplacePage';
 import ProviderApplicationPage from './pages/ProviderApplicationPage';
@@ -346,6 +347,7 @@ export default function App() {
 
       {/* ADMIN */}
 
+      <Route path="/ips-staff-onboarding" element={<StaffOnboardingPage />} />
       <Route path={ADMIN_ENTRY_PATH} element={<AdminLogin />} />
       <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 

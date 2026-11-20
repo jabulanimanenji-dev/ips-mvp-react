@@ -53,6 +53,8 @@ jobs:
           echo $! > /tmp/ips_ci_server.pid
       - name: End-to-end authenticated order, quote, webhook and messaging assertions
         run: node scripts/verify-student-integration.mjs
+      - name: Root, department manager, staff, recovery and offboarding — genuine MongoDB
+        run: node scripts/verify-company-management-integration.mjs
       - name: Install isolated browser qualification harness
         run: npm install --no-save --ignore-scripts playwright@1.56.1
       - name: Exercise live authenticated workspaces in Chrome

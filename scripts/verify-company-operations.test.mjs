@@ -62,7 +62,7 @@ test('private case tasks are persisted with assigned staff and not sent by custo
   assert.match(model,/assigned_to/);
   assert.match(model,/case_kind/);
   assert.match(source,/assigned_to:assignedTo/);
-  assert.match(source,/administrators\.manage/);
+  assert.match(source,/team\.manage/);
   assert.match(source,/CompanyCaseAction\.create/);
   assert.match(source,/CompanyCaseAction\.findOneAndUpdate/);
   assert.doesNotMatch(source,/sendEmail|sendTelegram|deliverExternalMessage/);

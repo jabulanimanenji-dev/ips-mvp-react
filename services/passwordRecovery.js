@@ -41,7 +41,7 @@ export async function requestPasswordRecovery(email,{
   if(!customer)return {accepted:true};
   const at=now();
   if(customer.password_reset_sent_at&&at.getTime()-new Date(customer.password_reset_sent_at).getTime()<60000)
-    return {accepted:true};
+    return {accepted:true,alreadySent:true};
   const token=random();
   if(!/^[A-Za-z0-9_-]{43}$/.test(token))throw Error('Password recovery token generator failed.');
   const hash=tokenDigest(token,env.EMAIL_VERIFICATION_SECRET);
@@ -59,13 +59,14 @@ export async function requestPasswordRecovery(email,{
         'Never share the link or your password with IPS staff.\n\nIPS Academic Services',
       env
     });
+    return {accepted:true,delivered:true};
   }catch{
     // Never leave an undelivered but valid token behind. Match the exact hash
     // in case the customer has since requested a newer link.
     await model.updateOne({_id:customer._id,password_reset_hash:hash},
       {$unset:{password_reset_hash:'',password_reset_expires_at:'',password_reset_sent_at:''}});
+    return {accepted:true,delivered:false};
   }
-  return {accepted:true};
 }
 
 export async function completePasswordRecovery(token,password,{

@@ -1,398 +1,280 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import {useAuth} from '../../context/AuthContext';
+import {COMPANY_DEPARTMENTS,permittedCompanyPermissions,managerTeamTitle} from '../../../shared/companyGovernance.js';
+import AdminIcon from './AdminIcon.jsx';
 
-const emptyAccount = {
-  name: '',
-  email: '',
-  password: '',
-  roleKey: 'moderator'
+const get=async(url,options={})=>{
+  const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,
+    headers:{'Content-Type':'application/json',...(options.headers||{})}});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok||!d.success)throw Error(d.error||'Company management request failed.');
+  return d;
 };
+const total=m=>(m?.workload?.tasks||0)+(m?.workload?.enquiries||0)+(m?.workload?.support||0);
+const labelFor=s=>s==='Invited'?'Invitation pending':s==='Suspended'?'Suspended':s==='Archived'?'Archived':s==='Active'?'Active':'Locked';
+const accountTemplate={name:'',email:'',department:'client_relations',permissions:[]};
 
-const emptyRole = {
-  name: '',
-  description: '',
-  permissions: ['platform.access', 'dashboard.view']
-};
+export default function AdminAccessManager(){
+  const {admin,hasAdminPermission}=useAuth();
+  const isRoot=Boolean(admin?.isRoot);
+  const canManage=hasAdminPermission('team.manage');
+  const [team,setTeam]=useState([]);
+  const [root,setRoot]=useState(null);
+  const [form,setForm]=useState(accountTemplate);
+  const [selected,setSelected]=useState(null);
+  const [selectionPerms,setSelectionPerms]=useState([]);
+  const [replacement,setReplacement]=useState('');
+  const [reason,setReason]=useState('');
+  const [offboard,setOffboard]=useState(false);
+  const [legacyManager,setLegacyManager]=useState('');
+  const [filter,setFilter]=useState('active');
+  const [search,setSearch]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState('');
+  const [notice,setNotice]=useState('');
+  const level=isRoot?'manager':'staff';
+  const dept=isRoot?form.department:(admin?.department||'client_relations');
+  const allowed=permittedCompanyPermissions(dept,level);
+  const safePermissions=allowed.filter(p=>form.permissions.includes(p));
+  const reload=useCallback(async()=>{
+    setLoading(true);
+    try{
+      const response=await get('/api/admin/company-team/roster');
+      setTeam(response.members||[]);
+      setRoot(response.self||null);
+      setError('');
+    }catch(e){setError(e.message);}finally{setLoading(false);}
+  },[]);
+  useEffect(()=>{if(canManage)reload();},[canManage,reload]);
 
-const request = async (url, options = {}) => {
-  const response = await fetch(url, {
-    credentials: 'same-origin',
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) }
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data.success) throw new Error(data.error || 'The request could not be completed.');
-  return data;
-};
+  const rows=useMemo(()=>team.filter(x=>{
+    if(filter==='active'&&!['Active','Invited','Locked'].includes(x.status))return false;
+    if(filter==='invited'&&x.status!=='Invited')return false;
+    if(filter==='archived'&&x.status!=='Archived')return false;
+    const q=search.trim().toLowerCase();
+    return !q||[x.name,x.email,x.department,x.id,x.manager_id].join(' ').toLowerCase().includes(q);
+  }),[team,filter,search]);
+  const managers=team.filter(x=>x.company_role==='manager'&&x.status==='Active');
+  const replacementCandidates=team.filter(x=>x.id!==selected?.id&&x.status==='Active'&&
+    x.department===selected?.department&&
+    (isRoot?x.company_role==='manager':x.company_role==='staff'&&x.manager_id===admin?.id));
 
-const roleKey = admin => admin.custom_role_id ? `custom:${admin.custom_role_id}` : admin.role;
-
-export default function AdminAccessManager() {
-  const { admin: signedInAdmin, hasAdminPermission } = useAuth();
-  const [accounts, setAccounts] = useState([]);
-  const [archivedQaAdmins,setArchivedQaAdmins]=useState(0);
-  const [rootAdmin, setRootAdmin] = useState(null);
-  const [roles, setRoles] = useState([]);
-  const [builtInRoles, setBuiltInRoles] = useState({});
-  const [permissions, setPermissions] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [accountForm, setAccountForm] = useState(emptyAccount);
-  const [roleForm, setRoleForm] = useState(emptyRole);
-  const [editingRole, setEditingRole] = useState('');
-  const [resetTarget, setResetTarget] = useState(null);
-  const [temporaryPassword, setTemporaryPassword] = useState('');
-  const [working, setWorking] = useState('');
-  const [notice, setNotice] = useState({ type: '', text: '' });
-
-  const canManage = hasAdminPermission('administrators.manage') && signedInAdmin?.isSuperAdmin;
-
-  const groupedPermissions = useMemo(() => {
-    const groups = {};
-    permissions.forEach(permission => {
-      const group = permission.id.split('.')[0];
-      groups[group] = [...(groups[group] || []), permission];
-    });
-    return groups;
-  }, [permissions]);
-
-  const load = async () => {
-    setWorking('load');
-    setNotice({ type: '', text: '' });
-    try {
-      const [accountData, roleData, permissionData, auditData] = await Promise.all([
-        request('/api/admins'),
-        request('/api/admin-roles'),
-        request('/api/admin/permissions'),
-        request('/api/admin/audit-logs')
-      ]);
-      setAccounts(accountData.admins || []);
-      setArchivedQaAdmins(Number(accountData.archived_legacy_qa_admin_count||0));
-      setRootAdmin(accountData.rootAdmin || null);
-      setRoles(roleData.roles || []);
-      setPermissions(permissionData.permissions || []);
-      setBuiltInRoles(permissionData.builtInRoles || {});
-      setAuditLogs(auditData.logs || []);
-    } catch (error) {
-      setNotice({ type: 'error', text: error.message });
-    } finally {
-      setWorking('');
-    }
-  };
-
-  useEffect(() => {
-    if (canManage) load();
-  }, [canManage]);
-
-  const createAccount = async event => {
-    event.preventDefault();
-    setWorking('account');
-    setNotice({ type: '', text: '' });
-    try {
-      const custom = accountForm.roleKey.startsWith('custom:') ? accountForm.roleKey.slice(7) : '';
-      await request('/api/admins', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: accountForm.name,
-          email: accountForm.email,
-          password: accountForm.password,
-          role: custom ? 'moderator' : accountForm.roleKey,
-          custom_role_id: custom
-        })
-      });
-      setAccountForm(emptyAccount);
-      await load();
-      setNotice({ type: 'success', text: 'Administrator created. They must change the temporary password after signing in.' });
-    } catch (error) {
-      setNotice({ type: 'error', text: error.message });
-    } finally {
-      setWorking('');
-    }
-  };
-
-  const updateAccount = async (account, updates, successText) => {
-    setWorking(account.id);
-    setNotice({ type: '', text: '' });
-    try {
-      await request(`/api/admins/${account.id}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ ...updates, reason: 'Updated from Super Admin Access Control' })
-      });
-      await load();
-      setNotice({ type: 'success', text: successText || 'Administrator updated and previous sessions revoked.' });
-    } catch (error) {
-      setNotice({ type: 'error', text: error.message });
-    } finally {
-      setWorking('');
-    }
-  };
-
-  const changeRole = (account, nextRoleKey) => {
-    const custom = nextRoleKey.startsWith('custom:') ? nextRoleKey.slice(7) : '';
-    updateAccount(account, {
-      role: custom ? 'moderator' : nextRoleKey,
-      custom_role_id: custom
-    }, 'Role changed and previous sessions revoked.');
-  };
-
-  const resetPassword = async event => {
-    event.preventDefault();
-    if (!resetTarget) return;
-    await updateAccount(resetTarget, { temporary_password: temporaryPassword }, 'Temporary password set and previous sessions revoked.');
-    setResetTarget(null);
-    setTemporaryPassword('');
-  };
-
-  const removeAccount = async account => {
-    if (!window.confirm(`Archive administrator access for ${account.name}? This cannot be undone from this screen.`)) return;
-    setWorking(account.id);
-    try {
-      await request(`/api/admins/${account.id}`, { method: 'DELETE' });
-      await load();
-      setNotice({ type: 'success', text: 'Administrator account removed.' });
-    } catch (error) {
-      setNotice({ type: 'error', text: error.message });
-    } finally {
-      setWorking('');
-    }
-  };
-
-  const togglePermission = id => {
-    setRoleForm(previous => ({
-      ...previous,
-      permissions: previous.permissions.includes(id)
-        ? previous.permissions.filter(permission => permission !== id)
-        : [...previous.permissions, id]
-    }));
-  };
-
-  const submitRole = async event => {
-    event.preventDefault();
-    setWorking('role');
-    try {
-      await request(editingRole ? `/api/admin-roles/${editingRole}` : '/api/admin-roles', {
-        method: editingRole ? 'PATCH' : 'POST',
-        body: JSON.stringify(roleForm)
-      });
-      setRoleForm(emptyRole);
-      setEditingRole('');
-      await load();
-      setNotice({ type: 'success', text: editingRole ? 'Role updated; assigned sessions were revoked.' : 'Custom administrator role created.' });
-    } catch (error) {
-      setNotice({ type: 'error', text: error.message });
-    } finally {
-      setWorking('');
-    }
-  };
-
-  const editRole = role => {
-    setEditingRole(role.role_id);
-    setRoleForm({
-      name: role.name,
-      description: role.description || '',
-      permissions: role.permissions || []
-    });
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-  };
-
-  const deleteRole = async role => {
-    if (!window.confirm(`Delete custom role “${role.name}”?`)) return;
-    setWorking(role.role_id);
-    try {
-      await request(`/api/admin-roles/${role.role_id}`, { method: 'DELETE' });
-      await load();
-      setNotice({ type: 'success', text: 'Custom role deleted.' });
-    } catch (error) {
-      setNotice({ type: 'error', text: error.message });
-    } finally {
-      setWorking('');
-    }
-  };
-
-  if (!canManage) {
-    return (
-      <div className="card" style={{ maxWidth: 720 }}>
-        <div className="badge badge-review">Restricted</div>
-        <h2>Company owner authority required</h2>
-        <p style={{ color: 'var(--text-muted)' }}>Only a Super Admin can create administrators, assign authority, reset their passwords, or revoke access.</p>
-      </div>
-    );
+  function open(target){
+    setSelected(target);setSelectionPerms(target.permissions||[]);
+    setReplacement('');setReason('');setOffboard(false);setError('');setNotice('');
   }
+  async function invite(e){
+    e.preventDefault();if(busy)return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      await get('/api/admin/company-team/invite',{method:'POST',body:JSON.stringify({
+        name:form.name.trim(),email:form.email.trim(),department:dept,
+        company_role:level,permissions:safePermissions.length?safePermissions:allowed
+      })});
+      setForm({...accountTemplate,department:dept,permissions:[]});
+      await reload();
+      setNotice('One-time invitation sent to the staff member. No administrator has seen or chosen their password.');
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function update(updates,message){
+    if(!selected||busy)return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      await get('/api/admin/company-team/members/'+encodeURIComponent(selected.id),{
+        method:'PATCH',body:JSON.stringify(updates)
+      });
+      setSelected(null);await reload();setNotice(message);
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function offboardUser(){
+    if(!selected||!reason.trim()||busy)return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      await get('/api/admin/company-team/members/'+encodeURIComponent(selected.id)+'/offboard',{
+        method:'POST',body:JSON.stringify({replacement_id:replacement,reason:reason.trim()})
+      });
+      setSelected(null);await reload();
+      setNotice('Account archived, sessions revoked and outstanding work transferred where required.');
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function resendInvite(){
+    if(!selected||busy)return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      await get('/api/admin/company-team/members/'+encodeURIComponent(selected.id)+'/reinvite',{method:'POST'});
+      setSelected(null);await reload();setNotice('New invitation sent to the existing registered staff email.');
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  async function adopt(target){
+    if(!legacyManager||busy)return;
+    setBusy(true);setError('');setNotice('');
+    try{
+      await get('/api/admin/company-team/legacy/'+encodeURIComponent(target.id)+'/adopt',{
+        method:'POST',body:JSON.stringify({manager_id:legacyManager})
+      });
+      setSelected(null);await reload();setNotice('Existing staff assigned to the selected manager. Previous sessions were revoked.');
+    }catch(e){setError(e.message);}finally{setBusy(false);}
+  }
+  const toggle=p=>setForm(v=>{
+    const current=v.permissions.length?v.permissions:permittedCompanyPermissions(isRoot?v.department:admin.department,level);
+    return {...v,permissions:current.includes(p)?current.filter(x=>x!==p):[...current,p]};
+  });
+  if(!canManage)return <section className="card" style={{maxWidth:720,padding:28}}>
+    <h2>Department management is restricted</h2>
+    <p>You do not have team-management permission. Ask your IPS department manager for access.</p>
+  </section>;
 
-  const roleOptions = [
-    ...Object.entries(builtInRoles).filter(([key]) => key !== 'superadmin').map(([key, value]) => ({ key, label: value.label })),
-    ...roles.map(role => ({ key: `custom:${role.role_id}`, label: `${role.name} (custom)` }))
-  ];
-
-  return (
-    <div className="ips-premium-team-access" style={{maxWidth:1450,margin:'0 auto'}}>
-      <div className="ips-case-top" style={{ marginBottom: '1.5rem' }}>
-        <div>
-          <span className="ips-eyebrow">Company · staff governance</span>
-          <h1>Team & access</h1>
-          <p>Create least-privilege staff accounts, assign scoped access, manage professional roles and revoke sessions when appropriate.</p>
-        </div>
-        <button className="btn btn-secondary" onClick={load} disabled={working === 'load'}>Refresh</button>
+  return <section className="ips-company-people" style={{maxWidth:1520,margin:'0 auto',display:'grid',gap:19}}>
+    <header className="ips-case-top">
+      <div><span className="ips-eyebrow">IPS company operating system · people & authority</span>
+        <h1>{isRoot?'Company management':'My department'}</h1>
+        <p>{isRoot?'You are the protected root owner. You have no reporting manager. Appoint department managers, allocate their authority and oversee the company.':'Manage only your own assigned staff, duties, workload and available permissions. You cannot create managers or change ownership.'}</p>
       </div>
-
-      {notice.text && <div className={`toast ${notice.type}`} style={{ position: 'static', maxWidth: 'none', marginBottom: '1rem' }}>{notice.text}</div>}
-
-      <div className="card" style={{ marginBottom: '1rem', borderLeft: '3px solid #b59a6a' }}>
-        <div className="flex justify-between items-center gap-3" style={{ flexWrap: 'wrap' }}>
-          <div>
-            <span className="badge badge-success">Immutable root</span>
-            <h3 style={{ margin: '.6rem 0 .2rem' }}>{rootAdmin?.name || 'Primary Super Admin'}</h3>
-            <div style={{ color: 'var(--text-muted)' }}>{rootAdmin?.email || signedInAdmin?.email}</div>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <strong>Company owner</strong>
-            <small style={{ display: 'block', color: 'var(--text-muted)' }}>Protected by deployment environment credentials</small>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-2 gap-4" style={{ alignItems: 'start' }}>
-        <section className="card">
-          <h3>Create administrator or moderator</h3>
-          <form onSubmit={createAccount} className="flex flex-col gap-3">
-            <input className="form-input" placeholder="Full name" value={accountForm.name} onChange={event => setAccountForm({ ...accountForm, name: event.target.value })} required />
-            <input className="form-input" type="email" placeholder="Work email" value={accountForm.email} onChange={event => setAccountForm({ ...accountForm, email: event.target.value })} required />
-            <input className="form-input" type="password" minLength={10} pattern="(?=.*[A-Za-z])(?=.*\d).{10,}" placeholder="Temporary password (10+ characters, letter + number)" value={accountForm.password} onChange={event => setAccountForm({ ...accountForm, password: event.target.value })} required />
-            <select className="form-select" value={accountForm.roleKey} onChange={event => setAccountForm({ ...accountForm, roleKey: event.target.value })}>
-              {roleOptions.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
-            </select>
-            <button className="btn btn-primary" disabled={working === 'account'}>Create secure account</button>
-          </form>
-        </section>
-
-        <section className="card">
-          <h3>Authority model</h3>
-          <div className="flex flex-col gap-2">
-            {Object.entries(builtInRoles).map(([key, role]) => (
-              <div key={key} style={{ padding: '.75rem', border: '1px solid var(--border)', borderRadius: 12 }}>
-                <strong>{role.label}</strong>
-                <small style={{ display: 'block', color: 'var(--text-muted)' }}>{role.description}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <section className="card" style={{ marginTop: '1rem' }}>
-        <div className="flex justify-between items-center">
-          <div><h3 style={{ margin: 0 }}>Authorized IPS administrators</h3>{archivedQaAdmins>0&&<small style={{color:'var(--text-muted)',display:'block',maxWidth:650}}>Archived development staff records excluded: {archivedQaAdmins}. These test logins and sessions are blocked in production; records are retained for audit.</small>}<small style={{ color: 'var(--text-muted)' }}>Every authority or status change immediately invalidates old sessions.</small></div>
-          <span className="badge">{accounts.length} accounts</span>
-        </div>
-        <div style={{ overflowX: 'auto', marginTop: '1rem' }}>
-          <table className="data-table">
-            <thead><tr><th>Administrator</th><th>Authority</th><th>Status</th><th>Last login</th><th>Controls</th></tr></thead>
-            <tbody>
-              {accounts.length === 0 && <tr><td colSpan={5} style={{ color: 'var(--text-muted)' }}>No managed administrator accounts yet.</td></tr>}
-              {accounts.map(account => (
-                <tr key={account.id}>
-                  <td><strong>{account.name}</strong><small style={{ display: 'block' }}>{account.email}<br />{account.id}</small></td>
-                  <td>
-                    <select className="form-select" value={roleKey(account)} onChange={event => changeRole(account, event.target.value)} disabled={working === account.id}>
-                      {roleOptions.map(option => <option key={option.key} value={option.key}>{option.label}</option>)}
-                    </select>
-                  </td>
-                  <td>
-                    <select className="form-select" value={account.status || 'Active'} onChange={event => updateAccount(account, { status: event.target.value, suspended_reason: event.target.value === 'Active' ? '' : 'Changed by Super Admin' })} disabled={working === account.id}>
-                      {['Active', 'Suspended', 'Locked', 'Archived'].map(status => <option key={status}>{status}</option>)}
-                    </select>
-                  </td>
-                  <td>{account.last_login_at ? new Date(account.last_login_at).toLocaleString() : 'Never'}</td>
-                  <td>
-                    <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-                      <button className="btn btn-secondary btn-sm" onClick={() => { setResetTarget(account); setTemporaryPassword(''); }}>Reset password</button>
-                      <button className="btn btn-danger btn-sm" onClick={() => removeAccount(account)} disabled={working === account.id}>Remove</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <div className="grid grid-2 gap-4" style={{ alignItems: 'start', marginTop: '1rem' }}>
-        <section className="card">
-          <h3>Custom roles</h3>
-          {roles.length === 0 && <p style={{ color: 'var(--text-muted)' }}>No custom roles. Built-in roles are ready to use.</p>}
-          <div className="flex flex-col gap-2">
-            {roles.map(role => (
-              <div key={role.role_id} style={{ padding: '.8rem', border: '1px solid var(--border)', borderRadius: 12 }}>
-                <div className="flex justify-between items-center gap-2">
-                  <div><strong>{role.name}</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>{role.description || 'No description'} · {role.permissions?.length || 0} permissions</small></div>
-                  <div className="flex gap-2"><button className="btn btn-secondary btn-sm" onClick={() => editRole(role)}>Edit</button><button className="btn btn-danger btn-sm" onClick={() => deleteRole(role)}>Delete</button></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="card">
-          <h3>{editingRole ? 'Edit custom role' : 'Create custom role'}</h3>
-          <form onSubmit={submitRole} className="flex flex-col gap-3">
-            <input className="form-input" placeholder="Role name" value={roleForm.name} onChange={event => setRoleForm({ ...roleForm, name: event.target.value })} required minLength={3} />
-            <textarea className="form-textarea" placeholder="What is this role responsible for?" value={roleForm.description} onChange={event => setRoleForm({ ...roleForm, description: event.target.value })} />
-            <div style={{ maxHeight: 430, overflowY: 'auto', paddingRight: '.35rem' }}>
-              {Object.entries(groupedPermissions).map(([group, items]) => (
-                <fieldset key={group} style={{ border: '1px solid var(--border)', borderRadius: 12, marginBottom: '.75rem', padding: '.75rem' }}>
-                  <legend style={{ textTransform: 'capitalize', fontWeight: 800 }}>{group}</legend>
-                  {items.map(permission => (
-                    <label key={permission.id} style={{ display: 'flex', gap: '.65rem', alignItems: 'flex-start', margin: '.6rem 0' }}>
-                      <input type="checkbox" checked={roleForm.permissions.includes(permission.id)} onChange={() => togglePermission(permission.id)} />
-                      <span><strong>{permission.label}</strong><small style={{ display: 'block', color: 'var(--text-muted)' }}>{permission.description}</small></span>
-                    </label>
-                  ))}
-                </fieldset>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button className="btn btn-primary" disabled={working === 'role'}>{editingRole ? 'Save role and revoke sessions' : 'Create role'}</button>
-              {editingRole && <button type="button" className="btn btn-secondary" onClick={() => { setEditingRole(''); setRoleForm(emptyRole); }}>Cancel</button>}
-            </div>
-          </form>
-        </section>
-      </div>
-
-      <section className="card" style={{ marginTop: '1rem' }}>
-        <div className="flex justify-between items-center">
-          <div><h3 style={{ margin: 0 }}>Administrator security audit</h3><small style={{ color: 'var(--text-muted)' }}>Recent access, design, media, and governance actions.</small></div>
-          <span className="badge">{auditLogs.length} events</span>
-        </div>
-        <div style={{ overflowX: 'auto', marginTop: '1rem', maxHeight: 430, overflowY: 'auto' }}>
-          <table className="data-table">
-            <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Area</th><th>Details</th></tr></thead>
-            <tbody>
-              {auditLogs.length === 0 && <tr><td colSpan={5} style={{ color: 'var(--text-muted)' }}>No administrator audit events yet.</td></tr>}
-              {auditLogs.map(log => (
-                <tr key={log._id}>
-                  <td>{new Date(log.createdAt).toLocaleString()}</td>
-                  <td>{log.actor_id}<small style={{ display: 'block' }}>{log.actor_role}</small></td>
-                  <td>{String(log.action || '').replaceAll('_', ' ')}</td>
-                  <td>{log.order_id}</td>
-                  <td><code style={{ fontSize: '.7rem', whiteSpace: 'pre-wrap' }}>{JSON.stringify(log.details || {}).slice(0, 260)}</code></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {resetTarget && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--overlay)', zIndex: 1300, display: 'grid', placeItems: 'center', padding: '1rem' }}>
-          <form onSubmit={resetPassword} className="card" style={{ width: 'min(460px, 100%)' }}>
-            <h3>Reset {resetTarget.name}’s password</h3>
-            <p style={{ color: 'var(--text-muted)' }}>The current password cannot be retrieved. Set a temporary replacement; all previous sessions will be revoked.</p>
-            <input className="form-input" type="password" minLength={10} pattern="(?=.*[A-Za-z])(?=.*\d).{10,}" value={temporaryPassword} onChange={event => setTemporaryPassword(event.target.value)} placeholder="New temporary password (letter + number)" required />
-            <div className="flex gap-2" style={{ marginTop: '1rem' }}>
-              <button className="btn btn-primary">Reset and revoke</button>
-              <button type="button" className="btn btn-secondary" onClick={() => setResetTarget(null)}>Cancel</button>
-            </div>
-          </form>
-        </div>
-      )}
+      <button type="button" className="btn btn-secondary" onClick={reload} disabled={loading||busy}>
+        <AdminIcon name="refresh" size={16}/> {loading?'Updating…':'Refresh team'}
+      </button>
+    </header>
+    <div className="ips-case-overview">
+      <article><span>{isRoot?'Department managers':'My team members'}</span><strong>{team.filter(x=>x.company_role===level&&x.status==='Active').length}</strong></article>
+      <article><span>Invitations awaiting acceptance</span><strong>{team.filter(x=>x.status==='Invited').length}</strong></article>
+      <article><span>Open staff follow-ups</span><strong>{team.reduce((n,x)=>n+(x.workload?.tasks||0),0)}</strong></article>
+      <article><span>Assigned client / support cases</span><strong>{team.reduce((n,x)=>n+(x.workload?.enquiries||0)+(x.workload?.support||0),0)}</strong></article>
     </div>
-  );
+    <div className="ips-panel" style={{padding:22,borderLeft:'4px solid #b28e5a'}}>
+      <div style={{display:'flex',alignItems:'start',gap:13}}>
+        <AdminIcon name="shield" size={25}/>
+        <div><strong style={{display:'block',fontSize:'.98rem'}}>{isRoot?'Protected company owner · root':'Accountable department manager'}</strong>
+          <p style={{color:'var(--text-muted)',fontSize:'.82rem',lineHeight:1.6,margin:'5px 0 0'}}>
+            {isRoot?'Root has no manager, cannot be deleted or offboarded, and appoints managers only. Staff report to those managers. Existing legacy staff must be deliberately assigned to a manager.':'You control your own department within the permissions granted by root. No manager can grant permissions they do not possess, delete accounts, or modify another department.'}
+          </p>
+        </div>
+      </div>
+    </div>
+    {error&&<div role="alert" className="ips-panel" style={{color:'var(--danger)',padding:17,borderLeft:'4px solid var(--danger)'}}>{error}</div>}
+    {notice&&<div role="status" className="ips-panel" style={{color:'var(--success)',padding:17}}>{notice}</div>}
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,390px),1fr))',gap:17,alignItems:'start'}}>
+      <section className="ips-panel" style={{padding:24}}>
+        <span className="ips-eyebrow">{isRoot?'Appoint a manager':'Recruit department staff'}</span>
+        <h2 style={{fontSize:'1.17rem',margin:'9px 0'}}>Invite {isRoot?'department manager':'team member'}</h2>
+        <p style={{fontSize:'.78rem',color:'var(--text-muted)',lineHeight:1.6}}>
+          IPS sends a time-limited private invitation to their work email. The invitee verifies mailbox access and creates their own password. An invitation never grants access until accepted.
+        </p>
+        <form onSubmit={invite} style={{display:'grid',gap:13,marginTop:15}}>
+          <label className="form-group"><span className="form-label">Full staff name</span>
+            <input className="form-input" value={form.name} onChange={e=>setForm(v=>({...v,name:e.target.value}))} placeholder="Staff member's full name" maxLength={120} minLength={2} required/></label>
+          <label className="form-group"><span className="form-label">Professional email address</span>
+            <input className="form-input" type="email" value={form.email} onChange={e=>setForm(v=>({...v,email:e.target.value}))} placeholder="person@example.com" required/></label>
+          {isRoot?<label className="form-group"><span className="form-label">Department to lead</span>
+            <select className="form-select" value={form.department} onChange={e=>setForm(v=>({...v,department:e.target.value,permissions:[]}))}>
+              {Object.entries(COMPANY_DEPARTMENTS).map(([key,d])=><option key={key} value={key}>{d.label}</option>)}
+            </select></label>:<div className="card" style={{padding:13}}><strong>{managerTeamTitle(admin?.department)}</strong>
+              <small style={{display:'block',color:'var(--text-muted)'}}>Reports to you, not the root owner directly.</small></div>}
+          <details style={{border:'1px solid var(--border)',borderRadius:12,padding:'12px 14px'}}>
+            <summary style={{fontSize:'.82rem',fontWeight:750,cursor:'pointer'}}>Delegated permissions ({safePermissions.length||allowed.length} allowed)</summary>
+            <p style={{fontSize:'.73rem',color:'var(--text-muted)'}}>Leave all unselected to apply the department template. Or choose a narrower role. Core workspace access is mandatory.</p>
+            <div style={{display:'grid',gap:8,maxHeight:260,overflowY:'auto'}}>
+              {allowed.map(p=><label key={p} style={{display:'flex',gap:9,fontSize:'.78rem',alignItems:'center'}}>
+                <input type="checkbox" checked={form.permissions.length===0||form.permissions.includes(p)}
+                  disabled={['platform.access','dashboard.view'].includes(p)}
+                  onChange={()=>toggle(p)}/>{p.replaceAll('.',' · ')}</label>)}
+            </div>
+          </details>
+          <button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Sending invitation…':isRoot?'Invite department manager':'Invite team member'}</button>
+        </form>
+      </section>
+      <section className="ips-panel" style={{padding:24}}>
+        <span className="ips-eyebrow">Reporting responsibility</span>
+        <h2 style={{fontSize:'1.17rem',margin:'9px 0'}}>Company hierarchy</h2>
+        <div style={{display:'grid',gap:10,marginTop:17}}>
+          <div className="card" style={{padding:'13px 17px',borderLeft:'3px solid #b38c53'}}>
+            <strong>Root company owner</strong><small style={{display:'block',color:'var(--text-muted)'}}>No manager · Protected · All department oversight</small>
+          </div>
+          {isRoot?Object.entries(COMPANY_DEPARTMENTS).map(([dept,d])=>{
+            const managers=team.filter(x=>x.company_role==='manager'&&x.department===dept&&x.status==='Active');
+            return <div key={dept} className="card" style={{padding:'12px 15px'}}>
+              <strong>{d.label}</strong><small style={{display:'block',color:'var(--text-muted)'}}>{managers.length?managers.map(m=>m.name).join(', '):'No active manager assigned'}</small>
+            </div>;
+          }):<div className="card" style={{padding:'14px 17px',borderLeft:'3px solid #4e8471'}}>
+            <strong>{managerTeamTitle(admin?.department)}</strong>
+            <small style={{display:'block',color:'var(--text-muted)'}}>Manager: {admin?.name||admin?.email} · {team.filter(x=>x.company_role==='staff').length} team accounts</small>
+          </div>}
+        </div>
+      </section>
+    </div>
+    <section className="ips-panel" style={{overflow:'hidden'}}>
+      <div className="ips-panel-head" style={{flexWrap:'wrap'}}>
+        <div><span className="ips-eyebrow">People management</span><h3 style={{margin:'6px 0'}}>Company staff directory</h3>
+          <p>Review authority, reporting relationships, pending invitations and active workload</p></div>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <input className="form-input" aria-label="Search staff" placeholder="Search staff…" value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:210}}/>
+          <select className="form-select" aria-label="Staff status filter" value={filter} onChange={e=>setFilter(e.target.value)}>
+            <option value="active">Active and invited</option><option value="invited">Invitations</option>
+            <option value="archived">Archived</option><option value="all">All staff</option>
+          </select>
+        </div>
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <table className="data-table" style={{minWidth:780}}>
+          <thead><tr><th>Company member</th><th>Department / manager</th><th>Status</th><th>Assigned workload</th><th>Control</th></tr></thead>
+          <tbody>
+            {!rows.length&&<tr><td colSpan={5} style={{padding:25,color:'var(--text-muted)'}}>No company staff match the selected view. Invite a manager or staff member above to build the structure.</td></tr>}
+            {rows.map(m=><tr key={m.id}>
+              <td><strong>{m.name}</strong><small style={{display:'block',color:'var(--text-muted)'}}>{m.email} · {m.company_role==='manager'?'Manager':m.company_role==='staff'?'Staff':'Legacy staff'}</small></td>
+              <td>{managerTeamTitle(m.department)}<small style={{display:'block',color:'var(--text-muted)'}}>{m.manager_id?'Reports to '+(team.find(x=>x.id===m.manager_id)?.name||m.manager_id):m.company_role==='manager'?'Appointed by root':'Not yet assigned'}</small></td>
+              <td>{labelFor(m.status)}</td>
+              <td>{total(m)}<small style={{display:'block',color:'var(--text-muted)'}}>{m.workload?.tasks||0} tasks · {m.workload?.enquiries||0} cases · {m.workload?.support||0} support</small></td>
+              <td><button type="button" className="btn btn-secondary btn-sm" onClick={()=>open(m)}>Manage</button></td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {selected&&<div role="dialog" aria-modal="true" aria-label="Manage company staff member" style={{position:'fixed',inset:0,zIndex:1200,background:'rgba(10,23,33,.77)',display:'grid',placeItems:'center',padding:15}}>
+      <div className="card" style={{width:'min(660px,100%)',maxHeight:'90vh',overflowY:'auto',padding:25}}>
+        <div style={{display:'flex',justifyContent:'space-between',gap:15,alignItems:'start'}}>
+          <div><span className="ips-eyebrow">Company people & authority</span><h2 style={{fontSize:'1.26rem',margin:'7px 0'}}>{selected.name}</h2>
+            <p style={{fontSize:'.79rem',color:'var(--text-muted)'}}>{selected.email} · {labelFor(selected.status)} · {selected.id}</p></div>
+          <button className="btn btn-ghost" type="button" onClick={()=>setSelected(null)} disabled={busy}>Close</button>
+        </div>
+        {selected.company_role==='legacy'?<>
+          <p style={{fontSize:'.86rem',color:'var(--text-muted)'}}>This account predates IPS company departments. Assign it explicitly to an approved manager before it can become normal team staff.</p>
+          <label className="form-group"><span className="form-label">Assign legacy staff to an active department manager</span>
+            <select className="form-select" value={legacyManager} onChange={e=>setLegacyManager(e.target.value)}>
+              <option value="">Choose manager</option>{managers.map(m=><option key={m.id} value={m.id}>{m.name} · {managerTeamTitle(m.department)}</option>)}
+            </select></label>
+          <button className="btn btn-primary" disabled={busy||!legacyManager} onClick={()=>adopt(selected)}>Assign to manager and revoke old sessions</button>
+        </>:<>
+          <p className="card" style={{padding:13,fontSize:'.8rem'}}>Department: <strong>{managerTeamTitle(selected.department)}</strong>. Role: <strong>{selected.company_role}</strong>. Manager: {selected.manager_id||'Company owner (appointment)'}. Never elevate another user to root.</p>
+          <div style={{display:'flex',flexWrap:'wrap',gap:10,marginBottom:14}}>
+            {['Invited','Locked'].includes(selected.status)&&
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={resendInvite}>Resend private invitation</button>}
+            {selected.status==='Active'&&<button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>update({status:'Suspended',reason:'Suspended by company owner or manager'},'Staff suspended; sessions revoked.')}>Suspend access</button>}
+            {selected.status==='Suspended'&&<button type="button" className="btn btn-secondary" disabled={busy} onClick={()=>update({status:'Active'},'Staff access restored.')}>Restore access</button>}
+            <button type="button" className="btn btn-secondary" onClick={()=>setOffboard(x=>!x)}>Governed offboarding</button>
+          </div>
+          <details>
+            <summary style={{cursor:'pointer',fontWeight:750,marginBottom:11}}>Review delegated permissions</summary>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(170px,1fr))',gap:8,maxHeight:190,overflow:'auto'}}>
+              {permittedCompanyPermissions(selected.department,selected.company_role).map(p=><label key={p} style={{display:'flex',gap:8,fontSize:'.76rem'}}>
+                <input type="checkbox" checked={selectionPerms.includes(p)} disabled={busy||['platform.access','dashboard.view'].includes(p)}
+                  onChange={()=>setSelectionPerms(a=>a.includes(p)?a.filter(x=>x!==p):[...a,p])}/>{p}</label>)}
+            </div>
+            <button style={{marginTop:13}} className="btn btn-primary" type="button" disabled={busy} onClick={()=>update({permissions:selectionPerms},'Permissions updated and all earlier sessions revoked.')}>Save delegated authority</button>
+          </details>
+          {offboard&&<div style={{padding:15,marginTop:16,border:'1px solid var(--border)',borderRadius:12,background:'var(--bg-surface-2)'}}>
+            <h3 style={{fontSize:'1rem'}}>Archive without deleting records</h3>
+            <p style={{fontSize:'.8rem',color:'var(--text-muted)'}}>Staff are never permanently deleted. Active tasks, enquiries and direct reports must be reassigned first. The server will refuse an unsafe offboarding.</p>
+            <label className="form-group"><span className="form-label">Replacement team member</span><select className="form-select" value={replacement} onChange={e=>setReplacement(e.target.value)}>
+              <option value="">No replacement (only if no outstanding work)</option>
+              {replacementCandidates.map(x=><option key={x.id} value={x.id}>{x.name} · {managerTeamTitle(x.department)}</option>)}
+            </select></label>
+            <label className="form-group"><span className="form-label">Reason and handover record</span>
+              <textarea className="form-textarea" rows={3} minLength={10} maxLength={500} value={reason} onChange={e=>setReason(e.target.value)} required placeholder="Document the agreed staff transition." /></label>
+            <button className="btn btn-secondary" type="button" disabled={busy||reason.trim().length<10} onClick={offboardUser}>Archive account and revoke sessions</button>
+          </div>}
+        </>}
+      </div>
+    </div>}
+  </section>;
 }

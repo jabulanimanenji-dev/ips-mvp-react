@@ -11,7 +11,7 @@ export const IPS_COMPANY_ADMIN_NAV = Object.freeze([
   {label:'Clients',target:'/admin/clients',permission:'clients.view',icon:'clients',group:'People'},
   {label:'Specialists',target:'/admin/writers',permission:'providers.view',icon:'specialists',group:'People'},
   {label:'Service reports',target:'/admin/reports',permission:'reports.view',icon:'reports',group:'Company'},
-  {label:'Team & access',target:'/admin/access',permission:'administrators.manage',icon:'access',group:'Company'},
+  {label:'People & managers',target:'/admin/access',permission:'team.manage',icon:'access',group:'Company'},
   {label:'Company settings',target:'/admin/settings',permission:'settings.view',icon:'settings',group:'Company'},
   {label:'Payments — pending',target:'/admin/payments',permission:'payments.view',icon:'payments',group:'Company'}
 ]);

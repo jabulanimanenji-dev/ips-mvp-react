@@ -8,7 +8,14 @@ const AdminSchema = new mongoose.Schema({
   role: { type: String, default: 'admin', index: true },
   custom_role_id: { type: String, default: '' },
   permissions: { type: [String], default: [] },
-  status: { type: String, enum: ['Active', 'Suspended', 'Locked', 'Archived'], default: 'Active', index: true },
+  company_role: {type:String,enum:['manager','staff'],default:undefined,index:true},
+  department: {type:String,default:'',index:true},
+  manager_id: {type:String,default:'',index:true},
+  email_verified_at: {type:Date,default:null},
+  invite_token_hash: {type:String,select:false},
+  invite_expires_at: {type:Date,select:false},
+  invite_sent_at: {type:Date,select:false},
+  status: { type: String, enum: ['Invited', 'Active', 'Suspended', 'Locked', 'Archived'], default: 'Active', index: true },
   must_change_password: { type: Boolean, default: true },
   session_version: { type: Number, default: 1 },
   created_by: { type: String, default: '' },
@@ -17,4 +24,5 @@ const AdminSchema = new mongoose.Schema({
   suspended_reason: { type: String, default: '' }
 }, { timestamps: true });
 
+AdminSchema.index({company_role:1,department:1,manager_id:1});
 export default mongoose.model('Admin', AdminSchema);
