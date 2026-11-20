@@ -299,6 +299,23 @@ try{
     }
     await evidence(admin,'ips4-'+path.replace('/admin/',''));
   });
+  await check('Telegram inbox exposes the actual recorded customer message and never paints an unreadable white bubble',async()=>{
+    await admin.goto(base+'/admin/external-chats',{waitUntil:'domcontentloaded'});
+    await admin.getByRole('heading',{name:'Telegram operations'}).waitFor({timeout:15000});
+    const first=admin.locator('.ips4-record-entry').first();
+    await first.waitFor({timeout:15000});
+    await first.click();
+    const bubble=admin.locator('.ips4-chat .ips4-bubble').first();
+    await bubble.waitFor({timeout:15000});
+    const evidenceText=await bubble.innerText();
+    assert.ok(evidenceText.trim().length>=10,'Real Telegram history must not render as empty');
+    const colors=await bubble.evaluate(el=>{
+      const style=getComputedStyle(el);return {background:style.backgroundColor,color:style.color};
+    });
+    assert.notEqual(colors.background,'rgb(255, 255, 255)','Unreadable white Telegram chat is prohibited');
+    await admin.getByRole('heading',{name:'Telegram operations'}).waitFor();
+    await evidence(admin,'ips4-real-telegram-conversation-dark');
+  });
   await check('Student logout clears the cookie and denies re-entry to private workspaces',async()=>{
     await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
     await student.locator('.client-sidebar').getByRole('button',{name:'Logout'}).click();
