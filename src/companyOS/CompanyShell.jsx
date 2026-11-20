@@ -40,7 +40,7 @@ export default function CompanyShell(){
             <NavLink to={item.path} end className={({isActive})=>'ips-os-nav'+(isActive?' selected':'')}>
               <AdminIcon name={item.icon} size={18}/><span>{item.name}</span>
             </NavLink>
-          </React>;})}
+          </React.Fragment>;})}
       </nav>
       <div className="ips-os-rail-foot">
         <div className="ips-os-owner-mini"><span className="ips-os-user-badge">{admin?.isRoot?'R':'M'}</span>
