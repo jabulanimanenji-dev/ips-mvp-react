@@ -62,10 +62,10 @@ export default function CompanyWork({initialFilter}){
   }
   const actions=detail?.actions||[];
   const tabActions=actions.filter(x=>x.entry_kind===(tab==='notes'?'note':'task'));
-  const nextLinks=selected?.kind==='enquiry'?['Quotation & private reply','/admin/enquiries?case='+encodeURIComponent(selected.ref)]:
+  const nextLinks=selected?.kind==='enquiry'?['Quotation & private reply','/admin/intake/reply?case='+encodeURIComponent(selected.ref)]:
     selected?.kind==='project'?['Detailed delivery controls','/admin/services/'+encodeURIComponent(selected.ref)]:
-    selected?.kind==='support'?['Client support conversation','/admin/support?ticket='+encodeURIComponent(selected.ref)]:
-    ['Telegram conversation','/admin/external-chats?thread='+encodeURIComponent(selected?.ref||'')];
+    selected?.kind==='support'?['Client support conversation','/admin/support/tickets?ticket='+encodeURIComponent(selected.ref)]:
+    ['Telegram conversation','/admin/channels/telegram?thread='+encodeURIComponent(selected?.ref||'')];
   return <>
     <PageHeading eyebrow="WORK COMMAND / ACCOUNTABILITY" title="One company work queue"
       description="Every record has a responsible person, next decision, case history and follow-up. New client work stays confidential until consent and verification.">
