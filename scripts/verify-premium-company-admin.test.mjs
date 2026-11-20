@@ -52,7 +52,7 @@ test('command center uses actual authenticated feeds and marks unknown data unav
 test('case desk retains verified-contact workflows and adds one case-centered journey',async()=>{
   const s=await source('src/components/admin/AdminEnquiries.jsx');
   for(const token of ['ips-case-grid','ips-case-detail','ips-case-list','ips-case-stage-grid',
-    'case=','Open managed IPS project','Take review ownership','Record manual contact confirmation','Send Verified Email']){
+    'next.set(\'case\',id)','Open managed IPS project','Take review ownership','Record manual contact confirmation','Send Verified Email']){
     assert.ok(s.includes(token),token);
   }
   assert.match(s,/useSearchParams/);
