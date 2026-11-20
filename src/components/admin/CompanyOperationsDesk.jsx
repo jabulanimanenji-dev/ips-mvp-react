@@ -115,7 +115,7 @@ export default function CompanyOperationsDesk(){
       const data=await response.json().catch(()=>({}));
       if(!response.ok||!data.success)throw Error(data.error||'Case file could not be opened.');
       if(!controller.signal.aborted){
-        setDetail(data);setUpdateDate(stamp(data.details?.next_update_at));setTab('brief');
+        setDetail(data);setUpdateDate(stamp(data.details?.next_update_at));
       }
     }catch(e){if(e.name!=='AbortError')setDetailError(e.message);}
     finally{if(!controller.signal.aborted)setDetailLoading(false);}
