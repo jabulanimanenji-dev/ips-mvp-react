@@ -191,8 +191,26 @@ try{
     assert.equal(await admin.getByText('Contact & callbacks').count(),0);
     await evidence(admin,'admin-private-quotation-queue');
   });
-  await check('Premium IPS command center, case desk and keyboard-searchable administration are rendered in real Chrome',async()=>{
+  await check('Root executive command centre renders real authorized data and isolated dark-first design',async()=>{
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
+    await admin.locator('.ips-exec').waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'Executive command centre'}).waitFor({timeout:15000});
+    assert.equal(await admin.locator('.ips-exec-metric').count(),4);
+    assert.equal(await admin.locator('.ips-exec-department').count(),7);
+    assert.equal(await admin.locator('.ips-dark-admin').count(),1,'Administration defaults to isolated dark mode.');
+    const dark=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
+    assert.equal(dark,'rgb(17, 30, 41)','Administration needs a fully dark, readable surface.');
+    await evidence(admin,'ips-executive-command-dark');
+    await admin.getByRole('button',{name:'Switch administration to light mode'}).click();
+    await admin.locator('.ips-premium-admin:not(.ips-dark-admin)').waitFor({timeout:10000});
+    const light=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
+    assert.equal(light,'rgb(247, 247, 243)');
+    await evidence(admin,'ips-executive-command-light');
+    await admin.getByRole('button',{name:'Switch administration to dark mode'}).click();
+    await admin.locator('.ips-dark-admin').waitFor({timeout:10000});
+  });
+  await check('Premium IPS case desk, follow-up actions and keyboard-searchable administration work in Chrome',async()=>{
+    await admin.goto(base+'/admin/case-desk',{waitUntil:'domcontentloaded'});
     await admin.locator('.ips-operations-console').waitFor({timeout:15000});
     assert.equal(await admin.locator('.ips-premium-admin').count(),1);
     assert.equal(await admin.getByRole('heading',{name:'Operations command desk'}).count(),1);
@@ -207,15 +225,14 @@ try{
     await admin.getByRole('status').filter({hasText:'Internal follow-up task recorded.'}).waitFor({timeout:15000});
     await admin.getByRole('button',{name:'Refresh live work'}).click();
     await admin.locator('.ips-ops-case-brief').waitFor({timeout:15000});
-    await admin.getByRole('button',{name:'Switch administration to dark mode'}).click();
-    await admin.locator('.ips-dark-admin').waitFor({timeout:10000});
-    const dark=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
-    assert.equal(dark,'rgb(17, 30, 41)','Dark administration must be a genuine readable dark surface.');
     await evidence(admin,'ips-company-operations-dark');
     await admin.getByRole('button',{name:'Switch administration to light mode'}).click();
+    await admin.locator('.ips-premium-admin:not(.ips-dark-admin)').waitFor({timeout:10000});
     const palette=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
     assert.equal(palette,'rgb(247, 247, 243)','Light administration must restore its scoped surface.');
     await evidence(admin,'ips-company-operations-light');
+    await admin.getByRole('button',{name:'Switch administration to dark mode'}).click();
+    await admin.locator('.ips-dark-admin').waitFor({timeout:10000});
     await admin.getByRole('button',{name:'Search administration sections'}).click();
     const dialog=admin.getByRole('dialog',{name:'Search IPS workspaces'});
     await dialog.getByRole('searchbox',{name:'Find workspace'}).fill('Academic projects');
