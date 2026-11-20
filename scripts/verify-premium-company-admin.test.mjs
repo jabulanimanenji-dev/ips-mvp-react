@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {MODULES} from '../src/administration/core.jsx';
+import {MODULES} from '../src/administration/authority.js';
 const read=p=>readFile(new URL('../'+p,import.meta.url),'utf8');
 test('Administration Four uses one scoped, readable matte-dark design without inherited white workspaces',async()=>{
  const [css,shell,app]=await Promise.all([read('src/administration/ips4.css'),read('src/administration/CompanyAdministration.jsx'),read('src/App.jsx')]);
