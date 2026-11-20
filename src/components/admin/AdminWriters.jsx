@@ -1,171 +1,144 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { fmtCur } from '../../utils/formatters';
-import { WRITER_DEFAULTS } from '../../utils/constants';
+import React,{useCallback,useEffect,useMemo,useState} from 'react';
+import {useAuth} from '../../context/AuthContext';
 
-const blankWriter = {
-  full_name: '', email: '', password: '', primary_expertise: '', secondary_expertise: '',
-  academic_level: 'Master', rate_per_page_usd: 10
+const safePortfolio=value=>{
+  try{const url=new URL(String(value||''));return ['https:','http:'].includes(url.protocol)?url.href:null;}
+  catch{return null;}
 };
 
-export default function AdminWriters() {
-  const [writers, setWriters] = useState([]);
-  const [filter, setFilter] = useState('all');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [newWriter, setNewWriter] = useState(blankWriter);
-  const [loading, setLoading] = useState(true);
+export default function AdminWriters(){
+  const {hasAdminPermission}=useAuth();
+  const canManage=hasAdminPermission('providers.manage');
+  const [specialists,setSpecialists]=useState([]);
+  const [filter,setFilter]=useState('pending');
+  const [query,setQuery]=useState('');
+  const [selected,setSelected]=useState(null);
+  const [decision,setDecision]=useState('approved');
+  const [note,setNote]=useState('');
+  const [error,setError]=useState('');
+  const [notice,setNotice]=useState('');
+  const [loading,setLoading]=useState(true);
+  const [working,setWorking]=useState(false);
+  const [archived,setArchived]=useState(0);
 
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch('/api/writers');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Failed to load providers.');
-      setWriters(data.writers || []);
-    } catch (error) {
-      window.alert(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const reload=useCallback(async()=>{
+    setLoading(true);
+    try{
+      const response=await fetch('/api/writers',{cache:'no-store',credentials:'same-origin'});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!data.success)throw Error(data.error||'Specialist records are unavailable.');
+      setSpecialists(data.writers||[]);
+      setArchived(Number(data.hidden_legacy_qa_accounts||0));
+      setError('');
+    }catch(err){setError(err.message);}
+    finally{setLoading(false);}
+  },[]);
+  useEffect(()=>{reload();},[reload]);
 
-  useEffect(() => { load(); }, [load]);
-
-  const counts = useMemo(() => writers.reduce((result, writer) => {
-    const status = writer.application_status || 'approved';
-    result[status] = (result[status] || 0) + 1;
-    return result;
-  }, {}), [writers]);
-
-  const visible = useMemo(() => filter === 'all'
-    ? writers
-    : writers.filter(writer => (writer.application_status || 'approved') === filter), [filter, writers]);
-
-  const review = async (writer, decision) => {
-    let rejection_reason = '';
-    let admin_notes = '';
-    if (decision === 'rejected') {
-      rejection_reason = window.prompt(`Reason for rejecting ${writer.full_name}:`) || '';
-      if (!rejection_reason) return;
-    } else {
-      admin_notes = window.prompt(`Optional internal note for ${writer.full_name}:`) || '';
-    }
-    const response = await fetch(`/api/provider/applications/${writer.writer_id}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, rejection_reason, admin_notes })
-    });
-    const data = await response.json();
-    if (!response.ok) return window.alert(data.error || 'Review failed.');
-    setWriters(list => list.map(item => item.writer_id === writer.writer_id ? data.writer : item));
+  const filtered=useMemo(()=>specialists.filter(s=>{
+    const state=s.application_status||'pending';
+    if(filter!=='all'&&state!==filter)return false;
+    const term=query.trim().toLowerCase();
+    return !term||[s.full_name,s.email,s.writer_id,s.primary_expertise].some(v=>String(v||'').toLowerCase().includes(term));
+  }),[specialists,query,filter]);
+  const counts=useMemo(()=>specialists.reduce((acc,s)=>{
+    const status=s.application_status||'pending';
+    acc[status]=(acc[status]||0)+1;return acc;
+  },{}),[specialists]);
+  const beginReview=(s,target)=>{
+    setSelected(s);setDecision(target);setNote('');setError('');setNotice('');
   };
-
-  const updateWriter = async (writerId, updates) => {
-    const response = await fetch(`/api/writers/${writerId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates)
-    });
-    const data = await response.json();
-    if (!response.ok) return window.alert(data.error || 'Update failed.');
-    setWriters(list => list.map(writer => writer.writer_id === writerId ? data.writer : writer));
-  };
-
-  const toggleStatus = writer => updateWriter(writer.writer_id, { status: writer.status === 'Active' ? 'On Leave' : 'Active' });
-
-  const deleteWriter = async writer => {
-    if (!window.confirm(`Delete ${writer.full_name}? This cannot be undone.`)) return;
-    const response = await fetch(`/api/writers/${writer.writer_id}`, { method: 'DELETE' });
-    if (response.ok) setWriters(list => list.filter(item => item.writer_id !== writer.writer_id));
-  };
-
-  const resetPassword = async writer => {
-    const password = window.prompt(`Set a new temporary password for ${writer.full_name}:`);
-    if (!password) return;
-    if (password.length < 8) return window.alert('Password must contain at least 8 characters.');
-    await updateWriter(writer.writer_id, { password });
-    window.alert('Temporary password updated.');
-  };
-
-  const addWriter = async event => {
+  async function review(event){
     event.preventDefault();
-    const payload = {
-      ...newWriter,
-      rate_per_page_usd: Number(newWriter.rate_per_page_usd) || WRITER_DEFAULTS.rate_per_page_usd,
-      rating: WRITER_DEFAULTS.rating, projects_completed: WRITER_DEFAULTS.projects_completed,
-      availability: WRITER_DEFAULTS.availability, status: 'Active'
-    };
-    const response = await fetch('/api/writers', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
-    });
-    const data = await response.json();
-    if (!response.ok) return window.alert(data.error || 'Failed to add provider.');
-    setWriters(list => [data.writer, ...list]);
-    setNewWriter(blankWriter);
-    setShowAddModal(false);
-  };
+    if(!selected||!canManage||working)return;
+    if(decision==='rejected'&&note.trim().length<10){setError('Provide a meaningful rejection reason (at least 10 characters).');return;}
+    if(decision==='approved'&&!selected.email_verified_at){setError('The specialist must verify their email address before IPS can approve the application.');return;}
+    setWorking(true);setError('');
+    try{
+      const response=await fetch('/api/provider/applications/'+encodeURIComponent(selected.writer_id),{
+        method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({decision,
+          rejection_reason:decision==='rejected'?note.trim():'',
+          admin_notes:decision!=='rejected'?note.trim():''})
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!data.success)throw Error(data.error||'Specialist review was not saved.');
+      setSelected(null);await reload();setNotice('Specialist review recorded. Account access follows the verified approval status.');
+    }catch(err){setError(err.message);}
+    finally{setWorking(false);}
+  }
+  async function toggleStatus(s){
+    if(!canManage||working)return;
+    setWorking(true);setError('');setNotice('');
+    try{
+      const next=s.status==='Active'?'On Leave':'Active';
+      const response=await fetch('/api/writers/'+encodeURIComponent(s.writer_id),{
+        method:'PATCH',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({status:next})
+      });
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!data.success)throw Error(data.error||'Specialist availability could not be changed.');
+      await reload();setNotice('Specialist availability updated.');
+    }catch(err){setError(err.message);}
+    finally{setWorking(false);}
+  }
 
-  const statusBadge = writer => {
-    const status = writer.application_status || 'approved';
-    const styles = {
-      pending: 'badge-review', approved: 'badge-success', rejected: 'badge-danger', more_information: 'badge-warning'
-    };
-    return <span className={`badge ${styles[status] || ''}`}>{status.replace('_', ' ')}</span>;
-  };
-
-  return (
-    <div>
-      <div className="flex justify-between items-center" style={{ marginBottom: '1.25rem', gap: '1rem', flexWrap: 'wrap' }}>
-        <div><h2 style={{ fontSize: '1.4rem', fontWeight: 700 }}>Service Providers</h2><p style={{ color: 'var(--text-muted)', margin: '.25rem 0 0' }}>Review self-service applications and manage approved providers.</p></div>
-        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>+ Add Provider</button>
+  return <section style={{maxWidth:1430,margin:'0 auto'}}>
+    <div style={{display:'flex',justifyContent:'space-between',gap:15,flexWrap:'wrap',alignItems:'start',marginBottom:21}}>
+      <div><small style={{color:'var(--text-secondary)',fontWeight:750,letterSpacing:'.1em'}}>IPS · SPECIALIST NETWORK</small>
+        <h1 style={{fontSize:'1.65rem',margin:'5px 0 8px'}}>Specialist applications & approvals</h1>
+        <p style={{color:'var(--text-muted)',maxWidth:800,margin:0}}>Review real applications, credentials, expertise and availability. Specialists provide their legal full names and verify their own email. Administrators cannot set their passwords.</p>
       </div>
-
-      <div className="flex gap-2" style={{ flexWrap: 'wrap', marginBottom: '1rem' }}>
-        {[['all', writers.length], ['pending', counts.pending || 0], ['approved', counts.approved || 0], ['more_information', counts.more_information || 0], ['rejected', counts.rejected || 0]].map(([key, count]) => (
-          <button key={key} className={`btn ${filter === key ? 'btn-primary' : 'btn-secondary'} btn-sm`} onClick={() => setFilter(key)}>{key.replace('_', ' ')} ({count})</button>
-        ))}
-      </div>
-
-      {showAddModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.72)', zIndex: 1200, display: 'grid', placeItems: 'center', padding: '1rem' }}>
-          <form className="card" onSubmit={addWriter} style={{ width: 'min(520px,100%)', maxHeight: '90vh', overflowY: 'auto' }}>
-            <h3>Add approved provider</h3>
-            {Object.entries({ full_name: 'Full name', email: 'Email', password: 'Temporary password', primary_expertise: 'Primary expertise', secondary_expertise: 'Secondary expertise' }).map(([name, label]) => (
-              <label className="form-group" key={name}><span className="form-label">{label}{name !== 'secondary_expertise' ? ' *' : ''}</span><input className="form-input" type={name === 'email' ? 'email' : name === 'password' ? 'password' : 'text'} name={name} value={newWriter[name]} onChange={e => setNewWriter({ ...newWriter, [name]: e.target.value })} required={name !== 'secondary_expertise'} /></label>
-            ))}
-            <label className="form-group"><span className="form-label">Academic level</span><select className="form-select" value={newWriter.academic_level} onChange={e => setNewWriter({ ...newWriter, academic_level: e.target.value })}><option>Bachelor</option><option>Master</option><option>PhD</option></select></label>
-            <label className="form-group"><span className="form-label">Rate per page (USD)</span><input className="form-input" type="number" min="1" value={newWriter.rate_per_page_usd} onChange={e => setNewWriter({ ...newWriter, rate_per_page_usd: e.target.value })} /></label>
-            <div className="flex gap-2"><button className="btn btn-primary">Add provider</button><button type="button" className="btn btn-secondary" onClick={() => setShowAddModal(false)}>Cancel</button></div>
-          </form>
-        </div>
-      )}
-
-      <div className="card" style={{ overflowX: 'auto' }}>
-        {loading ? <p>Loading providers…</p> : (
-          <table className="data-table">
-            <thead><tr><th>Provider</th><th>Application</th><th>Expertise</th><th>Location</th><th>Experience</th><th>Availability</th><th>Rate</th><th>Account</th><th>Actions</th></tr></thead>
-            <tbody>
-              {!visible.length && <tr><td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>No providers in this category.</td></tr>}
-              {visible.map(writer => (
-                <tr key={writer.writer_id}>
-                  <td><strong>{writer.full_name}</strong><div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{writer.writer_id} · {writer.email}</div>{writer.professional_title && <div style={{ fontSize: '.78rem' }}>{writer.professional_title}</div>}</td>
-                  <td>{statusBadge(writer)}<div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 4 }}>{writer.application_source === 'self-service' ? 'Self-applied' : 'Admin-created'}</div></td>
-                  <td>{writer.primary_expertise || 'Not provided'}{writer.secondary_expertise && <div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{writer.secondary_expertise}</div>}<div style={{ fontSize: '.72rem', color: 'var(--text-muted)', marginTop: 4 }}>{(writer.experience_level || 'entry-level').replace('-', ' ')}</div></td>
-                  <td>{[writer.city, writer.country].filter(Boolean).join(', ') || '—'}</td>
-                  <td>{writer.has_professional_experience ? `${writer.years_of_experience || 0} years` : 'Starting out'}<div style={{ fontSize: '.78rem', color: 'var(--text-muted)' }}>{writer.academic_level || 'No education profile'}</div></td>
-                  <td>{writer.availability}</td><td>{fmtCur(writer.rate_per_page_usd || 0)}</td>
-                  <td><span className={`badge ${writer.status === 'Active' ? 'badge-success' : 'badge-warning'}`}>{writer.status}</span></td>
-                  <td><div className="flex gap-1" style={{ flexWrap: 'wrap', minWidth: 220 }}>
-                    {(writer.application_status || 'approved') !== 'approved' && <button className="btn btn-primary btn-sm" onClick={() => review(writer, 'approved')}>Approve</button>}
-                    {writer.application_status === 'pending' && <button className="btn btn-secondary btn-sm" onClick={() => review(writer, 'more_information')}>Need info</button>}
-                    {(writer.application_status || 'approved') !== 'rejected' && <button className="btn btn-danger btn-sm" onClick={() => review(writer, 'rejected')}>Reject</button>}
-                    {writer.portfolio_url && <a className="btn btn-secondary btn-sm" href={writer.portfolio_url} target="_blank" rel="noreferrer">Portfolio</a>}
-                    {writer.cv_stored_name && <a className="btn btn-secondary btn-sm" href={`/api/provider/applications/${writer.writer_id}/cv`}>Download CV</a>}
-                    {(writer.application_status || 'approved') === 'approved' && <button className="btn btn-secondary btn-sm" onClick={() => toggleStatus(writer)}>{writer.status === 'Active' ? 'Pause' : 'Activate'}</button>}
-                    <button className="btn btn-secondary btn-sm" onClick={() => resetPassword(writer)}>Password</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => deleteWriter(writer)}>Delete</button>
-                  </div></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      <button type="button" className="btn btn-secondary" disabled={loading||working} onClick={reload}>{loading?'Updating…':'Refresh specialists'}</button>
     </div>
-  );
+    <div className="card" style={{padding:'13px 17px',marginBottom:17,borderLeft:'3px solid #c7a46e'}}>
+      New specialists apply through the approved IPS specialist-registration process. IPS reviews their application before workspace activation; no automatic access is granted.
+    </div>
+    {archived>0&&<p role="status" className="card" style={{fontSize:'.82rem'}}>Archived development accounts excluded from the real specialist list: {archived}. No source records were deleted.</p>}
+    {error&&<p role="alert" className="card" style={{color:'var(--danger)'}}>{error}</p>}
+    {notice&&<p role="status" className="card">{notice}</p>}
+    <div style={{display:'flex',gap:9,flexWrap:'wrap',alignItems:'center',marginBottom:16}}>
+      {[['pending','Pending'],['more_information','Needs information'],['approved','Approved'],['rejected','Rejected'],['all','All']].map(([value,label])=>
+        <button key={value} type="button" className={filter===value?'btn btn-primary':'btn btn-ghost'} onClick={()=>setFilter(value)}>{label} ({value==='all'?specialists.length:counts[value]||0})</button>
+      )}
+      <input className="form-input" style={{flex:'1 1 200px',maxWidth:310,marginLeft:'auto'}} value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search specialist, ID or expertise" aria-label="Search specialists"/>
+    </div>
+    <div className="card" style={{overflowX:'auto',padding:0}}>
+      <table className="data-table"><thead><tr><th>Specialist</th><th>Academic expertise</th><th>Email</th><th>Application</th><th>Availability</th><th>Review</th></tr></thead>
+        <tbody>
+          {filtered.length===0&&<tr><td colSpan={6} style={{padding:25,color:'var(--text-muted)'}}>No specialist applications in this view.</td></tr>}
+          {filtered.map(s=><tr key={s.writer_id}>
+            <td><strong>{s.full_name||'Pending legal name'}</strong><small style={{display:'block',color:'var(--text-muted)'}}>{s.writer_id}</small></td>
+            <td>{s.primary_expertise||'Not specified'}<small style={{display:'block',color:'var(--text-muted)'}}>{s.academic_level||''} · {s.secondary_expertise||''}</small></td>
+            <td>{s.email}<small style={{display:'block',color:'var(--text-muted)'}}>{s.email_verified_at?'Verified':'Pending verification'}</small></td>
+            <td>{(s.application_status||'pending').replaceAll('_',' ')}</td>
+            <td>{s.status||'Pending'}</td>
+            <td><div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {canManage&&<button type="button" className="btn btn-secondary btn-sm" onClick={()=>beginReview(s,s.application_status==='approved'?'more_information':'approved')}>Review application</button>}
+              {canManage&&s.application_status==='approved'&&<button type="button" className="btn btn-ghost btn-sm" disabled={working} onClick={()=>toggleStatus(s)}>{s.status==='Active'?'Pause':'Activate'}</button>}
+              {s.cv_stored_name&&<a className="btn btn-ghost btn-sm" href={'/api/provider/applications/'+encodeURIComponent(s.writer_id)+'/cv'}>Review CV</a>}
+              {safePortfolio(s.portfolio_url)&&<a className="btn btn-ghost btn-sm" target="_blank" rel="noopener noreferrer" href={safePortfolio(s.portfolio_url)}>Portfolio</a>}
+            </div></td>
+          </tr>)}
+        </tbody>
+      </table>
+    </div>
+    {selected&&<div role="dialog" aria-modal="true" aria-label="Specialist application review" style={{position:'fixed',inset:0,zIndex:1200,background:'rgba(0,0,0,.72)',display:'grid',placeItems:'center',padding:16}}>
+      <form className="card" onSubmit={review} style={{maxWidth:540,width:'100%',maxHeight:'92vh',overflowY:'auto'}}>
+        <h2 style={{fontSize:'1.2rem',margin:'0 0 10px'}}>Review {selected.full_name}</h2>
+        <p style={{color:'var(--text-muted)',fontSize:'.85rem'}}>Qualification: {selected.primary_expertise||'Not specified'} · {selected.academic_level||'Unknown'}. Email: {selected.email_verified_at?'Verified':'Not verified'}.</p>
+        <label className="form-group"><span className="form-label">Decision</span><select className="form-select" value={decision} onChange={e=>setDecision(e.target.value)}>
+          <option value="approved" disabled={!selected.email_verified_at}>Approve specialist</option>
+          <option value="more_information">Request more information</option>
+          <option value="rejected">Reject application</option>
+        </select></label>
+        <label className="form-group"><span className="form-label">{decision==='rejected'?'Reason for rejection (required)':'Internal reviewer note (optional)'}</span><textarea className="form-textarea" value={note} onChange={e=>setNote(e.target.value)} maxLength={1200} rows={4} placeholder="Record the actual academic qualification review and decision." required={decision==='rejected'}/></label>
+        {decision==='approved'&&!selected.email_verified_at&&<p role="alert" style={{color:'var(--danger)'}}>Email must be verified before approval.</p>}
+        <div style={{display:'flex',gap:10,marginTop:13}}>
+          <button className="btn btn-primary" type="submit" disabled={working||(decision==='approved'&&!selected.email_verified_at)}>{working?'Saving…':'Save decision'}</button>
+          <button className="btn btn-ghost" type="button" disabled={working} onClick={()=>setSelected(null)}>Cancel</button>
+        </div>
+      </form>
+    </div>}
+  </section>;
 }
