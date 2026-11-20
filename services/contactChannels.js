@@ -206,11 +206,11 @@ export function publicContactConfig(env=process.env){
     confidentiality:'Messages in external apps are processed under those providers\' terms. Keep payment details, private academic files and sensitive data in your IPS account.'};
 }
 
-async function deliverExternalMessage(contact,body){
+export async function deliverExternalMessage(contact,body,{request=fetch,env=process.env}={}){
   if(contact.channel==='telegram'){
-    const token=process.env.TELEGRAM_BOT_TOKEN;
+    const token=env.TELEGRAM_BOT_TOKEN;
     if(!token)throw Error('Telegram transport is not configured');
-    const response=await fetch('https://api.telegram.org/bot'+token+'/sendMessage',{
+    const response=await request('https://api.telegram.org/bot'+token+'/sendMessage',{
       method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:contact.external_id,text:body}),
       signal:AbortSignal.timeout(12000)});
     const data=await response.json().catch(()=>({}));
@@ -218,13 +218,13 @@ async function deliverExternalMessage(contact,body){
     return 'tg:sent:'+String(data.result.message_id);
   }
   if(contact.channel==='whatsapp'){
-    if(!process.env.WHATSAPP_ACCESS_TOKEN||!process.env.WHATSAPP_PHONE_NUMBER_ID)throw Error('WhatsApp transport is not configured');
+    if(!env.WHATSAPP_ACCESS_TOKEN||!env.WHATSAPP_PHONE_NUMBER_ID)throw Error('WhatsApp transport is not configured');
     // Free-form WhatsApp Cloud API text only within the customer service window.
     if(!contact.last_inbound_at||Date.now()-new Date(contact.last_inbound_at).getTime()>23*3600000)
       throw Error('WhatsApp session has ended; customer must message first or an approved template is required');
-    const endpoint='https://graph.facebook.com/'+String(process.env.WHATSAPP_GRAPH_VERSION||'v23.0')+'/'+encodeURIComponent(process.env.WHATSAPP_PHONE_NUMBER_ID)+'/messages';
-    const response=await fetch(endpoint,{method:'POST',
-      headers:{Authorization:'Bearer '+process.env.WHATSAPP_ACCESS_TOKEN,'Content-Type':'application/json'},
+    const endpoint='https://graph.facebook.com/'+String(env.WHATSAPP_GRAPH_VERSION||'v23.0')+'/'+encodeURIComponent(env.WHATSAPP_PHONE_NUMBER_ID)+'/messages';
+    const response=await request(endpoint,{method:'POST',
+      headers:{Authorization:'Bearer '+env.WHATSAPP_ACCESS_TOKEN,'Content-Type':'application/json'},
       body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to:contact.external_id,type:'text',text:{body}}),
       signal:AbortSignal.timeout(12000)});
     const data=await response.json().catch(()=>({}));
