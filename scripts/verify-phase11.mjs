@@ -68,7 +68,7 @@ assert.equal(permissionForAdminRequest('PATCH', '/api/orders/1'), 'orders.manage
 assert.equal(permissionForAdminRequest('POST', '/api/admin/platform-config/publish'), 'design.publish');
 assert.equal(permissionForAdminRequest('DELETE', '/api/admin/media/MEDIA-1'), 'media.manage');
 assert.equal(permissionForAdminRequest('GET', '/api/media/MEDIA-1'), null);
-assert.equal(ADMIN_NAV_PERMISSIONS['/admin/access'], 'administrators.manage');
+assert.equal(ADMIN_NAV_PERMISSIONS['/admin/access'], 'team.manage');
 assert.ok(BUILT_IN_ADMIN_ROLES.moderator.permissions.includes('messages.manage'));
 assert.equal(BUILT_IN_ADMIN_ROLES.content.permissions.includes('design.publish'), false);
 
@@ -96,8 +96,8 @@ assert.match(server, /sessionsRevoked: true/);
 assert.match(app, /AdminAccessManager/);
 assert.match(app, /VisualPageLayer/);
 assert.match(app, /mustChangePassword/);
-assert.match(accessManager, /Custom roles/);
-assert.match(accessManager, /Reset password/);
+assert.match(accessManager, /Company staff directory/);
+assert.match(accessManager, /Governed offboarding/);
 assert.match(designer, /ResponsivePreviewFrame/);
 assert.match(designer, /responsive issue/);
 assert.match(designer, /Looping video/);
