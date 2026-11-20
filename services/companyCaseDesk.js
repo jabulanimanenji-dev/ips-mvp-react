@@ -207,7 +207,7 @@ export function registerCompanyCaseDesk(app,{requireSession}){
       if(!allowedCompanyCase(kind,target,{production:companyMode()}))
         return res.status(404).json({success:false,error:'This IPS case does not exist.'});
       const entry=await CompanyCaseAction.create({case_kind:kind,case_ref:ref,entry_kind,
-        body,priority,due_at,created_by:session.id});
+        body,priority,due_at,created_by:session.id,assigned_to:session.id});
       res.set('Cache-Control','private, no-store');
       return res.status(201).json({success:true,action:entry});
     }catch{return error(res,'Could not save the internal case action.');}
