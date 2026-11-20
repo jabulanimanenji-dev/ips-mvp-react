@@ -220,7 +220,6 @@ app.use('/api',async(req,res,next)=>{
 });
 
 registerStudentPaymentRoutes(app, { requireSession, StudentPayment, ServiceRequest });
-registerContactApi(app, { requireSession });
 
 // Production waits for MongoDB before accepting traffic. Development can still
 // launch without a database so the interface and verification tools remain usable.
@@ -323,6 +322,10 @@ app.use(async (req, res, next) => {
     res.status(503).json({ success: false, error: `Administrator access could not be verified: ${error.message}` });
   }
 });
+
+// Register all company-channel API handlers after admin authority rehydration;
+// otherwise req.adminAccess is absent and protected message operations fail closed.
+registerContactApi(app, {requireSession});
 
 registerPasswordRecoveryRoutes(app,{hashPassword,grantSession:async(res,scope,account)=>{
   // A finished verified-mailbox recovery automatically enters only the
