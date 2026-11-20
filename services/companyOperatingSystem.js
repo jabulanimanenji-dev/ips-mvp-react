@@ -32,6 +32,7 @@ const appBase=env=>{
   }catch{}
   return null;
 };
+export const companyStaffPasswordValid=password=>typeof password==='string'&&password.length>=10&&password.length<=128&&/[A-Z]/.test(password)&&/[0-9]/.test(password)&&/[^A-Za-z0-9]/.test(password);
 export const staffInvitationReady=(env=process.env)=>Boolean(
   env.EMAIL_VERIFICATION_SECRET?.length>=32&&env.CONTACT_RESEND_API_KEY&&appBase(env)
 );
@@ -142,7 +143,7 @@ export function registerCompanyOperatingSystem(app,{
     const token=String(req.body?.token||'');
     const password=String(req.body?.password||'');
     if(!/^ADM-[A-F0-9]{18}$/.test(id)||!/^[a-zA-Z0-9_-]{43}$/.test(token)||
-      !validAdminPassword(password))return invalid(res,'Invalid invitation or password requirements.',400);
+      !validAdminPassword(password)||!companyStaffPasswordValid(password))return invalid(res,'Enter a password with at least 10 characters, an uppercase letter, a number and a symbol.',400);
     if(!env.EMAIL_VERIFICATION_SECRET||env.EMAIL_VERIFICATION_SECRET.length<32)return invalid(res,'Invitations unavailable.',503);
     const digest=invitationDigest(token,env.EMAIL_VERIFICATION_SECRET);
     const account=await adminModel.findOneAndUpdate({
@@ -271,6 +272,8 @@ export function registerCompanyOperatingSystem(app,{
         return invalid(res,'Only active email-verified IPS clients can receive recovery links.',409);
       const result=await requestPasswordRecovery(client.email,{env,model:clientModel,send});
       if(result.unavailable)return invalid(res,'Secure recovery is unavailable.',503);
+      if(result.alreadySent)return invalid(res,'A recovery link was requested recently. Please do not resend within 60 seconds.',429);
+      if(!result.delivered)return invalid(res,'The email provider did not accept the recovery message. No valid reset link remains.',503);
       await log({actor:access.adminId,action:'company_client_password_recovery_initiated',
         details:{client_id:id,reason,delivery:'verified_account_email_only'}});
       res.set('Cache-Control','private, no-store');
