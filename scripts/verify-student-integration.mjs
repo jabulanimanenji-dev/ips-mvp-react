@@ -936,6 +936,41 @@ async function go(){
   assert.equal(crossRef.status,404);
   pass('Real MongoDB case notes, accountable staff tasks, completion, and cross-case isolation persist end-to-end');
 
+  // The video showed empty and reportedly unsendable private IPS conversations.
+  // Validate real authenticated admin-to-client delivery and the reply path.
+  const ipsConversation=await call('/api/conversations',{
+    method:'POST',session:admin.cookie,json:{
+      subject:'IPS private case support — real delivery test',
+      type:'client_admin',target_role:'client',target_id:aliceId,
+      target_name:'UNTRUSTED_CLIENT_DISPLAY_NAME',work_id:''
+    }
+  });
+  assert.equal(ipsConversation.status,201,JSON.stringify(ipsConversation.body));
+  assert.equal(ipsConversation.body.conversation.participants.find(p=>p.role==='client').name,'PrivateAlice');
+  const ipsConversationId=ipsConversation.body.conversation.conversation_id;
+  const ipsFirstMessage=await call('/api/conversations/'+ipsConversationId+'/messages',{
+    method:'POST',session:admin.cookie,json:{
+      body:'IPS team: your secure request is recorded and under private review.',attachments:[]
+    }
+  });
+  assert.equal(ipsFirstMessage.status,201,JSON.stringify(ipsFirstMessage.body));
+  const ipsClientInbox=await call('/api/conversations/'+ipsConversationId+'/messages',{session:alice.cookie});
+  assert.equal(ipsClientInbox.status,200,JSON.stringify(ipsClientInbox.body));
+  assert.equal(ipsClientInbox.body.messages.some(m=>m.body.includes('your secure request is recorded')),true);
+  const ipsOtherClient=await call('/api/conversations/'+ipsConversationId+'/messages',{session:bob.cookie});
+  assert.equal(ipsOtherClient.status,403);
+  const ipsCustomerReply=await call('/api/conversations/'+ipsConversationId+'/messages',{
+    method:'POST',session:alice.cookie,json:{
+      body:'Thank you. Please continue the written support through this private workspace.',attachments:[]
+    }
+  });
+  assert.equal(ipsCustomerReply.status,201,JSON.stringify(ipsCustomerReply.body));
+  const ipsAdminReadback=await call('/api/conversations/'+ipsConversationId+'/messages',{session:admin.cookie});
+  assert.equal(ipsAdminReadback.status,200);
+  assert.equal(ipsAdminReadback.body.messages.length,2);
+  assert.equal(ipsAdminReadback.body.messages[1].sender_role,'client');
+  pass('Real IPS admin-to-client secure messages send, persist, arrive and receive a private client reply; third-party client blocked');
+
   console.log('ALL '+cases.length+' database-backed workflow gates passed.');
 }
 go().catch(async err=>{
