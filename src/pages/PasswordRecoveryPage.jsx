@@ -7,6 +7,8 @@ import {passwordValid} from '../../shared/privacyIdentity.js';
 // GET request or retained in browser history after this page reads it.
 export default function PasswordRecoveryPage(){
   const navigate=useNavigate();
+  const writerRecovery=window.location.pathname.startsWith('/writer/');
+  const role=writerRecovery?'writer':'client';
   const [token,setToken]=useState('');
   const [requestMode,setRequestMode]=useState(true);
   const [email,setEmail]=useState('');
@@ -19,7 +21,8 @@ export default function PasswordRecoveryPage(){
   useEffect(()=>{
     const params=new URLSearchParams(window.location.hash.slice(1));
     const provided=params.get('token')||'';
-    setRequestMode(window.location.pathname!=='/reset-password');
+    setRequestMode(!window.location.pathname.endsWith('/reset-password'));
+
     setToken(provided);
     if(window.location.hash)window.history.replaceState(window.history.state,'',window.location.pathname+window.location.search);
   },[]);
@@ -33,20 +36,23 @@ export default function PasswordRecoveryPage(){
     }
     setError('');setNotice('');setBusy(true);
     try{
-      const response=await fetch(requestMode?'/api/client/password-recovery/request':'/api/client/password-recovery/complete',{
+      const response=await fetch('/api/'+role+'/password-recovery/'+(requestMode?'request':'complete'),{
         method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},
         body:JSON.stringify(requestMode?{email}:{token,password})
       });
       const result=await response.json().catch(()=>({}));
       if(!response.ok||!result.success)throw Error(result.error||'Secure account recovery is unavailable.');
       setNotice(result.message||'Your request has been received.');
-      if(!requestMode){setComplete(true);setToken('');setPassword('');setConfirm('');}
+      if(!requestMode){
+        setComplete(true);setToken('');setPassword('');setConfirm('');
+        if(result.session_opened&&result.redirect){navigate(result.redirect,{replace:true});return;}
+      }
     }catch(err){setError(err.message||'Secure account recovery is temporarily unavailable.');}
     finally{setBusy(false);}
   }
   const resetting=!requestMode;
   return <AcademicAuthShell eyebrow="PRIVATE ACCOUNT RECOVERY"
-    title={resetting?'Choose a secure':'Recover your'} italicTitle={resetting?'password.':'IPS account.'}
+    title={resetting?'Choose a secure':'Recover your'} italicTitle={resetting?'password.':writerRecovery?'specialist account.':'IPS account.'}
     intro={resetting?'A private one-time link lets you replace your password without revealing your identity or contacting IPS by phone.':'Enter your verified email address. For privacy, IPS does not confirm whether an account exists.'}
     asideTitle="Your workspace." asideItalic="Protected." asideCopy="IPS never asks for passwords or recovery links in messages. Reset requests expire and earlier sessions become invalid after a successful change.">
     {error&&<div role="alert" className="ipsa-auth-alert">{error}</div>}
@@ -72,8 +78,8 @@ export default function PasswordRecoveryPage(){
       </button>
     </form>}
     <p className="ipsa-auth-after">
-      <Link className="ipsa-auth-link" to="/login">Return to login</Link>
-      {complete&&<button className="btn btn-ghost" type="button" onClick={()=>navigate('/login',{replace:true})}>Sign in with new password</button>}
+      <Link className="ipsa-auth-link" to={writerRecovery?"/writer/login":"/login"}>Return to login</Link>
+      {complete&&<button className="btn btn-ghost" type="button" onClick={()=>navigate(writerRecovery?'/writer/login':'/login',{replace:true})}>Sign in with new password</button>}
     </p>
   </AcademicAuthShell>;
 }
