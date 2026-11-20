@@ -10,6 +10,7 @@ import QuotePage from './pages/QuotePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PasswordRecoveryPage from './pages/PasswordRecoveryPage.jsx';
+import EmailConfirmationPage from './pages/EmailConfirmationPage.jsx';
 import StaffOnboardingPage from './pages/StaffOnboardingPage.jsx';
 import EvaluationGateway from './pages/EvaluationGateway.jsx';
 import ServiceMarketplacePage from './pages/ServiceMarketplacePage';
@@ -236,6 +237,9 @@ export default function App() {
         />
         <Route path="/forgot-password" element={<PasswordRecoveryPage />} />
         <Route path="/reset-password" element={<PasswordRecoveryPage />} />
+        <Route path="/writer/forgot-password" element={<PasswordRecoveryPage/>}/>
+        <Route path="/writer/reset-password" element={<PasswordRecoveryPage/>}/>
+        <Route path="/verify-email" element={<EmailConfirmationPage/>}/>
 
       </Route>
 
