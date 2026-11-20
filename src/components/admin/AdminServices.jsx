@@ -54,32 +54,32 @@ export default function AdminServices(){
       const data=await response.json().catch(()=>({}));
       if(!response.ok||!data.success)throw Error(data.error||'Project change was not saved.');
       await load();setNotice('Project update saved.');
-    }catch(e){setError(e.message);}
+    }catch(e){setError(e.message);return false;}
     finally{setBusy(false);}
+    return true;
   };
   const openQuote=job=>{
     setQuoteJob(job);setQuote({
       labor:String(job.quote?.labor??0),service_fee:String(job.quote?.service_fee??0),
       expenses:String(job.quote?.expenses??0),notes:job.quote?.notes||'',
       expires_at:job.quote?.expires_at?String(job.quote.expires_at).slice(0,10):'',
-      currency:job.quote?.currency||'PLN'
+      currency:'PLN'
     });
   };
   const saveQuote=async event=>{
     event.preventDefault();
     const labor=Number(quote.labor),fee=Number(quote.service_fee),expenses=Number(quote.expenses);
-    if(![labor,fee,expenses].every(v=>Number.isFinite(v)&&v>=0)||!quote.notes.trim()||!quote.expires_at){
+    if(![labor,fee,expenses].every(v=>Number.isFinite(v)&&v>=0&&v<=100000)||labor+fee+expenses<=0||!quote.notes.trim()||!quote.expires_at){
       setError('Enter nonnegative amounts, an explanation and an expiry date.');return;
     }
     const result=await patch(quoteJob.request_id,{
       quote:{...quote,labor,service_fee:fee,expenses,total:labor+fee+expenses,accepted:false},
       status:'Quoted',reason:'Itemized academic quotation reviewed and issued by IPS'
     });
-    if(result!==false)setQuoteJob(null);
+    if(result===true)setQuoteJob(null);
   };
-  const visible=useMemo(()=>requests.filter(j=>filter==='all'||filter==='complete'
-    ?filter==='all'||j.status==='Completed'
-    :!['Completed','Cancelled'].includes(j.status)),[requests,filter]);
+  const visible=useMemo(()=>requests.filter(j=>filter==='all'||
+    (filter==='complete'?j.status==='Completed':!['Completed','Cancelled'].includes(j.status))),[requests,filter]);
   return <section style={{maxWidth:1400,margin:'0 auto'}}>
     <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'start',flexWrap:'wrap',marginBottom:20}}>
       <div><small style={{color:'var(--text-secondary)',fontWeight:750,letterSpacing:'.1em'}}>IPS · CONFIDENTIAL DELIVERY</small>
@@ -119,7 +119,7 @@ export default function AdminServices(){
         <div className="grid grid-3 gap-2">
           {[['labor','Specialist work'],['service_fee','IPS service fee'],['expenses','Approved expenses']].map(([key,label])=><label key={key} className="form-group"><span className="form-label">{label}</span><input className="form-input" type="number" min="0" step=".01" value={quote[key]} onChange={e=>setQuote(v=>({...v,[key]:e.target.value}))} required/></label>)}
         </div>
-        <label className="form-group"><span className="form-label">Currency</span><select className="form-select" value={quote.currency} onChange={e=>setQuote(v=>({...v,currency:e.target.value}))}>{['PLN','USD','EUR','GBP'].map(x=><option key={x}>{x}</option>)}</select></label>
+        <p style={{fontSize:'.86rem',color:'var(--text-muted)'}}>Currency: PLN (IPS academic quotations)</p>
         <label className="form-group"><span className="form-label">Scope, deliverables and conditions</span><textarea className="form-textarea" rows={4} value={quote.notes} onChange={e=>setQuote(v=>({...v,notes:e.target.value}))} required/></label>
         <label className="form-group"><span className="form-label">Valid until</span><input type="date" className="form-input" value={quote.expires_at} onChange={e=>setQuote(v=>({...v,expires_at:e.target.value}))} required/></label>
         <strong>Total: {money(Number(quote.labor)+Number(quote.service_fee)+Number(quote.expenses),quote.currency)}</strong>
