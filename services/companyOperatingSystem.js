@@ -124,13 +124,15 @@ export function registerCompanyOperatingSystem(app,{
         invite_expires_at:new Date(Date.now()+48*3600000),invite_sent_at:new Date(),
         created_by:actor.adminId,session_version:1});
       const link=appBase(env)+'/ips-staff-onboarding#id='+encodeURIComponent(newId)+'&token='+token;
+      // Audit the invitation before sending its one-use secret, so a later
+      // audit outage cannot revoke a message already accepted by the provider.
+      await log({actor:actor.adminId,action:'company_staff_invitation_issued',
+        details:{staff_id:newId,department:targetDepartment,company_role:targetRole}});
       await send({to:email,subject:'Your private IPS staff invitation',
         body:staffEmailText({name:String(name).trim(),department:targetDepartment,role:targetRole,link}),env});
-      await log({actor:actor.adminId,action:'company_staff_invited',
-        details:{staff_id:newId,department:targetDepartment,company_role:targetRole}});
       res.set('Cache-Control','private, no-store');
       return res.status(201).json({success:true,member:safeAccount(member),
-        message:'Invitation delivered to the staff member. They choose their own password.'});
+        message:'The business email provider accepted the invitation. The recipient chooses their own password.'});
     }catch(error){
       // An undelivered invite must not later be accepted; never expose secret.
       if(member){await adminModel.updateOne({id:newId,status:'Invited'},{$set:{status:'Locked'},
@@ -178,6 +180,8 @@ export function registerCompanyOperatingSystem(app,{
     account.status='Invited';
     await account.save();
     try{
+      await log({actor:actor.adminId,action:'company_staff_invitation_reissued',
+        details:{staff_id:account.id,department:account.department}});
       await send({to:account.email,subject:'Your refreshed IPS staff invitation',
         body:staffEmailText({name:account.name,department:account.department,
           role:account.company_role,
@@ -187,8 +191,6 @@ export function registerCompanyOperatingSystem(app,{
       await account.save().catch(()=>{});
       return invalid(res,'The provider did not accept the invitation. Contact company email support.',503);
     }
-    await log({actor:actor.adminId,action:'company_staff_invitation_resent',
-      details:{staff_id:account.id,department:account.department}});
     res.set('Cache-Control','private, no-store');
     res.json({success:true,member:safeAccount(account),message:'A new private invitation was sent to the registered work email.'});
   });
@@ -252,6 +254,9 @@ export function registerCompanyOperatingSystem(app,{
     if(memberId===actor.adminId||memberId===actor.email)return invalid(res,'The current company owner or acting manager cannot offboard themselves.',409);
     const target=await adminModel.findOne({id:memberId});
     if(!target||!mayManageTeamMember(actor,target))return invalid(res,'Cannot offboard an administrator outside your team.',403);
+    const documentedReason=String(req.body?.reason||'').trim();
+    if(documentedReason.length<10||documentedReason.length>500)
+      return invalid(res,'Document a meaningful offboarding reason before changing any staff access.');
     const replacementId=String(req.body?.replacement_id||'');
     if(replacementId===memberId)return invalid(res,'A replacement cannot be the outgoing team member.');
     const replacement=replacementId?await adminModel.findOne({id:replacementId,status:'Active'}).lean():null;
@@ -279,7 +284,7 @@ export function registerCompanyOperatingSystem(app,{
         await adminModel.updateMany({manager_id:memberId,status:{$ne:'Archived'}},{$set:{manager_id:replacement.id}});
     }
     target.status='Archived';
-    target.suspended_reason=String(req.body?.reason||'Company-authorized offboarding').slice(0,500);
+    target.suspended_reason=documentedReason;
     target.session_version=Number(target.session_version||1)+1;
     target.invite_token_hash=undefined;target.invite_expires_at=undefined;
     await target.save();
