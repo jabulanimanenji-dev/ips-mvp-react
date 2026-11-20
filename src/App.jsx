@@ -40,25 +40,8 @@ import ClientPayments from './components/client/ClientPayments.jsx';
 import ClientSupport from './components/client/ClientSupport';
 import ClientServices from './components/client/ClientServices';
 
-import CompanyShell from './companyOS/CompanyShell.jsx';
-import CompanyHome from './companyOS/CompanyHome.jsx';
-import CompanyWork from './companyOS/CompanyWork.jsx';
-import CompanyTeam from './companyOS/CompanyTeam.jsx';
-import {CompanyClients,CompanySpecialists,CompanyProjects} from './companyOS/CompanyRecords.jsx';
-import {CompanyDepartments,CompanyJourneys,CompanyIntelligence} from './companyOS/CompanyOperations.jsx';
-import {CompanyGuard,ProtectedBusinessWorkspace} from './companyOS/CompanyGuard.jsx';
 import AdminLogin from './components/admin/AdminLogin';
-import CompanyOperationsDesk from './components/admin/CompanyOperationsDesk.jsx';
-import CompanyCommandCenter from './components/admin/CompanyCommandCenter.jsx';
-import AdminClients from './components/admin/AdminClients';
-import AdminWriters from './components/admin/AdminWriters';
-import AdminPayments from './components/admin/AdminPayments';
 
-import AdminReports from './components/admin/AdminReports';
-import AdminSettings from './components/admin/AdminSettings';
-import AdminServices from './components/admin/AdminServices';
-import AdminSupportTickets from './components/admin/AdminSupportTickets';
-import AdminAccessManager from './components/admin/AdminAccessManager';
 
 import WriterLogin from './components/writer/WriterLogin';
 import WriterLayout from './pages/WriterLayout';
@@ -71,8 +54,6 @@ import ProviderServices from './components/writer/ProviderServices';
 import ServiceJobDetail from './components/common/ServiceJobDetail';
 import ActionCenter from './components/common/ActionCenter';
 import DirectMessaging from './components/common/DirectMessaging';
-import ChannelInbox from './components/admin/ChannelInbox.jsx';
-import AdminEnquiries from './components/admin/AdminEnquiries.jsx';
 import VisualPageLayer from './components/common/VisualPageLayer';
 
 const ADMIN_ENTRY_PATH = (import.meta.env.VITE_ADMIN_ENTRY_PATH || '/ips-mission-control')
