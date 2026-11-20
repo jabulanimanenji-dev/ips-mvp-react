@@ -40,8 +40,8 @@ export default function AdminPayments() {
       {error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{error}</div>}
       <div className="grid grid-4 gap-4" style={{ marginBottom: '1rem' }}>
         {[
-          ['Academic paid', fmtCur(finance.paidAcademic || 0)],
-          ['Academic outstanding', fmtCur(finance.outstandingAcademic || 0)],
+          ['Legacy academic tracked', fmtCur(finance.paidAcademic || 0)],
+          ['Legacy academic outstanding', fmtCur(finance.outstandingAcademic || 0)],
           ['Accepted service quotes', fmtCur(finance.acceptedServiceValue || 0)],
           ['Total tracked value', fmtCur(finance.trackedValue || 0)]
         ].map(([label, value]) => (
@@ -60,8 +60,8 @@ export default function AdminPayments() {
         </div>
         <div className="card">
           <h3 style={{ marginBottom: '.5rem' }}>Collection Status</h3>
-          <div className="badge badge-review" style={{ marginBottom: '1rem' }}>Tracking only</div>
-          <p style={{ color: 'var(--text-muted)' }}>The student support checkout is activated only when valid Stripe merchant credentials are configured. Payment requests never turn into paid orders merely because a browser returns from checkout.</p>
+          <div className="badge badge-review" style={{ marginBottom: '1rem' }}>Payment integration pending</div>
+          <p style={{ color: 'var(--text-muted)' }}>IPS payment collection remains disabled until the company activates and verifies its selected payment provider. Existing legacy amounts are not evidence of collected funds.</p>
           <p style={{ color: 'var(--text-secondary)' }}>The provider-backed student transaction and refund ledgers below are separate from legacy financial estimates. Review pending refunds and failed transfers before reporting cash collected.</p>
         </div>
       </div>
