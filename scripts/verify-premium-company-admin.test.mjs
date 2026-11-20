@@ -26,7 +26,7 @@ test('premium nav groups are case-first and permission gated',async()=>{
   assert.ok(paths.includes('/admin/services'));
   assert.equal(new Set(paths).size,paths.length);
   assert.deepEqual([...new Set(IPS_COMPANY_ADMIN_NAV.map(x=>x.group))],
-    ['Workspace','Delivery','Company']);
+    ['Operations','Communications','People','Company']);
   assert.ok(IPS_COMPANY_ADMIN_NAV.every(x=>x.permission&&x.icon));
   const nav=await source('src/components/admin/AdminSidebar.jsx');
   const layout=await source('src/pages/AdminLayout.jsx');
