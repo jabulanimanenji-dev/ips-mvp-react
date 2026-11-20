@@ -75,7 +75,7 @@ export default function AdminSidebar(){
             {newGroup&&<div style={{color:'#b9c5ce',fontSize:'.65rem',fontWeight:750,letterSpacing:'.14em',padding:'17px 12px 7px',textTransform:'uppercase'}}>{item.group}</div>}
             <Link to={item.target} onClick={()=>setMobileOpen(false)} aria-current={active?'page':undefined}
               style={{display:'flex',alignItems:'center',gap:10,padding:'10px 11px',marginBottom:3,borderRadius:8,
-                textDecoration:'none',color:active?'#fff':'#cad5de',background:active?'#304a60':'transparent',
+                textDecoration:'none',color:active?'#fff':'#cbd8e0',background:active?'#304a60':'transparent',
                 borderLeft:active?'3px solid #c9a977':'3px solid transparent',fontSize:'.86rem',fontWeight:active?700:500}}>
               <span aria-hidden="true" style={{fontSize:'.95rem',width:20,textAlign:'center'}}>{item.icon}</span>
               <span style={{flex:1}}>{item.label}</span>
