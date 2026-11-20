@@ -30,6 +30,7 @@ import ClientServices from './components/client/ClientServices';
 import AdminLayout from './pages/AdminLayout';
 import AdminLogin from './components/admin/AdminLogin';
 import CompanyOperationsDesk from './components/admin/CompanyOperationsDesk.jsx';
+import CompanyCommandCenter from './components/admin/CompanyCommandCenter.jsx';
 import AdminClients from './components/admin/AdminClients';
 import AdminWriters from './components/admin/AdminWriters';
 import AdminPayments from './components/admin/AdminPayments';
@@ -375,9 +376,11 @@ export default function App() {
 
         <Route
           path="dashboard"
-          element={<CompanyOperationsDesk />}
+          element={<CompanyCommandCenter />}
         />
 
+
+        <Route path="case-desk" element={<CompanyOperationsDesk />} />
 
         <Route path="orders" element={<Navigate to="/admin/services" replace />} />
 

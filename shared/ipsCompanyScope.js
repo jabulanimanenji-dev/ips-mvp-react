@@ -2,7 +2,8 @@
 // Legacy universal marketplace, Studio and cross-project controls stay archived
 // in source but are not operational IPS admin navigation.
 export const IPS_COMPANY_ADMIN_NAV = Object.freeze([
-  {label:'Operations desk',target:'/admin/dashboard',permission:'dashboard.view',icon:'overview',group:'Operations'},
+  {label:'Command centre',target:'/admin/dashboard',permission:'dashboard.view',icon:'overview',group:'Operations'},
+  {label:'Company case desk',target:'/admin/case-desk',permission:'dashboard.view',icon:'activity',group:'Operations'},
   {label:'Cases & quotations',target:'/admin/enquiries',permission:'support.view',icon:'quotes',group:'Operations'},
   {label:'Academic projects',target:'/admin/services',permission:'services.view',icon:'projects',group:'Operations'},
   {label:'Client support',target:'/admin/support',permission:'support.view',icon:'support',group:'Operations'},

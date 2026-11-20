@@ -1,5 +1,5 @@
 /* IPS PREMIUM OPERATIONS · PRIVATE COMPANY ADMINISTRATION
-   Light-first and scoped. Never changes public, client, or specialist skins. */
+   Theme-aware and scoped. Never changes public, client, or specialist skins. */
 .ips-premium-admin{
   color-scheme:light;
   --bg-body:#f7f7f3;--bg-surface:#ffffff;--bg-card:#ffffff;--bg-elevated:#ffffff;
@@ -231,7 +231,7 @@
  background:#f5f8f5;color:#365d58;border:1px solid #dbe5df;border-radius:11px;
 }
 .ips-premium-theme-toggle:hover{background:#e9f2ed;}
-html[data-theme="dark"] .ips-premium-admin.ips-dark-admin{
+.ips-premium-admin.ips-dark-admin{
  color-scheme:dark;
  --bg-body:#111e29;--bg-surface:#1a2d3b;--bg-card:#1b2f3d;
  --bg-elevated:#233949;--bg-surface-2:#233845;--bg-surface-3:#2c4754;
@@ -242,109 +242,109 @@ html[data-theme="dark"] .ips-premium-admin.ips-dark-admin{
  --success:#8bd3a7;--warning:#f0c789;--danger:#ff9b93;
  background:#111e29!important;color:#e7f0f1!important;
 }
-html[data-theme="dark"] .ips-premium-admin .admin-layout-content,
-html[data-theme="dark"] .ips-premium-admin .admin-main-content{
+.ips-premium-admin.ips-dark-admin .admin-layout-content,
+.ips-premium-admin.ips-dark-admin .admin-main-content{
  background:#111e29!important;color:#e7f0f1!important;
 }
-html[data-theme="dark"] .ips-premium-admin .admin-layout-content>.ips-premium-topbar{
+.ips-premium-admin.ips-dark-admin .admin-layout-content>.ips-premium-topbar{
  background:#172b38!important;border-color:#344a57!important;
 }
-html[data-theme="dark"] .ips-premium-admin .ips-premium-topbar :is(h1,.ips-premium-breadcrumb span,.ips-premium-identity strong){color:#e5eff1!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-premium-topbar .ips-premium-identity small{color:#b1c8cd!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-premium-theme-toggle,
-html[data-theme="dark"] .ips-premium-admin .ips-premium-search{
+.ips-premium-admin.ips-dark-admin .ips-premium-topbar :is(h1,.ips-premium-breadcrumb span,.ips-premium-identity strong){color:#e5eff1!important;}
+.ips-premium-admin.ips-dark-admin .ips-premium-topbar .ips-premium-identity small{color:#b1c8cd!important;}
+.ips-premium-admin.ips-dark-admin .ips-premium-theme-toggle,
+.ips-premium-admin.ips-dark-admin .ips-premium-search{
  background:#243c4a!important;color:#e1ecee!important;border-color:#45606b!important;
 }
-html[data-theme="dark"] .ips-premium-admin .ips-premium-search .ips-premium-kbd{
+.ips-premium-admin.ips-dark-admin .ips-premium-search .ips-premium-kbd{
  background:#162a38;color:#b7cbd2;border-color:#435b68;
 }
-html[data-theme="dark"] .ips-premium-admin :is(.card,.ips-panel,.ips-work-link,.ips-stat-card){
+.ips-premium-admin.ips-dark-admin :is(.card,.ips-panel,.ips-work-link,.ips-stat-card){
  background:#1b2e3b!important;color:#e5eff0!important;border-color:#385260!important;
 }
-html[data-theme="dark"] .ips-premium-admin :is(h1,h2,h3,h4,p,strong){color:inherit;}
-html[data-theme="dark"] .ips-premium-admin :is(.card,.ips-panel) :is(h1,h2,h3,strong){color:#e5eef1!important;}
-html[data-theme="dark"] .ips-premium-admin .data-table :is(th,td){background:#1b2e3b;color:#e1ebed;border-color:#344b56;}
-html[data-theme="dark"] .ips-premium-admin .data-table th{background:#263e4b!important;color:#d5e3e5!important;}
-html[data-theme="dark"] .ips-premium-admin .data-table tbody tr:hover td{background:#263f4a!important;}
-html[data-theme="dark"] .ips-premium-admin :is(input.form-input,select.form-select,textarea.form-textarea){
+.ips-premium-admin.ips-dark-admin :is(h1,h2,h3,h4,p,strong){color:inherit;}
+.ips-premium-admin.ips-dark-admin :is(.card,.ips-panel) :is(h1,h2,h3,strong){color:#e5eef1!important;}
+.ips-premium-admin.ips-dark-admin .data-table :is(th,td){background:#1b2e3b;color:#e1ebed;border-color:#344b56;}
+.ips-premium-admin.ips-dark-admin .data-table th{background:#263e4b!important;color:#d5e3e5!important;}
+.ips-premium-admin.ips-dark-admin .data-table tbody tr:hover td{background:#263f4a!important;}
+.ips-premium-admin.ips-dark-admin :is(input.form-input,select.form-select,textarea.form-textarea){
  background:#223948!important;color:#e8f0f1!important;border-color:#577481!important;
 }
-html[data-theme="dark"] .ips-premium-admin .btn-secondary,
-html[data-theme="dark"] .ips-premium-admin .btn-ghost{
+.ips-premium-admin.ips-dark-admin .btn-secondary,
+.ips-premium-admin.ips-dark-admin .btn-ghost{
  background:#283d49!important;color:#e3edf1!important;border-color:#54717b!important;
 }
-html[data-theme="dark"] .ips-premium-admin .ips-command-dialog{
+.ips-premium-admin.ips-dark-admin .ips-command-dialog{
  background:#1a2e3e!important;color:#ebf1f2;border-color:#56707b;
 }
-html[data-theme="dark"] .ips-premium-admin .ips-command-dialog .ips-command-input{
+.ips-premium-admin.ips-dark-admin .ips-command-dialog .ips-command-input{
  background:#253e4b!important;color:#e9f2f4;border-color:#526a76;
 }
-html[data-theme="dark"] .ips-premium-admin .ips-command-option{color:#e7f0f1;}
-html[data-theme="dark"] .ips-premium-admin .ips-command-option:hover{background:#2a4851;}
+.ips-premium-admin.ips-dark-admin .ips-command-option{color:#e7f0f1;}
+.ips-premium-admin.ips-dark-admin .ips-command-option:hover{background:#2a4851;}
 /* Integrated company desk — readable dark surfaces at every density. */
-html[data-theme="dark"] .ips-premium-admin .ips-operations-console{--ops-ink:#eaf1f3;--ops-muted:#b6c9d0;--ops-line:#385462;--ops-surface:#1c303e;--ops-soft:#253a49;color:#eaf1f3!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-head h1,
-html[data-theme="dark"] .ips-premium-admin .ips-ops-identity h2,
-html[data-theme="dark"] .ips-premium-admin .ips-ops-welcome h2{color:#eaf2f4!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-head p,
-html[data-theme="dark"] .ips-premium-admin .ips-ops-welcome>p{color:#b2c7cf!important;}
-html[data-theme="dark"] .ips-premium-admin :is(
+.ips-premium-admin.ips-dark-admin .ips-operations-console{--ops-ink:#eaf1f3;--ops-muted:#b6c9d0;--ops-line:#385462;--ops-surface:#1c303e;--ops-soft:#253a49;color:#eaf1f3!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-head h1,
+.ips-premium-admin.ips-dark-admin .ips-ops-identity h2,
+.ips-premium-admin.ips-dark-admin .ips-ops-welcome h2{color:#eaf2f4!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-head p,
+.ips-premium-admin.ips-dark-admin .ips-ops-welcome>p{color:#b2c7cf!important;}
+.ips-premium-admin.ips-dark-admin :is(
  .ips-ops-stat,.ips-ops-queue,.ips-ops-detail,.ips-ops-section,
  .ips-ops-case-brief,.ips-ops-facts div,.ips-ops-action-editor,
  .ips-ops-quiet-link,.ips-ops-finish,.ips-ops-how>div,
  .ips-ops-editor-tabs button,.ips-ops-work-actions label button
 ){background:#1b303e!important;border-color:#385562!important;color:#e7f0f2!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-case-brief{background:#203746!important;}
-html[data-theme="dark"] .ips-premium-admin :is(.ips-ops-head,.ips-ops-stat-text,
+.ips-premium-admin.ips-dark-admin .ips-ops-case-brief{background:#203746!important;}
+.ips-premium-admin.ips-dark-admin :is(.ips-ops-head,.ips-ops-stat-text,
  .ips-ops-queue-top,.ips-ops-row-body,.ips-ops-case-brief,.ips-ops-section,.ips-ops-preview-row,.ips-ops-event) :is(strong,h1,h2,h3){
  color:#e7f0f3!important;
 }
-html[data-theme="dark"] .ips-premium-admin :is(.ips-ops-stat-text span,.ips-ops-facts small,
+.ips-premium-admin.ips-dark-admin :is(.ips-ops-stat-text span,.ips-ops-facts small,
  .ips-ops-case-brief small,.ips-ops-row-body small,.ips-ops-row-bottom,
  .ips-ops-identity p,.ips-ops-section-heading p,.ips-ops-preview-row p,
  .ips-ops-event p,.ips-ops-action-row small,.ips-ops-footnote,.ips-ops-queue-top p,
  .ips-ops-welcome p,.ips-ops-queue-foot,.ips-ops-section-heading small){color:#b1c4cb!important;}
-html[data-theme="dark"] .ips-premium-admin :is(.ips-ops-queue,.ips-ops-detail,
+.ips-premium-admin.ips-dark-admin :is(.ips-ops-queue,.ips-ops-detail,
  .ips-ops-queue-top,.ips-ops-queue-foot,.ips-ops-identity,.ips-ops-detail-heading,.ips-ops-case-brief,
  .ips-ops-tabs,.ips-ops-action-row,.ips-ops-event,.ips-ops-preview-row){border-color:#385461!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-case-row{background:transparent!important;color:#e6eef2!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-case-row:hover{background:#263e4a!important;border-color:#55706f!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-case-row.selected{background:#24473f!important;border-color:#609681!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-queue-search{background:#203844!important;color:#d4e1e5!important;border-color:#4c6874!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-queue-search input{color:#eaf2f3!important;background:transparent!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-queue-search input::placeholder{color:#adbdc5;}
-html[data-theme="dark"] .ips-premium-admin :is(.ips-ops-filters button,.ips-ops-editor-options input,
+.ips-premium-admin.ips-dark-admin .ips-ops-case-row{background:transparent!important;color:#e6eef2!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-case-row:hover{background:#263e4a!important;border-color:#55706f!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-case-row.selected{background:#24473f!important;border-color:#609681!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-queue-search{background:#203844!important;color:#d4e1e5!important;border-color:#4c6874!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-queue-search input{color:#eaf2f3!important;background:transparent!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-queue-search input::placeholder{color:#adbdc5;}
+.ips-premium-admin.ips-dark-admin :is(.ips-ops-filters button,.ips-ops-editor-options input,
  .ips-ops-editor-options select,.ips-ops-work-actions select,.ips-ops-work-actions input,
  .ips-ops-action-editor textarea,.ips-ops-task-toggle){
  background:#243e4c!important;border-color:#4e6b78!important;color:#e5eef1!important;
 }
-html[data-theme="dark"] .ips-premium-admin .ips-ops-filters button.on,
-html[data-theme="dark"] .ips-premium-admin .ips-ops-editor-tabs button[aria-pressed=true]{
+.ips-premium-admin.ips-dark-admin .ips-ops-filters button.on,
+.ips-premium-admin.ips-dark-admin .ips-ops-editor-tabs button[aria-pressed=true]{
  background:#397467!important;border-color:#397467!important;color:#fff!important;
 }
-html[data-theme="dark"] .ips-premium-admin .ips-ops-identity .ips-ops-upper{color:#c5d0ce!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-identity p{color:#adc5c9!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-case-row .ips-ops-row-body>strong,
-html[data-theme="dark"] .ips-premium-admin .ips-ops-action-row strong,
-html[data-theme="dark"] .ips-premium-admin .ips-ops-facts strong{color:#edf3f4!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-inline-empty,
-html[data-theme="dark"] .ips-premium-admin .ips-ops-hint{background:#243d4a!important;color:#c8d9dc!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-welcome-links a,
-html[data-theme="dark"] .ips-premium-admin .ips-ops-next-links a{background:#294c44!important;color:#d2efe2!important;border-color:#51796a!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-state{background:#2b4b42;color:#c8ebd9;border-color:#527361;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-state.attention{background:#56412c;color:#f4d7a7;border-color:#85694a;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-caution{background:#4e3829;color:#f8d5ac;border-color:#75583e;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-finish{background:#203b3a!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-finish button{
+.ips-premium-admin.ips-dark-admin .ips-ops-identity .ips-ops-upper{color:#c5d0ce!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-identity p{color:#adc5c9!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-case-row .ips-ops-row-body>strong,
+.ips-premium-admin.ips-dark-admin .ips-ops-action-row strong,
+.ips-premium-admin.ips-dark-admin .ips-ops-facts strong{color:#edf3f4!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-inline-empty,
+.ips-premium-admin.ips-dark-admin .ips-ops-hint{background:#243d4a!important;color:#c8d9dc!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-welcome-links a,
+.ips-premium-admin.ips-dark-admin .ips-ops-next-links a{background:#294c44!important;color:#d2efe2!important;border-color:#51796a!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-state{background:#2b4b42;color:#c8ebd9;border-color:#527361;}
+.ips-premium-admin.ips-dark-admin .ips-ops-state.attention{background:#56412c;color:#f4d7a7;border-color:#85694a;}
+.ips-premium-admin.ips-dark-admin .ips-ops-caution{background:#4e3829;color:#f8d5ac;border-color:#75583e;}
+.ips-premium-admin.ips-dark-admin .ips-ops-finish{background:#203b3a!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-finish button{
  background:#285045;color:#d9f1e7;border-color:#4b8070;
 }
-html[data-theme="dark"] .ips-premium-admin .ips-ops-none{color:#b3c7cc!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-none strong{color:#e4f0f1!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-none button{background:#274b44;color:#e1f1ea;border-color:#5f8b7a;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-stats .ips-ops-stat:hover{background:#25414c!important;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-stat>svg:last-child{color:#c0d3d4;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-alert{background:#4c332b;color:#f9cbb8;border-color:#825b46;}
-html[data-theme="dark"] .ips-premium-admin .ips-ops-notice{background:#264338;color:#d6f2df;border-color:#55816c;}
+.ips-premium-admin.ips-dark-admin .ips-ops-none{color:#b3c7cc!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-none strong{color:#e4f0f1!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-none button{background:#274b44;color:#e1f1ea;border-color:#5f8b7a;}
+.ips-premium-admin.ips-dark-admin .ips-ops-stats .ips-ops-stat:hover{background:#25414c!important;}
+.ips-premium-admin.ips-dark-admin .ips-ops-stat>svg:last-child{color:#c0d3d4;}
+.ips-premium-admin.ips-dark-admin .ips-ops-alert{background:#4c332b;color:#f9cbb8;border-color:#825b46;}
+.ips-premium-admin.ips-dark-admin .ips-ops-notice{background:#264338;color:#d6f2df;border-color:#55816c;}
 @media(max-width:900px){
  .ips-premium-admin .ips-premium-theme-toggle{height:40px;width:40px;flex-basis:40px}
 }

@@ -3,11 +3,16 @@ import {Link} from 'react-router-dom';
 import {useAuth} from '../../context/AuthContext';
 import {isIpsQaFixtureEmail} from '../../../shared/ipsCompanyScope.js';
 import {isCompanyAcademicProject} from './AdminServices.jsx';
+import {summarizeCompanyCases} from '../../../shared/companyPulse.js';
+import AdminIcon from './AdminIcon.jsx';
+import './company-reporting.css';
 
 export default function AdminReports(){
   const {hasAdminPermission}=useAuth();
   const [quotes,setQuotes]=useState(null);
   const [projects,setProjects]=useState(null);
+  const [cases,setCases]=useState(null);
+  const [roster,setRoster]=useState(null);
   const [warning,setWarning]=useState('');
   useEffect(()=>{
     let active=true;
@@ -29,12 +34,34 @@ export default function AdminReports(){
           if(active)setProjects((data.requests||[]).filter(isCompanyAcademicProject));
         }catch(e){failures.push('Academic projects: '+e.message);}
       }
+      try{
+        const response=await fetch('/api/admin/company-cases',{cache:'no-store',credentials:'same-origin'});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok||!data.success||!Array.isArray(data.cases))throw Error(data.error||'Unavailable');
+        if(active)setCases(data.cases);
+      }catch(e){failures.push('Company case index: '+e.message);}
+      if(hasAdminPermission('team.manage')){
+        try{
+          const response=await fetch('/api/admin/company-team/roster',{cache:'no-store',credentials:'same-origin'});
+          const data=await response.json().catch(()=>({}));
+          if(!response.ok||!data.success||!Array.isArray(data.members))throw Error(data.error||'Unavailable');
+          if(active)setRoster(data.members);
+        }catch(e){failures.push('Staff workloads: '+e.message);}
+      }
       if(active)setWarning(failures.join(' '));
     };
     collect();return()=>{active=false;};
   },[hasAdminPermission]);
   const channelCounts=quotes?.reduce((s,x)=>({...s,[x.preferred_channel]:(s[x.preferred_channel]||0)+1}),{})||{};
   const serviceCounts=quotes?.reduce((s,x)=>({...s,[x.service||'Unclassified']:(s[x.service||'Unclassified']||0)+1}),{})||{};
+  const pulse=summarizeCompanyCases(cases);
+  const serviceMix=pulse?Object.entries(pulse.counts).map(([kind,count])=>({
+    kind,count,label:({enquiry:'Enquiries & quotations',project:'Academic delivery',support:'Customer support',telegram:'Telegram inbox'})[kind]
+  })):[];
+  const workload=roster?.filter(x=>x.status==='Active').map(x=>({
+    id:x.id,name:x.name,role:x.company_role,department:x.department,
+    total:(x.workload?.tasks||0)+(x.workload?.enquiries||0)+(x.workload?.support||0)
+  })).sort((a,b)=>b.total-a.total)||[];
   const metrics=[
     ['Recent confidential requests',quotes?.length,'Latest 120 stored enquiries, filtered to academic quotations'],
     ['Verified contacts',quotes?.filter(q=>q.contact_verified).length,'Written contact verified and consented'],
@@ -68,6 +95,50 @@ export default function AdminReports(){
           Object.entries(serviceCounts).sort((a,b)=>b[1]-a[1]).map(([k,v])=><div key={k} style={{display:'flex',justifyContent:'space-between',padding:'9px 0',gap:16,borderBottom:'1px solid var(--border)'}}><span style={{overflowWrap:'anywhere'}}>{k}</span><strong>{v}</strong></div>)}
       </section>
     </div>
+    <section className="ips-report-operational" aria-label="Company service intelligence">
+      <div className="ips-report-intelligence-head">
+        <div><span className="ips-eyebrow">Authorized live case index</span>
+          <h2>Operational performance and exceptions</h2>
+          <p>Recent accessible case records only — this is not an all-time financial report.</p></div>
+        <Link to="/admin/case-desk" className="btn btn-secondary">Open case desk <AdminIcon name="arrow" size={16}/></Link>
+      </div>
+      <div className="ips-report-kpis">
+        {[
+          ['Open cases',pulse?.open,'Current open work'],
+          ['Attention required',pulse?.attention,'Client messages, QA exceptions, overdue or unassigned work'],
+          ['Unassigned verified enquiries',pulse?.unowned,'No accountable reviewer yet'],
+          ['Overdue follow-ups',pulse?.overdue,'Overdue case tasks or written customer updates'],
+          ['Open follow-up tasks',pulse?.tasks,'Tasks associated with accessible active cases']
+        ].map(([name,value,hint])=><div key={name} className="ips-report-kpi">
+          <span>{name}</span><strong>{value===undefined||value===null?'—':value}</strong><small>{hint}</small>
+        </div>)}
+      </div>
+      <div className="ips-report-columns">
+        <div className="ips-report-section"><h3>Live work by service</h3>
+          {!pulse?<p>Accessible case data is unavailable.</p>:
+            !pulse.open?<p>No open cases in the accessible snapshot.</p>:
+              serviceMix.map(item=><div className="ips-report-bar-row" key={item.kind}>
+                <div><span>{item.label}</span><strong>{item.count}</strong></div>
+                <i><b style={{width:Math.round(100*item.count/Math.max(1,pulse.open))+'%'}}/></i>
+              </div>)}
+          <small>Case index is capped per source. Do not interpret these counts as a full company history.</small>
+        </div>
+        {hasAdminPermission('team.manage')&&<div className="ips-report-section"><h3>Accountability and staff workload</h3>
+          {roster===null?<p>Assigned staff data is unavailable.</p>:!workload.length?
+            <p>No active managers or team members in this management scope.</p>:
+            <div className="ips-report-workload">
+              {workload.slice(0,8).map(m=><div key={m.id}>
+                <span><strong>{m.name||m.id}</strong><small>{m.department?.replaceAll('_',' ')||'Unassigned'} · {m.role}</small></span>
+                <b>{m.total} <small>open items</small></b>
+              </div>)}
+            </div>}
+          <small>Counts combine open tasks, enquiries and support assignments. Project-specialist workload is tracked in academic delivery.</small>
+        </div>}
+      </div>
+      <p className="ips-report-scope"><AdminIcon name="shield" size={15}/>
+        Role-restricted company data. Financial results remain withheld until the payment system is activated and reconciled.
+        Case lists are bounded recent samples, not comprehensive financial or historical analytics.</p>
+    </section>
     <div style={{display:'flex',gap:12,marginTop:18,flexWrap:'wrap'}}>
       {hasAdminPermission('support.view')&&<Link className="btn btn-secondary" to="/admin/enquiries">Review source enquiries</Link>}
       {hasAdminPermission('services.view')&&<Link className="btn btn-secondary" to="/admin/services">Review academic projects</Link>}

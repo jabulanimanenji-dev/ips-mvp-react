@@ -16,7 +16,9 @@ test('premium IPS design supports readable dark/light modes and remains scoped t
   assert.match(layout,/admin-layout ips-premium-admin/);
   assert.match(layout,/toggleTheme/);
   assert.match(layout,/ips-dark-admin/);
-  assert.match(css,/data-theme="dark"/);
+  assert.match(css,/\.ips-premium-admin\.ips-dark-admin/);
+  assert.match(layout,/ips-admin-theme/);
+  assert.doesNotMatch(css,/html\[data-theme="dark"\] \.ips-premium-admin/);
   assert.match(layout,/ips-premium-admin\.css/);
   assert.doesNotMatch(css,/\.client-layout\{|\.writer-layout\{|\.ipsa-site-header\{/);
   assert.doesNotMatch(layout,/AdminCMS|ServiceEngine|OpenMarketplace/);
