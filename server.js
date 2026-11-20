@@ -33,6 +33,7 @@ import {registerSpecialistPayoutRoutes} from './services/specialistPayouts.js';
 import {registerStudentRefundRoutes} from './services/studentRefunds.js';
 import {registerPasswordRecoveryRoutes,sessionFilter,sessionVersion} from './services/passwordRecovery.js';
 import { usernameValid,usernameKey,normalizeUsername,passwordValid,emailValid,normalizeEmail } from './shared/privacyIdentity.js';
+import {enforcePublicationGate} from './shared/publicationReadiness.js';
 import { verificationAvailable,issueEmailChallenge,confirmEmailChallenge,publicAccount,validateVerificationRequest } from './services/accountVerification.js';
 import ServiceDefinition from './models/ServiceDefinition.js';
 import ServiceCategory from './models/ServiceCategory.js';
@@ -73,6 +74,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isProduction = process.env.NODE_ENV === 'production';
 assertProductionConfiguration(process.env);
+enforcePublicationGate(process.env);
 
 const objectStorage = await createObjectStorage({
   environment: process.env,
