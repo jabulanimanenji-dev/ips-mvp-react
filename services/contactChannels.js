@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { PUBLIC_CONTACTS } from '../shared/publicContacts.js';
 import ChannelContact from '../models/ChannelContact.js';
+import {hasAdminPermission} from '../shared/adminPermissions.js';
 import ChannelMessage from '../models/ChannelMessage.js';
 import ChannelLinkToken from '../models/ChannelLinkToken.js';
 import {quoteReferenceFromMessage,confirmQuoteMessengerContact} from './quoteRequests.js';
@@ -286,7 +287,7 @@ export function registerContactApi(app,{requireSession}){
 
   app.get('/api/contact-channels/admin/threads',async(req,res)=>{
     try{const session=requireSession(req,res);if(!session)return;
-      if(session.role!=='admin')return res.sendStatus(403);
+      if(session.role!=='admin'||!req.adminAccess||!hasAdminPermission(req.adminAccess,'messages.view'))return res.sendStatus(403);
       const threads=await ChannelContact.find().select('channel display_name external_id client_id verified_at last_inbound_at last_message_at unread_count status').sort({last_message_at:-1}).limit(100).lean();
       const verified=await ContactEnquiry.find({contact_consent:true,contact_verified:true,status:{$ne:'closed'},contact_thread_id:{$in:threads.map(t=>String(t._id))}})
         .select('contact_thread_id').lean();
@@ -322,7 +323,7 @@ export function registerContactApi(app,{requireSession}){
 
   app.get('/api/contact-channels/admin/threads/:id/messages',async(req,res)=>{
     try{const session=requireSession(req,res);if(!session)return;
-      if(session.role!=='admin')return res.sendStatus(403);
+      if(session.role!=='admin'||!req.adminAccess||!hasAdminPermission(req.adminAccess,'messages.view'))return res.sendStatus(403);
       if(!/^[a-f0-9]{24}$/i.test(req.params.id))return res.sendStatus(400);
       const contact=await ChannelContact.findById(req.params.id).lean();
       if(!contact)return res.sendStatus(404);
@@ -334,7 +335,7 @@ export function registerContactApi(app,{requireSession}){
 
   app.post('/api/contact-channels/admin/threads/:id/reply',async(req,res)=>{
     try{const session=requireSession(req,res);if(!session)return;
-      if(session.role!=='admin')return res.sendStatus(403);
+      if(session.role!=='admin'||!req.adminAccess||!hasAdminPermission(req.adminAccess,'messages.manage'))return res.sendStatus(403);
       if(!/^[a-f0-9]{24}$/i.test(req.params.id))return res.sendStatus(400);
       const body=safeText(req.body?.body);
       if(body.length<1||body.length>2000)return res.status(400).json({success:false,error:'Reply must be 1–2000 characters.'});

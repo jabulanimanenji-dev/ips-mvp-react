@@ -195,6 +195,7 @@ const publicAuthPaths=new Set([
   '/client/login','/clients','/client/verify-email',
   '/writer/login','/writer/verify-email','/writer/resend-verification',
   '/client/resend-verification','/client/password-recovery/request',
+   '/writer/password-recovery/request','/writer/password-recovery/complete',
   '/client/password-recovery/complete','/admin/company-team/accept','/logout'
 ]);
 app.use('/api',async(req,res,next)=>{
@@ -219,7 +220,6 @@ app.use('/api',async(req,res,next)=>{
 });
 
 registerStudentPaymentRoutes(app, { requireSession, StudentPayment, ServiceRequest });
-registerContactApi(app, { requireSession });
 
 // Production waits for MongoDB before accepting traffic. Development can still
 // launch without a database so the interface and verification tools remain usable.
@@ -258,7 +258,7 @@ const resolveAdminAccess = async session => {
   if (session?.root_admin) {
     return {
       adminId: session.id,
-      name: 'Primary Super Admin',
+      name: 'Nyoro',
       email: session.id,
       role: 'superadmin',
       permissions: ['*'],
@@ -323,7 +323,18 @@ app.use(async (req, res, next) => {
   }
 });
 
-registerPasswordRecoveryRoutes(app, {hashPassword});
+// Register all company-channel API handlers after admin authority rehydration;
+// otherwise req.adminAccess is absent and protected message operations fail closed.
+registerContactApi(app, {requireSession});
+
+registerPasswordRecoveryRoutes(app,{hashPassword,grantSession:async(res,scope,account)=>{
+  // A finished verified-mailbox recovery automatically enters only the
+  // recovered principal's own authorized workspace. All older sessions are
+  // revoked through incremented session_version.
+  const id=scope==='writer'?account.writer_id:account.client_id;
+  setSessionCookie(res,signSession({id,role:scope==='writer'?'writer':'client',
+    email_verified:true,session_version:sessionVersion(account)}));
+}});
 registerEnquiryRoutes(app, { requireSession });
 registerCompanyCaseDesk(app,{requireSession});
 registerCompanyOperatingSystem(app,{requireSession,hashPassword,validAdminPassword});
@@ -351,7 +362,7 @@ app.get('/api/clients', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (session.role !== 'admin'||!hasAdminPermission(req.adminAccess,'clients.view')) return res.status(403).json({ success: false, error: 'Client directory permission required.' });
     const [clients, orderTotals] = await Promise.all([
       Client.find().select('-password -full_name').sort({ createdAt: -1 }).lean(),
       Order.aggregate([
@@ -452,7 +463,8 @@ app.patch('/api/clients/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin' && !(session.role === 'client' && session.id === req.params.id)) return res.status(403).json({ success: false, error: 'You cannot update this client.' });
+    if (!(session.role==='client'&&session.id===req.params.id)&&
+        !(session.role==='admin'&&hasAdminPermission(req.adminAccess,'clients.manage'))) return res.status(403).json({ success: false, error: 'Client management permission required.' });
     const clientFields = ['username', 'phone', 'country', 'password'];
     const adminFields = ['username', 'phone', 'country', 'email', 'status', 'notes'];
     const allowedFields = session.role === 'admin' ? adminFields : clientFields;
@@ -495,18 +507,11 @@ app.patch('/api/clients/:id', async (req, res) => {
   }
 });
 
-// Delete client
-app.delete('/api/clients/:id', async (req, res) => {
-  try {
-    const session = requireSession(req, res);
-    if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    await Client.findOneAndDelete({ client_id: req.params.id });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+// Permanent client deletion is retired: company records, customer privacy, and
+// case ownership are governed with suspension, not destructive endpoints.
+app.delete('/api/clients/:id',(req,res)=>res.status(410).json({
+  success:false,error:'Permanent client deletion is prohibited. Use authorized account suspension.'
+}));
 
 // Client login
 app.post('/api/client/login', async (req, res) => {
@@ -514,7 +519,20 @@ app.post('/api/client/login', async (req, res) => {
     const email=normalizeEmail(req.body?.email),password=String(req.body?.password||'');
     const client = await Client.findOne({email});
     if (client && !(isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'&&isIpsQaFixtureClient(client))&&verifyPassword(password, client.password)) {
-      if(!client.email_verified_at)return res.status(403).json({success:false,verification_required:true,message:'Verify your email before accessing your account.'});
+      if(!client.email_verified_at){
+        // Correct credentials on a pending account automatically retrigger its
+        // verification link when the send cooldown allows. Admins do not need
+        // to issue verification codes or mark email addresses verified.
+        let attempted=false;
+        try{
+          const pending=await Client.findOne({client_id:client.client_id,email_verified_at:null})
+            .select('+verification_hash +verification_expires_at +verification_sent_at +verification_attempts');
+          if(pending){const sent=await issueEmailChallenge(pending);attempted=Boolean(sent?.verification_required);}
+        }catch{}
+        return res.status(403).json({success:false,verification_required:true,
+          message:attempted?'We emailed a fresh verification link. Open it to confirm your address and enter your account.':
+            'Your account email is not verified. Open the IPS verification link sent to your mailbox.'});
+      }
       if (client.status==='Suspended'||client.status==='Inactive')return res.status(403).json({success:false,message:'Account access is currently unavailable.'});
       if (!client.password.startsWith('scrypt$')) {
         client.password = hashPassword(password);
@@ -700,7 +718,7 @@ app.get('/api/writers', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (session.role !== 'admin'||!hasAdminPermission(req.adminAccess,'providers.view')) return res.status(403).json({ success: false, error: 'Specialist directory permission required.' });
     const writers = await Writer.find().select('-password').lean();
     const companyWriters=isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'
       ?writers.filter(w=>!isIpsQaFixtureEmail(w.email)):writers;
@@ -710,43 +728,21 @@ app.get('/api/writers', async (req, res) => {
   }
 });
 
-app.post('/api/writers', async (req, res) => {
-  try {
-    const session = requireSession(req, res);
-    if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    if(!passwordValid(req.body?.password)||!emailValid(normalizeEmail(req.body?.email))||String(req.body?.full_name||'').trim().length<2)
-      return res.status(400).json({success:false,error:'Specialists must supply a full name, a valid email and a strong password.'});
-    const newId='WID-'+crypto.randomBytes(8).toString('hex').toUpperCase();
-    const writer = new Writer({ ...req.body,email:normalizeEmail(req.body.email),password:hashPassword(req.body.password),
-      writer_id:newId,email_verified_at:null,application_status:'approved',application_source:'admin',
-      status:req.body.status||'Active',reviewed_at:new Date(),reviewed_by:session.id });
-    await writer.save();
-    const safeWriter = writer.toObject();
-    delete safeWriter.password;
-    res.json({ success: true, writer: safeWriter });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-app.delete('/api/writers/:id', async (req, res) => {
-  try {
-    const session = requireSession(req, res);
-    if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
-    await Writer.findOneAndDelete({ writer_id: req.params.id });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
+// Staff do not invent specialist accounts or know specialist passwords.
+// Real specialists register themselves and verify email; company reviewers
+// then approve eligibility. Neither hard deletion nor staff-set passwords exist.
+app.post('/api/writers',(req,res)=>res.status(410).json({
+  success:false,error:'Administrator-created specialist credentials are retired. Specialists must register and verify their own accounts.'
+}));
+app.delete('/api/writers/:id',(req,res)=>res.status(410).json({
+  success:false,error:'Permanent specialist deletion is prohibited. Use governed availability or suspension.'
+}));
 
 app.patch('/api/writers/:id/status', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+    if (session.role !== 'admin'||!hasAdminPermission(req.adminAccess,'providers.manage')) return res.status(403).json({ success: false, error: 'Admin access required.' });
     const writer = await Writer.findOneAndUpdate(
       { writer_id: req.params.id },
       { status: req.body.status },
@@ -763,8 +759,9 @@ app.patch('/api/writers/:id', async (req, res) => {
   try {
     const session = requireSession(req, res);
     if (!session) return;
-    if (session.role !== 'admin' && !(session.role === 'writer' && session.id === req.params.id)) {
-      return res.status(403).json({ success: false, error: 'You cannot update this provider.' });
+    if (!(session.role==='writer'&&session.id===req.params.id)&&
+        !(session.role==='admin'&&hasAdminPermission(req.adminAccess,'providers.manage'))) {
+      return res.status(403).json({ success: false, error: 'Specialist management permission required.' });
     }
     const allowedUpdates = [
       'full_name',
@@ -930,6 +927,13 @@ app.patch('/api/provider/applications/:id', async (req, res) => {
     if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
     const decision = String(req.body.decision || '').toLowerCase();
     if (!['approved', 'rejected', 'more_information'].includes(decision)) return res.status(400).json({ success: false, error: 'Invalid review decision.' });
+    if(!hasAdminPermission(req.adminAccess,'providers.manage'))
+      return res.status(403).json({success:false,error:'Specialist qualification management permission required.'});
+    if(decision==='approved'){
+      const candidate=await Writer.findOne({writer_id:req.params.id}).select('email_verified_at');
+      if(!candidate||!candidate.email_verified_at)
+        return res.status(409).json({success:false,error:'Specialist must prove registered email ownership before IPS can approve the application.'});
+    }
     const updates = {
       application_status: decision,
       status: decision === 'approved' ? 'Active' : 'Inactive',
@@ -977,7 +981,17 @@ app.post('/api/writer/login', async (req, res) => {
     const password = String(req.body?.password || '');
     const writer = await Writer.findOne({ email });
     if (!writer || (isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'&&isIpsQaFixtureEmail(writer.email)) || !verifyPassword(password, writer.password)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
-    if(!writer.email_verified_at)return res.status(403).json({success:false,verification_required:true,message:'Verify your specialist email address first.'});
+    if(!writer.email_verified_at){
+      let attempted=false;
+      try{
+        const pending=await Writer.findOne({writer_id:writer.writer_id,email_verified_at:null})
+          .select('+verification_hash +verification_expires_at +verification_sent_at +verification_attempts');
+        if(pending){const sent=await issueEmailChallenge(pending);attempted=Boolean(sent?.verification_required);}
+      }catch{}
+      return res.status(403).json({success:false,verification_required:true,
+        message:attempted?'IPS emailed you a fresh specialist verification link. Open it to confirm your mailbox.':
+          'Verify your registered specialist email using the IPS link already sent to you.'});
+    }
     const applicationStatus = writer.application_status || 'approved';
     if (applicationStatus === 'pending') return res.status(403).json({ success: false, message: 'Your service-provider application is awaiting review.' });
     if (applicationStatus === 'more_information') return res.status(403).json({ success: false, message: 'IPS needs more information before your application can be approved. Please contact administration.' });
@@ -1060,7 +1074,7 @@ app.post('/api/admin/login', async (req, res) => {
         admin: {
           id: email,
           email,
-          name: 'Primary Super Admin',
+          name: 'Nyoro',
           role: 'superadmin',
           permissions: ['*'],
           isSuperAdmin: true,
@@ -1229,7 +1243,7 @@ app.get('/api/admins', async (req, res) => {
       success: true,
       rootAdmin: {
         id: String(process.env.ADMIN_EMAIL || 'admin@ipsglobal.com').trim().toLowerCase(),
-        name: 'Primary Super Admin',
+        name: 'Nyoro',
         email: String(process.env.ADMIN_EMAIL || 'admin@ipsglobal.com').trim().toLowerCase(),
         role: 'superadmin',
         status: 'Active',

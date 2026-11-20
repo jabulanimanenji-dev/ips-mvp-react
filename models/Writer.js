@@ -8,6 +8,9 @@ const WriterSchema = new mongoose.Schema({
   email_verified_at: { type: Date, default: null },
   first_login_at: { type: Date, default: null },
   session_version: { type: Number, default: 1, min: 1 },
+  password_reset_hash: { type: String, select: false },
+  password_reset_expires_at: { type: Date, select: false },
+  password_reset_sent_at: { type: Date, select: false },
   verification_hash: { type: String, select: false },
   verification_expires_at: { type: Date, select: false },
   verification_sent_at: { type: Date, select: false },
@@ -54,4 +57,5 @@ const WriterSchema = new mongoose.Schema({
   rejection_reason: { type: String, default: '', maxlength: 1500 }
 }, { timestamps: true });
 
+WriterSchema.index({password_reset_hash:1},{unique:true,sparse:true});
 export default mongoose.model('Writer', WriterSchema);

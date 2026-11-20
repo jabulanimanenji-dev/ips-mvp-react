@@ -82,7 +82,7 @@ const [
 ] = await Promise.all([
   read('server.js'),
   read('src/App.jsx'),
-  read('src/components/admin/AdminAccessManager.jsx'),
+  read('src/administration/Workforce.jsx'),
   read('src/components/admin/PageDesignerV2.jsx'),
   read('src/components/common/VisualPageLayer.jsx'),
   read('models/MediaAsset.js')
@@ -93,11 +93,11 @@ assert.match(server, /\/api\/admin\/change-password/);
 assert.match(server, /\/api\/admin\/audit-logs/);
 assert.match(server, /\/api\/admin\/media/);
 assert.match(server, /sessionsRevoked: true/);
-assert.match(app, /AdminAccessManager/);
+assert.match(app, /ProtectedAdminRoute><CompanyAdministration/);
 assert.match(app, /VisualPageLayer/);
 assert.match(app, /mustChangePassword/);
-assert.match(accessManager, /Company staff directory/);
-assert.match(accessManager, /Governed offboarding/);
+assert.match(accessManager, /Governed people directory/);
+assert.match(accessManager, /Governed departure and work handover/);
 assert.match(designer, /ResponsivePreviewFrame/);
 assert.match(designer, /responsive issue/);
 assert.match(designer, /Looping video/);

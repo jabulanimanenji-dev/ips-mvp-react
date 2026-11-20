@@ -172,124 +172,149 @@ try{
     await student.waitForURL(/ips-mission-control/,{timeout:15000});
   });
   const admin=await open();
-  await check('Root authenticates and sees the new private, dark-only Company OS instead of the retired admin',async()=>{
+  await check('Nyoro authenticates into an original, consistently dark IPS Administration Four',async()=>{
     await admin.goto(base+'/ips-mission-control',{waitUntil:'domcontentloaded'});
     await admin.locator('input[type=email]').fill(process.env.ADMIN_EMAIL);
     await admin.locator('input[type=password]').fill(process.env.ADMIN_PASSWORD);
     await admin.getByRole('button',{name:'Sign In'}).click();
-    await admin.waitForURL(/\/admin\//,{timeout:15000});
+    await admin.waitForURL(url=>url.pathname.startsWith('/admin/'),{timeout:15000});
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
-    await admin.locator('.ips-os').waitFor({timeout:15000});
-    await admin.getByRole('heading',{name:'The company, under your control.'}).waitFor({timeout:15000});
-    assert.equal(await admin.locator('.ips-os-rail').count(),1);
-    assert.equal(await admin.locator('.admin-sidebar').count(),0);
-    assert.equal(await admin.getByRole('button',{name:/Switch administration to light mode/}).count(),0);
-    const tone=await admin.locator('.ips-os-rail').evaluate(el=>getComputedStyle(el).backgroundColor);
-    assert.equal(tone,'rgb(13, 24, 34)','New IPS company rail must remain premium dark.');
-    await evidence(admin,'company-os-executive-dark');
+    await admin.locator('.ips4').waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'Welcome back, Nyoro.'}).waitFor({timeout:15000});
+    await admin.locator('.ips4-persona').getByText('Nyoro',{exact:true}).waitFor();
+    await admin.locator('.ips4-persona').getByText(/Root Admin/).waitFor();
+    assert.equal(await admin.locator('.ips-os').count(),0,'Rejected Company OS v3 must not be mounted');
+    assert.equal(await admin.locator('.ips-premium-admin').count(),0);
+    const colors=await admin.locator('.ips4-rail').evaluate(el=>{
+      const s=getComputedStyle(el);return {background:s.backgroundColor,color:s.color};
+    });
+    assert.equal(colors.background,'rgb(16, 27, 37)');
+    await evidence(admin,'ips4-nyoro-company-bridge');
   });
-  await check('Executive cockpit reflects real decisions, protected owner and department coverage',async()=>{
+  await check('Fresh company leadership bridges seven actual departments and accountable decisions',async()=>{
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
-    await admin.locator('.os-stat').first().waitFor({timeout:15000});
-    assert.ok(await admin.locator('.os-stat').count()>=4);
-    await admin.getByRole('heading',{name:'Leadership gaps'}).waitFor();
+    await admin.locator('.ips4-stat').first().waitFor({timeout:15000});
+    assert.ok(await admin.locator('.ips4-stat').count()>=4);
+    await admin.getByRole('heading',{name:'Leadership coverage'}).waitFor();
     await admin.goto(base+'/admin/departments',{waitUntil:'domcontentloaded'});
-    await admin.getByRole('heading',{name:'Run departments, not screens'}).waitFor();
-    assert.equal(await admin.locator('.os-dept').count(),7);
-    await evidence(admin,'company-os-departments');
+    await admin.getByRole('heading',{name:'Departments and responsible leadership'}).waitFor({timeout:15000});
+    assert.equal(await admin.locator('.ips4-grid.thirds .ips4-panel').count(),7);
+    await evidence(admin,'ips4-company-department-operations');
   });
-  await check('Real Chrome phone experience has no overflow and preserves owner-only manager navigation',async()=>{
+  await check('Production-equivalent mobile administration has usable navigation and no clipped content',async()=>{
     const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
     pages.push(mobile);
     await mobile.goto(base+'/ips-mission-control',{waitUntil:'domcontentloaded'});
     await mobile.locator('input[type=email]').fill(process.env.ADMIN_EMAIL);
     await mobile.locator('input[type=password]').fill(process.env.ADMIN_PASSWORD);
     await mobile.getByRole('button',{name:'Sign In'}).click();
-    await mobile.waitForURL(/\/admin\//,{timeout:15000});
+    await mobile.waitForURL(url=>url.pathname.startsWith('/admin/'),{timeout:15000});
     await mobile.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
-    await mobile.locator('.ips-os').waitFor({timeout:15000});
-    await mobile.getByRole('heading',{name:'The company, under your control.'}).waitFor();
-    const width=await mobile.evaluate(()=>({viewport:innerWidth,body:document.body.scrollWidth,html:document.documentElement.scrollWidth}));
-    assert.ok(width.body<=width.viewport+5&&width.html<=width.viewport+5,
-      'New company operation must not overflow at phone width: '+JSON.stringify(width));
-    await evidence(mobile,'company-os-mobile');
-    await mobile.getByRole('button',{name:'Toggle company navigation'}).click();
-    await mobile.getByRole('link',{name:'People & authority'}).click();
-    await mobile.waitForURL(/\/admin\/access/,{timeout:15000});
-    await mobile.getByRole('heading',{name:'People, authority and responsibility'}).waitFor();
+    await mobile.locator('.ips4').waitFor({timeout:15000});
+    const widths=await mobile.evaluate(()=>({viewport:innerWidth,body:document.body.scrollWidth,html:document.documentElement.scrollWidth}));
+    assert.ok(widths.body<=widths.viewport+5&&widths.html<=widths.viewport+5,
+      'IPS Administration Four must not overflow mobile: '+JSON.stringify(widths));
+    await evidence(mobile,'ips4-mobile-company-bridge');
+    await mobile.getByRole('button',{name:'Open company navigation'}).click();
+    await mobile.getByRole('link',{name:'People & permissions'}).click();
+    await mobile.waitForURL(url=>url.pathname==='/admin/access',{timeout:15000});
+    await mobile.getByRole('heading',{name:'Nyoro’s company management structure'}).waitFor();
   });
-  await check('New real work desk handles protected case evidence and audit-safe internal notes',async()=>{
+  await check('Real case command preserves accountable work, history and notes instead of old screens',async()=>{
     await admin.goto(base+'/admin/case-desk',{waitUntil:'domcontentloaded'});
-    await admin.locator('.os-case-workspace').waitFor({timeout:15000});
-    await admin.getByRole('heading',{name:'One company work queue'}).waitFor({timeout:15000});
-    const first=admin.locator('.os-case-item').first();
-    await first.waitFor({timeout:15000});
-    await first.click();
-    await admin.getByText('Accountable person').waitFor({timeout:15000});
-    await admin.getByRole('button',{name:'Private notes'}).click();
-    const note=admin.locator('textarea.os-input').first();
-    await note.fill('Document the authorized source case and its next review in the IPS company operating system.');
-    await admin.getByRole('button',{name:'Record confidential note'}).click();
-    await admin.getByRole('status').filter({hasText:'internal note'}).waitFor({timeout:15000});
-    await evidence(admin,'company-os-real-case-actions');
+    await admin.locator('.ips4-record-layout').waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'Decisions, ownership and next actions'}).waitFor();
+    await admin.getByRole('button',{name:'All cases'}).click();
+    const first=admin.locator('.ips4-record-entry').first();
+    await first.waitFor({timeout:15000});await first.click();
+    await admin.getByText('Accountable person',{exact:true}).waitFor({timeout:15000});
+    await admin.getByRole('button',{name:'Confidential note'}).click();
+    await admin.locator('.ips4-record-layout textarea').fill('Review customer evidence and preserve confidentiality under the new accountable IPS management structure.');
+    await admin.getByRole('button',{name:'Save internal note'}).click();
+    await admin.getByRole('status').filter({hasText:'protected source case'}).waitFor({timeout:15000});
+    await evidence(admin,'ips4-real-accountable-case-history');
     await admin.keyboard.press('Control+k');
-    const command=admin.getByRole('dialog',{name:'Find authorized company workspace'});
-    await command.locator('input').fill('Project delivery');
-    await command.getByRole('button',{name:/Project delivery/}).click();
-    await admin.waitForURL(/\/admin\/services/,{timeout:15000});
-    await admin.getByRole('heading',{name:'Academic delivery governance'}).waitFor({timeout:15000});
-    await evidence(admin,'company-os-academic-delivery');
+    const dialog=admin.getByRole('dialog',{name:'Find a company responsibility'});
+    await dialog.getByRole('searchbox').fill('Project command');
+    await dialog.getByRole('button',{name:/Project command/}).click();
+    await admin.waitForURL(url=>url.pathname==='/admin/services',{timeout:15000});
+    await admin.getByRole('heading',{name:'Academic project command'}).waitFor();
   });
-  await check('Owner is not listed as employee; manager delegation and offboarding are governed',async()=>{
+  await check('Nyoro is not a deletable employee; true managers have governed offboarding',async()=>{
     await admin.goto(base+'/admin/access',{waitUntil:'domcontentloaded'});
-    await admin.getByRole('heading',{name:'People, authority and responsibility'}).waitFor();
-    await admin.getByText(/ROOT OWNER · Outside employee hierarchy/).waitFor();
-    await admin.getByRole('heading',{name:'Accountable team directory'}).waitFor();
-    const table=admin.locator('.os-table');
-    await table.waitFor({timeout:15000});
-    assert.equal(await table.getByText(process.env.ADMIN_EMAIL,{exact:true}).count(),0,
-      'The sovereign owner must never appear as a managed staff identity');
+    await admin.getByRole('heading',{name:'Nyoro’s company management structure'}).waitFor({timeout:15000});
+    await admin.getByText(/NYORO · ROOT ADMIN · SOVEREIGN IDENTITY/).waitFor();
+    await admin.getByRole('heading',{name:'Governed people directory'}).waitFor();
+    assert.equal(await admin.locator('.ips4-table').getByText(process.env.ADMIN_EMAIL,{exact:true}).count(),0);
     assert.equal(await admin.getByRole('button',{name:/^Delete$/}).count(),0);
-    await admin.getByRole('heading',{name:'Appoint department manager'}).waitFor();
-    await evidence(admin,'company-os-protected-root-authority');
+    await admin.getByRole('heading',{name:'Appoint an actual department manager'}).waitFor();
+    await evidence(admin,'ips4-nyoro-protected-management');
   });
-  await check('New client governance keeps test fixtures out of production-style UI and passwords private',async()=>{
+  await check('New client and specialist directories are private and provide verified-email reset controls',async()=>{
     await admin.goto(base+'/admin/clients',{waitUntil:'domcontentloaded'});
-    await admin.getByRole('heading',{name:'Client account governance'}).waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'Clients — real account care'}).waitFor({timeout:15000});
     await admin.getByRole('heading',{name:'Private client register'}).waitFor();
-    assert.equal(await admin.locator('tr').filter({hasText:'CID-TEST-ALICE'}).count(),0,
-      'Synthetic test client identities must be excluded from live-style client register');
     assert.equal(await admin.locator('input[type=password]').count(),0);
-    await evidence(admin,'company-os-confidential-clients');
+    await evidence(admin,'ips4-client-management-dark');
+    await admin.goto(base+'/admin/writers',{waitUntil:'domcontentloaded'});
+    await admin.getByRole('heading',{name:'Specialists — verified and accountable'}).waitFor({timeout:15000});
+    await evidence(admin,'ips4-specialist-management-dark');
   });
   const departmentManager=await open();
-  await check('Department manager sees only their subordinates and cannot appoint another manager',async()=>{
+  await check('Department manager gets only direct-report staff and cannot mint department managers',async()=>{
     await departmentManager.goto(base+'/ips-mission-control',{waitUntil:'domcontentloaded'});
     await departmentManager.locator('input[type=email]').fill('manager-client-ci@example.org');
     await departmentManager.locator('input[type=password]').fill('TestCompanyPassword2026!');
     await departmentManager.getByRole('button',{name:'Sign In'}).click();
-    await departmentManager.waitForURL(/\/admin\//,{timeout:15000});
+    await departmentManager.waitForURL(url=>url.pathname.startsWith('/admin/'),{timeout:15000});
     await departmentManager.goto(base+'/admin/access',{waitUntil:'domcontentloaded'});
-    await departmentManager.getByRole('heading',{name:'People, authority and responsibility'}).waitFor();
+    await departmentManager.getByRole('heading',{name:'Your department and people'}).waitFor({timeout:15000});
     await departmentManager.getByText('Client Care Officer B').waitFor({timeout:15000});
     assert.equal(await departmentManager.getByText('Academic Reviewer').count(),0);
-    await departmentManager.getByRole('heading',{name:'Invite authorized staff'}).waitFor();
-    assert.equal(await departmentManager.getByRole('heading',{name:'Appoint department manager'}).count(),0);
-    await evidence(departmentManager,'company-os-department-manager');
+    await departmentManager.getByRole('heading',{name:'Invite a member of your staff'}).waitFor();
+    assert.equal(await departmentManager.getByRole('heading',{name:'Appoint an actual department manager'}).count(),0);
+    await evidence(departmentManager,'ips4-real-manager-team');
   });
-  for(const [route,name] of [
-    ['/admin/writers','company-os-specialist-network'],
-    ['/admin/quality','company-os-quality-review'],
-    ['/admin/payments','company-os-real-billing-readiness'],
-    ['/admin/reports','company-os-company-intelligence'],
-    ['/admin/settings','company-os-security-policy'],
-    ['/admin/journeys','company-os-full-business-journey']
-  ])await check('New Company OS browser workflow '+route,async()=>{
-    await admin.goto(base+route,{waitUntil:'domcontentloaded'});
-    await admin.locator('.ips-os').waitFor({timeout:15000});
-    await admin.locator('.os-title').waitFor({timeout:15000});
+  for(const [path,heading] of [
+    ['/admin/enquiries','Quotation intake and review'],
+    ['/admin/support','Customer support command'],
+    ['/admin/external-chats','Telegram operations'],
+    ['/admin/messages','Secure company conversations'],
+    ['/admin/quality','Quality, corrections and release'],
+    ['/admin/payments','Finance without imaginary balances'],
+    ['/admin/reports','Operating intelligence'],
+    ['/admin/settings','Trust and authority'],
+    ['/admin/journeys','One client journey, seven governed decisions']
+  ])await check('New fully dark admin workflow '+path,async()=>{
+    await admin.goto(base+path,{waitUntil:'domcontentloaded'});
+    await admin.locator('.ips4').waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:heading}).waitFor({timeout:15000});
     assert.equal(await admin.locator('body').evaluate(el=>el.scrollWidth>window.innerWidth+4),false);
-    await evidence(admin,name);
+    const controls=await admin.locator('.ips4 input:not([type=checkbox]),.ips4 textarea,.ips4 select').evaluateAll(
+      nodes=>nodes.slice(0,12).map(el=>({bg:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color}))
+    );
+    for(const x of controls){
+      assert.notEqual(x.bg,'rgb(255, 255, 255)','Bright white controls are prohibited: '+path);
+      assert.notEqual(x.color,'rgb(255, 255, 255)','Text must remain softly readable: '+path);
+    }
+    await evidence(admin,'ips4-'+path.replace('/admin/',''));
+  });
+  await check('Telegram inbox exposes the actual recorded customer message and never paints an unreadable white bubble',async()=>{
+    await admin.goto(base+'/admin/external-chats',{waitUntil:'domcontentloaded'});
+    await admin.getByRole('heading',{name:'Telegram operations'}).waitFor({timeout:15000});
+    const first=admin.locator('.ips4-record-entry').first();
+    await first.waitFor({timeout:15000});
+    await first.click();
+    const bubble=admin.locator('.ips4-chat .ips4-bubble').first();
+    await bubble.waitFor({timeout:15000});
+    const evidenceText=await bubble.innerText();
+    assert.ok(evidenceText.trim().length>=10,'Real Telegram history must not render as empty');
+    const colors=await bubble.evaluate(el=>{
+      const style=getComputedStyle(el);return {background:style.backgroundColor,color:style.color};
+    });
+    assert.notEqual(colors.background,'rgb(255, 255, 255)','Unreadable white Telegram chat is prohibited');
+    await admin.getByRole('heading',{name:'Telegram operations'}).waitFor();
+    await evidence(admin,'ips4-real-telegram-conversation-dark');
   });
   await check('Student logout clears the cookie and denies re-entry to private workspaces',async()=>{
     await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
@@ -310,7 +335,7 @@ try{
   });
   await check('Administrator sign-out invalidates backend authentication',async()=>{
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
-    await admin.locator('.ips-os-rail').getByRole('button',{name:'Sign out securely'}).click();
+    await admin.locator('.ips4-persona').getByRole('button',{name:/Sign out securely/}).click();
     await admin.waitForURL(url=>url.pathname===adminEntry,{timeout:15000});
     assert.equal((await admin.request.get(base+'/api/admin/me')).status(),401);
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});

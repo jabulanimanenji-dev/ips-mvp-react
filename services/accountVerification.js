@@ -30,11 +30,29 @@ export async function issueEmailChallenge(account,{env=process.env,send=sendBusi
   account.verification_attempts=0;
   await account.save();
   try{
+    // A new registration sends its own mail automatically. The recipient can
+    // complete verification with one click; no employee has to issue or mark it.
+    // The proof remains fragment-only until the browser POSTs it to IPS.
+    let verificationLink='';
+    try{
+      const origin=new URL(String(env.PUBLIC_APP_URL||''));
+      if((origin.protocol==='https:'||(env.NODE_ENV!=='production'&&origin.protocol==='http:'&&
+        ['localhost','127.0.0.1'].includes(origin.hostname)))&&
+        !origin.username&&!origin.password&&!origin.search&&!origin.hash&&
+        ['','/'].includes(origin.pathname)){
+        const role=account.writer_id?'writer':'client';
+        verificationLink=origin.origin+'/verify-email#'+new URLSearchParams({
+          role,email:normalizeEmail(account.email),code
+        }).toString();
+      }
+    }catch{}
     await send({
       to:normalizeEmail(account.email),
-      subject:'Your IPS verification code',
-      body:'Your IPS Academic Services verification code is: '+code+
-        '\n\nThe code expires in 15 minutes. If you did not request it, ignore this message. Never share your code or password with anyone.\n\nIPS Academic Services',
+      subject:'Verify your IPS email address',
+      body:'Confirm ownership of your IPS email address by opening the private link below. No administrator approval is needed.\n\n'+
+        (verificationLink?verificationLink+'\n\n':'')+
+        'If you cannot open the link, enter this eight-digit code on the IPS verification page: '+code+
+        '\n\nYour code and link expire in 15 minutes and work only once. If you did not register, ignore this message. Never share your code or password.\n\nIPS Academic Services',
       env
     });
   }catch(error){
