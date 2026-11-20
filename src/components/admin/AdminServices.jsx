@@ -76,6 +76,7 @@ export default function AdminServices(){
   };
   const saveQuote=async event=>{
     event.preventDefault();
+    if(!canEditQuote)return;
     const labor=Number(quote.labor),fee=Number(quote.service_fee),expenses=Number(quote.expenses);
     if(![labor,fee,expenses].every(v=>Number.isFinite(v)&&v>=0&&v<=100000)||labor+fee+expenses<=0||!quote.notes.trim()||!quote.expires_at){
       setError('Enter nonnegative amounts, an explanation and an expiry date.');return;
@@ -158,14 +159,14 @@ export default function AdminServices(){
       <form className="card" onSubmit={saveQuote} style={{width:'100%',maxWidth:620,maxHeight:'90vh',overflowY:'auto'}}>
         <div style={{display:'flex',justifyContent:'space-between',gap:12}}><div><small>{quoteJob.request_id}</small><h2 style={{fontSize:'1.22rem'}}>Itemized academic quotation</h2></div><button type="button" className="btn btn-ghost" onClick={()=>setQuoteJob(null)} disabled={busy}>Close</button></div>
         <div className="grid grid-3 gap-2">
-          {[['labor','Specialist work'],['service_fee','IPS service fee'],['expenses','Approved expenses']].map(([key,label])=><label key={key} className="form-group"><span className="form-label">{label}</span><input className="form-input" type="number" min="0" step=".01" value={quote[key]} onChange={e=>setQuote(v=>({...v,[key]:e.target.value}))} required/></label>)}
+          {[['labor','Specialist work'],['service_fee','IPS service fee'],['expenses','Approved expenses']].map(([key,label])=><label key={key} className="form-group"><span className="form-label">{label}</span><input className="form-input" type="number" min="0" step=".01" value={quote[key]} onChange={e=>setQuote(v=>({...v,[key]:e.target.value}))} disabled={!canEditQuote} required/></label>)}
         </div>
         <p style={{fontSize:'.86rem',color:'var(--text-muted)'}}>Currency: PLN (IPS academic quotations)</p>
-        <label className="form-group"><span className="form-label">Scope, deliverables and conditions</span><textarea className="form-textarea" rows={4} value={quote.notes} onChange={e=>setQuote(v=>({...v,notes:e.target.value}))} required/></label>
-        <label className="form-group"><span className="form-label">Valid until</span><input type="date" className="form-input" value={quote.expires_at} onChange={e=>setQuote(v=>({...v,expires_at:e.target.value}))} required/></label>
+        <label className="form-group"><span className="form-label">Scope, deliverables and conditions</span><textarea className="form-textarea" rows={4} value={quote.notes} onChange={e=>setQuote(v=>({...v,notes:e.target.value}))} disabled={!canEditQuote} required/></label>
+        <label className="form-group"><span className="form-label">Valid until</span><input type="date" className="form-input" value={quote.expires_at} onChange={e=>setQuote(v=>({...v,expires_at:e.target.value}))} disabled={!canEditQuote} required/></label>
         <strong>Total: {money(Number(quote.labor)+Number(quote.service_fee)+Number(quote.expenses),quote.currency)}</strong>
         <p style={{fontSize:'.82rem',color:'var(--text-muted)'}}>Quotations do not collect payment or authorize work until the client accepts the company's terms and a payment workflow is available.</p>
-        <button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Saving…':'Save academic quotation'}</button>
+        {canEditQuote?<button type="submit" className="btn btn-primary" disabled={busy}>{busy?'Saving…':'Save academic quotation'}</button>:<p role="note">Quotation is read-only at this stage. Move to Under Review to issue an eligible new quotation. Paid quotations are locked.</p>}
       </form>
     </div>}
   </section>;
