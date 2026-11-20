@@ -26,6 +26,7 @@ import { registerStudentWebhook, registerStudentPaymentRoutes } from './services
 import { registerContactWebhooks, registerContactApi } from './services/contactChannels.js';
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
+import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
 import { registerContactEmailWebhooks } from './services/contactEmailWebhooks.js';
 import { registerPrivateQuoteRoutes } from './services/quoteRequests.js';
 import {registerQuoteHandoffRoutes} from './services/quoteHandoff.js';
@@ -222,6 +223,16 @@ if (hasConfiguredMongo) {
   }
 } else {
   console.warn('MONGODB_URI is missing or contains placeholders. Database APIs are unavailable in this development session.');
+}
+
+// Production publication requires the actual owned BotFather identity and
+// the Telegram provider to confirm our signed webhook before taking traffic.
+// Development and isolated evaluation never register external webhooks.
+if (isProduction && String(process.env.IPS_PUBLICATION_STRICT || '').toLowerCase() === 'true' &&
+    String(process.env.IPS_EVALUATION_MODE || '').toLowerCase() !== 'true') {
+  const channel = await qualifyCompanyTelegramWebhook();
+  if (!channel.connected) throw new Error('IPS Telegram webhook was not established.');
+  console.log('IPS verified company Telegram bot identity and signed webhook registration.');
 }
 
 const resolveAdminAccess = async session => {
