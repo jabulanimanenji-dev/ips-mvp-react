@@ -1,0 +1,45 @@
+/* Case-backed IPS reporting, scoped to the company administration. */
+.ips-report-operational{display:grid;gap:19px;margin-top:24px;padding:23px 25px;border:1px solid var(--border);
+ background:var(--bg-card);border-radius:15px;color:var(--text-primary)}
+.ips-report-intelligence-head{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}
+.ips-report-intelligence-head h2{font-size:1.17rem;letter-spacing:-.03em;margin:7px 0;color:var(--text-primary)}
+.ips-report-intelligence-head p{font-size:.78rem;line-height:1.6;color:var(--text-secondary);margin:0}
+.ips-report-intelligence-head>a{display:flex;gap:8px;align-items:center}
+.ips-report-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.ips-report-kpi{display:grid;gap:9px;align-content:start;min-height:130px;padding:15px;background:var(--bg-surface-2);
+ border:1px solid var(--border);border-radius:11px}
+.ips-report-kpi span{font-size:.76rem;line-height:1.4;font-weight:700;color:var(--text-primary)}
+.ips-report-kpi strong{font-size:1.6rem;line-height:1.15;font-weight:800;font-variant-numeric:tabular-nums;color:var(--text-primary)}
+.ips-report-kpi small{font-size:.67rem;line-height:1.45;color:var(--text-secondary)}
+.ips-report-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,390px),1fr));gap:13px}
+.ips-report-section{border:1px solid var(--border);border-radius:12px;padding:19px;min-width:0;background:var(--bg-surface)}
+.ips-report-section h3{font-size:.92rem;font-weight:800;margin:0 0 18px;color:var(--text-primary)}
+.ips-report-section>small{display:block;margin-top:17px;font-size:.7rem;line-height:1.55;color:var(--text-secondary)}
+.ips-report-section>p{color:var(--text-secondary);font-size:.82rem}
+.ips-report-bar-row{display:grid;gap:7px;margin-bottom:16px}
+.ips-report-bar-row>div{display:flex;justify-content:space-between;gap:10px;font-size:.8rem;color:var(--text-primary)}
+.ips-report-bar-row strong{font-variant-numeric:tabular-nums}
+.ips-report-bar-row i{display:block;height:6px;border-radius:999px;background:var(--bg-surface-3);overflow:hidden}
+.ips-report-bar-row b{display:block;height:100%;border-radius:999px;background:#568c7f}
+.ips-report-workload{display:grid}
+.ips-report-workload>div{display:flex;justify-content:space-between;gap:12px;align-items:center;border-bottom:1px solid var(--border);padding:10px 0}
+.ips-report-workload>div:first-child{padding-top:0}
+.ips-report-workload>div:last-child{border-bottom:0}
+.ips-report-workload>div>span{min-width:0;display:grid;gap:4px}
+.ips-report-workload strong{font-size:.8rem;color:var(--text-primary)}
+.ips-report-workload small{font-size:.68rem;color:var(--text-secondary)}
+.ips-report-workload b{white-space:nowrap;font-size:.8rem;color:var(--text-primary)}
+.ips-report-scope{display:flex;align-items:flex-start;gap:10px;margin:0;padding:14px;border-radius:9px;
+ background:var(--bg-surface-2);color:var(--text-secondary);font-size:.73rem;line-height:1.55}
+.ips-report-scope svg{flex:none}
+.ips-premium-admin.ips-dark-admin .ips-report-operational{background:#1b303e!important;border-color:#3b5561;color:#e8f1f2}
+.ips-premium-admin.ips-dark-admin .ips-report-section{background:#1a2d3b!important;border-color:#3b5561}
+.ips-premium-admin.ips-dark-admin .ips-report-kpi,.ips-premium-admin.ips-dark-admin .ips-report-scope{
+ background:#243d4b!important;border-color:#3b5561}
+.ips-premium-admin.ips-dark-admin .ips-report-operational :is(h2,h3,strong,b,.ips-report-kpi span){color:#e9f2f2!important}
+.ips-premium-admin.ips-dark-admin .ips-report-operational :is(p,small,.ips-report-bar-row>div){color:#b6cdd1!important}
+.ips-premium-admin.ips-dark-admin .ips-report-bar-row i{background:#2d4955!important}
+.ips-premium-admin.ips-dark-admin .ips-report-bar-row b{background:#83c7b0}
+@media(max-width:1100px){.ips-report-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){.ips-report-operational{padding:16px}.ips-report-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:390px){.ips-report-kpis{grid-template-columns:1fr}}
