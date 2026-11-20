@@ -29,7 +29,7 @@ export default function QuoteRequestForm({selectedService=''}) {
   const options=useMemo(()=>[
     {value:'email',label:'Email',description:'Receive a written response at an email address you verify.'},
     {value:'telegram',label:'Telegram',description:'Start @IPScontactBot and send your quote reference. Bot chats are not end-to-end encrypted.'},
-    {value:'whatsapp',label:'WhatsApp',description:'Message IPS first from your WhatsApp number. Written messages only; no calls.'},
+    {value:'whatsapp',label:'WhatsApp — direct chat',description:'After submission, open WhatsApp and send your reference from the number you provide. IPS staff manually match it; this chat stays outside the IPS inbox. No calls.'},
     ...(verifiedUser?[{value:'workspace',label:'My IPS Workspace',description:'Receive the review and quote inside your signed-in IPS account.'}]:[])
   ],[verifiedUser]);
   const allowed=demo||Boolean(config.accepting_requests&&config[channel]);
@@ -83,9 +83,9 @@ export default function QuoteRequestForm({selectedService=''}) {
         <button className="ipsa-btn ipsa-btn-dark" disabled={busy||code.length!==8}>{busy?'Verifying…':'Verify email & submit request'}</button>
       </form>:null}
       {result.requires_chat_start?<div>
-        <p>For your privacy, IPS cannot message an unverified Telegram or WhatsApp account. Open the selected app and send only this reference: <strong>{result.quote_id}</strong>. Do not send your private documents there.</p>
+        <p>For your privacy, IPS cannot respond to an unverified contact. Open {channel==='whatsapp'?'WhatsApp':'Telegram'} and send only this reference: <strong>{result.quote_id}</strong>. {channel==='whatsapp'?'An IPS reviewer will manually check that the sender number matches your form. WhatsApp is not synchronized with the IPS inbox.':'The IPS bot must verify the linked Telegram conversation.'} Do not send private documents there.</p>
         <a className="ipsa-btn ipsa-btn-dark" href={channel==='telegram'?telegramHref:waHref} target="_blank" rel="noopener noreferrer">
-          Open {channel==='telegram'?'Telegram':'WhatsApp'} to verify your contact ↗
+          Open {channel==='telegram'?'Telegram':'WhatsApp'} and send the reference ↗
         </a>
       </div>:null}
       {result.contact_status==='verified'&&<p>Contact verified. IPS may now review your request. The written quote is not a payment demand or work authorization.</p>}
@@ -142,7 +142,7 @@ export default function QuoteRequestForm({selectedService=''}) {
         <input required value={form.telegram_username} onChange={e=>set('telegram_username',e.target.value)}
           minLength={5} maxLength={33} placeholder="@yourusername"/>
       </label>}
-      {channel==='whatsapp'&&<label>WhatsApp number (written messages only) <span>*</span>
+      {channel==='whatsapp'&&<label>WhatsApp number that you will message IPS from (written messages only) <span>*</span>
         <input required type="tel" value={form.phone} onChange={e=>set('phone',e.target.value)}
           placeholder="+48123456789" maxLength={24}/>
       </label>}
