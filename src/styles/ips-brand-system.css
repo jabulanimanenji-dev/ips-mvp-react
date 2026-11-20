@@ -666,3 +666,30 @@ body:has(.ips-evaluation-banner) :is(.admin-sidebar-overlay,.client-sidebar-over
 @media(max-width:600px){
   .ips-evaluation-banner { font-size:.68rem;gap:9px;padding:5px 10px; }
 }
+
+
+/* Publication checkpoint — managed project workspace.
+   No legacy violet/pink gradient or mixed panel vocabulary across roles. */
+.ipsa-workspace .ips-project-hero {
+  display:flex;flex-direction:column;gap:.6rem;
+  margin:1rem 0 1.25rem;padding:clamp(1.35rem,3vw,2rem);
+  border:1px solid #365971;border-radius:12px;
+  background:linear-gradient(125deg,#132d42,#244b60);
+  color:#f6f9fb;box-shadow:0 4px 18px rgba(8,35,54,.09);
+}
+.ipsa-workspace .ips-project-hero h1 {
+  color:#fff;font-weight:780;letter-spacing:-.035em;line-height:1.15;
+  margin:.1rem 0;font-size:clamp(1.5rem,2.7vw,2.1rem);
+}
+.ipsa-workspace .ips-project-hero-reference {
+  color:#d2bd93;font-size:.7rem;letter-spacing:.11em;font-weight:800;
+}
+.ipsa-workspace .ips-project-hero-description {
+  max-width:760px;color:#e2eaf0;font-size:.92rem;line-height:1.65;margin:0;
+}
+.ipsa-workspace .ips-project-tags { display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.4rem; }
+.ipsa-workspace .ips-project-tags span {
+  padding:.32rem .75rem;border-radius:6px;
+  background:rgba(230,238,244,.11);border:1px solid rgba(230,238,244,.18);
+  color:#fff;font-size:.73rem;font-weight:700;
+}
