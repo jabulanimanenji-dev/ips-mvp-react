@@ -98,13 +98,17 @@ export function registerCompanyCaseDesk(app,{requireSession}){
   app.get('/api/admin/company-cases/staff',async(req,res)=>{
     const session=requireSession(req,res);if(!session)return;
     if(session.role!=='admin'||!req.adminAccess||
-      !hasAdminPermission(req.adminAccess,'administrators.manage'))
+      !hasAdminPermission(req.adminAccess,'team.manage'))
       return res.status(403).json({success:false,error:'Team-management permission required.'});
     try{
-      const accounts=await Admin.find({status:'Active'})
-        .select('id name role status email').sort({name:1}).lean();
+      const access=req.adminAccess;
+      const filter=access.isRoot?{status:'Active',company_role:'manager'}:{
+        status:'Active',company_role:'staff',department:access.department,manager_id:access.adminId
+      };
+      const accounts=await Admin.find(filter)
+        .select('id name role status email department company_role manager_id').sort({name:1}).lean();
       const staff=accounts.filter(a=>!companyMode()||!isIpsQaFixtureAdmin(a))
-        .map(a=>({id:a.id,name:a.name||a.id,role:a.role}));
+        .map(a=>({id:a.id,name:a.name||a.id,role:a.company_role||a.role}));
       if(!staff.some(a=>a.id===session.id))
         staff.unshift({id:session.id,name:req.adminAccess.name||'IPS owner',role:req.adminAccess.role||'admin'});
       res.set('Cache-Control','private, no-store');
@@ -224,15 +228,19 @@ export function registerCompanyCaseDesk(app,{requireSession}){
     let assignedTo=session.id;
     const requestedAssignee=entry_kind==='task'?String(req.body?.assigned_to||'').trim():'';
     if(requestedAssignee&&requestedAssignee!==session.id){
-      if(!hasAdminPermission(req.adminAccess,'administrators.manage'))
+      if(!hasAdminPermission(req.adminAccess,'team.manage'))
         return res.status(403).json({success:false,error:'Team-management permission is required to delegate work.'});
       if(!validRef.test(requestedAssignee))
         return res.status(400).json({success:false,error:'Invalid assigned staff reference.'});
       try{
-        const colleague=await Admin.findOne({id:requestedAssignee,status:'Active'})
-          .select('id email status').lean();
+        const access=req.adminAccess;
+        const filter=access.isRoot?
+          {id:requestedAssignee,status:'Active',company_role:'manager'}:
+          {id:requestedAssignee,status:'Active',company_role:'staff',
+            department:access.department,manager_id:access.adminId};
+        const colleague=await Admin.findOne(filter).select('id email status department manager_id company_role').lean();
         if(!colleague||(companyMode()&&isIpsQaFixtureAdmin(colleague)))
-          return res.status(400).json({success:false,error:'Choose an active approved IPS administrator.'});
+          return res.status(403).json({success:false,error:'Only a managed and active member of your own team may receive delegated tasks.'});
         assignedTo=colleague.id;
       }catch{return error(res,'Could not verify the assigned staff member.');}
     }
