@@ -108,9 +108,10 @@ export default function AdminAccessManager(){
       setSelected(null);await reload();setNotice('Existing staff assigned to the selected manager. Previous sessions were revoked.');
     }catch(e){setError(e.message);}finally{setBusy(false);}
   }
-  const toggle=p=>setForm(v=>({
-    ...v,permissions:v.permissions.includes(p)?v.permissions.filter(x=>x!==p):[...v.permissions,p]
-  }));
+  const toggle=p=>setForm(v=>{
+    const current=v.permissions.length?v.permissions:permittedCompanyPermissions(isRoot?v.department:admin.department,level);
+    return {...v,permissions:current.includes(p)?current.filter(x=>x!==p):[...current,p]};
+  });
   if(!canManage)return <section className="card" style={{maxWidth:720,padding:28}}>
     <h2>Department management is restricted</h2>
     <p>You do not have team-management permission. Ask your IPS department manager for access.</p>
