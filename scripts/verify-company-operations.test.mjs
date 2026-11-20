@@ -43,19 +43,20 @@ test('normalized operational queues preserve pseudonym, real deadlines and actua
   assert.equal(project.assigned_specialist,true);
   assert.equal(project.status,'Submitted for Review');
 });
-test('rebuilt administration opens actual records rather than a generic counter-only dashboard',async()=>{
-  const app=await readFile(new URL('../src/App.jsx',import.meta.url),'utf8');
-  const work=await readFile(new URL('../src/companyOS/CompanyWork.jsx',import.meta.url),'utf8');
-  const css=await readFile(new URL('../src/companyOS/company-os.css',import.meta.url),'utf8');
-  const server=await readFile(new URL('../server.js',import.meta.url),'utf8');
-  assert.match(app,/ProtectedAdminRoute><CompanyShell/);
-  assert.match(app,/CompanyWork initialFilter="enquiry"/);
-  for(const endpoint of ['/api/admin/company-cases','/actions','/tasks/'])assert.ok(work.includes(endpoint));
-  for(const token of ['os-case-list','selected','Contact authorization','Activity','Private notes',
-    'Take ownership of verified enquiry','Assign to myself','Record '])assert.ok(work.includes(token),token);
-  assert.match(css,/\.os-case-workspace/);
-  assert.match(server,/registerCompanyCaseDesk\(app,\{requireSession\}\)/);
-  assert.doesNotMatch(work,/fakeRevenue|mockTickets|Math\.random\(/);
+test('new case operation is a source-bound protected service, not a decorative replacement panel',async()=>{
+ const [app,work,css,server]=await Promise.all([
+   readFile(new URL('../src/App.jsx',import.meta.url),'utf8'),
+   readFile(new URL('../src/administration/OperationsBoard.jsx',import.meta.url),'utf8'),
+   readFile(new URL('../src/administration/ips4.css',import.meta.url),'utf8'),
+   readFile(new URL('../server.js',import.meta.url),'utf8')
+ ]);
+ assert.match(app,/ProtectedAdminRoute><CompanyAdministration/);
+ assert.match(app,/path="case-desk" element={<Restricted permission="dashboard.view"><OperationsBoard/);
+ for(const token of ['/api/admin/company-cases','/actions','/tasks/','Take case ownership','Accountable person','Activity history','Internal action register'])
+  assert.ok(work.includes(token),token);
+ assert.match(css,/ips4-record-layout/);
+ assert.match(server,/registerCompanyCaseDesk\(app,\{requireSession\}\)/);
+ assert.doesNotMatch(work,/fakeRevenue|mockTickets|Math\.random\(/);
 });
 test('private case tasks are persisted with assigned staff and not sent by customer email or Telegram',async()=>{
   const model=await readFile(new URL('../models/CompanyCaseAction.js',import.meta.url),'utf8');
