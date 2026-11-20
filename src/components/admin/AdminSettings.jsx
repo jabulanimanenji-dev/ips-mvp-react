@@ -1,93 +1,69 @@
-import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import React,{useEffect,useState} from 'react';
+import {Link} from 'react-router-dom';
+import {useAuth} from '../../context/AuthContext';
 
-export default function AdminSettings() {
-  const { admin, hasAdminPermission } = useAuth();
-  const [summary, setSummary] = useState(null);
-  const [state, setState] = useState({ loading: true, saving: false, error: '', success: '' });
-
-  useEffect(() => {
-    fetch('/api/admin/data-summary')
-      .then(async response => {
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok || !data.success) throw new Error(data.error || 'Database summary could not be loaded.');
-        setSummary(data);
-        setState(previous => ({ ...previous, loading: false }));
-      })
-      .catch(error => setState(previous => ({ ...previous, loading: false, error: error.message })));
-  }, []);
-
-  const exportData = async () => {
-    setState(previous => ({ ...previous, saving: true, error: '', success: '' }));
-    try {
-      const response = await fetch('/api/admin/export');
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Export could not be generated.');
-      }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `ips-database-export-${new Date().toISOString().slice(0, 10)}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-      setState(previous => ({ ...previous, saving: false, success: 'Sanitised database export downloaded.' }));
-    } catch (error) {
-      setState(previous => ({ ...previous, saving: false, error: error.message }));
-    }
-  };
-
-  return (
-    <div>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>System governance</div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '.35rem 0' }}>Settings & Data</h2>
-        <p style={{ color: 'var(--text-muted)', margin: 0 }}>MongoDB is the source of truth. Your authority is enforced by the server on every protected request.</p>
-      </div>
-
-      {state.error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{state.error}</div>}
-      {state.success && <div className="toast success" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{state.success}</div>}
-
-      <div className="grid grid-2 gap-4">
-        <div className="card">
-          <h3 style={{ marginBottom: '.5rem' }}>Signed-in authority</h3>
-          <div className="badge badge-success">{admin?.customRoleName || admin?.role || 'Administrator'}</div>
-          <p><strong>{admin?.name}</strong><br /><span style={{ color: 'var(--text-muted)' }}>{admin?.email}</span></p>
-          <small style={{ color: 'var(--text-muted)' }}>{admin?.permissions?.includes('*') ? 'All platform permissions' : `${admin?.permissions?.length || 0} active permissions`}</small>
-          {admin?.isSuperAdmin && <div style={{ marginTop: '1rem' }}><Link to="/admin/access" className="btn btn-primary">Open Access Control</Link></div>}
+export default function AdminSettings(){
+  const {admin,hasAdminPermission}=useAuth();
+  const [checks,setChecks]=useState({telegram:null,whatsapp:null,email:null,payments:null});
+  const [error,setError]=useState('');
+  useEffect(()=>{
+    let active=true;
+    (async()=>{
+      try{
+        const [a,b,c]=await Promise.all([
+          fetch('/api/contact-channels/config',{cache:'no-store'}),
+          fetch('/api/contact-enquiries/config',{cache:'no-store'}),
+          fetch('/api/student-payments/config',{cache:'no-store'})
+        ]);
+        const [channels,emails,payments]=await Promise.all([a.json(),b.json(),c.json()]);
+        if(!a.ok||!b.ok||!c.ok)throw Error('Some public company service checks are unavailable.');
+        if(active)setChecks({
+          telegram:channels.telegram?.connected===true,
+          whatsapp:channels.whatsapp?.mode==='direct'&&channels.whatsapp.available===true,
+          email:emails.email_replies_configured===true,
+          payments:payments.enabled===true
+        });
+      }catch(e){if(active)setError(e.message);}
+    })();
+    return()=>{active=false;};
+  },[]);
+  const rows=[
+    ['IPS business email',checks.email===null?'Not checked':checks.email?'Configured':'Needs attention','Written confirmations from support@ipsglobalservice.com'],
+    ['Telegram bot',checks.telegram===null?'Not checked':checks.telegram?'Connected':'Needs attention','Customer-initiated, governed written support'],
+    ['WhatsApp',checks.whatsapp===null?'Not checked':checks.whatsapp?'Direct / manual':'Needs attention','Direct business chat; messages are not imported into IPS'],
+    ['Payments',checks.payments===null?'Not checked':checks.payments?'Enabled':'Pending integration','No payment collection until provider verification']
+  ];
+  return <section style={{maxWidth:1150,margin:'0 auto'}}>
+    <small style={{color:'var(--text-secondary)',fontWeight:750,letterSpacing:'.12em'}}>IPS · COMPANY SETTINGS</small>
+    <h1 style={{fontSize:'1.6rem',margin:'5px 0 8px'}}>Administration & company channels</h1>
+    <p style={{color:'var(--text-muted)',maxWidth:700}}>Operational access and written communication status for IPS Academic Services. Technical credentials are managed privately in the secure deployment environment.</p>
+    {error&&<p role="alert" className="card" style={{color:'var(--danger)'}}>{error}</p>}
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(285px,1fr))',gap:16,marginTop:22}}>
+      <section className="card">
+        <h2 style={{fontSize:'1.12rem'}}>My administrator account</h2>
+        <p style={{lineHeight:1.8}}><strong>{admin?.name||'IPS administrator'}</strong><small style={{color:'var(--text-muted)',display:'block'}}>{admin?.email||''}</small></p>
+        <p style={{fontSize:'.85rem',color:'var(--text-muted)'}}>Role: {admin?.customRoleName||admin?.role||'Administrator'}. Staff permissions are enforced on the server.</p>
+        {admin?.isSuperAdmin&&<Link className="btn btn-secondary" to="/admin/access">Manage authorized IPS staff</Link>}
+      </section>
+      <section className="card">
+        <h2 style={{fontSize:'1.12rem'}}>Communication status</h2>
+        <div style={{display:'grid',gap:11}}>
+          {rows.map(([name,status,note])=><div key={name} style={{paddingBottom:10,borderBottom:'1px solid var(--border)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',gap:10}}><strong>{name}</strong><span style={{fontSize:'.8rem',color:'var(--text-secondary)'}}>{status}</span></div>
+            <small style={{display:'block',marginTop:4,color:'var(--text-muted)'}}>{note}</small>
+          </div>)}
         </div>
-
-        <div className="card">
-          <h3 style={{ marginBottom: '.5rem' }}>Brand, Pages & Media</h3>
-          <p style={{ color: 'var(--text-muted)' }}>Visual configuration is versioned on the server. The builder supports responsive page composition, media, preview, publish, and rollback.</p>
-          {hasAdminPermission('design.view') && <Link to="/admin/cms" className="btn btn-primary">Open Visual Builder 2.0</Link>}
-        </div>
-
-        <div className="card">
-          <div className="flex justify-between items-center" style={{ marginBottom: '1rem' }}>
-            <div><h3 style={{ margin: 0 }}>Database Inventory</h3><small style={{ color: 'var(--text-muted)' }}>{summary?.source || 'MongoDB'} · {summary?.mode || 'server authoritative'}</small></div>
-            {hasAdminPermission('data.export') && <button className="btn btn-secondary" onClick={exportData} disabled={state.saving}>Export Safe JSON</button>}
-          </div>
-          {state.loading ? <p>Loading inventory…</p> : (
-            <div className="grid grid-3 gap-3">
-              {Object.entries(summary?.collections || {}).map(([key, value]) => (
-                <div key={key} style={{ padding: '.8rem', borderRadius: 12, background: 'var(--bg-surface-2)', border: '1px solid var(--border)' }}>
-                  <strong style={{ fontSize: '1.25rem' }}>{value}</strong>
-                  <small style={{ display: 'block', color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{key}</small>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div className="card" style={{ borderColor: 'rgba(237,158,111,.35)' }}>
-          <h3 style={{ marginBottom: '.5rem' }}>Recovery & Destructive Operations</h3>
-          <p style={{ color: 'var(--text-muted)', marginBottom: '.75rem' }}>Production deletion, restore, and bulk import require a controlled maintenance procedure, verified backup, least-privilege authority, and an audit record.</p>
-          <div className="badge badge-review">Protected maintenance only</div>
-        </div>
-      </div>
+      </section>
+      <section className="card">
+        <h2 style={{fontSize:'1.12rem'}}>Company website</h2>
+        <p style={{color:'var(--text-muted)'}}>The public website and academic service information are released through the company-controlled source and review process. The unrelated universal Platform Studio is not part of this operational workspace.</p>
+        <a className="btn btn-secondary" href="/" target="_blank" rel="noopener noreferrer">View IPS public website</a>
+      </section>
+      <section className="card">
+        <h2 style={{fontSize:'1.12rem'}}>Confidentiality & recovery</h2>
+        <p style={{color:'var(--text-muted)'}}>Customer documents belong in their authenticated workspace. Telegram supports general enquiries, WhatsApp is handled manually, and staff cannot initiate telephone calls.</p>
+        <p style={{fontSize:'.84rem',color:'var(--text-muted)'}}>Backups, production restores, administrator password changes and private credential rotation require governed operational procedures rather than one-click destructive actions.</p>
+      </section>
     </div>
-  );
+  </section>;
 }
