@@ -4,6 +4,7 @@ import express from 'express';
 import mongoose from 'mongoose';
 import Admin from '../models/Admin.js';
 import Client from '../models/Client.js';
+import Writer from '../models/Writer.js';
 import CompanyCaseAction from '../models/CompanyCaseAction.js';
 import {registerCompanyOperatingSystem} from '../services/companyOperatingSystem.js';
 import {completePasswordRecovery} from '../services/passwordRecovery.js';
@@ -181,6 +182,44 @@ try{
     actor:'manager-client',method:'POST',json:{reason:'Pending verification should not allow password reset'}});
   assert.equal(unverified.status,409);
   pass('Client manager delivers a real one-use recovery link only to the verified mailbox; old sessions invalidated and other departments blocked');
+
+  // Specialist password recovery uses the same real MongoDB evidence and
+  // verified registered email as the client flow, but has a distinct role-bound
+  // one-use token and an independent specialist manager permission boundary.
+  ids['manager-specialist']=await issueInvite('root','Specialist Qualification Manager',
+    'manager-specialist-ci@example.org','specialist_network','manager');
+  const specialistId='WID-'+crypto.randomBytes(9).toString('hex').toUpperCase();
+  await Writer.create({writer_id:specialistId,full_name:'Verified Academic Reviewer',
+    email:'specialist-recovery-ci@example.org',password:hashPassword('OldSpecialistPassword2026!'),
+    status:'Active',application_status:'approved',email_verified_at:new Date(),session_version:1});
+  const deniedSpecialist=await call('/api/admin/specialists/'+specialistId+'/password-recovery',{
+    actor:'manager-client',method:'POST',json:{reason:'Cross-department specialist recovery attempt is not allowed'}});
+  assert.equal(deniedSpecialist.status,403);
+  const specialistReset=await call('/api/admin/specialists/'+specialistId+'/password-recovery',{
+    actor:'manager-specialist',method:'POST',
+    json:{reason:'Verified specialist requested an email password reset through IPS care'}});
+  assert.equal(specialistReset.status,202,JSON.stringify(specialistReset.data));
+  assert.equal(sent[sent.length-1].to,'specialist-recovery-ci@example.org');
+  assert.ok(!JSON.stringify(specialistReset.data).includes('token='));
+  const specialistToken=sent[sent.length-1].body.match(/\/writer\/reset-password#token=([A-Za-z0-9_-]{43})/)?.[1];
+  assert.ok(specialistToken,'Specialist must receive distinct role-bound one-use link.');
+  assert.notEqual(specialistToken,resetToken);
+  const changedSpecialist=await completePasswordRecovery(specialistToken,'NewSpecialistPassword2026!',{
+    env,model:Writer,scope:'writer',hashPassword});
+  assert.equal(changedSpecialist.success,true);
+  assert.equal((await Writer.findOne({writer_id:specialistId})).session_version,2);
+  const replaySpecialist=await completePasswordRecovery(specialistToken,'NewSpecialistPassword2026!',{
+    env,model:Writer,scope:'writer',hashPassword});
+  assert.equal(replaySpecialist.status,400);
+  const unverifiedWriterId='WID-'+crypto.randomBytes(9).toString('hex').toUpperCase();
+  await Writer.create({writer_id:unverifiedWriterId,full_name:'Unverified Specialist',
+    email:'unverified-specialist-ci@example.org',password:hashPassword(password),
+    status:'Active',application_status:'pending',email_verified_at:null});
+  const deniedUnverified=await call('/api/admin/specialists/'+unverifiedWriterId+'/password-recovery',{
+    actor:'manager-specialist',method:'POST',
+    json:{reason:'Cannot initiate specialist recovery before mailbox proof'}});
+  assert.equal(deniedUnverified.status,409);
+  pass('Real specialist manager initiates verified-email reset; one-use token rotates specialist session, cross-team, unverified and replay blocked');
 
   await CompanyCaseAction.create({case_kind:'enquiry',case_ref:'IPS-Q-TEST-TEAM-001',entry_kind:'task',
     body:'Follow up on a customer response',created_by:ids['manager-client'],assigned_to:ids['staff-a'],
