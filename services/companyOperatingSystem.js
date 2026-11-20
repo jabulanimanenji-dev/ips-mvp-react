@@ -96,6 +96,8 @@ export function registerCompanyOperatingSystem(app,{
     const problem=validationReason(name,email);
     if(problem)return invalid(res,problem);
     if(!isCompanyDepartment(targetDepartment))return invalid(res,'Choose a valid IPS department.');
+    if(!actor.isRoot&&department&&department!==actor.department)
+      return invalid(res,'A manager cannot invite staff outside their assigned department.',403);
     if(req.body?.company_role&&req.body.company_role!==targetRole)
       return invalid(res,'Only the owner appoints department managers; managers invite staff under themselves.',403);
     if(req.body?.manager_id&&(actor.isRoot||req.body.manager_id!==actor.adminId))
