@@ -207,9 +207,15 @@ try{
     await admin.getByRole('status').filter({hasText:'Internal follow-up task recorded.'}).waitFor({timeout:15000});
     await admin.getByRole('button',{name:'Refresh live work'}).click();
     await admin.locator('.ips-ops-case-brief').waitFor({timeout:15000});
+    await admin.getByRole('button',{name:'Switch administration to dark mode'}).click();
+    await admin.locator('.ips-dark-admin').waitFor({timeout:10000});
+    const dark=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
+    assert.equal(dark,'rgb(17, 30, 41)','Dark administration must be a genuine readable dark surface.');
+    await evidence(admin,'ips-company-operations-dark');
+    await admin.getByRole('button',{name:'Switch administration to light mode'}).click();
     const palette=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
-    assert.equal(palette,'rgb(247, 247, 243)','Administration must be warm, light-first, not a dark internal console.');
-    await evidence(admin,'ips-premium-command-center');
+    assert.equal(palette,'rgb(247, 247, 243)','Light administration must restore its scoped surface.');
+    await evidence(admin,'ips-company-operations-light');
     await admin.getByRole('button',{name:'Search administration sections'}).click();
     const dialog=admin.getByRole('dialog',{name:'Search IPS workspaces'});
     await dialog.getByRole('searchbox',{name:'Find workspace'}).fill('Academic projects');
