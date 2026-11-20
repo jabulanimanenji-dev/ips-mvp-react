@@ -921,11 +921,11 @@ async function go(){
   const updatedIndex=await call('/api/admin/company-cases',{session:admin.cookie});
   const updatedQuote=updatedIndex.body.cases.find(x=>x.kind==='enquiry'&&x.ref===reference);
   assert.ok(updatedQuote.tasks.open>=1);
-  const completed=await call('/api/admin/company-cases/enquiry/'+reference+'/tasks/'+taskId,{
+  const caseTaskCompleted=await call('/api/admin/company-cases/enquiry/'+reference+'/tasks/'+taskId,{
     method:'PATCH',session:admin.cookie,json:{task_status:'done'}
   });
-  assert.equal(completed.status,200,JSON.stringify(completed.body));
-  assert.equal(completed.body.action.task_status,'done');
+  assert.equal(caseTaskCompleted.status,200,JSON.stringify(caseTaskCompleted.body));
+  assert.equal(caseTaskCompleted.body.action.task_status,'done');
   const persisted=await call('/api/admin/company-cases/enquiry/'+reference,{session:admin.cookie});
   assert.equal(persisted.status,200);
   assert.ok(persisted.body.actions.some(x=>x.entry_kind==='note'&&x.body.includes('Verified source quote')));
