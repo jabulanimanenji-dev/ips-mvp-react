@@ -177,7 +177,7 @@ try{
     await admin.locator('input[type=email]').fill(process.env.ADMIN_EMAIL);
     await admin.locator('input[type=password]').fill(process.env.ADMIN_PASSWORD);
     await admin.getByRole('button',{name:'Sign In'}).click();
-    await admin.waitForURL(/\\/admin\\//,{timeout:15000});
+    await admin.waitForURL(/\/admin\//,{timeout:15000});
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
     await admin.locator('.ips-os').waitFor({timeout:15000});
     await admin.getByRole('heading',{name:'The company, under your control.'}).waitFor({timeout:15000});
@@ -205,7 +205,7 @@ try{
     await mobile.locator('input[type=email]').fill(process.env.ADMIN_EMAIL);
     await mobile.locator('input[type=password]').fill(process.env.ADMIN_PASSWORD);
     await mobile.getByRole('button',{name:'Sign In'}).click();
-    await mobile.waitForURL(/\\/admin\\//,{timeout:15000});
+    await mobile.waitForURL(/\/admin\//,{timeout:15000});
     await mobile.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
     await mobile.locator('.ips-os').waitFor({timeout:15000});
     await mobile.getByRole('heading',{name:'The company, under your control.'}).waitFor();
@@ -268,7 +268,7 @@ try{
     await departmentManager.locator('input[type=email]').fill('manager-client-ci@example.org');
     await departmentManager.locator('input[type=password]').fill('TestCompanyPassword2026!');
     await departmentManager.getByRole('button',{name:'Sign In'}).click();
-    await departmentManager.waitForURL(/\\/admin\\//,{timeout:15000});
+    await departmentManager.waitForURL(/\/admin\//,{timeout:15000});
     await departmentManager.goto(base+'/admin/access',{waitUntil:'domcontentloaded'});
     await departmentManager.getByRole('heading',{name:'People, authority and responsibility'}).waitFor();
     await departmentManager.getByText('Client Care Officer B').waitFor({timeout:15000});
