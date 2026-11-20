@@ -5,13 +5,23 @@ import {Link,Outlet,useLocation} from 'react-router-dom';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import AdminIcon from '../components/admin/AdminIcon';
 import {useAuth} from '../context/AuthContext';
-import {useTheme} from '../context/ThemeContext';
 import {IPS_COMPANY_ADMIN_NAV} from '../../shared/ipsCompanyScope.js';
 
 export default function AdminLayout(){
   const location=useLocation();
   const {admin,hasAdminPermission}=useAuth();
-  const {theme,toggleTheme}=useTheme();
+  // Admin theme is private to the company console. Never flip public/client themes.
+  const [theme,setTheme]=useState(()=>{
+    try{return localStorage.getItem('ips-admin-theme')==='light'?'light':'dark';}
+    catch{return 'dark';}
+  });
+  const toggleTheme=()=>{
+    setTheme(value=>{
+      const next=value==='dark'?'light':'dark';
+      try{localStorage.setItem('ips-admin-theme',next);}catch{}
+      return next;
+    });
+  };
   const [searchOpen,setSearchOpen]=useState(false);
   const [term,setTerm]=useState('');
   const searchRef=useRef(null);
