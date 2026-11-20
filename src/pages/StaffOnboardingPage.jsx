@@ -1,6 +1,6 @@
 import React,{useEffect,useState} from 'react';
 import {Link} from 'react-router-dom';
-import {companyStaffPasswordValid} from '../../services/companyOperatingSystem.js';
+import {companyStaffPasswordValid} from '../../shared/companyGovernance.js';
 
 // Read the one-use secret from the URL fragment, never from the query string,
 // and remove it from the visible address immediately.
