@@ -93,7 +93,7 @@ export default function AdminSidebar(){
           <AdminIcon name="lock" size={15}/> Private company environment
         </div>
         {logoutError&&<p role="alert" style={{fontSize:'.72rem',color:'#ffbeb8'}}>{logoutError}</p>}
-        <button type="button" className="ips-premium-logout" onClick={handleLogout}
+        <button type="button" className="ips-premium-logout" aria-label="Logout" onClick={handleLogout}
           style={{width:'100%',display:'flex',alignItems:'center',justifyContent:'center',gap:9,background:'transparent',
             border:'1px solid #587082',borderRadius:9,padding:'11px',color:'#e7eef2',fontSize:'.8rem',fontWeight:750}}>
           <AdminIcon name="logout" size={17}/> Logout
