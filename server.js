@@ -203,9 +203,9 @@ app.use('/api',async(req,res,next)=>{
   try{
     if(mongoose.connection.readyState!==1)return res.status(503).json({success:false,error:'Account verification is temporarily unavailable.'});
     const valid=session.role==='client'
-      ?await Client.exists({client_id:session.id,email_verified_at:{$ne:null},status:'Active',...sessionFilter(session)})
-      :await Writer.exists({writer_id:session.id,email_verified_at:{$ne:null},status:'Active',application_status:'approved',...sessionFilter(session)});
-    if(!valid){
+      ?await Client.findOne({client_id:session.id,email_verified_at:{$ne:null},status:'Active',...sessionFilter(session)}).select('email').lean()
+      :await Writer.findOne({writer_id:session.id,email_verified_at:{$ne:null},status:'Active',application_status:'approved',...sessionFilter(session)}).select('email').lean();
+    if(!valid||(isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'&&isIpsQaFixtureEmail(valid.email))){
       res.set('Cache-Control','no-store');
       res.setHeader('Set-Cookie','ips_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
       return res.status(401).json({success:false,error:'Account verification or access has changed. Please sign in again.'});
@@ -499,7 +499,7 @@ app.post('/api/client/login', async (req, res) => {
   try {
     const email=normalizeEmail(req.body?.email),password=String(req.body?.password||'');
     const client = await Client.findOne({email});
-    if (client && verifyPassword(password, client.password)) {
+    if (client && !(isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'&&isIpsQaFixtureClient(client))&&verifyPassword(password, client.password)) {
       if(!client.email_verified_at)return res.status(403).json({success:false,verification_required:true,message:'Verify your email before accessing your account.'});
       if (client.status==='Suspended'||client.status==='Inactive')return res.status(403).json({success:false,message:'Account access is currently unavailable.'});
       if (!client.password.startsWith('scrypt$')) {
@@ -962,7 +962,7 @@ app.post('/api/writer/login', async (req, res) => {
     const email = String(req.body?.email || '').trim().toLowerCase();
     const password = String(req.body?.password || '');
     const writer = await Writer.findOne({ email });
-    if (!writer || !verifyPassword(password, writer.password)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    if (!writer || (isProduction&&String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'&&isIpsQaFixtureEmail(writer.email)) || !verifyPassword(password, writer.password)) return res.status(401).json({ success: false, message: 'Invalid credentials' });
     if(!writer.email_verified_at)return res.status(403).json({success:false,verification_required:true,message:'Verify your specialist email address first.'});
     const applicationStatus = writer.application_status || 'approved';
     if (applicationStatus === 'pending') return res.status(403).json({ success: false, message: 'Your service-provider application is awaiting review.' });
