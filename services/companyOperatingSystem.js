@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import Admin from '../models/Admin.js';
 import Client from '../models/Client.js';
+import Writer from '../models/Writer.js';
 import ContactEnquiry from '../models/ContactEnquiry.js';
 import SupportTicket from '../models/SupportTicket.js';
 import CompanyCaseAction from '../models/CompanyCaseAction.js';
@@ -12,7 +13,7 @@ import {emailValid,normalizeEmail} from '../shared/privacyIdentity.js';
 import {hasAdminPermission} from '../shared/adminPermissions.js';
 import {COMPANY_DEPARTMENTS,isCompanyDepartment,mayManageTeamMember,
   permittedCompanyPermissions,managerTeamTitle,companyStaffPasswordValid} from '../shared/companyGovernance.js';
-import {isIpsQaFixtureAdmin,isIpsQaFixtureClient} from '../shared/ipsCompanyScope.js';
+import {isIpsQaFixtureAdmin,isIpsQaFixtureClient,isIpsQaFixtureEmail} from '../shared/ipsCompanyScope.js';
 
 const emailRegex=/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
 const actorAllowed=(req,res,requireSession)=>{
@@ -65,7 +66,7 @@ export const isProtectedOwnerRecord=(record,env)=>Boolean(record&&
 
 export function registerCompanyOperatingSystem(app,{
   requireSession,hashPassword,validAdminPassword,adminModel=Admin,
-  clientModel=Client,send=sendBusinessEmail,env=process.env
+  clientModel=Client,writerModel=Writer,send=sendBusinessEmail,env=process.env
 }={}){
   app.get('/api/admin/company-team/roster',async(req,res)=>{
     const actor=actorAllowed(req,res,requireSession);if(!actor)return;
@@ -362,4 +363,33 @@ export function registerCompanyOperatingSystem(app,{
       res.status(202).json({success:true,message:'If eligible, a one-time recovery link has been sent to the verified customer email. Staff cannot see or change the password.'});
     }catch{return invalid(res,'Client password recovery is temporarily unavailable.',503);}
   });
+  // A company administrator can initiate a password reset for an eligible
+  // specialist, but cannot set, read or recover their password or reset token.
+  app.post('/api/admin/specialists/:id/password-recovery',async(req,res)=>{
+    const session=requireSession(req,res);if(!session)return;
+    const access=req.adminAccess;
+    if(session.role!=='admin'||!access||!hasAdminPermission(access,'providers.manage'))
+      return invalid(res,'Specialist account management permission required.',403);
+    const id=String(req.params.id||'');
+    const reason=String(req.body?.reason||'').trim();
+    if(!/^WID-[A-Za-z0-9_-]{5,60}$/.test(id)||reason.length<10||reason.length>500)
+      return invalid(res,'A valid specialist reference and documented assistance reason are required.');
+    if(!recoveryReady(env))return invalid(res,'Verified email password recovery is not available.',503);
+    try{
+      const account=await writerModel.findOne({writer_id:id})
+        .select('writer_id email email_verified_at status application_status');
+      if(!account||!account.email_verified_at||
+        (production()&&isIpsQaFixtureEmail(account.email)))
+        return invalid(res,'Only a registered, email-verified specialist can receive this reset.',409);
+      const result=await requestPasswordRecovery(account.email,{env,model:writerModel,scope:'writer',send});
+      if(result.unavailable)return invalid(res,'Secure specialist recovery is unavailable.',503);
+      if(result.alreadySent)return invalid(res,'A recent specialist recovery link is already pending.',429);
+      if(!result.delivered)return invalid(res,'The email provider did not accept a specialist password reset.',503);
+      await log({actor:access.adminId,action:'company_specialist_password_recovery_initiated',
+        details:{writer_id:id,reason,delivery:'verified_registered_email_only'}});
+      res.set('Cache-Control','private, no-store');
+      return res.status(202).json({success:true,message:'A private one-time reset link was sent to the verified specialist email. Staff cannot view the link or password.'});
+    }catch{return invalid(res,'Specialist password recovery is temporarily unavailable.',503);}
+  });
+
 }
