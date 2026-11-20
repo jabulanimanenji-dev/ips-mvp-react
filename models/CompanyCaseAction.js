@@ -11,6 +11,7 @@ const CompanyCaseActionSchema=new mongoose.Schema({
   due_at:{type:Date,default:null},
   task_status:{type:String,enum:['open','done'],default:'open'},
   created_by:{type:String,required:true,maxlength:160},
+  assigned_to:{type:String,required:true,maxlength:160},
   completed_by:{type:String,default:'',maxlength:160},
   completed_at:{type:Date,default:null}
 },{timestamps:true,strict:true});
