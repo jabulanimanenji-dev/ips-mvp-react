@@ -1,7 +1,7 @@
 import { cloneHeroResponsiveDefaults } from '../../shared/heroResponsive.js';
 
 export const DEFAULT_CMS = {
-  brand: { name: 'I P S', tagline: 'Professional Services. One Trusted Platform.', email: 'admin@ipsglobalservice.com', whatsapp: '+48 452 428 932' },
+  brand: { name: 'I P S', tagline: 'Professional Services. One Trusted Platform.', email: 'contact@ipsglobalservice.com', whatsapp: '' },
   authNavigation: {
     signInLabel: 'Sign in',
     signUpLabel: 'Sign up',
@@ -34,14 +34,14 @@ export const DEFAULT_CMS = {
     eyebrow: 'IPS Global Services',
     headline: 'Professional Services.',
     highlightedText: 'One Trusted Platform.',
-    highlightColor: '#F3B37C',
-    subheadline: 'Start with thesis writing, dissertations and assignments, or explore business, technology, creative, career, translation and practical support—all coordinated through IPS.',
+    highlightColor: '#C4A06A',
+    subheadline: 'Private academic coaching, editorial review, methods guidance, analysis and professional consulting — all centrally reviewed and managed by IPS.',
     backgroundType: 'image',
     backgroundMedia: '/images/hero-bg.jpg',
     posterMedia: '/images/hero-bg.jpg',
     fallbackImage: '/images/hero-bg.jpg',
     backgroundPosition: 'center',
-    overlayColor: '#35124C',
+    overlayColor: '#102A43',
     overlayOpacity: 0.72,
     alignment: 'center',
     height: 620,
@@ -52,8 +52,8 @@ export const DEFAULT_CMS = {
     searchVisible: true,
     searchPlaceholder: 'What do you need help with today?',
     searchButtonLabel: 'Explore',
-    popularSearches: ['Thesis writing', 'Business plan', 'Website development', 'Logo design', 'Data analysis'],
-    trustItems: ['Academic experts', 'Business professionals', 'Fast response', 'Secure process'],
+    popularSearches: ['Research methodology', 'Business plan', 'Website development', 'Editing and formatting', 'Data analysis'],
+    trustItems: ['Human-reviewed requests', 'Private written contact', 'Approved specialists', 'Managed delivery'],
     responsive: cloneHeroResponsiveDefaults(),
     ctaPrimary: 'Request a Quote',
     ctaSecondary: 'View Pricing'
@@ -69,12 +69,12 @@ export const DEFAULT_CMS = {
     projectFlat: 200, oddJobFlat: 100, rush7day: 50, rush48hour: 100
   },
   faq: [
-    { q: 'Is the work really mine to publish?', a: 'Yes. Upon final payment, 100% ownership transfers to you. You receive a signed Certificate of Ownership Transfer. No attribution to I P S or writers is ever required.' },
-    { q: 'How do installments work?', a: 'Pay per milestone. For a thesis: 20% deposit, then 20% per milestone. Work only proceeds after each payment is confirmed. No hidden fees, ever.' },
-    { q: 'What currencies do you accept?', a: 'We accept all major currencies. Stripe auto-converts to your local currency at checkout. You see your price in your currency — we receive USD on our end.' },
+    { q: 'Can I submit the delivered materials as my own assessed work?', a: 'IPS provides legitimate research coaching, editing, methodology and data support. Your assessed academic submissions must remain your own and follow your institution’s policies.' },
+    { q: 'How do payments work?', a: 'An IPS reviewer issues a written quotation. Online payment integration is pending, so IPS does not yet collect payments through the platform.' },
+    { q: 'What currencies are available?', a: 'Your quotation states its currency and total. Supported payment methods and currencies will be confirmed when secure checkout is activated.' },
     { q: 'How do I track progress?', a: 'Every client gets a private portal with real-time milestone tracking, file sharing, and direct communication with our admin team. Access via your unique Client ID.' },
-    { q: 'Who are your writers?', a: 'Verified professionals with advanced degrees. Each writer is vetted, rated, and bound by strict NDAs. You never interact with them directly — we manage everything for your privacy.' },
-    { q: 'What if I need revisions?', a: 'Two free revisions per milestone, provided the request is within the original scope. Additional revisions are available at a small fee. Your satisfaction is our priority.' }
+    { q: 'Who works on projects?', a: 'IPS reviews and approves specialists before allocating eligible work. Qualifications and availability are assessed for each assignment, with client communication managed centrally.' },
+    { q: 'What if I need revisions?', a: 'Revisions follow the written scope and terms agreed for a project. Submit and track your requests in the private IPS workspace.' }
   ],
   process: {
     label: 'The Process',
@@ -87,20 +87,16 @@ export const DEFAULT_CMS = {
       { number: '04', title: 'Receive & Complete', description: 'Review the final delivery and keep every approved file in your workspace.' }
     ]
   },
-  testimonials: [
-    { text: 'I P S handled my entire Master\'s thesis. The milestone system made it affordable, and the final work was publishable quality.', client: 'Client, Nigeria' },
-    { text: 'Found accommodation in London within a week through their odd jobs service. Professional, fast, and incredibly helpful.', client: 'Client, United Kingdom' },
-    { text: 'The ownership certificate gave me complete peace of mind. My PhD dissertation was original, well-researched, and delivered on every milestone.', client: 'Client, India' }
-  ],
+  testimonials: [], // No unverified customer reviews are published without explicit consent.
   about: {
     headline: 'We Exist to Eliminate Barriers',
     p1: 'We believe every student, researcher, and professional worldwide deserves access to quality academic and professional services they can afford and trust.',
-    p2: 'I P S operates as a professional ghostwriting and academic consulting service — legally analogous to hiring a speechwriter or memoir ghostwriter. We provide original, custom-written work as a work-for-hire, with full copyright transfer to you upon payment.',
-    stat1: '1,500+', stat1Label: 'Clients Served',
-    stat2: '20+', stat2Label: 'Countries',
-    stat3: '98%', stat3Label: 'Satisfaction'
+    p2: 'IPS coordinates private academic coaching, professional editing, methods support and independent consulting under human management. Academic submissions remain the student’s own responsibility and must meet institutional rules.',
+    stat1: 'Private', stat1Label: 'Client Requests',
+    stat2: 'Written', stat2Label: 'Communication',
+    stat3: 'Managed', stat3Label: 'Service Review'
   },
-  trustBadges: ['🔒 Secure Payments', '🛡️ Confidential Process', '✅ 100% Original', '📄 Full Ownership'],
+  trustBadges: ['🔒 Private Accounts', '🛡️ Confidential Workflow', '✉ Written Responses', '✓ Human Review'],
   footer: { copyright: '2025 I P S' }
 };
 
