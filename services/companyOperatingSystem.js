@@ -55,6 +55,13 @@ function staffEmailText({name,department,role,link}){
 }
 const invalid=(res,error,status=400)=>res.status(status).json({success:false,error});
 const production=()=>process.env.NODE_ENV==='production'&&String(process.env.IPS_EVALUATION_MODE||'')!=='true';
+// The owner is an environment-backed principal, not a MongoDB employee.
+// An old Admin row with that email must never appear in staff management,
+// be adopted as staff or be altered via delegation endpoints.
+export const ownerPrincipalEmail=env=>normalizeEmail(env.ADMIN_EMAIL||'admin@ipsglobal.com');
+export const isProtectedOwnerRecord=(record,env)=>Boolean(record&&
+  (normalizeEmail(record.email)===ownerPrincipalEmail(env)||
+   String(record.id||'').trim().toLowerCase()===ownerPrincipalEmail(env)));
 
 export function registerCompanyOperatingSystem(app,{
   requireSession,hashPassword,validAdminPassword,adminModel=Admin,
@@ -65,7 +72,8 @@ export function registerCompanyOperatingSystem(app,{
     try{
       const query=actor.isRoot?{}:{company_role:'staff',department:actor.department,manager_id:actor.adminId};
       const members=await adminModel.find(query).sort({createdAt:-1}).select('-password -invite_token_hash').lean();
-      const filtered=production()?members.filter(a=>!isIpsQaFixtureAdmin(a)):members;
+      const withoutOwner=members.filter(a=>!isProtectedOwnerRecord(a,env));
+      const filtered=production()?withoutOwner.filter(a=>!isIpsQaFixtureAdmin(a)):withoutOwner;
       const ids=filtered.map(x=>x.id);
       const [taskCounts,quoteCounts,ticketCounts]=ids.length?await Promise.all([
         CompanyCaseAction.aggregate([{$match:{assigned_to:{$in:ids},entry_kind:'task',task_status:'open'}},
@@ -111,6 +119,7 @@ export function registerCompanyOperatingSystem(app,{
     const permissions=Array.isArray(requested)?available.filter(x=>requested.includes(x)):available;
     if(!permissions.includes('platform.access')||!permissions.includes('dashboard.view'))
       return invalid(res,'Workspace access and the dashboard are mandatory.');
+    if(email===ownerPrincipalEmail(env))return invalid(res,'The protected company owner cannot become a staff account.',409);
     if(await adminModel.exists({email}))return invalid(res,'This staff email is already registered.',409);
     const token=crypto.randomBytes(32).toString('base64url');
     const hash=invitationDigest(token,env.EMAIL_VERIFICATION_SECRET);
@@ -167,7 +176,7 @@ export function registerCompanyOperatingSystem(app,{
     const actor=actorAllowed(req,res,requireSession);if(!actor)return;
     const account=await adminModel.findOne({id:req.params.id})
       .select('+invite_token_hash +invite_expires_at +invite_sent_at');
-    if(!account||!mayManageTeamMember(actor,account))
+    if(!account||isProtectedOwnerRecord(account,env)||!mayManageTeamMember(actor,account))
       return invalid(res,'This invitation does not belong to your team.',403);
     if(!['Invited','Locked'].includes(account.status))
       return invalid(res,'Only pending or failed invitations can be resent.',409);
@@ -200,7 +209,7 @@ export function registerCompanyOperatingSystem(app,{
     const actor=actorAllowed(req,res,requireSession);if(!actor)return;
     if(!actor.isRoot)return invalid(res,'Only the company owner can assign existing legacy staff to managers.',403);
     const target=await adminModel.findOne({id:req.params.id});
-    if(!target||target.company_role||target.status!=='Active'||target.id===actor.adminId)
+    if(!target||isProtectedOwnerRecord(target,env)||target.company_role||target.status!=='Active'||target.id===actor.adminId)
       return invalid(res,'Only an existing active, unassigned legacy administrator can be adopted.',409);
     const manager=await adminModel.findOne({id:String(req.body?.manager_id||''),company_role:'manager',status:'Active'});
     if(!manager||!isCompanyDepartment(manager.department))
@@ -220,7 +229,7 @@ export function registerCompanyOperatingSystem(app,{
     if(actor.adminId===req.params.id||actor.isRoot&&req.params.id===actor.email)
       return invalid(res,'You cannot modify your own company authority or status.',409);
     const target=await adminModel.findOne({id:req.params.id});
-    if(!target||!mayManageTeamMember(actor,target))return invalid(res,'This team member is outside your delegated authority.',403);
+    if(!target||isProtectedOwnerRecord(target,env)||!mayManageTeamMember(actor,target))return invalid(res,'This team member is outside your delegated authority.',403);
     const allowed=permittedCompanyPermissions(target.department,target.company_role);
     const updates=req.body||{};
     if(updates.permissions!==undefined){
@@ -254,7 +263,7 @@ export function registerCompanyOperatingSystem(app,{
     const memberId=String(req.params.id||'');
     if(memberId===actor.adminId||memberId===actor.email)return invalid(res,'The current company owner or acting manager cannot offboard themselves.',409);
     const target=await adminModel.findOne({id:memberId});
-    if(!target||!mayManageTeamMember(actor,target))return invalid(res,'Cannot offboard an administrator outside your team.',403);
+    if(!target||isProtectedOwnerRecord(target,env)||!mayManageTeamMember(actor,target))return invalid(res,'Cannot offboard an administrator outside your team.',403);
     const documentedReason=String(req.body?.reason||'').trim();
     if(documentedReason.length<10||documentedReason.length>500)
       return invalid(res,'Document a meaningful offboarding reason before changing any staff access.');

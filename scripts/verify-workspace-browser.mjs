@@ -172,44 +172,33 @@ try{
     await student.waitForURL(/ips-mission-control/,{timeout:15000});
   });
   const admin=await open();
-  await check('Administrator login and protected queue opens under actual authenticated session',async()=>{
+  await check('Root authenticates and sees the new private, dark-only Company OS instead of the retired admin',async()=>{
     await admin.goto(base+'/ips-mission-control',{waitUntil:'domcontentloaded'});
     await admin.locator('input[type=email]').fill(process.env.ADMIN_EMAIL);
     await admin.locator('input[type=password]').fill(process.env.ADMIN_PASSWORD);
     await admin.getByRole('button',{name:'Sign In'}).click();
     await admin.waitForURL(/\/admin\//,{timeout:15000});
-    await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
-    const control=admin.locator('.ips-contact-admin');
-    await control.waitFor({timeout:15000});
-    const sidebar=admin.locator('.admin-sidebar');
-    const tone=await sidebar.evaluate(el=>{
-      const style=getComputedStyle(el);
-      return {background:style.backgroundColor,text:getComputedStyle(el.querySelector('nav a')).color};
-    });
-    assert.equal(tone.background,'rgb(20, 43, 61)','All IPS portal sidebars must use the same professional navy');
-    assert.equal(tone.text,'rgb(203, 216, 224)','Administration navigation links must retain readable contrast');
-    assert.equal(await admin.getByText('Contact & callbacks').count(),0);
-    await evidence(admin,'admin-private-quotation-queue');
-  });
-  await check('Root executive command centre renders real authorized data and isolated dark-first design',async()=>{
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
-    await admin.locator('.ips-exec').waitFor({timeout:15000});
-    await admin.getByRole('heading',{name:'Executive command centre'}).waitFor({timeout:15000});
-    assert.equal(await admin.locator('.ips-exec-metric').count(),4);
-    assert.equal(await admin.locator('.ips-exec-department').count(),7);
-    assert.equal(await admin.locator('.ips-dark-admin').count(),1,'Administration defaults to isolated dark mode.');
-    const dark=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
-    assert.equal(dark,'rgb(17, 30, 41)','Administration needs a fully dark, readable surface.');
-    await evidence(admin,'ips-executive-command-dark');
-    await admin.getByRole('button',{name:'Switch administration to light mode'}).click();
-    await admin.locator('.ips-premium-admin:not(.ips-dark-admin)').waitFor({timeout:10000});
-    const light=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
-    assert.equal(light,'rgb(247, 247, 243)');
-    await evidence(admin,'ips-executive-command-light');
-    await admin.getByRole('button',{name:'Switch administration to dark mode'}).click();
-    await admin.locator('.ips-dark-admin').waitFor({timeout:10000});
+    await admin.locator('.ips-os').waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'The company, under your control.'}).waitFor({timeout:15000});
+    assert.equal(await admin.locator('.ips-os-rail').count(),1);
+    assert.equal(await admin.locator('.admin-sidebar').count(),0);
+    assert.equal(await admin.getByRole('button',{name:/Switch administration to light mode/}).count(),0);
+    const tone=await admin.locator('.ips-os-rail').evaluate(el=>getComputedStyle(el).backgroundColor);
+    assert.equal(tone,'rgb(13, 24, 34)','New IPS company rail must remain premium dark.');
+    await evidence(admin,'company-os-executive-dark');
   });
-  await check('Executive company administration works in mobile Chrome without clipped controls',async()=>{
+  await check('Executive cockpit reflects real decisions, protected owner and department coverage',async()=>{
+    await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
+    await admin.locator('.os-stat').first().waitFor({timeout:15000});
+    assert.ok(await admin.locator('.os-stat').count()>=4);
+    await admin.getByRole('heading',{name:'Leadership gaps'}).waitFor();
+    await admin.goto(base+'/admin/departments',{waitUntil:'domcontentloaded'});
+    await admin.getByRole('heading',{name:'Run departments, not screens'}).waitFor();
+    assert.equal(await admin.locator('.os-dept').count(),7);
+    await evidence(admin,'company-os-departments');
+  });
+  await check('Real Chrome phone experience has no overflow and preserves owner-only manager navigation',async()=>{
     const mobile=await browser.newPage({viewport:{width:390,height:844},deviceScaleFactor:1});
     pages.push(mobile);
     await mobile.goto(base+'/ips-mission-control',{waitUntil:'domcontentloaded'});
@@ -218,102 +207,87 @@ try{
     await mobile.getByRole('button',{name:'Sign In'}).click();
     await mobile.waitForURL(/\/admin\//,{timeout:15000});
     await mobile.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
-    await mobile.locator('.ips-exec').waitFor({timeout:15000});
-    await mobile.getByRole('heading',{name:'Executive command centre'}).waitFor();
-    assert.equal(await mobile.locator('.ips-exec-metric').count(),4);
+    await mobile.locator('.ips-os').waitFor({timeout:15000});
+    await mobile.getByRole('heading',{name:'The company, under your control.'}).waitFor();
     const width=await mobile.evaluate(()=>({viewport:innerWidth,body:document.body.scrollWidth,html:document.documentElement.scrollWidth}));
     assert.ok(width.body<=width.viewport+5&&width.html<=width.viewport+5,
-      'Administration must not overflow at phone width: '+JSON.stringify(width));
-    await evidence(mobile,'ips-company-command-mobile');
-    await mobile.getByRole('button',{name:'Open administration menu'}).click();
-    await mobile.getByRole('link',{name:/People & managers/}).waitFor({timeout:15000});
-    await mobile.getByRole('link',{name:/People & managers/}).click();
+      'New company operation must not overflow at phone width: '+JSON.stringify(width));
+    await evidence(mobile,'company-os-mobile');
+    await mobile.getByRole('button',{name:'Toggle company navigation'}).click();
+    await mobile.getByRole('link',{name:'People & authority'}).click();
     await mobile.waitForURL(/\/admin\/access/,{timeout:15000});
-    await mobile.getByRole('heading',{name:'Company management'}).waitFor();
+    await mobile.getByRole('heading',{name:'People, authority and responsibility'}).waitFor();
   });
-  await check('Premium IPS case desk, follow-up actions and keyboard-searchable administration work in Chrome',async()=>{
+  await check('New real work desk handles protected case evidence and audit-safe internal notes',async()=>{
     await admin.goto(base+'/admin/case-desk',{waitUntil:'domcontentloaded'});
-    await admin.locator('.ips-operations-console').waitFor({timeout:15000});
-    assert.equal(await admin.locator('.ips-premium-admin').count(),1);
-    assert.equal(await admin.getByRole('heading',{name:'Operations command desk'}).count(),1);
-    assert.equal(await admin.locator('.ips-ops-stat').count(),4);
-    await admin.locator('.ips-ops-case-row').first().waitFor({timeout:15000});
-    await admin.locator('.ips-ops-case-row').first().click();
-    await admin.locator('.ips-ops-case-brief').waitFor({timeout:15000});
-    await admin.getByRole('tab',{name:/Follow-ups/}).click();
-    await admin.locator('.ips-ops-action-editor').waitFor({timeout:15000});
-    await admin.locator('.ips-ops-action-editor textarea').fill('Review this case in the centrally managed IPS operational workflow.');
-    await admin.locator('.ips-ops-action-editor').getByRole('button',{name:'Add follow-up task'}).click();
-    await admin.getByRole('status').filter({hasText:'Internal follow-up task recorded.'}).waitFor({timeout:15000});
-    await admin.getByRole('button',{name:'Refresh live work'}).click();
-    await admin.locator('.ips-ops-case-brief').waitFor({timeout:15000});
-    await evidence(admin,'ips-company-operations-dark');
-    await admin.getByRole('button',{name:'Switch administration to light mode'}).click();
-    await admin.locator('.ips-premium-admin:not(.ips-dark-admin)').waitFor({timeout:10000});
-    const palette=await admin.locator('.ips-premium-admin').evaluate(el=>getComputedStyle(el).backgroundColor);
-    assert.equal(palette,'rgb(247, 247, 243)','Light administration must restore its scoped surface.');
-    await evidence(admin,'ips-company-operations-light');
-    await admin.getByRole('button',{name:'Switch administration to dark mode'}).click();
-    await admin.locator('.ips-dark-admin').waitFor({timeout:10000});
-    await admin.getByRole('button',{name:'Search administration sections'}).click();
-    const dialog=admin.getByRole('dialog',{name:'Search IPS workspaces'});
-    await dialog.getByRole('searchbox',{name:'Find workspace'}).fill('Academic projects');
-    await dialog.getByRole('link',{name:/Academic projects/}).click();
+    await admin.locator('.os-case-workspace').waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'One company work queue'}).waitFor({timeout:15000});
+    const first=admin.locator('.os-case-item').first();
+    await first.waitFor({timeout:15000});
+    await first.click();
+    await admin.getByText('Accountable person').waitFor({timeout:15000});
+    await admin.getByRole('button',{name:'Private notes'}).click();
+    const note=admin.locator('textarea.os-input').first();
+    await note.fill('Document the authorized source case and its next review in the IPS company operating system.');
+    await admin.getByRole('button',{name:'Record confidential note'}).click();
+    await admin.getByRole('status').filter({hasText:'internal note'}).waitFor({timeout:15000});
+    await evidence(admin,'company-os-real-case-actions');
+    await admin.keyboard.press('Control+k');
+    const command=admin.getByRole('dialog',{name:'Find authorized company workspace'});
+    await command.locator('input').fill('Project delivery');
+    await command.getByRole('button',{name:/Project delivery/}).click();
     await admin.waitForURL(/\/admin\/services/,{timeout:15000});
-    await admin.locator('.ips-projects-workspace').waitFor({timeout:15000});
-    await evidence(admin,'ips-premium-academic-projects');
-    await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
-    await admin.locator('.ips-case-grid').waitFor({timeout:15000});
-    await admin.locator('.ips-case-overview').waitFor({timeout:15000});
-    await evidence(admin,'ips-premium-case-workspace');
+    await admin.getByRole('heading',{name:'Academic delivery governance'}).waitFor({timeout:15000});
+    await evidence(admin,'company-os-academic-delivery');
   });
-  await check('Root company screen protects owner, shows manager hierarchy and has no destructive Remove action',async()=>{
+  await check('Owner is not listed as employee; manager delegation and offboarding are governed',async()=>{
     await admin.goto(base+'/admin/access',{waitUntil:'domcontentloaded'});
-    await admin.getByRole('heading',{name:'Company management'}).waitFor({timeout:15000});
-    await admin.getByText('Protected company owner').waitFor({timeout:15000});
-    await admin.getByRole('heading',{name:'Company staff directory'}).waitFor({timeout:15000});
-    assert.equal(await admin.locator('.ips-company-people').getByRole('button',{name:/^Remove$/}).count(),0);
-    assert.equal(await admin.locator('.ips-company-people').getByRole('button',{name:/^Delete$/}).count(),0);
-    await admin.getByRole('heading',{name:'Invite department manager'}).waitFor({timeout:15000});
-    await evidence(admin,'ips-root-company-manager-hierarchy');
+    await admin.getByRole('heading',{name:'People, authority and responsibility'}).waitFor();
+    await admin.getByText(/ROOT OWNER · Outside employee hierarchy/).waitFor();
+    await admin.getByRole('heading',{name:'Accountable team directory'}).waitFor();
+    const table=admin.locator('.os-table');
+    await table.waitFor({timeout:15000});
+    assert.equal(await table.getByText(process.env.ADMIN_EMAIL,{exact:true}).count(),0,
+      'The sovereign owner must never appear as a managed staff identity');
+    assert.equal(await admin.getByRole('button',{name:/^Delete$/}).count(),0);
+    await admin.getByRole('heading',{name:'Appoint department manager'}).waitFor();
+    await evidence(admin,'company-os-protected-root-authority');
   });
-  await check('Root can initiate but cannot see the password in verified client recovery controls',async()=>{
+  await check('New client governance keeps test fixtures out of production-style UI and passwords private',async()=>{
     await admin.goto(base+'/admin/clients',{waitUntil:'domcontentloaded'});
-    const row=admin.locator('tr').filter({hasText:'CID-TEST-ALICE'}).first();
-    await row.waitFor({timeout:15000});
-    await row.getByRole('button',{name:'Manage'}).click();
-    const dialog=admin.getByRole('dialog',{name:'Manage private student account'});
-    await dialog.getByText('Client password recovery').waitFor({timeout:15000});
-    await dialog.getByRole('button',{name:'Start secure password recovery'}).click();
-    await dialog.getByRole('button',{name:'Email private recovery link'}).waitFor({timeout:15000});
-    assert.equal(await dialog.getByText('Send only to: alice.test@example.org').count(),1);
-    assert.equal(await dialog.locator('input[type=password]').count(),0);
-    await evidence(admin,'ips-client-private-account-recovery');
-    await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
+    await admin.getByRole('heading',{name:'Client account governance'}).waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'Private client register'}).waitFor();
+    assert.equal(await admin.locator('tr').filter({hasText:'CID-TEST-ALICE'}).count(),0,
+      'Synthetic test client identities must be excluded from live-style client register');
+    assert.equal(await admin.locator('input[type=password]').count(),0);
+    await evidence(admin,'company-os-confidential-clients');
   });
   const departmentManager=await open();
-  await check('Department manager sees only their staff and cannot invite another manager',async()=>{
+  await check('Department manager sees only their subordinates and cannot appoint another manager',async()=>{
     await departmentManager.goto(base+'/ips-mission-control',{waitUntil:'domcontentloaded'});
     await departmentManager.locator('input[type=email]').fill('manager-client-ci@example.org');
     await departmentManager.locator('input[type=password]').fill('TestCompanyPassword2026!');
     await departmentManager.getByRole('button',{name:'Sign In'}).click();
     await departmentManager.waitForURL(/\/admin\//,{timeout:15000});
     await departmentManager.goto(base+'/admin/access',{waitUntil:'domcontentloaded'});
-    await departmentManager.getByRole('heading',{name:'My department'}).waitFor({timeout:15000});
+    await departmentManager.getByRole('heading',{name:'People, authority and responsibility'}).waitFor();
     await departmentManager.getByText('Client Care Officer B').waitFor({timeout:15000});
     assert.equal(await departmentManager.getByText('Academic Reviewer').count(),0);
-    await departmentManager.getByRole('heading',{name:'Invite team member'}).waitFor({timeout:15000});
-    assert.equal(await departmentManager.getByRole('heading',{name:'Invite department manager'}).count(),0);
-    await evidence(departmentManager,'ips-manager-only-own-team');
+    await departmentManager.getByRole('heading',{name:'Invite authorized staff'}).waitFor();
+    assert.equal(await departmentManager.getByRole('heading',{name:'Appoint department manager'}).count(),0);
+    await evidence(departmentManager,'company-os-department-manager');
   });
   for(const [route,name] of [
-    ['/admin/clients','admin-private-accounts'],
-    ['/admin/writers','admin-specialist-applications'],
-    ['/admin/services','admin-service-assignments'],
-    ['/admin/payments','admin-specialist-payout-reconciliation']
-  ])await check('Administrator workflow '+route,async()=>{
+    ['/admin/writers','company-os-specialist-network'],
+    ['/admin/quality','company-os-quality-review'],
+    ['/admin/payments','company-os-real-billing-readiness'],
+    ['/admin/reports','company-os-company-intelligence'],
+    ['/admin/settings','company-os-security-policy'],
+    ['/admin/journeys','company-os-full-business-journey']
+  ])await check('New Company OS browser workflow '+route,async()=>{
     await admin.goto(base+route,{waitUntil:'domcontentloaded'});
-    await admin.locator('.admin-layout').waitFor({timeout:15000});
+    await admin.locator('.ips-os').waitFor({timeout:15000});
+    await admin.locator('.os-title').waitFor({timeout:15000});
     assert.equal(await admin.locator('body').evaluate(el=>el.scrollWidth>window.innerWidth+4),false);
     await evidence(admin,name);
   });
@@ -336,7 +310,7 @@ try{
   });
   await check('Administrator sign-out invalidates backend authentication',async()=>{
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
-    await admin.locator('.admin-sidebar').getByRole('button',{name:'Logout'}).click();
+    await admin.locator('.ips-os-rail').getByRole('button',{name:'Sign out securely'}).click();
     await admin.waitForURL(url=>url.pathname===adminEntry,{timeout:15000});
     assert.equal((await admin.request.get(base+'/api/admin/me')).status(),401);
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});

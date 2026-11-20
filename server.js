@@ -267,6 +267,10 @@ const resolveAdminAccess = async session => {
       mustChangePassword: false
     };
   }
+  // Historic MongoDB rows can share the root email. The only valid owner
+  // session is the separately signed root_admin principal.
+  if (String(session?.id||'').trim().toLowerCase() ===
+      String(process.env.ADMIN_EMAIL||'admin@ipsglobal.com').trim().toLowerCase()) return null;
   const admin = await Admin.findOne({ id: session?.id }).lean();
   if (!admin || (admin.status || 'Active') !== 'Active' ||
       (isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true' && isIpsQaFixtureAdmin(admin))) return null;
@@ -1067,6 +1071,12 @@ app.post('/api/admin/login', async (req, res) => {
       return;
     }
 
+    // A failed root password must never fall through to a legacy employee
+    // row with the same email and a different password.
+    if (email === adminEmail) {
+      recordAdminLoginFailure(throttle.key);
+      return res.status(401).json({success:false,message:'Invalid credentials'});
+    }
     const admin = await Admin.findOne({ email });
     if (admin && (admin.status || 'Active') === 'Active' &&
         !(isProduction && String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true' && isIpsQaFixtureAdmin(admin)) &&

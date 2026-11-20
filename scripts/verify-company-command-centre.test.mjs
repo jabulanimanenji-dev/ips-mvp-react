@@ -49,22 +49,22 @@ test('department manager coverage distinguishes vacant, invited and active',()=>
  staff.push({company_role:'manager',department:'finance',status:'Active'});
  assert.equal(departmentLeadershipState(staff,'finance'),'appointed');
 });
-test('company homepage and desk are separate, role protected, and dark theme does not alter public skins',async()=>{
- const [app,scope,desk,admin,styles]=await Promise.all([
+test('new root command, action queue and department coverage are independent permission-bound dark workspaces',async()=>{
+ const [app,shell,work,home,styles]=await Promise.all([
   readFile(new URL('../src/App.jsx',import.meta.url),'utf8'),
-  readFile(new URL('../shared/ipsCompanyScope.js',import.meta.url),'utf8'),
-  readFile(new URL('../src/components/admin/CompanyOperationsDesk.jsx',import.meta.url),'utf8'),
-  readFile(new URL('../src/pages/AdminLayout.jsx',import.meta.url),'utf8'),
-  readFile(new URL('../src/styles/ips-premium-admin.css',import.meta.url),'utf8')
+  readFile(new URL('../src/companyOS/CompanyShell.jsx',import.meta.url),'utf8'),
+  readFile(new URL('../src/companyOS/CompanyWork.jsx',import.meta.url),'utf8'),
+  readFile(new URL('../src/companyOS/CompanyHome.jsx',import.meta.url),'utf8'),
+  readFile(new URL('../src/companyOS/company-os.css',import.meta.url),'utf8')
  ]);
- assert.match(app,/path="dashboard"\s+element={<CompanyCommandCenter \/>}/);
- assert.match(app,/path="case-desk" element={<CompanyOperationsDesk \/>}/);
- assert.match(scope,/target:'\/admin\/case-desk',permission:'dashboard.view'/);
- assert.match(desk,/hasAdminPermission\('team.manage'\)/);
- assert.doesNotMatch(desk,/hasAdminPermission\('administrators.manage'\)/);
- assert.match(admin,/localStorage\.getItem\('ips-admin-theme'\)/);
- assert.match(styles,/\.ips-premium-admin\.ips-dark-admin/);
- assert.doesNotMatch(styles,/html\[data-theme="dark"\] \.ips-premium-admin/);
+ assert.match(app,/path="dashboard" element={<CompanyGuard permission="dashboard.view"><CompanyHome/);
+ assert.match(app,/path="case-desk" element={<CompanyGuard permission="dashboard.view"><CompanyWork/);
+ assert.match(shell,/COMPANY_NAV.filter/);
+ assert.match(work,/hasAdminPermission\(CASE_TYPES\[selected.kind\]\?\.manage/);
+ assert.match(home,/departmentCoverage/);
+ assert.match(home,/caseNeedsDecision/);
+ assert.match(styles,/color-scheme:dark/);
+ assert.doesNotMatch(styles,/\.client-layout\{/);
 });
 
 test('administrative recovery never bypasses client mailbox verification or account-holder code proof',async()=>{

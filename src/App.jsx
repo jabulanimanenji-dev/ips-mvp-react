@@ -27,7 +27,13 @@ import ClientPayments from './components/client/ClientPayments.jsx';
 import ClientSupport from './components/client/ClientSupport';
 import ClientServices from './components/client/ClientServices';
 
-import AdminLayout from './pages/AdminLayout';
+import CompanyShell from './companyOS/CompanyShell.jsx';
+import CompanyHome from './companyOS/CompanyHome.jsx';
+import CompanyWork from './companyOS/CompanyWork.jsx';
+import CompanyTeam from './companyOS/CompanyTeam.jsx';
+import {CompanyClients,CompanySpecialists,CompanyProjects} from './companyOS/CompanyRecords.jsx';
+import {CompanyDepartments,CompanyJourneys,CompanyIntelligence} from './companyOS/CompanyOperations.jsx';
+import {CompanyGuard,ProtectedBusinessWorkspace} from './companyOS/CompanyGuard.jsx';
 import AdminLogin from './components/admin/AdminLogin';
 import CompanyOperationsDesk from './components/admin/CompanyOperationsDesk.jsx';
 import CompanyCommandCenter from './components/admin/CompanyCommandCenter.jsx';
@@ -353,98 +359,37 @@ export default function App() {
       <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 
 
-      <Route
-        path="/admin"
-        element={
-          <ProtectedAdminRoute>
-            <AdminLayout />
-          </ProtectedAdminRoute>
-        }
-      >
-
-
-        <Route
-          index
-          element={
-            <Navigate
-              to="/admin/dashboard"
-              replace
-            />
-          }
-        />
-
-
-        <Route
-          path="dashboard"
-          element={<CompanyCommandCenter />}
-        />
-
-
-        <Route path="case-desk" element={<CompanyOperationsDesk />} />
-
-        <Route path="orders" element={<Navigate to="/admin/services" replace />} />
-
-        <Route path="services" element={<AdminServices />} />
-        <Route path="services/:requestId" element={<ServiceJobDetail role="admin" />} />
-
-
-        <Route path="orders/:orderId" element={<Navigate to="/admin/services" replace />} />
-
-
-        <Route
-          path="clients"
-          element={<AdminClients />}
-        />
-
-
-        <Route
-          path="writers"
-          element={<AdminWriters />}
-        />
-
-
-        <Route
-          path="payments"
-          element={<AdminPayments />}
-        />
-
-
-        <Route path="cms" element={<Navigate to="/admin/dashboard" replace />} />
-
-
-        <Route
-          path="messages"
-          element={<DirectMessaging role="admin" />}
-        />
-        <Route path="job-messages" element={<Navigate to="/admin/messages" replace />} />
-        <Route path="external-chats" element={<ChannelInbox />} />
-        <Route path="enquiries" element={<AdminEnquiries />} />
-        <Route path="actions" element={<Navigate to="/admin/enquiries" replace />} />
-        <Route path="support" element={<AdminSupportTickets />} />
-
-
-        <Route
-          path="reports"
-          element={<AdminReports />}
-        />
-
-
-        <Route
-          path="settings"
-          element={<AdminSettings />}
-        />
-
-        <Route
-          path="access"
-          element={<AdminAccessManager />}
-        />
-
-
+      {/* IPS COMPANY OS v3: new shell and workflows, old admin navigation retired.
+          Existing authenticated message/reply and project-file tools remain isolated
+          only where needed to preserve real service functionality. */}
+      <Route path="/admin" element={<ProtectedAdminRoute><CompanyShell/></ProtectedAdminRoute>}>
+        <Route index element={<Navigate to="/admin/dashboard" replace/>}/>
+        <Route path="dashboard" element={<CompanyGuard permission="dashboard.view"><CompanyHome/></CompanyGuard>}/>
+        <Route path="case-desk" element={<CompanyGuard permission="dashboard.view"><CompanyWork/></CompanyGuard>}/>
+        <Route path="journeys" element={<CompanyGuard permission="dashboard.view"><CompanyJourneys/></CompanyGuard>}/>
+        <Route path="departments" element={<CompanyGuard permission="dashboard.view"><CompanyDepartments/></CompanyGuard>}/>
+        <Route path="access" element={<CompanyGuard permission="team.manage"><CompanyTeam/></CompanyGuard>}/>
+        <Route path="clients" element={<CompanyGuard permission="clients.view"><CompanyClients/></CompanyGuard>}/>
+        <Route path="writers" element={<CompanyGuard permission="providers.view"><CompanySpecialists/></CompanyGuard>}/>
+        <Route path="enquiries" element={<CompanyGuard permission="support.view"><CompanyWork initialFilter="enquiry"/></CompanyGuard>}/>
+        <Route path="services" element={<CompanyGuard permission="services.view"><CompanyProjects/></CompanyGuard>}/>
+        <Route path="quality" element={<CompanyGuard permission="services.view"><CompanyProjects quality/></CompanyGuard>}/>
+        <Route path="support" element={<CompanyGuard permission="support.view"><CompanyWork initialFilter="support"/></CompanyGuard>}/>
+        <Route path="external-chats" element={<CompanyGuard permission="messages.view"><CompanyWork initialFilter="telegram"/></CompanyGuard>}/>
+        <Route path="reports" element={<CompanyGuard permission="reports.view"><CompanyIntelligence/></CompanyGuard>}/>
+        <Route path="payments" element={<CompanyGuard permission="payments.view"><CompanyIntelligence view="payments"/></CompanyGuard>}/>
+        <Route path="settings" element={<CompanyGuard permission="settings.view"><CompanyIntelligence view="security"/></CompanyGuard>}/>
+        <Route path="services/:requestId" element={<CompanyGuard permission="services.view"><ProtectedBusinessWorkspace><ServiceJobDetail role="admin"/></ProtectedBusinessWorkspace></CompanyGuard>}/>
+        <Route path="intake/reply" element={<CompanyGuard permission="support.view"><ProtectedBusinessWorkspace><AdminEnquiries/></ProtectedBusinessWorkspace></CompanyGuard>}/>
+        <Route path="support/tickets" element={<CompanyGuard permission="support.view"><ProtectedBusinessWorkspace><AdminSupportTickets/></ProtectedBusinessWorkspace></CompanyGuard>}/>
+        <Route path="channels/telegram" element={<CompanyGuard permission="messages.view"><ProtectedBusinessWorkspace><ChannelInbox/></ProtectedBusinessWorkspace></CompanyGuard>}/>
+        <Route path="messages" element={<CompanyGuard permission="messages.view"><ProtectedBusinessWorkspace><DirectMessaging role="admin"/></ProtectedBusinessWorkspace></CompanyGuard>}/>
+        <Route path="job-messages" element={<Navigate to="/admin/messages" replace/>}/>
+        <Route path="orders" element={<Navigate to="/admin/services" replace/>}/>
+        <Route path="orders/:orderId" element={<Navigate to="/admin/services" replace/>}/>
+        <Route path="actions" element={<Navigate to="/admin/case-desk" replace/>}/>
+        <Route path="cms" element={<Navigate to="/admin/dashboard" replace/>}/>
       </Route>
-
-
-
-
 
       {/* FALLBACK */}
 
