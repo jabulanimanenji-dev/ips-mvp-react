@@ -15,7 +15,7 @@ export default function AdminSupportTickets() {
 
   const load = async preferredId => {
     try {
-      const response = await fetch('/api/support-tickets');
+      const response = await fetch('/api/support-tickets', {credentials:'same-origin',cache:'no-store'});
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || 'Support queue could not be loaded.');
       setTickets(data.tickets || []);
@@ -65,22 +65,22 @@ export default function AdminSupportTickets() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: reply })
       });
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error(data.error || 'Reply could not be sent.');
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) throw new Error(data.error || 'The reply could not be saved. Your text is preserved.');
       setReply('');
       await load(selected.ticket_id);
-      setState(previous => ({ ...previous, saving: false, success: 'Reply sent to the client.' }));
+      setState(previous => ({ ...previous, saving: false, success: 'Reply recorded in the protected IPS support case.' }));
     } catch (error) {
       setState(previous => ({ ...previous, saving: false, error: error.message }));
     }
   };
 
   return (
-    <div>
-      <div className="flex justify-between items-center" style={{ marginBottom: '1.5rem', gap: '1rem', flexWrap: 'wrap' }}>
+    <div className="ips-premium-support" style={{maxWidth:1450,margin:'0 auto'}}>
+      <div className="ips-case-top" style={{ marginBottom: '1.5rem' }}>
         <div>
-          <div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>Phase 9 help desk</div>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '.35rem 0' }}>Support Tickets</h2>
+          <div style={{ color: 'var(--primary)', fontSize: '.72rem', fontWeight: 800, letterSpacing: '.14em', textTransform: 'uppercase' }}>IPS CLIENT SERVICES · SUPPORT</div>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 800, margin: '.35rem 0' }}>Support cases</h2>
           <p style={{ color: 'var(--text-muted)', margin: 0 }}>Every client request, response, assignment, and resolution in one controlled queue.</p>
         </div>
         <span className="badge badge-new">{tickets.filter(ticket => !['Resolved', 'Closed'].includes(ticket.status)).length} active</span>
@@ -89,7 +89,7 @@ export default function AdminSupportTickets() {
       {state.error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{state.error}</div>}
       {state.success && <div className="toast success" style={{ position: 'static', marginBottom: '1rem', maxWidth: 'none' }}>{state.success}</div>}
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(300px, .8fr) minmax(0, 1.5fr)' }}>
+      <div className="ips-support-columns" style={{ display:'grid',gap:18,gridTemplateColumns:'minmax(280px,.9fr) minmax(0,1.55fr)' }}>
         <div className="card">
           <div className="flex gap-2" style={{ marginBottom: '.75rem' }}>
             <input className="form-input" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search tickets…" />
