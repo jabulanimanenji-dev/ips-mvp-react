@@ -299,7 +299,15 @@ try{
   assert.equal(sent?.status,'synthetic_dispatched',
    'Sandbox Telegram should be recorded as synthetic, never as a human receipt');
   assert.equal(sent?.provider,'telegram-sandbox');
+  const pendingId='IPS-TELEGRAM-REVOKE-'+random();
+  await queue.insertOne({id:pendingId,accountId:student.id,chatId:487654321,
+   channel:'telegram',kind:'telegram_revocation',
+   text:'A generic IPS update.',status:'pending',attempts:0,
+   nextAttemptAt:new Date(Date.now()+60000),createdAt:new Date()});
   await call('/contact/telegram/unlink',withAuth(studentCookie,{}));
+  const cancelled=await queue.findOne({id:pendingId});
+  assert.equal(cancelled.status,'cancelled',
+   'Revoking a chat must cancel outstanding Telegram deliveries immediately');
   assert.equal((await call('/contact/telegram/status',{cookie:studentCookie})).data.linked,false);
   const after=await db.collection('academic_accounts').findOne({id:student.id});
   assert.equal(after.contactPreference,'workspace');
