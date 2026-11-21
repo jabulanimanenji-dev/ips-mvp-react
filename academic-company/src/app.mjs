@@ -58,7 +58,8 @@ const db={
  directMessages:raw.collection('academic_direct_messages'),
  directFiles:raw.collection('academic_direct_files'),
  rootOperations:raw.collection('academic_root_operations'),
- rootExternalFiles:raw.collection('academic_root_external_files')
+ rootExternalFiles:raw.collection('academic_root_external_files'),
+ telegramMessages:raw.collection('academic_telegram_messages')
 };
 await Promise.all([
  db.accounts.createIndex({email:1},{unique:true}),
@@ -80,7 +81,10 @@ await Promise.all([
  db.quoteFiles.createIndex({quoteId:1,createdAt:-1}),
  db.directMessages.createIndex({toId:1,createdAt:-1}),
  db.rootOperations.createIndex({commissionId:1},{unique:true}),
- db.rootExternalFiles.createIndex({commissionId:1,createdAt:-1})
+ db.rootExternalFiles.createIndex({commissionId:1,createdAt:-1}),
+ db.telegramMessages.createIndex({providerUpdateId:1},{unique:true,
+  partialFilterExpression:{providerUpdateId:{$type:'number'}}}),
+ db.telegramMessages.createIndex({accountId:1,createdAt:-1})
 ]);
 const rootEmail=email(env.ROOT_EMAIL);
 // The immutable Root identity is intentionally not a user-directory account.
