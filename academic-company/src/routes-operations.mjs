@@ -7,7 +7,7 @@ import {publicDocument,normalizeFilename,validEmail,email} from './security.mjs'
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerOperationsRoutes(ctx){
- const {app,db,documentBucket,inspectAcademicUpload,rootEmail,notify,notifyQuotation,audit,authorize,throttle,wrap,now,uid}=ctx;
+ const {app,db,documentBucket,inspectAcademicUpload,config,rootEmail,notify,notifyQuotation,audit,authorize,throttle,wrap,now,uid}=ctx;
  const deny=res=>res.status(403).json({error:'You do not have access to this academic case.'});
  const staff=a=>a&&(['root','manager','staff'].includes(a.role));
  const intake=a=>a?.role==='root'||(staff(a)&&a.department==='client_relations');
@@ -485,6 +485,8 @@ export function registerOperationsRoutes(ctx){
    commissionId:p.id,kind:'supplier_return',status:'private'});
   if(!arrangement||!source||source.providerReference!==arrangement.providerReference)
    return res.status(409).json({error:'Choose an authorized, unused supplier return from this same private arrangement.'});
+  if(!config.sandbox&&source.scanStatus!=='clean')
+   return res.status(409).json({error:'Supplier document requires security screening before academic release.'});
   const buffer=Buffer.from(source.fileData?.buffer||source.fileData);
   const sha256=crypto.createHash('sha256').update(buffer).digest('hex');
   if(sha256!==source.sha256)return res.status(409).json({error:'Supplier return checksum mismatch; QA release prohibited.'});
