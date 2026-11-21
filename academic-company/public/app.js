@@ -210,7 +210,7 @@ function tokenForm(kind){
 }
 function departmentsForRole(a){
  if(a.role==='student')return [['overview','Overview'],['inbox','Inbox & messages'],['notifications','Updates'],
-  ['quotes','My quotations'],['commissions','My academic work'],['support','Support'],['profile','Account']];
+  ['quotes','My quotations'],['commissions','My academic work'],['support','Support'],['profile','Profile']];
  if(a.role==='specialist')return [['overview','My work'],['inbox','Inbox & messages'],['notifications','Updates'],
   ['commissions','Assignments & files'],['support','Support'],['profile','Profile']];
  if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],['notifications','Alerts & delivery'],
