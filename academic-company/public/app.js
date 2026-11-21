@@ -500,7 +500,8 @@ async function commissionDetail(p,a){
     options('Approved Specialist','specialistId',avail.specialists.map(s=>[s.id,s.name])),
     'Assign Specialist'):empty('No approved Specialist is currently available for this service. Root can take responsibility directly.'))}
  if(manager&&p.status==='qa_pending')
-  actions+=panel('Academic quality review','Approve or request corrections before Student delivery.',
+  actions+=panel(p.fulfilmentMode==='root'?'Root-supervised release review':'Academic quality review',
+   p.fulfilmentMode==='root'?'If Nyoro prepared this deliverable, the release is recorded as a supervised exception—not independent QA.':'Approve or request corrections before Student delivery.',
    form('quality','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
     options('Decision','decision',[['approve','Approve for release'],['return_for_correction','Request corrections']])+
     textarea('Review note','note','Specify the results of your academic review'),
@@ -558,6 +559,7 @@ async function commissionDetail(p,a){
   '<p><strong>Delivery:</strong> '+e(p.deadline||'As agreed in your quotation')+'</p>'+
   '<p><strong>Company responsibility:</strong> '+e(p.managedBy?'Nyoro · IPS Root':
     p.specialistId?'Assigned IPS Specialist':'IPS Academic Delivery')+'</p>'+
+  (p.qaMode==='root_supervised_exception'?'<p><strong>Quality record:</strong> IPS Root-supervised release exception</p>':'')+
   '<div class="case-actions">'+b('Close job','close-case')+
    b('Open inbox','tab-inbox')+'</div></div>';
  return '<section class="mt"><div class="section-head"><div><span class="kicker">SINGLE JOB WORKSPACE</span>'+
