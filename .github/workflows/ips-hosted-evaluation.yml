@@ -1,4 +1,4 @@
-name: IPS Actual Hosted Three-Workspace Evaluation
+name: IPS Actual Hosted Five-Role Evaluation
 on:
   pull_request:
     branches: [commercial/student-support-v1]
@@ -12,6 +12,11 @@ jobs:
     timeout-minutes: 13
     env:
       IPS_HOSTED_EVALUATION_URL: https://ips-academic-evaluation-20261119.onrender.com
+      IPS_EVAL_CLIENT_PASSWORD: ${{ secrets.IPS_EVAL_CLIENT_PASSWORD }}
+      IPS_EVAL_SPECIALIST_PASSWORD: ${{ secrets.IPS_EVAL_SPECIALIST_PASSWORD }}
+      IPS_EVAL_ADMIN_PASSWORD: ${{ secrets.IPS_EVAL_ADMIN_PASSWORD }}
+      IPS_EVAL_MANAGER_PASSWORD: ${{ secrets.IPS_EVAL_MANAGER_PASSWORD }}
+      IPS_EVAL_STAFF_PASSWORD: ${{ secrets.IPS_EVAL_STAFF_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,6 +33,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ips-hosted-three-role-evaluation-screenshots
+          name: ips-hosted-five-role-evaluation-screenshots
           path: hosted-evaluation-evidence/
           if-no-files-found: warn
