@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {
  COMPANY_DEPARTMENTS,isCompanyDepartment,permittedCompanyPermissions,
- mayManageTeamMember,companyStaffPasswordValid
+ mayManageTeamMember,companyStaffPasswordValid,managementDepartments
 } from '../shared/companyGovernance.js';
 import {invitationDigest,staffInvitationReady} from '../services/companyOperatingSystem.js';
 
@@ -46,6 +46,17 @@ test('department permission ceiling excludes all owner, cross-department and uns
   assert.deepEqual(permittedCompanyPermissions('client_relations','staff',['clients.view','payments.manage']),['clients.view']);
   assert.ok(permittedCompanyPermissions('client_relations','manager').includes('clients.recovery'));
   assert.equal(permittedCompanyPermissions('finance','manager').includes('clients.recovery'),false);
+});
+test('leadership coverage never infers missing managers from a scoped manager-only roster',()=>{
+  const root={isRoot:true,companyRole:'root'};
+  const manager={isRoot:false,companyRole:'manager',department:'client_relations'};
+  const other={...manager,department:'academic_delivery'};
+  const staff={isRoot:false,companyRole:'staff',department:'client_relations'};
+  assert.equal(managementDepartments(root).length,Object.keys(COMPANY_DEPARTMENTS).length);
+  assert.deepEqual(managementDepartments(manager).map(([id])=>id),['client_relations']);
+  assert.deepEqual(managementDepartments(other).map(([id])=>id),['academic_delivery']);
+  assert.deepEqual(managementDepartments(staff),[]);
+  assert.deepEqual(managementDepartments({...manager,department:'__proto__'}),[]);
 });
 test('staff self-selected password must include uppercase, digit, symbol and sufficient length',()=>{
   assert.equal(companyStaffPasswordValid('SecureTeamPassword2026!'),true);
