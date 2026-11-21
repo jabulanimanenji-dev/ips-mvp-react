@@ -50,7 +50,7 @@ export function registerIdentityRoutes(ctx){
   res.json({success:true,agreementVersion:SPECIALIST_AGREEMENT.version});
  }));
  app.post('/api/auth/register',wrap(async(req,res)=>{
-  if(throttle.limited(req,'academic-register',7))return res.status(429).json({error:'Too many requests. Please retry later.'});
+  if(await throttle.limited(req,'academic-register',7))return res.status(429).json({error:'Too many requests. Please retry later.'});
   const role=String(req.body?.role||''),mail=email(req.body?.email),password=String(req.body?.password||'');
   const uname=username(req.body?.username),fullName=String(req.body?.fullName||'').trim();
   if(!['student','specialist'].includes(role)||!validEmail(mail)||!validPassword(password)||req.body?.confirmPassword!==password||req.body?.privacyConsent!==true)
@@ -84,7 +84,7 @@ export function registerIdentityRoutes(ctx){
   res.status(202).json({success:true,verificationRequired:true,message:'IPS emailed a private verification link. No account can sign in before verification.'});
  }));
  app.post('/api/auth/verify',wrap(async(req,res)=>{
-  if(throttle.limited(req,'academic-verify',15))return res.status(429).json({error:'Please wait before trying again.'});
+  if(await throttle.limited(req,'academic-verify',15))return res.status(429).json({error:'Please wait before trying again.'});
   const mail=email(req.body?.email),token=String(req.body?.token||'');
   if(!validEmail(mail)||!validToken(token))return res.status(400).json({error:'Verification link invalid or expired.'});
   const found=await db.accounts.findOneAndUpdate({email:mail,verified:false,status:'pending_verification',
@@ -103,7 +103,7 @@ export function registerIdentityRoutes(ctx){
   res.json({success:true,account:readonlyUser(found)});
  }));
  app.post('/api/auth/resend-verification',wrap(async(req,res)=>{
-  if(throttle.limited(req,'academic-resend',4))return res.status(429).json({error:'Please wait before requesting another link.'});
+  if(await throttle.limited(req,'academic-resend',4))return res.status(429).json({error:'Please wait before requesting another link.'});
   const mail=email(req.body?.email);
   if(!validEmail(mail))return res.status(400).json({error:'Enter a valid email address.'});
   const a=await db.accounts.findOne({email:mail,verified:false,status:'pending_verification'});
@@ -111,7 +111,7 @@ export function registerIdentityRoutes(ctx){
   res.status(202).json({accepted:true,message:'If verification is pending, IPS has sent a new one-use link.'});
  }));
  app.post('/api/auth/login',wrap(async(req,res)=>{
-  if(throttle.limited(req,'academic-login',13))return res.status(429).json({error:'Too many login attempts.'});
+  if(await throttle.limited(req,'academic-login',13))return res.status(429).json({error:'Too many login attempts.'});
   const mail=email(req.body?.email),password=String(req.body?.password||'');
   if(mail===rootEmail){
    const root=await rootMatch(password);
@@ -134,7 +134,7 @@ export function registerIdentityRoutes(ctx){
  }));
  app.post('/api/auth/logout',(_req,res)=>{security.clear(res);res.json({success:true})});
  app.post('/api/auth/recovery/request',wrap(async(req,res)=>{
-  if(throttle.limited(req,'academic-recover',6))return res.status(429).json({error:'Please wait before requesting another link.'});
+  if(await throttle.limited(req,'academic-recover',6))return res.status(429).json({error:'Please wait before requesting another link.'});
   const mail=email(req.body?.email);
   if(validEmail(mail)&&mail===rootEmail){
    const token=strongToken(),digest=security.digest('root-recover:'+token);
@@ -159,7 +159,7 @@ export function registerIdentityRoutes(ctx){
   res.status(202).json({accepted:true,message:'If a verified account exists, IPS sent a one-use password recovery email.'});
  }));
  app.post('/api/auth/recovery/complete',wrap(async(req,res)=>{
-  if(throttle.limited(req,'academic-complete',12))return res.status(429).json({error:'Too many attempts.'});
+  if(await throttle.limited(req,'academic-complete',12))return res.status(429).json({error:'Too many attempts.'});
   const mail=email(req.body?.email),token=String(req.body?.token||''),password=String(req.body?.password||'');
   if(!validEmail(mail)||!validToken(token)||!validPassword(password)||req.body?.confirmPassword!==password)
    return res.status(400).json({error:'Your password confirmation does not match or your recovery link is invalid.'});
