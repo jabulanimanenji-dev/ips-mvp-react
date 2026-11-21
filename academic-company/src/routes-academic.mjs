@@ -272,6 +272,11 @@ export function registerAcademicRoutes(ctx){
    {$set:{status:decision==='approve'?'client_delivery':'correction_requested',
     qaReviewer:req.actor.id,qaDecision:decision,qaNote:note,updatedAt:now()}},{returnDocument:'after'});
   if(!p)return res.status(409).json({error:'No submitted academic work awaits QA.'});
+  // Nyoro may supervise emergency fulfilment, but must never mislabel a Root-authored
+  // deliverable reviewed by that same operator as an independent academic QA review.
+  const qaMode=p.fulfilmentMode==='root'&&req.actor.role==='root'?
+   'root_supervised_exception':'independent_ips_review';
+  await db.projects.updateOne({id:p.id},{$set:{qaMode}});
   if(decision==='approve')await db.projects.updateOne({id:p.id,status:'client_delivery'},
    {$set:{releasedFileId:p.pendingFileId}});
   await db.projects.updateOne({id:p.id,'milestones.name':'Academic quality assurance'},
@@ -281,7 +286,7 @@ export function registerAcademicRoutes(ctx){
    {$set:{'milestones.$.status':'pending'}});
   await notify(decision==='approve'?p.studentId:p.specialistId,
    'IPS academic quality review '+(decision==='approve'?'approved delivery':'requested corrections')+' on '+p.id,'quality');
-  await audit(req.actor,'academic_qa_'+decision,p.id,{note});
+  await audit(req.actor,'academic_qa_'+decision,p.id,{note,qaMode});
   res.json({commission:commissionView(await db.projects.findOne({id:p.id}))});
  }));
  app.post('/api/academic/commissions/:id/student-decision',wrap(async(req,res)=>{
