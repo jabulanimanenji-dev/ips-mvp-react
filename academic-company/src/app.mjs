@@ -49,6 +49,7 @@ app.post('/api/integrations/resend/webhook',
 app.use(express.json({limit:'8mb'}));
 app.use((req,res,next)=>{
  res.setHeader('X-IPS-Product','IPS Academic Services');
+ if(config.staging)res.setHeader('X-Robots-Tag','noindex, nofollow, noarchive');
  res.setHeader('Cache-Control','no-store');
  if(!['GET','HEAD','OPTIONS'].includes(req.method)){
   const supplied=req.get('origin');
@@ -58,7 +59,7 @@ app.use((req,res,next)=>{
 });
 await mongoose.connect(env.MONGODB_URI,{dbName:config.dbName,serverSelectionTimeoutMS:12000});
 const raw=mongoose.connection.db;
-if(config.prod){
+if(config.production){
  const controls=await raw.collection('academic_release_controls')
   .find({}).limit(2).toArray();
  if(controls.length!==1)throw Error('IPS production admission denied: exactly one authoritative release control is required.');
@@ -298,7 +299,7 @@ const ctx={app,db,documentBucket,inspectAcademicUpload,env,config,security,throt
 app.get('/api/health',wrap(async(_req,res)=>res.json({
  ready:mongoose.connection.readyState===1,
  product:'IPS Academic Services',identity:'academic-services-only',release:'academic-company-2026-v1',
- environment:config.sandbox?'ISOLATED_ACADEMIC_REVIEW':'PRODUCTION',
+ environment:config.sandbox?'ISOLATED_ACADEMIC_REVIEW':config.staging?'STAGING_REAL_PROVIDER_VALIDATION':'PRODUCTION',
  payments:'integration-pending',
  documentScreening:scanConfiguration(env).host?'configured_not_proven':
   (config.sandbox?'synthetic_not_scanned':'unavailable'),
@@ -367,4 +368,4 @@ const dist=path.join(path.dirname(fileURLToPath(import.meta.url)),'../public');
 app.use(express.static(dist,{index:false,maxAge:0}));
 app.get('*',(req,res)=>res.sendFile(path.join(dist,'index.html')));
 const port=Number(env.PORT||8080);
-app.listen(port,'0.0.0.0',()=>console.log('IPS ACADEMIC SERVICES runtime',config.sandbox?'ISOLATED ACADEMIC REVIEW':'production',port));
+app.listen(port,'0.0.0.0',()=>console.log('IPS ACADEMIC SERVICES runtime',config.sandbox?'ISOLATED ACADEMIC REVIEW':config.staging?'STAGING PROVIDER VALIDATION':'production',port));
