@@ -2383,6 +2383,13 @@ app.post('/api/work/:workId/decisions', async (req, res) => {
     const work = await findWork(req.params.workId);
     if (!work || !canAccessWork(session, work)) return res.status(403).json({ success: false, error: 'You do not have access to this job.' });
     const { work_kind, type, subject, details, requested_changes, priority, assigned_to_role, quote_snapshot } = req.body;
+    if(work_kind!==work.kind||!['admin','client','writer','provider'].includes(assigned_to_role))
+      return res.status(400).json({success:false,error:'Select an actual work category and permitted recipient role.'});
+    const assignedRecipient=assigned_to_role==='admin'?'admin':
+      assigned_to_role==='client'?String(work.record.client_id||''):
+      String(work.record.writer_id||work.record.provider_id||'');
+    if(!assignedRecipient)return res.status(409).json({success:false,
+      error:'An accountable recipient must be assigned before creating this decision.'});
     if (!work_kind || !type || !subject?.trim() || !details?.trim() || !assigned_to_role) {
       return res.status(400).json({ success: false, error: 'Type, subject, explanation, creator and recipient are required.' });
     }
@@ -2400,11 +2407,18 @@ app.post('/api/work/:workId/decisions', async (req, res) => {
       order_id: req.params.workId, actor_id: session.id, actor_role: sessionRole,
       action: `${type}_opened`, details: { decision_id: decision._id, subject: decision.subject }
     });
-    await Notification.create({
-      recipient_id: assigned_to_role === 'admin' ? 'admin' : req.params.workId,
-      recipient_role: assigned_to_role === 'provider' ? 'writer' : assigned_to_role,
-      order_id: req.params.workId, type, message: `${subject}: ${details.slice(0, 180)}`
-    }).catch(() => {});
+    // Route to the actual authenticated principal rather than the work ID.
+    // Keep confidential explanation details in the protected work decision.
+    const noticeKey='ips-decision/'+String(decision._id);
+    await Notification.updateOne({dedupe_key:noticeKey},{$setOnInsert:{
+      dedupe_key:noticeKey,recipient_id:assignedRecipient,
+      recipient_role:['provider','writer'].includes(assigned_to_role)?'writer':assigned_to_role,
+      order_id:req.params.workId,type:'work_decision',
+      message:'A new protected project decision requires your attention. Open your IPS workspace.',
+      read:false
+    }},{upsert:true}).catch(error=>{
+      console.error('IPS work decision notification delivery pending:',error?.name||'error');
+    });
     res.status(201).json({ success: true, decision });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
