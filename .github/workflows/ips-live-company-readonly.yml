@@ -7,7 +7,6 @@ permissions:
   contents: read
 jobs:
   live-release-read-only:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'work/ips-live-company-readonly-qualification-20261121'
     runs-on: ubuntu-latest
     timeout-minutes: 14
     steps:
