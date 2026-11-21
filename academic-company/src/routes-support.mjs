@@ -108,7 +108,7 @@ export function registerSupportRoutes(ctx){
  }));
 }
 export function beginCompanyAutomation(ctx){
- const {db,rootEmail,notify,sendEmail,uid}=ctx;
+ const {db,rootEmail,notify,sendEmail,uid,config}=ctx;
  let busy=false,mailBusy=false;
  const deliveryTick=async()=>{
   if(mailBusy)return;mailBusy=true;
@@ -121,9 +121,13 @@ export function beginCompanyAutomation(ctx){
     },{$set:{status:'sending',lockedAt:now}},{sort:{createdAt:1},returnDocument:'after'});
     if(!job)break;
     try{
-     await sendEmail(job.to,job.subject,job.text);
-     await db.notificationDeliveries.updateOne({id:job.id,status:'sending'},
-      {$set:{status:'delivered',deliveredAt:new Date()},$unset:{lockedAt:''}});
+     const receipt=await sendEmail(job.to,job.subject,job.text,job.id);
+     const status=config.sandbox?'synthetic_dispatched':'provider_accepted';
+     // Provider API acceptance is not proof of inbox delivery.
+     // Delivery events must be verified independently before marking delivered.
+     await db.notificationDeliveries.updateOne({id:job.id,status:'sending'},{
+      $set:{status,provider:receipt.provider,providerMessageId:receipt.id,
+       acceptedAt:new Date()},$unset:{lockedAt:''}});
     }catch(e){
      const attempts=(job.attempts||0)+1,failed=attempts>=4;
      const delay=Math.min(180000,4000*(2**(attempts-1)));
