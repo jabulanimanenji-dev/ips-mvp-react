@@ -185,6 +185,57 @@ export function registerOperationsRoutes(ctx){
   const r=await db.rootOperations.findOne({commissionId:req.params.id});
   res.json({privateFulfilment:r?publicDocument(r):null});
  }));
+ app.post('/api/operations/direct-message/file',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  const target=await db.accounts.findOne({id:String(req.body?.recipientId||''),
+   verified:true,status:'active',role:{$in:['student','specialist','manager','staff']}});
+  if(!target)return res.status(404).json({error:'Choose a verified recipient.'});
+  const checked=quickFile({...req.body,purpose:'reference'});
+  if(checked.error)return res.status(400).json({error:checked.error});
+  const {filename,mime,buffer}=checked;
+  const f={id:uid('DMF'),toId:target.id,fromId:rootEmail,filename,mime,
+   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
+   fileData:buffer,createdAt:now()};
+  await db.directFiles.insertOne(f);
+  await notify(target.id,'IPS sent a private academic document '+filename,'direct_file');
+  await audit(req.actor,'root_direct_file_sent',target.id,{fileId:f.id,sha256:f.sha256});
+  res.status(201).json({file:{id:f.id,filename,mime,sha256:f.sha256,toId:f.toId,createdAt:f.createdAt}});
+ }));
+ app.get('/api/operations/direct-file/:id',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','student','specialist','manager','staff']))return;
+  const f=await db.directFiles.findOne({id:req.params.id});
+  if(!f||req.actor.role!=='root'&&f.toId!==req.actor.id)return deny(res);
+  res.set('Content-Type',f.mime).set('Content-Disposition','attachment; filename="'+f.filename+'"')
+   .set('Cache-Control','private,no-store').set('X-Content-Type-Options','nosniff')
+   .set('X-Content-SHA256',f.sha256);
+  res.send(Buffer.from(f.fileData?.buffer||f.fileData));
+ }));
+ app.get('/api/operations/direct-message/:id/thread',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','student','specialist','manager','staff']))return;
+  const seed=await db.directMessages.findOne({id:req.params.id});
+  if(!seed||req.actor.role!=='root'&&seed.toId!==req.actor.id&&seed.fromId!==req.actor.id)return deny(res);
+  const threadId=seed.threadId||seed.id;
+  const rows=await db.directMessages.find({$or:[{id:threadId},{threadId}]})
+    .sort({createdAt:1}).limit(200).toArray();
+  const relevant=rows.filter(m=>req.actor.role==='root'||m.toId===req.actor.id||m.fromId===req.actor.id);
+  res.json({messages:relevant.map(publicDocument),threadId});
+ }));
+ app.post('/api/operations/direct-message/:id/reply',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','student','specialist','manager','staff']))return;
+  const seed=await db.directMessages.findOne({id:req.params.id});
+  if(!seed)return res.status(404).json({error:'Conversation not found.'});
+  if(req.actor.role!=='root'&&seed.toId!==req.actor.id)return deny(res);
+  const body=String(req.body?.body||'').trim();
+  if(body.length<2||body.length>3500)return res.status(400).json({error:'Write a private reply.'});
+  const threadId=seed.threadId||seed.id;
+  const recipient=req.actor.role==='root'?(seed.fromId===rootEmail?seed.toId:seed.fromId):rootEmail;
+  const m={id:uid('DM'),threadId,fromId:req.actor.id,fromRole:req.actor.role,
+    toId:recipient,body,subject:'IPS private message',createdAt:now()};
+  await db.directMessages.insertOne(m);
+  await notify(recipient,'A new written reply is available in your private IPS inbox','direct_message');
+  await audit(req.actor,'academic_direct_message_replied',threadId,{recipient});
+  res.status(201).json({message:publicDocument(m)});
+ }));
  app.post('/api/operations/direct-message',wrap(async(req,res)=>{
   if(!authorize(req,res,['root']))return;
   const target=await db.accounts.findOne({id:String(req.body?.recipientId||''),
