@@ -75,7 +75,7 @@ try{
   await studentPage.getByRole('button',{name:'My quotations'}).click();
   await studentPage.getByText('Academic Editing & Proofreading').first().waitFor();
   await studentPage.getByRole('button',{name:'My academic work'}).click();
-  await studentPage.getByText('Thesis & Dissertation Guidance').first().waitFor();
+  await studentPage.getByText('Academic Editing & Proofreading').first().waitFor();
   await overflow(studentPage);await screen(studentPage,'05-student-academic-workspace');
  });
  await pass('Student sees actual approved academic file through private authenticated download',async()=>{
