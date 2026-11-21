@@ -1,7 +1,24 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[]};
+ message:'',error:'',busy:false,backStack:[],isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[]};
+// Every screen has a Back control. Native browser Back restores the same in-app context.
+const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
+ service:state.service,category:state.category,rootLens:state.rootLens});
+const remember=()=>{
+ state.backStack.push(snap());
+ if(state.backStack.length>35)state.backStack.shift();
+ history.pushState({ipsNavigation:true},'',location.href);
+};
+const goBack=()=>{
+ const last=state.backStack.pop();
+ if(last){Object.assign(state,last);state.error='';state.message='';render();return}
+ if(state.rootLens){state.rootLens=null;state.tab='overview';state.page='workspace'}
+ else if(state.account){state.tab='overview';state.page='workspace';state.opened=''}
+ else{state.page='home';state.opened=''}
+ render();
+};
+window.addEventListener('popstate',()=>goBack());
 const escapeText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&#39;'}[c]));
 const e=escapeText;
 const stat=value=>'<span class="pill '+(['active','approved','accepted','completed','client_delivery','scoped'].includes(value)?'good':['suspended','declined','correction_requested'].includes(value)?'bad':'wait')+'">'+e(String(value||'pending').replaceAll('_',' '))+'</span>';
@@ -24,7 +41,7 @@ const header=()=>'<div class="masthead"><header class="top">'+brand()+'<nav aria
 const footer=()=>'<footer class="foot"><span>© IPS Academic Services · Academic & research support</span><span>'+buttonRoute('Privacy policy','privacy','quiet')+' · Written correspondence only</span></footer>';
 const banner=()=>state.isEvaluation?'<div class="banner" role="status">REVIEW ENVIRONMENT · Fictional accounts and academic records · No payments or external messages</div>':'';
 const flash=()=>state.error?'<div class="notice error" role="alert">'+e(state.error)+'</div>':state.message?'<div class="notice success" role="status">'+e(state.message)+'</div>':'';
-const shell=content=>{root.innerHTML=header()+banner()+content+footer();document.title='IPS Academic Services | '+(state.account?'Private workspace':state.page==='services'?'Academic services':'Academic & Research Support')};
+const shell=content=>{root.innerHTML=header()+banner()+((state.page!=='home'&&state.page!=='workspace'&&state.page!=='root-login')?'<div class="toolbar global-toolbar">'+b('← Back','back','','back-btn')+'</div>':'')+content+footer();document.title='IPS Academic Services | '+(state.account?'Private workspace':state.page==='services'?'Academic services':'Academic & Research Support')};
 const intro=(tag,title,desc)=>'<div class="page-intro"><span class="kicker">'+e(tag)+'</span><h1>'+e(title)+'</h1><p>'+e(desc)+'</p></div>';
 const navData=(route,name,active)=>'<button type="button" data-tab="'+e(route)+'" class="'+(active===route?'active':'')+'">'+e(name)+'</button>';
 const selectService=()=>state.catalogue.services.map(s=>[s.id,s.title]);
@@ -174,18 +191,24 @@ function tokenForm(kind){
  kind==='guestconfirm'?'Confirm my academic enquiry':kind==='verify'?'Verify my email':'Secure my account'));
 }
 function departmentsForRole(a){
- if(a.role==='student')return [['overview','My academic overview'],['quotes','My quotations'],['commissions','My academic work'],['support','Written support'],['notifications','Private updates'],['profile','Account & privacy']];
- if(a.role==='specialist')return [['overview','Academic assignments'],['commissions','Assigned academic work'],['support','IPS support'],['notifications','Private updates'],['profile','Professional profile']];
- if(a.role==='root')return [['overview','Nyoro · Command Centre'],['root-students','Student workspace'],['root-specialists','Specialist workspace'],['queues','Today & queues'],['quotes','Academic enquiries'],['people','Students & Specialists'],['commissions','Academic delivery'],['quality','Quality Assurance'],['support','Client Relations'],['workforce','Managers & Staff'],['finance','Finance & Billing'],['audit','Governance & Audit'],['notifications','Company alerts']];
- const t=[['overview','Department overview'],['queues','My department queue']];
- if(a.department==='client_relations')t.push(['quotes','Academic enquiries'],['people','Student accounts'],['support','Written support']);
- if(a.department==='academic_delivery')t.push(['quotes','Academic scope'],['commissions','Academic delivery']);
- if(a.department==='specialist_network')t.push(['people','Specialist network']);
- if(a.department==='quality_assurance')t.push(['quality','Academic QA']);
- if(a.department==='finance')t.push(['finance','Finance readiness']);
- if(a.department==='governance')t.push(['audit','Governance & Audit']);
- if(a.role==='manager')t.push(['workforce','My department staff']);
- t.push(['notifications','My notifications']);return t;
+ if(a.role==='student')return [['overview','Overview'],['inbox','Inbox & messages'],
+  ['quotes','My quotations'],['commissions','My academic work'],['support','Support'],['profile','Account']];
+ if(a.role==='specialist')return [['overview','My work'],['inbox','Inbox & messages'],
+  ['commissions','Assignments & files'],['support','Support'],['profile','Profile']];
+ if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],
+  ['quotes','Enquiries'],['students','Students'],['specialists','Specialists'],
+  ['commissions','Academic jobs'],['root-students','Student workspace'],
+  ['root-specialists','Specialist workspace'],['workforce','Team & managers'],
+  ['finance','Finance'],['audit','Audit']];
+ const t=[['overview','Overview'],['inbox','Inbox & messages'],['queues','My queue']];
+ if(a.department==='client_relations')t.push(['quotes','Enquiries'],['students','Students'],['support','Support']);
+ if(a.department==='academic_delivery')t.push(['commissions','Academic jobs']);
+ if(a.department==='specialist_network')t.push(['specialists','Specialists']);
+ if(a.department==='quality_assurance')t.push(['quality','Quality review']);
+ if(a.department==='finance')t.push(['finance','Finance']);
+ if(a.department==='governance')t.push(['audit','Audit']);
+ if(a.role==='manager')t.push(['workforce','My team']);
+ return t;
 }
 async function openRootLens(accountId){
  if(state.account?.role!=='root')throw Error('Only Nyoro Root Admin can open another academic workspace.');
@@ -211,7 +234,7 @@ function work(){
  const oversight=state.rootLens?'<div class="root-assist"><div><span class="kicker">NYORO ROOT ADMINISTRATION / ASSISTED WORKSPACE</span><strong>Currently viewing '+e(a.role==='student'?'Student / Researcher':'Academic Specialist')+' · '+e(a.username||a.name)+'</strong><p>Root remains signed in. Every assisted action is attributed to Nyoro. Review-only simulation is allowed for fictional accounts; live client agreements and specialist authorship cannot be forged.</p></div><div class="root-assist-controls"><label class="field">Switch '+e(a.role==='student'?'Student':'Specialist')+' without another login<select data-root-target>'+state.rootLens.directory.map(p=>'<option value="'+e(p.id)+'"'+(p.id===a.id?' selected':'')+'>'+e(p.username||p.name)+' · '+e(p.id)+'</option>').join('')+'</select></label>'+b('Return to Nyoro Root','root-lens-exit','','primary')+'</div></div>':'';
  shell('<div class="workspace"><aside class="sidebar"><div class="nav-label">IPS ACADEMIC COMPANY</div>'+tabs.map(t=>navData(t[0],t[1],state.tab)).join('')+
  '<div class="nav-label">YOUR RESPONSIBILITY</div><div class="notice" style="font-size:11px">'+e(a.role==='root'?'The Root Admin has no manager and cannot be deleted by staff.':a.role==='student'?'Your academic enquiries, projects and documents remain private to you and authorized IPS personnel.':a.role==='specialist'?'Only assigned academic work and approved communication are visible to Specialists.':'Your company authority is limited to your assigned department.')+'</div></aside>'+
- '<main class="workmain">'+oversight+'<div class="work-title"><span class="kicker">IPS ACADEMIC SERVICES / '+e(state.tab.toUpperCase())+'</span><h1>'+e(title)+'</h1><p>'+e(a.role==='root'?'Lead academic service operations, qualified Specialists, communications, quality assurance and responsible departments.':
+ '<main class="workmain">'+oversight+'<div class="toolbar">'+b('← Back','back','','back-btn')+'<span class="subtle">'+e(a.role==='root'?'ROOT ADMIN':a.role==='student'?'STUDENT WORKSPACE':a.role==='specialist'?'SPECIALIST WORKSPACE':'IPS TEAM')+' / '+e(state.tab.replaceAll('-',' '))+'</span></div><div class="work-title"><span class="kicker">IPS ACADEMIC SERVICES / '+e(state.tab.toUpperCase())+'</span><h1>'+e(title)+'</h1><p>'+e(a.role==='root'?'Lead academic service operations, qualified Specialists, communications, quality assurance and responsible departments.':
  a.role==='student'?'Your confidential academic support, reviewed quotations and secure work history.':
  a.role==='specialist'?'Your professional academic assignments, approvals, submissions and IPS coordination.':
  'Manage real academic-service responsibilities and clients within your approved authority.')+'</p></div>'+flash()+
@@ -477,18 +500,19 @@ document.addEventListener('change',async ev=>{
 });
 document.addEventListener('click',async ev=>{
  const route=ev.target.closest('[data-nav]'),tab=ev.target.closest('[data-tab]'),action=ev.target.closest('[data-action]'),category=ev.target.closest('[data-category]');
- if(category){state.category=category.dataset.category;services();return}
- if(route){ev.preventDefault();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
+ if(category){remember();state.category=category.dataset.category;services();return}
+ if(route){ev.preventDefault();remember();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
   if(state.account&&['home','services','quote','how','privacy'].includes(dest)){if(state.rootLens&&dest==='quote'&&!state.isEvaluation){state.error='Real client quote authorization must come from the account holder.';render();return}state.page=dest==='home'?'services':dest;render();return}
   state.page=dest;state.registerRole=dest==='specialist'?'specialist':dest==='register'?'student':state.registerRole;render();return}
- if(tab){state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
+ if(tab){remember();state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;state.error='';state.message='';
- if(act==='root-lens-exit'){state.rootLens=null;state.rootDirectory=[];state.page='workspace';state.tab='overview';state.opened='';history.replaceState(null,'','/root');render();return}
- if(act==='root-lens-open'){try{await openRootLens(id)}catch(err){state.error=err.message;render()}return}
- if(act==='service'){state.service=id;state.page='service';serviceDetail();return}
- if(act==='request-service'){state.service=id;state.page='quote';quote();return}
- if(['tab-commissions','tab-queues','tab-root-students','tab-root-specialists'].includes(act)){state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
- if(act==='quote-detail'||act==='commission-open'||act==='support-open'){state.opened=state.opened===id?'':id;render();return}
+ if(act==='back'){if(state.backStack.length)history.back();else goBack();return}
+ if(act==='root-lens-exit'){remember();state.rootLens=null;state.rootDirectory=[];state.page='workspace';state.tab='overview';state.opened='';history.replaceState(null,'','/root');render();return}
+ if(act==='root-lens-open'){remember();try{await openRootLens(id)}catch(err){state.error=err.message;render()}return}
+ if(act==='service'){remember();state.service=id;state.page='service';serviceDetail();return}
+ if(act==='request-service'){remember();state.service=id;state.page='quote';quote();return}
+ if(['tab-commissions','tab-queues','tab-root-students','tab-root-specialists'].includes(act)){remember();state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
+ if(act==='quote-detail'||act==='commission-open'||act==='support-open'){remember();state.opened=state.opened===id?'':id;render();return}
  if(act==='scope-form'||act==='offer-form'){
   const anchor=action.closest('.record');const markup=act==='scope-form'?
    form('scope',options('Academic scope decision','decision',[['approved','Appropriate academic support'],['clarify','Request clarification'],['declined','Decline inappropriate request']])+
@@ -501,7 +525,7 @@ document.addEventListener('click',async ev=>{
   anchor.insertAdjacentHTML('afterend','<div class="panel mt">'+markup+'</div>');return}
  state.busy=true;
  try{
-  if(act==='logout'){await api('/auth/logout',{method:'POST'});state.account=null;state.rootLens=null;state.page=state.rootEntry?'root-login':'home';state.opened='';state.tab='overview';}
+  if(act==='logout'){await api('/auth/logout',{method:'POST'});state.backStack=[];state.account=null;state.rootLens=null;state.page=state.rootEntry?'root-login':'home';state.opened='';state.tab='overview';}
   else if(['quote-accept','quote-decline'].includes(act)){
    const decision=act==='quote-accept'?'accept':'decline';
    const r=await api('/academic/quotes/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});
