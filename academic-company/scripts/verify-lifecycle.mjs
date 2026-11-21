@@ -75,17 +75,45 @@ try{
    privacyConsent:true}},400);
   assert.equal(await db.collection('academic_accounts').countDocuments({usernameKey:{$regex:'^mismatchedstudent'}}),0);
  });
+ await assertCheck('Public Specialist agreement is versioned and cannot be bypassed during registration',async()=>{
+  const agreement=await call('/specialist/agreement');
+  assert.equal(agreement.data.version,'IPS-SPECIALIST-CONFIDENTIALITY-V1-2026');
+  assert.equal(agreement.data.sections.length,5);
+  await call('/auth/register',{method:'POST',body:{
+   role:'specialist',email:emailFor('incomplete-professional'),
+   fullName:'Incomplete Professional Specialist',qualification:'MSc Academic Editing',
+   credentialEvidenceReference:'Higher education certificate number 2026-123',
+   password:'SpecialistAcademic2026!',confirmPassword:'SpecialistAcademic2026!',
+   expertise:['academic-editing'],privacyConsent:true}},400);
+ });
  await assertCheck('Qualified Specialist verifies email and cannot work until approved',async()=>{
   specialistMail=emailFor('academic-specialist');
   await call('/auth/register',{method:'POST',body:{role:'specialist',email:specialistMail,password:'SpecialistAcademic2026!',confirmPassword:'SpecialistAcademic2026!',
    fullName:'Evaluation Academic Nursing Editor',qualification:'MSc Nursing Research',experience:'Editorial and methodology consultation',
-   expertise:['academic-editing','thesis-dissertation'],privacyConsent:true}},202);
+   credentialEvidenceReference:'Awarded MSc Nursing Research, evaluation certificate reference 2026-ACADEMIC',
+   professionalLanguages:'English, Polish',agreementVersion:'IPS-SPECIALIST-CONFIDENTIALITY-V1-2026',
+   specialistAgreementAccepted:true,expertise:['academic-editing','thesis-dissertation'],
+   privacyConsent:true}},202);
   const m=await inbox(specialistMail,'Confirm your IPS Academic Services email');
   const r=await call('/auth/verify',{method:'POST',body:{email:specialistMail,token:token(m,'verify')}});
   assert.equal(r.data.reviewRequired,true);
   await call('/auth/login',{method:'POST',body:{email:specialistMail,password:'SpecialistAcademic2026!'}},403);
   const person=await db.collection('academic_accounts').findOne({email:specialistMail});
-  await call('/administration/people/'+person.id+'/decision',withAuth(rootCookie,{decision:'approve_specialist'}));
+  await call('/administration/people/'+person.id+'/decision',
+   withAuth(rootCookie,{decision:'approve_specialist'}),409);
+  const preReview=await call('/administration/specialists/'+person.id+'/review',{cookie:rootCookie});
+  assert.equal(preReview.data.specialist.credentialReviewStatus,'pending');
+  assert.equal(preReview.data.specialist.professionalAgreementVersion,
+   'IPS-SPECIALIST-CONFIDENTIALITY-V1-2026');
+  const accepted=await call('/administration/people/'+person.id+'/decision',
+   withAuth(rootCookie,{decision:'approve_specialist',
+    credentialVerified:true,
+    reviewNote:'Verified the submitted academic qualification with the fictional awarding institution and reviewed academic editing expertise.',
+    evidenceVerificationReference:'Evaluation credential verification register 2026-IPS-001'}));
+  assert.equal(accepted.data.success,true);
+  const after=await call('/administration/specialists/'+person.id+'/review',{cookie:rootCookie});
+  assert.equal(after.data.specialist.credentialReviewStatus,'verified');
+  assert.equal(after.data.specialist.credentialReviewHistory.length,1);
   specialistCookie=await signIn(specialistMail,'SpecialistAcademic2026!');
  });
  await assertCheck('Root appoints manager, manager invites department staff, staff cannot invite',async()=>{
@@ -686,7 +714,9 @@ try{
   await call('/auth/register',{method:'POST',body:{role:'specialist',email:pendingEmail,
    fullName:'Evaluation Pending Academic Specialist',password:'PendingAcademic2026!',
    confirmPassword:'PendingAcademic2026!',qualification:'BSc Research',expertise:['academic-editing'],
-   privacyConsent:true}},202);
+   credentialEvidenceReference:'Fictional BSc award supporting credential reference 2006-002',
+   professionalLanguages:'English',agreementVersion:'IPS-SPECIALIST-CONFIDENTIALITY-V1-2026',
+   specialistAgreementAccepted:true,privacyConsent:true}},202);
   const verification=token(await inbox(pendingEmail,'Confirm your IPS Academic Services email'),'verify');
   await call('/auth/verify',{method:'POST',body:{email:pendingEmail,token:verification}});
   const request=await call('/auth/recovery/request',{method:'POST',body:{email:pendingEmail}},202);
