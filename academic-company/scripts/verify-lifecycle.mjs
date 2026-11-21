@@ -149,12 +149,14 @@ try{
   const q=await call('/academic/commissions/'+commissionId+'/quality',withAuth(rootCookie,{
    decision:'return_for_correction',note:'Citation consistency must be corrected before academic client delivery.'}));
   assert.equal(q.data.commission.status,'correction_requested');
-  await upload('Corrected nursing academic editing notes: citations are consistent and methodological limitations are clearly marked.');
+  const corrected=await upload('Corrected nursing academic editing notes: citations are consistent and methodological limitations are clearly marked.');
   const approved=await call('/academic/commissions/'+commissionId+'/quality',withAuth(rootCookie,{
    decision:'approve',note:'Second editorial review confirmed consistency and correct ownership boundaries.'}));
   assert.equal(approved.data.commission.status,'client_delivery');
-  const r=await fetch(url+'/api/academic/files/'+academicFileId,{headers:{Cookie:studentCookie}});
-  assert.equal(r.status,200);assert.ok((await r.text()).startsWith('IPS academic nursing'));
+  const rejected=await fetch(url+'/api/academic/files/'+academicFileId,{headers:{Cookie:studentCookie}});
+  assert.equal(rejected.status,403,'Student must never download the QA-rejected academic draft');
+  const released=await fetch(url+'/api/academic/files/'+corrected.data.submissionId,{headers:{Cookie:studentCookie}});
+  assert.equal(released.status,200);assert.ok((await released.text()).startsWith('Corrected nursing'));
  });
  await assertCheck('Student requests revision; Specialist returns final file; Root QA approves; student accepts',async()=>{
   await call('/academic/commissions/'+commissionId+'/student-decision',withAuth(studentCookie,{
