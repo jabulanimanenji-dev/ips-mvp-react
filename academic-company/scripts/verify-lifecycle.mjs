@@ -1230,6 +1230,86 @@ try{
   assert.ok(await db.collection('academic_audit_events').findOne({
    action:'nyoro_root_password_recovered'}));
  });
+ await assertCheck('Root and managers reassign, revoke sessions and offboard personnel without orphaning records',async()=>{
+  const secondManagerMail=emailFor('person-governance-manager');
+  await call('/administration/invite',withAuth(rootCookie,{
+   name:'Additional Academic Client Relations Manager',
+   email:secondManagerMail,department:'client_relations'}),201);
+  const mt=token(await inbox(secondManagerMail,'Your IPS Academic Services department invitation'),'invite');
+  const secondManagerCookie=(await call('/auth/invitation/accept',{method:'POST',body:{
+   email:secondManagerMail,token:mt,password:'SecondManager2026!',
+   confirmPassword:'SecondManager2026!'}})).cookie;
+  const secondManager=await db.collection('academic_accounts').findOne({email:secondManagerMail});
+  const secondStaffMail=emailFor('person-governance-staff');
+  await call('/administration/invite',withAuth(secondManagerCookie,{
+   name:'Additional Client Relations Associate',email:secondStaffMail}),201);
+  const st=token(await inbox(secondStaffMail,'Your IPS Academic Services department invitation'),'invite');
+  let secondStaffCookie=(await call('/auth/invitation/accept',{method:'POST',body:{
+   email:secondStaffMail,token:st,password:'SecondStaff2026!',confirmPassword:'SecondStaff2026!'}})).cookie;
+  const secondStaff=await db.collection('academic_accounts').findOne({email:secondStaffMail});
+  const firstManager=await db.collection('academic_accounts').findOne({email:managerMail});
+  await call('/administration/people/'+secondStaff.id+'/reassign-manager',
+   withAuth(secondManagerCookie,{managerId:firstManager.id,reason:'Managers must not reassign staff outside their delegated authority.'}),403);
+  await call('/administration/people/'+secondManager.id+'/offboard',
+   withAuth(rootCookie,{reason:'Cannot offboard while a reporting employee remains active.'}),409);
+  await call('/administration/people/'+secondStaff.id+'/reassign-manager',withAuth(rootCookie,{
+   managerId:firstManager.id,reason:'Accountable handover of additional academic intake worker to original manager.'}));
+  await call('/session',{cookie:secondStaffCookie},401);
+  secondStaffCookie=await signIn(secondStaffMail,'SecondStaff2026!');
+  const history=await call('/administration/people/'+secondStaff.id+'/history',{cookie:rootCookie});
+  assert.ok(history.data.history.some(x=>x.action==='academic_staff_manager_reassigned'));
+  await call('/administration/people/'+secondStaff.id+'/history',{cookie:studentCookie},403);
+  await call('/administration/people/'+secondStaff.id+'/revoke-sessions',
+   withAuth(secondManagerCookie,{reason:'No management authority remains after transfer.'}),403);
+  await call('/administration/people/'+secondStaff.id+'/revoke-sessions',
+   withAuth(managerCookie,{reason:'Security review after accountable workforce transfer is complete.'}));
+  await call('/session',{cookie:secondStaffCookie},401);
+  secondStaffCookie=await signIn(secondStaffMail,'SecondStaff2026!');
+  await call('/administration/people/'+secondManager.id+'/offboard',
+   withAuth(rootCookie,{reason:'Department staffing was transferred; retire now-unused manager account.'}));
+  await call('/session',{cookie:secondManagerCookie},401);
+  await call('/administration/people/'+secondStaff.id+'/offboard',
+   withAuth(managerCookie,{reason:'Offboard this temporary employee after an uneventful assignment handover.'}));
+  await call('/session',{cookie:secondStaffCookie},401);
+  await call('/administration/people/'+secondStaff.id+'/offboard',
+   withAuth(rootCookie,{reason:'Attempt to repeat offboarding decision must fail.'}),409);
+  const preserved=await db.collection('academic_audit_events').countDocuments({
+   ref:secondStaff.id,action:{$in:['academic_staff_manager_reassigned','academic_person_sessions_revoked','academic_employee_offboarded']}});
+  assert.equal(preserved,3);
+  assert.equal((await db.collection('academic_accounts').findOne({id:secondStaff.id})).status,'disabled');
+ });
+ await assertCheck('Documented Specialist rejection is private, role-controlled and queued for written delivery',async()=>{
+  const emailAddr=emailFor('rejected-academic-specialist');
+  await call('/auth/register',{method:'POST',body:{
+   role:'specialist',email:emailAddr,password:'RejectedSpecialist2026!',
+   confirmPassword:'RejectedSpecialist2026!',fullName:'Applicant Academic Research Consultant',
+   qualification:'MA Social Research',expertise:['academic-editing'],
+   privacyConsent:true,specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
+   specialistAgreementAccepted:true,specialistSignature:'Applicant Academic Research Consultant'
+  }},202);
+  const m=await inbox(emailAddr,'Confirm your IPS Academic Services email');
+  await call('/auth/verify',{method:'POST',body:{email:emailAddr,token:token(m,'verify')}});
+  const applicant=await db.collection('academic_accounts').findOne({email:emailAddr});
+  await call('/administration/people/'+applicant.id+'/decision',withAuth(managerCookie,{
+   decision:'reject_specialist',reviewNote:'Client Relations cannot decide Specialist Network professional applications.'}),403);
+  await call('/administration/people/'+applicant.id+'/decision',withAuth(rootCookie,{
+   decision:'reject_specialist',reviewNote:'Brief.'}),400);
+  const reason='IPS Specialist Network could not verify the submitted professional qualification against satisfactory independent evidence.';
+  await call('/administration/people/'+applicant.id+'/decision',withAuth(rootCookie,{
+   decision:'reject_specialist',reviewNote:reason}));
+  const record=await db.collection('academic_accounts').findOne({id:applicant.id});
+  assert.equal(record.status,'rejected');
+  assert.equal(record.approved,false);
+  assert.equal(record.credentialReviewDecision,'rejected');
+  assert.equal(record.credentialReviewNote,reason);
+  await call('/auth/login',{method:'POST',body:{
+   email:emailAddr,password:'RejectedSpecialist2026!'}},403);
+  assert.ok(await db.collection('academic_notification_deliveries').findOne({
+   accountId:applicant.id,kind:'specialist_application_review',channel:'email'}));
+  await call('/administration/people/'+applicant.id+'/decision',withAuth(rootCookie,{
+   decision:'approve_specialist',reviewNote:'Cannot undo a rejected professional review silently.',
+   credentialEvidenceReviewed:true}),409);
+ });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
   const people=await call('/administration/people',{cookie:rootCookie});
   assert.ok(!people.data.people.some(x=>x.role==='root'));
