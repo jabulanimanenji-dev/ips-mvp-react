@@ -46,3 +46,17 @@ test('server routes call the shared notification authorization policy',async()=>
   const server=await readFile(new URL('../server.js',import.meta.url),'utf8');
   assert.match(server,/canReadNotificationInbox\(session,req\.params\.role,req\.params\.id,req\.adminAccess\)/);
 });
+
+test('notification acknowledgement is individually authorized and never requires customer-message privileges',async()=>{
+  const [server,permissions,alerts]=await Promise.all([
+    readFile(new URL('../server.js',import.meta.url),'utf8'),
+    readFile(new URL('../shared/adminPermissions.js',import.meta.url),'utf8'),
+    readFile(new URL('../src/administration/CompanyAlerts.jsx',import.meta.url),'utf8')
+  ]);
+  assert.match(server,/app\.patch\('\/api\/notifications\/:role\/:id\/:notificationId\/read'/);
+  assert.match(server,/canReadNotificationInbox\(session,role,id,req\.adminAccess\)/);
+  assert.match(server,/recipient_role:role,recipient_id:id/);
+  assert.match(permissions,/path\.startsWith\('\/api\/notifications'\)\) return 'dashboard\.view'/);
+  assert.match(alerts,/Acknowledge/);
+  assert.match(alerts,/company_case_unowned/);
+});
