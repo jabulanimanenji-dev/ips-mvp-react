@@ -44,3 +44,9 @@ An assigned Specialist can submit idempotent, dated, meaningful work logs using 
 ## High-volume IPS operating worklist qualification
 
 The unified company inbox and authorized departmental queues now provide a live text search, explicit status filter, and 14 visible cases per page with Previous/Next controls. This replaces unbounded vertical lists in the administration. Search and paging preserve the current signed-in role, do not bypass server-side case permissions, and work with keyboard input, Back navigation, and desktop/mobile layouts. Chrome qualification asserts case discovery, real queue items, and the 14-record visible limit. The exact visual design still requires final owner acceptance.
+
+## Shared production abuse protection
+
+Production registration, email verification and resend, login, recovery, guest/student academic quotations, Telegram linking and authenticated file upload checks use durable, per-action, per-IP, 15-minute MongoDB rate windows. Counter identifiers are HMAC-hashed with the private session signing secret; raw client IPs are not stored in this collection. `academic_abuse_rate_windows.expiresAt` is TTL-indexed. The counter update is atomic across multiple web instances, preventing a restart or a second instance from bypassing limits. If MongoDB is unavailable, the rate limiter rejects operations instead of silently falling back to permissive local state.
+
+Isolated fictional evaluation retains disposable per-process counters, while CI additionally creates independent Throttle instances pointing to the same real test MongoDB and proves 18 concurrent requests cannot exceed a six-attempt shared limit. Live deployment still requires network-layer abuse controls, actual monitoring and privacy-policy review.
