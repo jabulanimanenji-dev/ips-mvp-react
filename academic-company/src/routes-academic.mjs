@@ -63,7 +63,7 @@ export function registerAcademicRoutes(ctx){
   autoAcknowledged:!!owner
  });
  app.post('/api/academic/guest-quote',wrap(async(req,res)=>{
-  if(throttle.limited(req,'academic-guest-intake',5))return res.status(429).json({error:'Too many academic requests.'});
+  if(await throttle.limited(req,'academic-guest-intake',5))return res.status(429).json({error:'Too many academic requests.'});
   const input=req.body||{},contactEmail=email(input.email),uname=String(input.username||'').trim();
   const valid=validateBrief(input);if(valid.error)return res.status(400).json({error:valid.error});
   if(!validEmail(contactEmail)||!validUsername(uname)||input.privacyConsent!==true)
@@ -88,7 +88,7 @@ export function registerAcademicRoutes(ctx){
   res.status(202).json({success:true,reference:item.id,confirmationRequired:true});
  }));
  app.post('/api/academic/guest-confirm',wrap(async(req,res)=>{
-  if(throttle.limited(req,'academic-guest-confirm',12))return res.status(429).json({error:'Too many confirmation attempts.'});
+  if(await throttle.limited(req,'academic-guest-confirm',12))return res.status(429).json({error:'Too many confirmation attempts.'});
   const token=String(req.body?.token||''),mail=email(req.body?.email),ref=String(req.body?.reference||'');
   if(!validToken(token)||!validEmail(mail))return res.status(400).json({error:'Invalid confirmation.'});
   const quote=await db.quotes.findOneAndUpdate({id:ref,contactEmail:mail,status:'awaiting_contact_verification',
@@ -102,7 +102,7 @@ export function registerAcademicRoutes(ctx){
  }));
  app.post('/api/academic/quotes',wrap(async(req,res)=>{
   if(!authorize(req,res,['student']))return;
-  if(throttle.limited(req,'student-academic-quotes',config.sandbox?60:12))return res.status(429).json({error:'Please wait before sending another quotation.'});
+  if(await throttle.limited(req,'student-academic-quotes',config.sandbox?60:12))return res.status(429).json({error:'Please wait before sending another quotation.'});
   const valid=validateBrief(req.body);if(valid.error)return res.status(400).json({error:valid.error});
   const input={...req.body,username:req.actor.username,email:req.actor.email};
   const channel=String(input.contactChannel||'workspace');
@@ -436,7 +436,7 @@ export function registerAcademicRoutes(ctx){
  app.post('/api/academic/commissions/:id/submission-binary',
   express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
   if(!authorize(req,res,['specialist']))return;
-  if(throttle.limited(req,'academic-binary-upload',20))
+  if(await throttle.limited(req,'academic-binary-upload',20))
    return res.status(429).json({error:'Too many academic document uploads. Retry later.'});
   const p=await db.projects.findOne({id:req.params.id,specialistId:req.actor.id,
    status:{$in:['specialist_assigned','correction_requested','student_revision_requested']}});
