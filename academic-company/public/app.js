@@ -385,6 +385,21 @@ async function loadTab(){
     [['workspace','IPS workspace'],['email','Email'],['telegram','Telegram']])+
      field('Telegram username (optional)','telegram','text','@username',false),'Save changes')+
    '<div class="case-actions">'+buttonRoute('Email me a password reset link','recover')+'</div>'));
+  if(a.role==='specialist'&&!rootAssisted){
+   const availability=await api('/specialist/availability');
+   html+=panel('Availability & assignments',
+    'Keep your capacity accurate so IPS can offer assignments you can deliver responsibly.',
+    '<p>Current status: <strong>'+e(availability.availabilityStatus.replaceAll('_',' '))+
+    '</strong> · Active assignments: '+e(availability.activeAssignments)+
+    ' / '+e(availability.maxConcurrentCases)+
+    ' · Declared turnaround: '+e(availability.turnaroundDays)+' days</p>'+
+    form('specialist-availability',
+     options('New availability','availabilityStatus',
+      [['available','Available for academic work'],['limited','Limited availability'],['unavailable','Unavailable for new assignments']])+
+     field('Maximum concurrent assignments (1–8)','maxConcurrentCases','number','e.g. 2')+
+     field('Normal turnaround in days (1–60)','turnaroundDays','number','e.g. 7'),
+     'Update my availability'));
+  }
  }else if(tab==='finance'){
   const d=await api('/administration/queues');
   const q=d.queues.find(x=>x.department==='finance');
@@ -518,7 +533,7 @@ async function commissionDetail(p,a){
   actions+=panel('Assign an academic Specialist','',
    avail.specialists.length?form('assign',
     '<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
-    options('Approved Specialist','specialistId',avail.specialists.map(s=>[s.id,s.name])),
+    options('Approved Specialist','specialistId',avail.specialists.map(s=>[s.id,s.name+' · '+s.availableSlots+' open slot(s) · '+s.turnaroundDays+'d turnaround'])),
     'Assign Specialist'):empty('No approved Specialist is currently available for this service. Root can take responsibility directly.'))}
  if(manager&&p.status==='qa_pending')
   actions+=panel(p.fulfilmentMode==='root'?'Root-supervised release review':'Academic quality review',
@@ -709,6 +724,10 @@ async function submit(name,formNode){
  if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Message sent and attached to this academic job.'}
  if(name==='support'){await api('/support',{method:'POST',body:data});return 'Your written academic support case is in the IPS Client Relations queue.'}
  if(name==='support-reply'){await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',{method:'POST',body:{message:data.message}});return 'Private support response recorded.'}
+ if(name==='specialist-availability'){
+  await api('/specialist/availability',{method:'PATCH',body:data});
+  return 'Your availability and assignment capacity are saved for IPS Academic Delivery.';
+ }
  if(name==='contact-preference'){await api('/profile',{method:'PATCH',body:data});return 'Your preferred written contact channel was saved.'}
  throw Error('This academic operation has not been connected.');
 }

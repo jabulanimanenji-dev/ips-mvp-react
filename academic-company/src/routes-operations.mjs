@@ -71,8 +71,19 @@ export function registerOperationsRoutes(ctx){
    return res.status(403).json({error:'Academic Delivery authority is required.'});
   const service=String(req.query.service||'');
   const rows=await db.accounts.find({role:'specialist',verified:true,approved:true,
-   status:'active',...(service?{expertise:service}:{})}).sort({name:1}).limit(100).toArray();
-  res.json({specialists:rows.map(a=>({id:a.id,name:a.name,expertise:a.expertise||[]}))});
+   status:'active',availabilityStatus:{$in:['available','limited']},
+   ...(service?{expertise:service}:{})}).sort({name:1}).limit(100).toArray();
+  const eligible=await Promise.all(rows.map(async a=>{
+   const active=await db.projects.countDocuments({specialistId:a.id,
+    status:{$nin:['completed','cancelled','closed']}});
+   const occupied=Math.max(active,a.activeAssignments||0);
+   const capacity=a.maxConcurrentCases||0;
+   return capacity>occupied?{id:a.id,name:a.name,expertise:a.expertise||[],
+    availabilityStatus:a.availabilityStatus,maxConcurrentCases:capacity,
+    activeAssignments:occupied,availableSlots:capacity-occupied,
+    turnaroundDays:a.turnaroundDays||0}:null;
+  }));
+  res.json({specialists:eligible.filter(Boolean)});
  }));
  app.get('/api/operations/inbox',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
@@ -230,6 +241,9 @@ export function registerOperationsRoutes(ctx){
    {$set:{status:'root_in_progress',specialistId:'',managedBy:rootEmail,
      fulfilmentMode:'root',updatedAt:now()}},{returnDocument:'after'});
   if(!u)return res.status(409).json({error:'The case changed while Root took responsibility.'});
+  // Reassignment immediately releases the former Specialist's reserved capacity.
+  if(before)await db.accounts.updateOne({id:before,activeAssignments:{$gt:0}},
+   {$inc:{activeAssignments:-1}});
   await db.projects.updateOne({id:p.id,'milestones.name':'Specialist assignment'},
    {$set:{'milestones.$.status':'complete','milestones.$.at':now()}});
   await db.rootOperations.updateOne({commissionId:p.id},

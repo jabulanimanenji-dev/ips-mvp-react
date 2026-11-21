@@ -167,6 +167,16 @@ try{
   await specialistPage.getByText('Job messages').waitFor();
   await overflow(specialistPage);await screen(specialistPage,'07-approved-specialist-academic-work');
  });
+ await pass('Specialist updates availability, capacity and turnaround from the real workspace',async()=>{
+  await specialistPage.locator('.sidebar').getByRole('button',{name:'Profile',exact:true}).click();
+  await specialistPage.getByRole('heading',{name:'Availability & assignments'}).waitFor();
+  await specialistPage.locator('select[name=availabilityStatus]').selectOption('limited');
+  await specialistPage.locator('input[name=maxConcurrentCases]').fill('1');
+  await specialistPage.locator('input[name=turnaroundDays]').fill('7');
+  await specialistPage.getByRole('button',{name:'Update my availability'}).click();
+  await specialistPage.getByText('limited',{exact:true}).first().waitFor();
+  await overflow(specialistPage);await screen(specialistPage,'21-specialist-availability');
+ });
  const rootPage=await pageOpen(false);
  await pass('Nyoro Root Administration governs students, specialists, academic queues, quality and finance',async()=>{
   await signIn(rootPage,vars.ROOT_EMAIL,vars.ROOT_PASSWORD);
