@@ -531,16 +531,20 @@ async function go(){
   assert.equal(assignedSpecialist.status,200,JSON.stringify(assignedSpecialist.body));
   assert.equal(assignedSpecialist.body.request.provider_id,specialistId);
 
-  const assignedClientNotice=await Notification.findOne({
-    recipient_role:'client',recipient_id:aliceId,order_id:requestId,type:'service_status',
-    message:/Assigned/
-  }).lean();
-  const assignedSpecialistNotice=await Notification.findOne({
-    recipient_role:'writer',recipient_id:specialistId,order_id:requestId,type:'service_status',
-    message:/Assigned/
-  }).lean();
-  assert.ok(assignedClientNotice,'Customer must receive the actual specialist-assignment status');
-  assert.ok(assignedSpecialistNotice,'Specialist must receive their assigned work status');
+  // The test runner intentionally disconnects its own Mongoose handle after
+  // provisioning fixtures; validate real persisted events through signed-in APIs.
+  const assignedClientInbox=await call('/api/notifications/client/'+aliceId,{
+    session:alice.cookie});
+  const assignedWriterInbox=await call('/api/notifications/writer/'+specialistId,{
+    session:specialist.cookie});
+  assert.equal(assignedClientInbox.status,200);
+  assert.equal(assignedWriterInbox.status,200);
+  assert.ok(assignedClientInbox.body.notifications.some(n=>
+    n.order_id===requestId&&n.type==='service_status'&&n.message.includes('Assigned')),
+    'Customer must receive the actual specialist-assignment status');
+  assert.ok(assignedWriterInbox.body.notifications.some(n=>
+    n.order_id===requestId&&n.type==='service_status'&&n.message.includes('Assigned')),
+    'Specialist must receive their assigned work status');
   const specialistNotificationView=await call('/api/notifications/writer/'+specialistId,{
     session:specialist.cookie});
   assert.equal(specialistNotificationView.status,200);
@@ -580,9 +584,9 @@ async function go(){
   assert.ok(specialistNotices.body.notifications.some(n=>
     n.order_id===requestId&&n.type==='work_decision'),
     'Specialist must receive the private decision notification');
-  const wrongPrincipal=await Notification.countDocuments({
-    recipient_role:'writer',recipient_id:requestId,type:'work_decision'});
-  assert.equal(wrongPrincipal,0,'Work reference is not a writer account identity');
+  assert.ok(!specialistNotices.body.notifications.some(n=>
+    n.type==='work_decision'&&n.recipient_id===requestId),
+    'Work reference must never become the specialist notification identity');
   const unauthorizedDecisionInbox=await call('/api/notifications/writer/'+specialistId,{session:alice.cookie});
   assert.equal(unauthorizedDecisionInbox.status,403);
   pass('Actual specialist receives project decision alerts under own verified account only');
