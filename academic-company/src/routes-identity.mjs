@@ -295,14 +295,39 @@ export function registerIdentityRoutes(ctx){
   if(!target)return res.status(404).json({error:'No such IPS academic account.'});
   const decision=String(req.body?.decision||'');
   if(target.role==='root'||target.id===rootEmail)return res.status(403).json({error:'Nyoro Root Admin is not a manageable employee record.'});
-  if(decision==='approve_specialist'){
-   if(target.role!=='specialist'||target.status!=='pending_review'||!target.verified)return res.status(409).json({error:'The applicant is not eligible for specialist approval.'});
-   if(req.actor.role!=='root'&&req.actor.department!=='specialist_network')return res.status(403).json({error:'Specialist Network permission required.'});
-   if(target.specialistAgreementVersion!==SPECIALIST_AGREEMENT.version||
-    target.specialistAgreementSha256!==SPECIALIST_AGREEMENT.sha256||
-    !target.specialistAgreementSignature||!target.qualification?.trim())
-    return res.status(409).json({error:'The Specialist must first sign the current confidentiality agreement and submit a professional qualification.'});
-   await db.accounts.updateOne({id:target.id,status:'pending_review'},{$set:{approved:true,status:'active',reviewedBy:req.actor.id,reviewedAt:now()}});
+  if(['approve_specialist','reject_specialist'].includes(decision)){
+   if(target.role!=='specialist'||target.status!=='pending_review'||!target.verified)
+    return res.status(409).json({error:'The Specialist application is not awaiting a verified review.'});
+   if(req.actor.role!=='root'&&req.actor.department!=='specialist_network')
+    return res.status(403).json({error:'Specialist Network permission required.'});
+   const reviewNote=String(req.body?.reviewNote||'').trim();
+   if(reviewNote.length<25||reviewNote.length>1500)
+    return res.status(400).json({error:'Document a substantive professional credential-review or rejection explanation (25–1,500 characters).'});
+   if(decision==='approve_specialist'){
+    if(req.body?.credentialEvidenceReviewed!==true)
+     return res.status(400).json({error:'The reviewer must personally confirm checking professional credentials, not merely self-declared form fields.'});
+    if(target.specialistAgreementVersion!==SPECIALIST_AGREEMENT.version||
+     target.specialistAgreementSha256!==SPECIALIST_AGREEMENT.sha256||
+     !target.specialistAgreementSignature||!target.qualification?.trim())
+     return res.status(409).json({error:'The Specialist must first sign the current confidentiality agreement and submit a professional qualification.'});
+   }
+   const approved=decision==='approve_specialist',stamp=now();
+   const changed=await db.accounts.updateOne({id:target.id,status:'pending_review',verified:true},
+    {$set:{approved,status:approved?'active':'rejected',reviewedBy:req.actor.id,
+     reviewedAt:stamp,credentialReviewNote:reviewNote,
+     credentialEvidenceReviewed:approved,credentialReviewDecision:approved?'approved':'rejected'},
+     $inc:{sessionVersion:1}});
+   if(!changed.modifiedCount)return res.status(409).json({error:'Another IPS reviewer has already decided this application.'});
+   const decisionMessage=approved?
+    'Your IPS Specialist Network application has been approved. Sign in to your private Specialist workspace to review available IPS assignments.':
+    'Your IPS Specialist Network application has not been approved. Reviewer explanation: '+reviewNote+
+    '. You may reply to IPS in writing if you need further clarification.';
+   await db.notificationDeliveries.insertOne({id:uid('OUT'),accountId:target.id,
+    channel:'email',to:target.email,subject:'IPS Specialist Network application decision',
+    text:decisionMessage,kind:'specialist_application_review',status:'pending',
+    attempts:0,nextAttemptAt:stamp,createdAt:stamp});
+   await audit(req.actor,'academic_specialist_application_reviewed',target.id,
+    {decision:approved?'approved':'rejected',credentialEvidenceReviewed:approved});
   }else if(['suspend','reactivate'].includes(decision)){
    const permitted=req.actor.role==='root'||(target.role==='staff'&&target.managerId===req.actor.id);
    if(!permitted)return res.status(403).json({error:'Only Root or the employee’s own manager may change this state.'});
