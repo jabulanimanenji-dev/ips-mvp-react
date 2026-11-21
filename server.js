@@ -3839,6 +3839,20 @@ app.get('*', (req, res) => {
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  // The live witness can inspect the actual company in production using only
+  // internal loopback HTTP and the already protected Root environment identity.
+  // No customer data, credentials or inbox contents are logged. A failure
+  // refuses an explicitly requested acceptance deployment.
+  if(isProduction&&String(process.env.IPS_COMPANY_LIVE_WITNESS_RUN_ID||'').trim()&&
+     String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'){
+    void import('./services/liveCompanyWitness.js')
+      .then(({verifyCompanyLiveWitness})=>verifyCompanyLiveWitness({port:PORT}))
+      .then(result=>console.log('IPS_PRODUCTION_ROOT_READ_ONLY_GREEN '+JSON.stringify(result)))
+      .catch(error=>{
+        console.error('IPS_PRODUCTION_ROOT_READ_ONLY_FAILED',String(error?.message||'not qualified').slice(0,230));
+        server.close(()=>process.exit(1));
+      });
+  }
   // A source-bound, real HTTP witness runs only in the disposable evaluation
   // container. Any failed login, reporting-line, private inbox or payment
   // boundary fails its deployment rather than presenting a broken demo as live.
