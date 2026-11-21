@@ -88,6 +88,7 @@ export function registerAcademicRoutes(ctx){
   if(channel==='telegram'&&!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(String(input.telegramUsername||'').replace(/^@/,'')))
    return res.status(400).json({error:'Enter a valid Telegram username.'});
   const q=quoteBase(input,valid,req.actor);
+  if(req.rootOperatorId){q.rootAssistedBy=req.rootOperatorId;q.synthetic=true}
   await db.quotes.insertOne(q);
   await audit(req.actor,'academic_quote_created',q.id,{serviceId:q.serviceId});
   await notify(rootEmail,'New academic quotation '+q.id+' requires scope review','intake');
@@ -159,7 +160,7 @@ export function registerAcademicRoutes(ctx){
   const decision=String(req.body?.decision||'');
   if(!['accept','decline'].includes(decision))return res.status(400).json({error:'Choose accept or decline.'});
   const q=await db.quotes.findOneAndUpdate({id:req.params.id,studentId:req.actor.id,status:'offered'},
-   {$set:{status:decision==='accept'?'accepted':'declined',clientDecisionAt:now(),updatedAt:now()}},{returnDocument:'after'});
+   {$set:{status:decision==='accept'?'accepted':'declined',clientDecisionAt:now(),updatedAt:now(),...(req.rootOperatorId?{rootEvaluationDecision:true,decisionActorId:req.rootOperatorId}:{} )}},{returnDocument:'after'});
   if(!q)return res.status(409).json({error:'Only your outstanding reviewed quotation can be accepted or declined.'});
   await audit(req.actor,'academic_quote_'+decision,q.id);
   if(decision==='decline')return res.json({success:true,quote:quoteView(q)});
@@ -249,7 +250,9 @@ export function registerAcademicRoutes(ctx){
    return res.status(400).json({error:'File contents do not match DOCX format.'});
   const file={id:uid('AF'),commissionId:p.id,studentId:p.studentId,specialistId:p.specialistId,
    filename,mime,sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
-   fileData:buffer,createdAt:now(),kind:'specialist_submission',revision:p.revisionCount};
+   fileData:buffer,createdAt:now(),kind:'specialist_submission',revision:p.revisionCount,
+   uploadedBy:req.rootOperatorId||req.actor.id,
+   ...(req.rootOperatorId?{rootAssisted:true}:{} )};
   await db.files.insertOne(file);
   const changed=await db.projects.findOneAndUpdate({id:p.id,status:p.status},
    {$set:{status:'qa_pending',pendingFileId:file.id,updatedAt:now()}},{returnDocument:'after'});
@@ -290,7 +293,7 @@ export function registerAcademicRoutes(ctx){
    return res.status(400).json({error:'Describe the academic revision needed.'});
   const p=await db.projects.findOneAndUpdate({id:req.params.id,studentId:req.actor.id,status:'client_delivery'},
    {$set:{status:decision==='accept'?'completed':'student_revision_requested',
-     studentDecisionNote:note,updatedAt:now()},
+     studentDecisionNote:note,updatedAt:now(),...(req.rootOperatorId?{rootEvaluationDecision:true,decisionActorId:req.rootOperatorId}:{})},
     $inc:{revisionCount:decision==='request_revision'?1:0}},{returnDocument:'after'});
   if(!p)return res.status(409).json({error:'No academic delivery is awaiting your decision.'});
   await db.projects.updateOne({id:p.id,'milestones.name':'Secure final delivery'},
@@ -350,7 +353,9 @@ export function registerAcademicRoutes(ctx){
    if(a.role==='staff'&&a.department==='quality_assurance'&&audience==='student')
     return res.status(403).json({error:'Quality staff may not bypass approved client delivery.'});
   }
-  const item={id:uid('AM'),commissionId:p.id,actorId:a.id,actorRole:a.role,
+  const item={id:uid('AM'),commissionId:p.id,
+   actorId:req.rootOperatorId||a.id,actorRole:req.rootOperatorId?'root':a.role,
+   ...(req.rootOperatorId?{assistedAccountId:a.id,rootAssisted:true}:{}),
    audience,body,createdAt:now(),channel:'ips_workspace'};
   await db.messages.insertOne(item);
   if(['student','specialist'].includes(a.role))await notify(rootEmail,'Written academic coordination message for '+p.id,'communications');
