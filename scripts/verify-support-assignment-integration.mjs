@@ -74,6 +74,13 @@ try{
   const communication=await login('support-communications-'+unique+'@example.org');
   const patch=(ticket_id,cookie,body)=>call('/api/support-tickets/'+ticket_id,{method:'PATCH',cookie,body});
 
+  for(const proposed of ['alllowercase123456','HasUppercaseButNoSymbol123']){
+    const weakChange=await call('/api/admin/change-password',{
+      cookie:staff,method:'POST',body:{currentPassword:password,newPassword:proposed}
+    });
+    assert.equal(weakChange.status,400,'Employees must not bypass the uppercase-number-symbol password constitution');
+  }
+  console.log('STAFF_PASSWORD_POLICY_PASS employee password changes reject weak or symbolless credentials without session damage');
   const foreignListing=await call('/api/support-tickets',{cookie:foreign});
   assert.equal(foreignListing.status,403,'Academic managers cannot read confidential customer ticket conversations');
   const communicationBefore=await call('/api/support-tickets',{cookie:communication});
