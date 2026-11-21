@@ -37,7 +37,8 @@ export function registerAcademicRoutes(ctx){
   contactChannel:String(input?.contactChannel||'email'),telegramUsername:String(input?.telegramUsername||'').replace(/^@/,'').slice(0,40),
   integrityAcknowledged:true,status:owner?'received':'awaiting_contact_verification',
   createdAt:now(),updatedAt:now(),priceMinor:null,currency:'PLN',
-  assignedDepartment:'client_relations',assignedTo:'',reviewedBy:'',scopeDecision:'pending',
+  assignedDepartment:'client_relations',assignedTo:'',assignedBy:'',ownerAssignedAt:null,
+  ownershipHistory:[],reviewedBy:'',scopeDecision:'pending',
   autoAcknowledged:!!owner
  });
  app.post('/api/academic/guest-quote',wrap(async(req,res)=>{
@@ -105,6 +106,51 @@ export function registerAcademicRoutes(ctx){
   await audit(req.actor,'academic_guest_quotation_claimed',q.id);
   res.json({success:true,quote:quoteView(q)});
  }));
+ // Atomic employee claim and controlled Root/Client Relations handoff make every
+ // academic enquiry accountable without exposing it to unrelated departments.
+ app.post('/api/academic/quotes/:id/claim',wrap(async(req,res)=>{
+  if(!department(req,res,['client_relations']))return;
+  const owner=req.actor.id,at=now();
+  const q=await db.quotes.findOneAndUpdate({
+   id:req.params.id,status:{$in:['received','clarify','scoped']},
+   $or:[{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]
+  },{$set:{assignedTo:owner,assignedBy:owner,ownerAssignedAt:at,updatedAt:at},
+     $push:{ownershipHistory:{to:owner,by:owner,at,action:'claim'}}},
+    {returnDocument:'after'});
+  if(!q)return res.status(409).json({error:'This enquiry is not unassigned or is no longer open for intake.'});
+  await audit(req.actor,'academic_enquiry_claimed',q.id,{owner});
+  if(owner!==rootEmail)await notify(rootEmail,'Client Relations claimed enquiry '+q.id,'intake');
+  res.json({quote:quoteView(q)});
+ }));
+ app.post('/api/academic/quotes/:id/assign',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','manager']))return;
+  if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
+   return res.status(403).json({error:'Only Client Relations management can allocate enquiries.'});
+  const assigneeId=String(req.body?.assigneeId||''),reason=String(req.body?.reason||'').trim();
+  if(reason.length<10||reason.length>900)return res.status(400).json({
+   error:'Document a meaningful handoff reason before assigning this confidential enquiry.'});
+  const target=await db.accounts.findOne({id:assigneeId,verified:true,status:'active',
+   role:{$in:['manager','staff']},department:'client_relations'});
+  if(!target)return res.status(400).json({error:'Choose an active, verified Client Relations employee.'});
+  const before=await db.quotes.findOne({id:req.params.id,
+   status:{$in:['received','clarify','scoped','offered','offer_delivery_failed']}});
+  if(!before)return res.status(409).json({error:'Only open academic enquiries may be assigned.'});
+  const at=now(),previous=before.assignedTo||'';
+  const updated=await db.quotes.findOneAndUpdate({id:before.id,
+   status:before.status,
+   ...(before.assignedTo?{assignedTo:before.assignedTo}:
+    {$or:[{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]})
+  },{$set:{assignedTo:target.id,assignedBy:req.actor.id,ownerAssignedAt:at,updatedAt:at},
+    $push:{ownershipHistory:{from:previous,to:target.id,by:req.actor.id,reason,at,action:'assignment'}}},
+    {returnDocument:'after'});
+  if(!updated)return res.status(409).json({error:'The enquiry changed during handoff. Refresh and try again.'});
+  await audit(req.actor,'academic_enquiry_reassigned',before.id,
+   {from:previous,to:target.id,reason});
+  await notify(target.id,'IPS assigned academic enquiry '+before.id+' to you','intake_assignment');
+  if(previous&&previous!==target.id&&previous!==rootEmail)
+   await notify(previous,'Academic enquiry '+before.id+' was reassigned','intake_assignment');
+  res.json({quote:quoteView(updated)});
+ }));
  app.get('/api/academic/quotes',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','root','manager','staff']))return;
   const a=req.actor;
@@ -112,6 +158,10 @@ export function registerAcademicRoutes(ctx){
   if(['manager','staff'].includes(a.role)&&!['client_relations','academic_delivery'].includes(a.department))
    return res.status(403).json({error:'Academic intake authority is required.'});
   if(a.role==='staff'&&a.department==='academic_delivery')filter={scopeDecision:'approved'};
+  if(a.role==='staff'&&a.department==='client_relations')
+   filter={$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},
+    {assignedTo:{$exists:false}}]};
+
   const rows=await db.quotes.find(filter).sort({createdAt:-1}).limit(100).toArray();
   res.json({quotes:rows.map(quoteView)});
  }));
