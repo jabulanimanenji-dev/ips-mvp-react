@@ -2715,6 +2715,33 @@ app.patch('/api/services/:id', async (req, res) => {
       action: 'service_request_updated',
       details: { status: request.status, progress: request.progress }
     });
+    // A real status transition informs the affected account holders. No
+    // unrelated staff can access these notifications; do not send academic
+    // contents or payment claims through this private status channel.
+    if(existing.status!==request.status){
+      const revision=request.status_history?.at(-1);
+      const transitionId=revision?String(revision._id||revision.changed_at||''):'';
+      const destinations=[];
+      if(request.client_id&&session.role!=='client')
+        destinations.push({recipient_role:'client',recipient_id:request.client_id});
+      const specialistId=request.writer_id||request.provider_id;
+      if(specialistId&&session.role!=='writer')
+        destinations.push({recipient_role:'writer',recipient_id:specialistId});
+      if(session.role!=='admin')
+        destinations.push({recipient_role:'admin',recipient_id:'admin'});
+      if(transitionId&&destinations.length){
+        await Promise.all(destinations.map(async recipient=>{
+          const dedupe_key='ips-service-state/'+request.request_id+'/'+transitionId+'/'+recipient.recipient_role+'/'+recipient.recipient_id;
+          try{
+            await Notification.updateOne({dedupe_key},{$setOnInsert:{
+              dedupe_key,...recipient,order_id:request.request_id,
+              type:'service_status',read:false,
+              message:'Your IPS project status is now '+request.status+'. Review the protected project file.'
+            }},{upsert:true});
+          }catch(error){console.error('IPS private project notification pending:',error?.name||'error');}
+        }));
+      }
+    }
     res.json({ success: true, request });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
