@@ -55,7 +55,7 @@ try{
  });
  const clientPage=await open(false);
  await check('Real verified client logs in, sees owned quotes and completed project',async()=>{
-   await signIn(clientPage,client.email,'ClientPrivacy2026!');
+   await signIn(clientPage,client.email,'RecoveredClient2027!');
    await clientPage.getByText('PrivateResearcher').first().waitFor();
    await clientPage.getByRole('button',{name:'Quotations'}).click();
    await clientPage.getByText('Research Methods Consultation').first().waitFor();
