@@ -47,6 +47,7 @@ const db={
  audit:raw.collection('academic_audit_events'),
  outbox:raw.collection('academic_evaluation_mail'),
  quoteMessages:raw.collection('academic_quote_messages'),
+ quoteFiles:raw.collection('academic_quote_files'),
  directMessages:raw.collection('academic_direct_messages'),
  directFiles:raw.collection('academic_direct_files'),
  rootOperations:raw.collection('academic_root_operations')
@@ -65,6 +66,7 @@ await Promise.all([
  db.audit.createIndex({at:-1}),
  db.notifications.createIndex({accountId:1,createdAt:-1}),
  db.quoteMessages.createIndex({quoteId:1,createdAt:1}),
+ db.quoteFiles.createIndex({quoteId:1,createdAt:-1}),
  db.directMessages.createIndex({toId:1,createdAt:-1}),
  db.rootOperations.createIndex({commissionId:1},{unique:true})
 ]);
