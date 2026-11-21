@@ -48,9 +48,10 @@ const selectService=()=>state.catalogue.services.map(s=>[s.id,s.title]);
 const chooseLevel=()=>state.catalogue.levels.map(x=>[x,x]);
 const privacyCheck='<label class="field full"><span><input type="checkbox" name="privacyConsent" required> I agree to secure processing of my private enquiry and written communication from IPS.</span></label>';
 const integrityCheck='<label class="field full"><span><input type="checkbox" name="integrityAcknowledged" required> I agree to the academic integrity requirements.</span></label>';
-async function api(endpoint,{method='GET',body}={}){
+async function api(endpoint,{method='GET',body,operator=false}={}){
  const res=await fetch('/api'+endpoint,{method,credentials:'same-origin',cache:'no-store',
-  headers:{...(body?{'Content-Type':'application/json'}:{}),...(state.rootLens&&/^\/(academic|support|notifications)(\/|$)/.test(endpoint)?{'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},body:body?JSON.stringify(body):undefined});
+  headers:{...(body?{'Content-Type':'application/json'}:{}),...(state.rootLens&&!operator&&(/^\/(academic|support|notifications)(\/|$)/.test(endpoint)||
+   /^\/operations\/inbox$/.test(endpoint)||/^\/operations\/[^/]+\/(?:files|upload)$/.test(endpoint))?{'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},body:body?JSON.stringify(body):undefined});
  const data=await res.json().catch(()=>({}));
  if(!res.ok)throw Error(data.error||'IPS could not complete the requested action.');
  return data;
