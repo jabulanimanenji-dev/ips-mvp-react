@@ -10,6 +10,7 @@ import QuotePage from './pages/QuotePage';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import PasswordRecoveryPage from './pages/PasswordRecoveryPage.jsx';
+import AdminPasswordRecoveryPage from './pages/AdminPasswordRecoveryPage.jsx';
 import EmailConfirmationPage from './pages/EmailConfirmationPage.jsx';
 import CompanyAdministration from './administration/CompanyAdministration.jsx';
 import FinanceDesk from './administration/FinanceDesk.jsx';
@@ -353,6 +354,8 @@ export default function App() {
       {/* ADMIN */}
 
       <Route path="/ips-staff-onboarding" element={<StaffOnboardingPage />} />
+      <Route path="/admin/forgot-password" element={<AdminPasswordRecoveryPage />} />
+      <Route path="/admin/reset-password" element={<AdminPasswordRecoveryPage />} />
       <Route path={ADMIN_ENTRY_PATH} element={<AdminLogin />} />
       <Route path="/admin/login" element={<Navigate to="/login" replace />} />
 
