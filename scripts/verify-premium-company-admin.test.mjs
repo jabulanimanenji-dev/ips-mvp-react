@@ -52,6 +52,10 @@ test('company people and project control never offers root employee mutation or 
  read('src/administration/Workforce.jsx'),read('src/administration/ProductionHub.jsx'),read('services/companyOperatingSystem.js')]);
  assert.match(workforce,/Nyoro/);assert.match(workforce,/Root Admin/);assert.match(workforce,/offboard/);
  assert.match(workforce,/company-team\/invite/);
+ assert.match(workforce,/managementDepartments\(admin\)/);
+ assert.match(workforce,/Save delegated permissions/);
+ assert.match(workforce,/memberPath\(chosen.id\).*'PATCH'/);
+ assert.match(backend,/hasAdminPermission\(req.adminAccess,'team.manage'\)/);
  assert.match(services,/allowedAdminServiceStatuses/);assert.match(services,/payment_status==='paid'/);
  assert.match(backend,/isProtectedOwnerRecord\(target,env\)/);
 });
