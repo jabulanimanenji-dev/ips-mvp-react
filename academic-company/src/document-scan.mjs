@@ -34,12 +34,12 @@ export async function inspectAcademicFile(buffer,{env=process.env,sandbox=false}
    socket.on('data',chunk=>{
     reply+=chunk.toString('utf8');
     if(reply.length>1024)return finish(Error('scanner protocol overflow'));
-    const end=reply.indexOf('\\0');
+    const end=reply.indexOf(String.fromCharCode(0));
     if(end!==-1)finish(null,reply.slice(0,end));
    });
    socket.once('close',()=>{if(!complete)finish(Error('scanner disconnected'))});
    socket.once('connect',()=>{
-    socket.write(Buffer.from('zINSTREAM\\0'));
+    socket.write(Buffer.from('zINSTREAM'+String.fromCharCode(0)));
     for(let offset=0;offset<buffer.length;offset+=65536){
      const block=buffer.subarray(offset,Math.min(offset+65536,buffer.length));
      const header=Buffer.allocUnsafe(4);header.writeUInt32BE(block.length);
