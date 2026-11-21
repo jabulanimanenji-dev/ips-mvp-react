@@ -562,9 +562,9 @@ try{
   const raw=await fetch(url+'/api/operations/direct-file/'+doc.data.file.id,{headers:{Cookie:studentCookie}});
   assert.equal(raw.status,200);assert.equal(Buffer.from(await raw.arrayBuffer()).toString(),contents.toString());
   await call('/operations/direct-file/'+doc.data.file.id,{cookie:otherCookie},403);
-  assert.equal(await db.collection('academic_evaluation_mail').countDocuments({to:studentMail,
-   subject:'IPS Academic Services — new private update'}),0,
-   'Default workspace-only preference must not expose IPS contact by unsolicited email');
+  assert.equal(await db.collection('academic_notification_deliveries').countDocuments({
+   accountId:student.id,kind:'direct_message'}),0,
+   'Workspace-only direct messages must not queue unsolicited email; unrelated explicitly opted-in quotation notices are legitimate');
  });
  await assertCheck('Root takes over a real academic job and privately outsources without exposing provider details',async()=>{
   const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
