@@ -469,11 +469,16 @@ async function loadTab(){
     kpi('Sending',totals.sending||0,'In progress')+
     kpi('Provider accepted',totals.provider_accepted||0,'Not yet verified delivered')+
     kpi('Sandbox',totals.synthetic_dispatched||0,'Synthetic only')+
-    kpi('Delivered',totals.delivered||0,'Confirmed by provider')+
+    kpi('Delivered',totals.delivered||0,'Confirmed by recipient server')+
+    kpi('Delayed',totals.delayed||0,'Provider retry in progress')+
+    kpi('Bounced',totals.bounced||0,'Hard delivery failure')+
+    kpi('Complaints',totals.complained||0,'Consent review required')+
+    kpi('Suppressed',totals.suppressed||0,'Address suppressed')+
     kpi('Failed',totals.failed||0,'Action needed')+'</div>'+
     (delivery.exceptions.length?'<div class="small-list">'+delivery.exceptions.map(x=>
-     record('Undelivered IPS notification',x.kind+' · attempted '+x.attempts+' times',x.id,'failed',
-      b('Retry delivery','delivery-retry',x.id,'small'))).join('')+'</div>':
+     record('Undelivered IPS notification',x.kind+' · attempted '+x.attempts+' times',x.id,x.status,
+      x.status==='failed'?b('Retry delivery','delivery-retry',x.id,'small'):
+       '<small>Do not retry automatically; review consent and destination.</small>')).join('')+'</div>':
      '<p>No permanently failed email notifications.</p>'));
   }
  }
