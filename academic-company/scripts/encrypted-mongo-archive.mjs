@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {pipeline} from 'node:stream/promises';
+import {Transform} from 'node:stream';
 
 const MAGIC=Buffer.from('IPS-ACADEMIC-AES256GCM-v1\n');
 const IV_BYTES=12,TAG_BYTES=16;
@@ -33,11 +34,14 @@ async function encrypt(){
  const out=fs.createWriteStream(partial,{flags:'wx',mode:0o600});
  try{
   await new Promise((resolve,reject)=>out.write(Buffer.concat([MAGIC,iv]),e=>e?reject(e):resolve()));
-  await pipeline(process.stdin,cipher,out,{end:false});
+  let bytesIn=0;
+  const meter=new Transform({transform(chunk,_enc,cb){bytesIn+=chunk.length;cb(null,chunk)}});
+  await pipeline(process.stdin,meter,cipher,out,{end:false});
+  if(bytesIn<64)throw Error('Database archive contains too few bytes to be valid.');
   await new Promise((resolve,reject)=>out.end(cipher.getAuthTag(),e=>e?reject(e):resolve()));
   fs.renameSync(partial,file);
   const st=fs.statSync(file);
-  if(!st.size||!(st.mode&0o600))throw Error('Encrypted IPS archive is missing.');
+  if(!st.size||(st.mode&0o077)!==0)throw Error('IPS encrypted archive is missing or permissions are unsafe.');
   console.error('IPS_ENCRYPTED_ARCHIVE_CREATED '+JSON.stringify({bytes:st.size,algorithm:'AES-256-GCM',plaintextStored:false}));
  }catch(err){out.destroy();try{fs.unlinkSync(partial)}catch{}throw err}
 }
