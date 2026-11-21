@@ -308,10 +308,8 @@ export function registerOperationsRoutes(ctx){
    recipientRole:target.role,body,subject:'Message from IPS',createdAt:now()};
   await db.directMessages.insertOne(item);
   await notify(target.id,'A message from IPS is available in your workspace','direct_message');
-  try{
-   await sendEmail(target.email,'IPS Academic Services — new private message',
-    'A new private message is waiting in your IPS workspace. Open '+config.origin+' to read and reply.');
-  }catch{await notify(rootEmail,'An email notification could not be delivered for '+item.id,'communication_failure')}
+  // Email-preferring accounts receive an automatic generic notification through the
+  // retryable queue; workspace/Telegram preferences do not trigger unsolicited email.
   await audit(req.actor,'root_direct_academic_message',target.id,{messageId:item.id});
   res.status(201).json({message:publicDocument(item)});
  }));
