@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import DashboardZone from '../common/DashboardZone';
 import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
 import PrivateQuoteInbox from './PrivateQuoteInbox.jsx';
+import PrivateNotificationInbox from '../common/PrivateNotificationInbox.jsx';
 
 const closed = ['Completed', 'Cancelled'];
 const academicLaunch=import.meta.env.VITE_STUDENT_LAUNCH==='true';
@@ -77,6 +78,7 @@ export default function ClientOverviewMongo() {
       </DashboardZone>
 
       <PrivateQuoteInbox />
+      <PrivateNotificationInbox role="client" recipientId={user?.client_id}/>
 
       <DashboardZone portal="client" id="stats">
       <div data-studio-protected="true" data-studio-protected-reason="Private customer metrics are calculated from live account data." className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
