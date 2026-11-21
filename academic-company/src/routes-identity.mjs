@@ -32,7 +32,7 @@ export function registerIdentityRoutes(ctx){
   if(throttle.limited(req,'academic-register',7))return res.status(429).json({error:'Too many requests. Please retry later.'});
   const role=String(req.body?.role||''),mail=email(req.body?.email),password=String(req.body?.password||'');
   const uname=username(req.body?.username),fullName=String(req.body?.fullName||'').trim();
-  if(!['student','specialist'].includes(role)||!validEmail(mail)||!validPassword(password)||req.body?.privacyConsent!==true)
+  if(!['student','specialist'].includes(role)||!validEmail(mail)||!validPassword(password)||req.body?.confirmPassword!==password||req.body?.privacyConsent!==true)
    return res.status(400).json({error:'Choose a valid academic account, real email, strong password and privacy consent.'});
   if(role==='student'&&!validUsername(uname))return res.status(400).json({error:'Choose a private username with 3–32 permitted characters.'});
   if(role==='specialist'&&(fullName.length<3||fullName.length>120))return res.status(400).json({error:'A Specialist must supply their real professional full name.'});
@@ -114,7 +114,7 @@ export function registerIdentityRoutes(ctx){
  app.post('/api/auth/recovery/complete',wrap(async(req,res)=>{
   if(throttle.limited(req,'academic-complete',12))return res.status(429).json({error:'Too many attempts.'});
   const mail=email(req.body?.email),token=String(req.body?.token||''),password=String(req.body?.password||'');
-  if(!validEmail(mail)||!validToken(token)||!validPassword(password))return res.status(400).json({error:'Check your recovery link and new password requirements.'});
+  if(!validEmail(mail)||!validToken(token)||!validPassword(password)||req.body?.confirmPassword!==password)return res.status(400).json({error:'Your password confirmation does not match or your recovery link is invalid.'});
   const a=await db.accounts.findOneAndUpdate({email:mail,verified:true,status:'active',
     recoveryHash:security.digest('recover:'+token),recoveryUntil:{$gt:now()}},
    {$set:{passwordHash:hashPassword(password)},$inc:{sessionVersion:1},
@@ -179,7 +179,7 @@ export function registerIdentityRoutes(ctx){
  }));
  app.post('/api/auth/invitation/accept',wrap(async(req,res)=>{
   const mail=email(req.body?.email),token=String(req.body?.token||''),password=String(req.body?.password||'');
-  if(!validEmail(mail)||!validToken(token)||!validPassword(password))return res.status(400).json({error:'Invitation or password is invalid.'});
+  if(!validEmail(mail)||!validToken(token)||!validPassword(password)||req.body?.confirmPassword!==password)return res.status(400).json({error:'Invitation or confirmed password is invalid.'});
   const a=await db.accounts.findOneAndUpdate({email:mail,status:'invited',
     invitationHash:security.digest('invitation:'+token),invitationUntil:{$gt:now()}},
    {$set:{verified:true,status:'active',passwordHash:hashPassword(password)},
