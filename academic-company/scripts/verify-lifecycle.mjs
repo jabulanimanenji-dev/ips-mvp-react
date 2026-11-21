@@ -306,8 +306,9 @@ try{
   const raw=await fetch(url+'/api/operations/direct-file/'+doc.data.file.id,{headers:{Cookie:studentCookie}});
   assert.equal(raw.status,200);assert.equal(Buffer.from(await raw.arrayBuffer()).toString(),contents.toString());
   await call('/operations/direct-file/'+doc.data.file.id,{cookie:otherCookie},403);
-  assert.ok(await db.collection('academic_evaluation_mail').findOne({to:studentMail,
-   subject:'IPS Academic Services — new private message'}),'Root direct message should trigger immediate automatic email');
+  assert.equal(await db.collection('academic_evaluation_mail').countDocuments({to:studentMail,
+   subject:'IPS Academic Services — new private update'}),0,
+   'Default workspace-only preference must not expose IPS contact by unsolicited email');
  });
  await assertCheck('Root takes over a real academic job and privately outsources without exposing provider details',async()=>{
   const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
@@ -370,6 +371,36 @@ try{
    email:pendingEmail,token:recovery,password:'RecoveredPending2026!',confirmPassword:'RecoveredPending2026!'}});
   assert.equal(completed.data.reviewRequired,true);
   await call('/auth/login',{method:'POST',body:{email:pendingEmail,password:'RecoveredPending2026!'}},403);
+ });
+ await assertCheck('Email-preferring accounts receive fast private queued notifications with no case content or manager intervention',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  await call('/profile',{method:'PATCH',cookie:studentCookie,
+   body:{contactPreference:'email',telegram:''}});
+  const msg=await call('/operations/direct-message',withAuth(rootCookie,{
+   recipientId:student.id,
+   body:'IPS has a private nursing research support update available for your account.'}),201);
+  assert.ok(msg.data.message.id);
+  const queue=db.collection('academic_notification_deliveries');
+  let delivered;
+  for(let i=0;i<35;i++){
+   delivered=await queue.findOne({accountId:student.id,kind:'direct_message',status:'delivered'});
+   if(delivered)break;
+   await sleep(300);
+  }
+  assert.ok(delivered,'Selected email preference must be fulfilled automatically by the worker');
+  const email=await db.collection('academic_evaluation_mail').findOne({to:studentMail,
+   subject:'IPS Academic Services — new private update'});
+  assert.ok(email?.text,'Actual synthetic email receipt must exist');
+  assert.ok(!email.text.includes('nursing research support'),'Email must not reveal case subject or private messages');
+  assert.equal(await queue.countDocuments({notificationId:delivered.notificationId}),1,
+   'One queued delivery per in-app notice');
+  await call('/profile',{method:'PATCH',cookie:studentCookie,
+   body:{contactPreference:'workspace',telegram:''}});
+  const before=await queue.countDocuments({accountId:student.id});
+  await call('/operations/direct-message',withAuth(rootCookie,{
+   recipientId:student.id,body:'The next case update is only available in your workspace.'}),201);
+  assert.equal(await queue.countDocuments({accountId:student.id}),before,
+   'Workspace-only recipients must not be forced onto email');
  });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
   const people=await call('/administration/people',{cookie:rootCookie});
