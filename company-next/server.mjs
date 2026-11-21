@@ -92,7 +92,7 @@ const requires=(req,res,roles)=>{if(!req.actor){deny(res,401);return false}if(!r
 const leader=a=>a?.role==='root'||a?.role==='manager';
 const clientOf=(a,p)=>a?.role==='client'&&a.id===p.client_id;
 const specialistOf=(a,p)=>a?.role==='specialist'&&a.id===p.specialist_id;
-const projectAccess=(a,p)=>!!a&&(a.role==='root'||clientOf(a,p)||specialistOf(a,p)||(['manager','staff'].includes(a.role)&&a.department==='delivery'));
+const projectAccess=(a,p)=>!!a&&(a.role==='root'||clientOf(a,p)||specialistOf(a,p)||(['manager','staff'].includes(a.role)&&['delivery','quality'].includes(a.department)));
 const requireAdmin=(req,res)=>requires(req,res,['root','manager','staff']);
 const publicAccountFields={_id:0,pass_hash:0,verify_hash:0,reset_hash:0,verify_until:0,reset_until:0};
 const throttle=new Map();
@@ -104,7 +104,7 @@ app.post('/api/auth/signup',async(req,res)=>run(async()=>{
  if(!['client','specialist'].includes(role)||!validEmail(email)||!validPass(password)||!req.body?.privacy_consent)return res.status(400).json({error:'Enter a valid email, strong password, and privacy consent.'});
  if(role==='client'&&!/^[a-zA-Z0-9_.-]{3,32}$/.test(username))return res.status(400).json({error:'Use a private username of 3–32 letters, numbers, dots, dashes or underscores.'});
  if(role==='specialist'&&(name.length<3||name.length>120))return res.status(400).json({error:'Specialists must provide their full professional name.'});
- if(email===rootEmail||await accounts.findOne({email}))return res.status(409).json({error:'This email already belongs to an IPS account.'});
+ if(email===rootEmail||await accounts.findOne({$or:[{email},...(role==='client'?[{username_key:username.toLowerCase()}]:[])]}))return res.status(409).json({error:'This email or username already belongs to an IPS account.'});
  const token=crypto.randomBytes(32).toString('base64url'),account={id:uid('ACC'),role,email,username:role==='client'?username:'',username_key:role==='client'?username.toLowerCase():undefined,name:role==='specialist'?name:'',pass_hash:passHash(password),verified:false,approved:false,status:'pending',department:'',manager_id:'',verify_hash:digest('verify:'+token),verify_until:new Date(Date.now()+20*60000),session_version:1,created_at:now()};
  await accounts.insertOne(account);
  try{await sendEmail(email,'Verify your IPS account','Open the private one-use link (20 minutes): '+origin+'/#verify='+encodeURIComponent(token)+'&email='+encodeURIComponent(email)+'\n\nNo staff member can verify your mailbox for you.');}
@@ -161,7 +161,13 @@ app.post('/api/auth/recovery/complete',async(req,res)=>run(async()=>{
 },res));
 app.get('/api/people',async(req,res)=>run(async()=>{
  if(!requireAdmin(req,res))return;
- const filter=req.actor.role==='root'?{}:req.actor.role==='manager'?{$or:[{id:req.actor.id},{manager_id:req.actor.id},{role:'client'},{role:'specialist'}]}:{role:{$in:['client','specialist']}};
+ const actor=req.actor;
+ if(actor.role==='staff'&&!['client_relations','specialists'].includes(actor.department))return deny(res);
+ if(actor.role==='manager'&&!['client_relations','specialists','governance'].includes(actor.department)){
+   const own=await accounts.find({$or:[{id:actor.id},{manager_id:actor.id}]},{projection:publicAccountFields}).limit(100).toArray();
+   return res.json({people:own.map(scrub)});
+ }
+ const filter=actor.role==='root'?{}:actor.role==='manager'?{$or:[{id:actor.id},{manager_id:actor.id},{role:'client'},{role:'specialist'}]}:actor.department==='client_relations'?{role:'client'}:{role:'specialist'};
  const rows=await accounts.find(filter,{projection:publicAccountFields}).limit(500).toArray();
  res.json({people:rows.map(scrub)});
 },res));
@@ -198,6 +204,20 @@ app.post('/api/people/:id/review',async(req,res)=>run(async()=>{
  }else return deny(res);
  await event(req.actor,'account_'+action,target.id);res.json({success:true});
 },res));
+// Administrators can request a recovery email, but cannot select passwords
+// or inspect recovery tokens. Only Root, and a manager over their direct staff,
+// may initiate this action.
+app.post('/api/people/:id/send-reset',async(req,res)=>run(async()=>{
+ if(!requires(req,res,['root','manager']))return;
+ const target=await accounts.findOne({id:req.params.id,verified:true,status:'active'});
+ if(!target)return res.status(404).json({error:'Verified active account not found.'});
+ if(req.actor.role!=='root'&&!(target.role==='staff'&&target.manager_id===req.actor.id))return deny(res);
+ const token=crypto.randomBytes(32).toString('base64url'),hash=digest('reset:'+token);
+ await accounts.updateOne({id:target.id},{$set:{reset_hash:hash,reset_until:new Date(Date.now()+20*60000)}});
+ try{await sendEmail(target.email,'Private IPS password assistance','An authorized IPS administrator requested a secure recovery link for your account. If this was not requested by you, ignore it. Link expires in 20 minutes: '+origin+'/#reset='+encodeURIComponent(token)+'&email='+encodeURIComponent(target.email))}
+ catch{await accounts.updateOne({id:target.id,reset_hash:hash},{$unset:{reset_hash:'',reset_until:''}});return res.status(503).json({error:'Password recovery delivery unavailable.'})}
+ await event(req.actor,'recovery_assistance_sent',target.id);res.status(202).json({success:true});
+},res));
 app.post('/api/quotes',async(req,res)=>run(async()=>{
  if(!requires(req,res,['client']))return;
  const summary=String(req.body?.summary||'').trim(),service=String(req.body?.service||'').trim(),deadline=String(req.body?.deadline||'').trim();
@@ -205,6 +225,42 @@ app.post('/api/quotes',async(req,res)=>run(async()=>{
  const quote={id:uid('Q'),owner_id:req.actor.id,username:req.actor.username,service,summary,deadline,status:'new',amount_minor:null,currency:'PLN',created_at:now(),updated_at:now()};
  await quotes.insertOne(quote);await event(req.actor,'quote_requested',quote.id);await notify(rootEmail,'New private quotation '+quote.id,'intake');
  res.status(201).json({quote:scrub(quote)});
+},res));
+// A guest can request a written quote using only a pseudonym and a mailbox
+// that they themselves confirm. Work and payment still require a verified account.
+app.post('/api/guest-quotes',async(req,res)=>run(async()=>{
+ if(limited(req,res,'guest_quote',5))return;
+ const username=String(req.body?.username||'').trim(),email=mail(req.body?.email),
+ service=String(req.body?.service||'').trim(),summary=String(req.body?.summary||'').trim();
+ if(!/^[A-Za-z0-9_.-]{3,32}$/.test(username)||!validEmail(email)||service.length<3||service.length>100||summary.length<20||summary.length>5000||req.body?.privacy_consent!==true)
+   return res.status(400).json({error:'Provide a private username, verifiable email, clear requirements and consent.'});
+ const token=crypto.randomBytes(32).toString('base64url');
+ const quote={id:uid('Q'),owner_id:'',username,contact_email:email,service,summary,contact_channel:'email',status:'awaiting_email_proof',
+   verify_hash:digest('guest:'+token),verify_until:new Date(Date.now()+20*60000),
+   amount_minor:null,currency:'PLN',created_at:now(),updated_at:now()};
+ await quotes.insertOne(quote);
+ try{await sendEmail(email,'Verify your private IPS quote request','Verify this request within 20 minutes: '+origin+'/#guestverify='+encodeURIComponent(token)+'&email='+encodeURIComponent(email)+'&quote='+encodeURIComponent(quote.id));}
+ catch{await quotes.deleteOne({id:quote.id,status:'awaiting_email_proof'});return res.status(503).json({error:'Quote verification email unavailable.'})}
+ await event({id:'guest',role:'guest'},'guest_quote_submitted',quote.id);
+ res.status(202).json({success:true,quote_id:quote.id,verification_required:true});
+},res));
+app.post('/api/guest-quotes/verify',async(req,res)=>run(async()=>{
+ if(limited(req,res,'guest_verify',10))return;
+ const email=mail(req.body?.email),token=String(req.body?.token||''),id=String(req.body?.quote_id||'');
+ if(!validEmail(email)||!/^[A-Za-z0-9_-]{43}$/.test(token))return res.status(400).json({error:'Invalid verification.'});
+ const q=await quotes.findOneAndUpdate({id,contact_email:email,status:'awaiting_email_proof',verify_hash:digest('guest:'+token),verify_until:{$gt:now()}},
+  {$set:{status:'new',contact_verified:true,updated_at:now()},$unset:{verify_hash:'',verify_until:''}},{returnDocument:'after'});
+ if(!q)return res.status(400).json({error:'Verification link expired or already used.'});
+ await notify(rootEmail,'A verified guest quote needs a written reply '+q.id,'intake');
+ await event({id:'guest',role:'guest'},'guest_quote_verified',q.id);
+ res.json({success:true,quote_id:q.id});
+},res));
+app.post('/api/guest-quotes/claim',async(req,res)=>run(async()=>{
+ if(!requires(req,res,['client']))return;
+ const q=await quotes.findOneAndUpdate({id:String(req.body?.quote_id||''),contact_email:req.actor.email,contact_verified:true,owner_id:''},
+  {$set:{owner_id:req.actor.id,updated_at:now()}},{returnDocument:'after'});
+ if(!q)return res.status(404).json({error:'No verified quote for this account email and reference.'});
+ await event(req.actor,'guest_quote_claimed',q.id);res.json({success:true,quote:scrub(q)});
 },res));
 app.get('/api/quotes',async(req,res)=>run(async()=>{
  if(!req.actor)return deny(res,401);
@@ -220,6 +276,8 @@ app.post('/api/quotes/:id/offer',async(req,res)=>run(async()=>{
  if(!Number.isSafeInteger(amount)||amount<=0||amount>100000000||notes.length>2000)return res.status(400).json({error:'Enter a valid written quotation amount in minor PLN units.'});
  const q=await quotes.findOneAndUpdate({id:req.params.id,status:'new'},{$set:{status:'offered',amount_minor:amount,notes,reviewed_by:req.actor.id,updated_at:now()}},{returnDocument:'after'});
  if(!q)return res.status(409).json({error:'Quotation is no longer waiting for a response.'});
+ if(q.contact_email){try{await sendEmail(q.contact_email,'Your private IPS quotation '+q.id,'IPS has reviewed your request '+q.id+'. Written amount: '+(q.amount_minor/100)+' PLN. '+q.notes+'\n\nCreate a verified IPS client account using this same email and claim quote '+q.id+' to proceed securely. No payment is currently collected.');}
+ catch{await quotes.updateOne({id:q.id,status:'offered'},{$set:{status:'delivery_retry',updated_at:now()}});return res.status(503).json({error:'Quotation email delivery failed; the case is held for retry.'})}}
  await notify(q.owner_id,'IPS has issued your private quotation '+q.id);await event(req.actor,'quote_offered',q.id);
  res.json({quote:scrub(q)});
 },res));
