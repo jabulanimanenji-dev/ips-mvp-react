@@ -1723,8 +1723,12 @@ app.get('/api/support-tickets', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (!['admin', 'client'].includes(session.role)) {
-      return res.status(403).json({ success: false, error: 'Support tickets are available to clients and administrators.' });
+      return res.status(403).json({ success: false, error: 'Support tickets are available to clients and authorized support staff.' });
     }
+    // Being employed by IPS does not grant universal access to confidential
+    // customer conversations. Root retains authority; staff require support.view.
+    if(session.role==='admin'&&!hasAdminPermission(req.adminAccess,'support.view'))
+      return res.status(403).json({success:false,error:'Customer support viewing authority is required.'});
     const scope = session.role === 'admin' ? {} : { client_id: session.id };
     if (req.query.status) scope.status = req.query.status;
     const tickets = await SupportTicket.find(scope).sort({ last_activity_at: -1 });
