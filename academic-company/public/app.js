@@ -806,6 +806,13 @@ async function submit(name,formNode){
  if(name==='recover'||name==='invite'){if(data.password!==data.confirmPassword)throw Error('Passwords do not match.');
   const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
  if(name==='quote-upload'){
+  const file=formNode.querySelector('input[name=upload]')?.files?.[0];
+  if(file?.size>5*1024*1024){
+   await uploadAcademicReferenceBinary('/api/academic/quotes/'+
+    encodeURIComponent(data.quoteId)+'/files-binary',
+    file,data.audience||'student');
+   return 'Your large academic document is securely attached to this enquiry.';
+  }
   const payload=await filePayload(formNode);
   await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/files',
    {method:'POST',operator:state.account?.role==='root',body:{...payload,audience:data.audience||'student'}});
@@ -817,6 +824,12 @@ async function submit(name,formNode){
   return 'Message added to the academic enquiry.';
  }
  if(name==='case-upload'){
+  const chosen=formNode.querySelector('input[name=upload]')?.files?.[0];
+  if(data.purpose==='reference'&&chosen?.size>5*1024*1024){
+   await uploadAcademicReferenceBinary('/api/operations/'+
+    encodeURIComponent(data.commissionId)+'/upload-reference-binary',chosen);
+   return 'Your large academic reference is securely attached to this workroom.';
+  }
   if(data.purpose==='deliverable'&&
    (state.account?.role==='specialist'||state.rootLens?.account?.role==='specialist')){
    const file=formNode.querySelector('input[name=upload]')?.files?.[0];
