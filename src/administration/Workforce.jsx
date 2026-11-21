@@ -68,7 +68,7 @@ export default function Workforce(){
       <strong>NYORO · ROOT ADMIN · SOVEREIGN IDENTITY</strong> — outside employee and management lists, no superior, never assigned to another department and never eligible for employee suspension or deletion. Only you create department managers.
     </div>}
     <GroupTotals items={[{label:isRoot?'Company departments':'Your department',value:team.available?(isRoot?departments.length:coverage.length):null,hint:isRoot?'Distinct responsibility domains':'Your assigned responsibility only'},
-      {label:isRoot?'Active accountable managers':'Your leadership role',value:team.available?(isRoot?activeManagers.length:'Department manager'):null,hint:isRoot?'Only actual appointed managers':'Verified by your signed-in management session'},
+      {label:isRoot?'Active accountable managers':'Your leadership role',value:team.available?(isRoot?activeManagers.length:1):null,hint:isRoot?'Only actual appointed managers':'Verified Department Manager · signed-in authority'},
       {label:'Active company staff',value:team.available?people.filter(x=>x.company_role==='staff'&&active(x)).length:null,hint:isRoot?'Company-wide employees only':'Your direct reports only'},
       {label:isRoot?'Management gaps':'Pending staff invitations',value:team.available?(isRoot?coverage.filter(x=>!x.managers.length).length:people.filter(x=>x.company_role==='staff'&&x.status==='Invited').length):null,hint:isRoot?'Root must appoint management':'Awaiting private onboarding',tone:'attention'}]}/>
     <div className="ips4-grid split">
