@@ -69,11 +69,13 @@ export function registerSupportRoutes(ctx){
   const a=req.actor,root=a.role==='root',dept=a.department||'';
   const queues=[];
   if(root||dept==='client_relations'){
-   const cases=await db.quotes.find({status:{$in:['received','clarify','offer_delivery_failed']}})
-    .sort({createdAt:1}).limit(50).toArray();
+   const ownership=a.role==='staff'?{$or:[{assignedTo:a.id},{assignedTo:''},
+     {assignedTo:null},{assignedTo:{$exists:false}}]}:{};
+   const cases=await db.quotes.find({status:{$in:['received','clarify','offer_delivery_failed']},
+    ...ownership}).sort({createdAt:1}).limit(50).toArray();
    queues.push({department:'client_relations',name:'Academic enquiries awaiting review or reply',
     count:cases.length,items:cases.map(q=>({id:q.id,service:q.serviceName,subject:q.subject,
-      stage:q.status,createdAt:q.createdAt}))});
+      stage:q.status,assignedTo:q.assignedTo||'',createdAt:q.createdAt}))});
    const support=await db.support.find({status:'open'}).sort({createdAt:1}).limit(50).toArray();
    queues.push({department:'client_relations',name:'Written student/specialist support',
     count:support.length,items:support.map(t=>({id:t.id,service:'Support',subject:t.subject,
