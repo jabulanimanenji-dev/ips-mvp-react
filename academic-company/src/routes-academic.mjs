@@ -65,6 +65,8 @@ export function registerAcademicRoutes(ctx){
  app.post('/api/academic/guest-quote',wrap(async(req,res)=>{
   if(await throttle.limited(req,'academic-guest-intake',5))return res.status(429).json({error:'Too many academic requests.'});
   const input=req.body||{},contactEmail=email(input.email),uname=String(input.username||'').trim();
+  if(config.staging&&!config.allowedStagingEmails.includes(contactEmail))
+   return res.status(403).json({error:'The IPS staging enquiry environment is limited to approved test identities.'});
   const valid=validateBrief(input);if(valid.error)return res.status(400).json({error:valid.error});
   if(!validEmail(contactEmail)||!validUsername(uname)||input.privacyConsent!==true)
    return res.status(400).json({error:'Provide a private username, verifiable email and consent.'});
