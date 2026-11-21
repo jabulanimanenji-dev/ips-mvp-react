@@ -59,6 +59,8 @@ jobs:
         run: node scripts/verify-company-automation-integration.mjs
       - name: Authenticated support ownership and actual client replies — real MongoDB
         run: node scripts/verify-support-assignment-integration.mjs
+      - name: Financial correctness on genuine MongoDB — hide legacy synthetic money and enforce private roles
+        run: node scripts/verify-company-finance-integration.mjs
       - name: Install isolated browser qualification harness
         run: npm install --no-save --ignore-scripts playwright@1.56.1
       - name: Exercise live authenticated workspaces in Chrome
