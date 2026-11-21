@@ -269,6 +269,8 @@ export function registerAcademicRoutes(ctx){
    {$set:{status:decision==='approve'?'client_delivery':'correction_requested',
     qaReviewer:req.actor.id,qaDecision:decision,qaNote:note,updatedAt:now()}},{returnDocument:'after'});
   if(!p)return res.status(409).json({error:'No submitted academic work awaits QA.'});
+  if(decision==='approve')await db.projects.updateOne({id:p.id,status:'client_delivery'},
+   {$set:{releasedFileId:p.pendingFileId}});
   await db.projects.updateOne({id:p.id,'milestones.name':'Academic quality assurance'},
    {$set:{'milestones.$.status':decision==='approve'?'complete':'pending',
     'milestones.$.at':now()}});
@@ -277,7 +279,7 @@ export function registerAcademicRoutes(ctx){
   await notify(decision==='approve'?p.studentId:p.specialistId,
    'IPS academic quality review '+(decision==='approve'?'approved delivery':'requested corrections')+' on '+p.id,'quality');
   await audit(req.actor,'academic_qa_'+decision,p.id,{note});
-  res.json({commission:commissionView(p)});
+  res.json({commission:commissionView(await db.projects.findOne({id:p.id}))});
  }));
  app.post('/api/academic/commissions/:id/student-decision',wrap(async(req,res)=>{
   if(!authorize(req,res,['student']))return;
@@ -304,7 +306,10 @@ export function registerAcademicRoutes(ctx){
   const p=await db.projects.findOne({id:req.params.id});
   if(!p||!canSee(req.actor,p))return denial(res);
   const rows=await db.files.find({commissionId:p.id}).sort({createdAt:-1}).toArray();
-  const accessible=studentOwner(req.actor,p)&&!['client_delivery','completed'].includes(p.status)?[]:rows;
+  // Failed QA submissions and Specialist working drafts are never released to Students.
+  const accessible=studentOwner(req.actor,p)
+   ?(['client_delivery','completed'].includes(p.status)?rows.filter(x=>x.id===p.releasedFileId):[])
+   :rows;
   res.json({files:accessible.map(x=>({id:x.id,filename:x.filename,mime:x.mime,sha256:x.sha256,createdAt:x.createdAt,revision:x.revision}))});
  }));
  app.get('/api/academic/files/:id',wrap(async(req,res)=>{
@@ -312,7 +317,7 @@ export function registerAcademicRoutes(ctx){
   if(!file)return res.status(404).json({error:'No such academic document.'});
   const p=await db.projects.findOne({id:file.commissionId});
   if(!p||!canSee(req.actor,p))return denial(res);
-  if(studentOwner(req.actor,p)&&!['client_delivery','completed'].includes(p.status))return denial(res);
+  if(studentOwner(req.actor,p)&&(!['client_delivery','completed'].includes(p.status)||file.id!==p.releasedFileId))return denial(res);
   res.setHeader('Cache-Control','private,no-store');
   res.setHeader('Content-Type',file.mime);
   res.setHeader('Content-Disposition','attachment; filename="'+file.filename+'"');
