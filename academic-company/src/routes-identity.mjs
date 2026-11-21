@@ -106,7 +106,7 @@ export function registerIdentityRoutes(ctx){
   if(throttle.limited(req,'academic-recover',6))return res.status(429).json({error:'Please wait before requesting another link.'});
   const mail=email(req.body?.email);
   if(validEmail(mail)&&mail!==rootEmail){
-   const a=await db.accounts.findOne({email:mail,verified:true,status:'active'});
+   const a=await db.accounts.findOne({email:mail,verified:true,status:{$in:['active','pending_review']}});
    if(a){try{await mailChallenge(a,'recover')}catch{return res.status(503).json({error:'Recovery email delivery is unavailable.'})}}
   }
   res.status(202).json({accepted:true,message:'If a verified account exists, IPS sent a one-use password recovery email.'});
@@ -115,7 +115,7 @@ export function registerIdentityRoutes(ctx){
   if(throttle.limited(req,'academic-complete',12))return res.status(429).json({error:'Too many attempts.'});
   const mail=email(req.body?.email),token=String(req.body?.token||''),password=String(req.body?.password||'');
   if(!validEmail(mail)||!validToken(token)||!validPassword(password)||req.body?.confirmPassword!==password)return res.status(400).json({error:'Your password confirmation does not match or your recovery link is invalid.'});
-  const a=await db.accounts.findOneAndUpdate({email:mail,verified:true,status:'active',
+  const a=await db.accounts.findOneAndUpdate({email:mail,verified:true,status:{$in:['active','pending_review']},
     recoveryHash:security.digest('recover:'+token),recoveryUntil:{$gt:now()}},
    {$set:{passwordHash:hashPassword(password)},$inc:{sessionVersion:1},
     $unset:{recoveryHash:'',recoveryUntil:''}},{returnDocument:'after'});
