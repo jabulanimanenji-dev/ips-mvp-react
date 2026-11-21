@@ -1,0 +1,14 @@
+# IPS Academic Services — real production image.
+# Intentionally does not include MongoDB, seed fixtures, review users or evaluation entrypoint.
+FROM node:24-bookworm-slim
+ENV NODE_ENV=production IPS_ACADEMIC_MODE=production PORT=8080
+WORKDIR /app
+COPY academic-company/package.json academic-company/package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts \
+    && npm cache clean --force \
+    && chown -R node:node /app
+COPY --chown=node:node academic-company/src ./src
+COPY --chown=node:node academic-company/public ./public
+USER node
+EXPOSE 8080
+CMD ["node","src/app.mjs"]
