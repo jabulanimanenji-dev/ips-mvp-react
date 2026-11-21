@@ -196,7 +196,8 @@ app.post('/api/people/:id/review',async(req,res)=>run(async()=>{
  if(!target)return res.status(404).json({error:'Account not found.'});
  const action=String(req.body?.action||'');
  if(action==='approve'&&target.role==='specialist'&&(req.actor.role==='root'||req.actor.department==='specialists')){
-   await accounts.updateOne({id:target.id,verified:true},{$set:{approved:true}});
+   const updated=await accounts.updateOne({id:target.id,verified:true,status:'active'},{$set:{approved:true}});
+   if(!updated.matchedCount)return res.status(409).json({error:'Specialist must verify email and be active before approval.'});
  }else if(action==='suspend'&&(req.actor.role==='root'||(req.actor.role==='manager'&&target.role==='staff'&&target.manager_id===req.actor.id))){
    await accounts.updateOne({id:target.id},{$set:{status:'suspended'},$inc:{session_version:1}});
  }else if(action==='reactivate'&&(req.actor.role==='root'||(req.actor.role==='manager'&&target.role==='staff'&&target.manager_id===req.actor.id))){
@@ -208,10 +209,17 @@ app.post('/api/people/:id/review',async(req,res)=>run(async()=>{
 // or inspect recovery tokens. Only Root, and a manager over their direct staff,
 // may initiate this action.
 app.post('/api/people/:id/send-reset',async(req,res)=>run(async()=>{
- if(!requires(req,res,['root','manager']))return;
+ if(!requireAdmin(req,res))return;
  const target=await accounts.findOne({id:req.params.id,verified:true,status:'active'});
  if(!target)return res.status(404).json({error:'Verified active account not found.'});
- if(req.actor.role!=='root'&&!(target.role==='staff'&&target.manager_id===req.actor.id))return deny(res);
+ const actor=req.actor;
+ const allowed=actor.role==='root'
+   ||(actor.role==='manager'&&target.role==='staff'&&target.manager_id===actor.id)
+   ||(['manager','staff'].includes(actor.role)&&(
+      (actor.department==='client_relations'&&target.role==='client')||
+      (actor.department==='specialists'&&target.role==='specialist')
+   ));
+ if(!allowed)return deny(res);
  const token=crypto.randomBytes(32).toString('base64url'),hash=digest('reset:'+token);
  await accounts.updateOne({id:target.id},{$set:{reset_hash:hash,reset_until:new Date(Date.now()+20*60000)}});
  try{await sendEmail(target.email,'Private IPS password assistance','An authorized IPS administrator requested a secure recovery link for your account. If this was not requested by you, ignore it. Link expires in 20 minutes: '+origin+'/#reset='+encodeURIComponent(token)+'&email='+encodeURIComponent(target.email))}
