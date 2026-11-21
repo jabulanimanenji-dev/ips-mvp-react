@@ -108,8 +108,38 @@ export function registerSupportRoutes(ctx){
  }));
 }
 export function beginCompanyAutomation(ctx){
- const {db,rootEmail,notify}=ctx;
- let busy=false;
+ const {db,rootEmail,notify,sendEmail,uid}=ctx;
+ let busy=false,mailBusy=false;
+ const deliveryTick=async()=>{
+  if(mailBusy)return;mailBusy=true;
+  try{
+   for(let i=0;i<8;i++){
+    const now=new Date(),stale=new Date(Date.now()-65000);
+    const job=await db.notificationDeliveries.findOneAndUpdate({
+     nextAttemptAt:{$lte:now},
+     $or:[{status:'pending'},{status:'sending',lockedAt:{$lt:stale}}]
+    },{$set:{status:'sending',lockedAt:now}},{sort:{createdAt:1},returnDocument:'after'});
+    if(!job)break;
+    try{
+     await sendEmail(job.to,job.subject,job.text);
+     await db.notificationDeliveries.updateOne({id:job.id,status:'sending'},
+      {$set:{status:'delivered',deliveredAt:new Date()},$unset:{lockedAt:''}});
+    }catch(e){
+     const attempts=(job.attempts||0)+1,failed=attempts>=4;
+     const delay=Math.min(180000,4000*(2**(attempts-1)));
+     await db.notificationDeliveries.updateOne({id:job.id,status:'sending'},{
+      $set:{status:failed?'failed':'pending',attempts,
+       nextAttemptAt:new Date(Date.now()+delay),lastError:'Provider delivery failed'},
+      $unset:{lockedAt:''}});
+     if(failed)await db.notifications.insertOne({
+      id:uid('NT'),accountId:rootEmail,kind:'communication_failure',
+      message:'An opted-in IPS email notice could not be delivered after retries: '+job.id,
+      read:false,createdAt:new Date()});
+    }
+   }
+  }catch(err){console.error('IPS academic notification delivery incident',err?.name||'Error')}
+  finally{mailBusy=false}
+ };
  const tick=async()=>{
   if(busy)return;busy=true;
   try{
@@ -129,4 +159,5 @@ export function beginCompanyAutomation(ctx){
   finally{busy=false}
  };
  const handle=setInterval(tick,60000);handle.unref?.();void tick();
+ const mailHandle=setInterval(deliveryTick,2500);mailHandle.unref?.();void deliveryTick();
 }
