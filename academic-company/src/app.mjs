@@ -143,7 +143,9 @@ app.use('/api',async(req,res,next)=>{
   if(!/^(?:STU|SPC)-[A-Z0-9-]{4,55}$/.test(targetId))
    return res.status(400).json({error:'Choose a real Student or Specialist workspace from the IPS directory.'});
   if(!(/^(?:\/academic\/|\/support(?:\/|$)|\/notifications(?:\/|$))/.test(req.path)||
-   /^\/operations\/inbox$/.test(req.path)||/^\/operations\/[^/]+\/(?:files|upload)$/.test(req.path)))
+   /^\/operations\/inbox$/.test(req.path)||/^\/operations\/[^/]+\/(?:files|upload)$/.test(req.path)||
+   (['GET','HEAD'].includes(req.method)&&(/^\/operations\/direct-message$/.test(req.path)||
+    /^\/operations\/direct-message\/[^/]+\/thread$/.test(req.path)))))
    return res.status(403).json({error:'Root assisted workspaces cannot change identity, authentication or administration.'});
   const permittedRead=['GET','HEAD'].includes(req.method);
   const rootOfficialMessage=req.method==='POST'&&(
