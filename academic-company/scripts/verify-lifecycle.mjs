@@ -772,6 +772,64 @@ try{
    id,status:'delivered'}),0,'External delivery must not be falsely asserted in isolated testing');
   assert.ok(await db.collection('academic_audit_events').findOne({action:'academic_notification_retry_requested',ref:id}));
  });
+ await assertCheck('Nyoro Root receives one-use recovery email, revokes old sessions and remains non-deletable',async()=>{
+  const rootMail=vars.ROOT_EMAIL,firstSession=rootCookie;
+  const neutral=await call('/auth/recovery/request',{method:'POST',body:{
+   email:'unknown-root-recovery@example.org'}},202);
+  assert.equal(neutral.data.accepted,true);
+  const request=await call('/auth/recovery/request',{method:'POST',body:{
+   email:rootMail}},202);
+  assert.equal(request.data.accepted,true);
+  const first=token(await inbox(rootMail,'Nyoro IPS Root Admin password recovery'),'recover');
+  await call('/auth/recovery/complete',{method:'POST',body:{
+   email:rootMail,token:first,password:'RootPasswordChanged2027!',
+   confirmPassword:'NoMatch2027!'}},400);
+  const changed=await call('/auth/recovery/complete',{method:'POST',body:{
+   email:rootMail,token:first,password:'RootPasswordChanged2027!',
+   confirmPassword:'RootPasswordChanged2027!'}});
+  assert.equal(changed.data.account.name,'Nyoro');
+  await call('/session',{cookie:firstSession},401);
+  await call('/auth/login',{method:'POST',body:{
+   email:rootMail,password:vars.ROOT_PASSWORD}},401);
+  const newSession=await signIn(rootMail,'RootPasswordChanged2027!');
+  const record=await db.collection('academic_root_credentials').findOne({id:rootMail});
+  assert.equal(record.sessionVersion,2);
+  assert.ok(record.passwordHash?.startsWith('scrypt
+  const people=await call('/administration/people',{cookie:rootCookie});
+  assert.ok(!people.data.people.some(x=>x.role==='root'));
+  await call('/administration/people',{cookie:studentCookie},403);
+  const queue=await call('/administration/queues',{cookie:rootCookie});
+  assert.ok(queue.data.queues.some(x=>x.department==='quality_assurance'));
+  const saved=await db.collection('academic_audit_events').countDocuments({});
+  assert.ok(saved>14,'Academic business audit events missing');
+  const coll=(await db.listCollections().toArray()).map(x=>x.name);
+  assert.ok(coll.includes('academic_commissions'));
+  assert.ok(!coll.includes('orders')&&!coll.includes('writers')&&!coll.includes('clients'));
+ });
+ console.log('IPS_ACADEMIC_REAL_MONGODB_LIFECYCLE_GREEN '+checks+' verified business and security checks, full edited academic file, QA/revision loop');
+}catch(err){console.error('IPS_ACADEMIC_LIFECYCLE_FAIL',String(err),stderr);process.exitCode=1}
+finally{try{await client?.close()}catch{}server.kill('SIGTERM');await sleep(250)}
+));
+  assert.equal(await db.collection('academic_accounts').countDocuments({role:'root'}),0);
+  await call('/auth/recovery/complete',{method:'POST',body:{
+   email:rootMail,token:first,password:'AttackerReplay2027!',
+   confirmPassword:'AttackerReplay2027!'}},400);
+  await call('/auth/recovery/request',{method:'POST',body:{
+   email:rootMail}},202);
+  const second=token(await inbox(rootMail,'Nyoro IPS Root Admin password recovery'),'recover');
+  assert.notEqual(second,first);
+  const restored=await call('/auth/recovery/complete',{method:'POST',body:{
+   email:rootMail,token:second,password:vars.ROOT_PASSWORD,
+   confirmPassword:vars.ROOT_PASSWORD}});
+  assert.equal(restored.data.account.role,'root');
+  await call('/session',{cookie:newSession},401);
+  rootCookie=await signIn(rootMail,vars.ROOT_PASSWORD);
+  const final=await db.collection('academic_root_credentials').findOne({id:rootMail});
+  assert.equal(final.sessionVersion,3);
+  assert.equal(await db.collection('academic_accounts').countDocuments({role:'root'}),0);
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'nyoro_root_password_recovered'}));
+ });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
   const people=await call('/administration/people',{cookie:rootCookie});
   assert.ok(!people.data.people.some(x=>x.role==='root'));
