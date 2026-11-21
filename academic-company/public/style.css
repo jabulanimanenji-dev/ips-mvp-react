@@ -168,3 +168,14 @@ input::placeholder,textarea::placeholder{color:#a9b8c1}
 .agreement-box{display:block;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 18px}
 .agreement-box summary{cursor:pointer;font-weight:700;color:var(--gold-bright);letter-spacing:.01em}
 .agreement-copy{margin-top:14px;max-height:340px;overflow:auto;white-space:pre-wrap;background:#102436;border:1px solid #415d70;border-radius:9px;padding:16px;color:var(--muted);font-size:12px;line-height:1.7;font-weight:400}
+
+/* IPS high-volume company queues: one readable, paginated worklist rather than 8,000px screens. */
+.worklist-tools{display:grid;grid-template-columns:minmax(220px,1fr) minmax(170px,235px) auto;align-items:end;gap:16px;margin:20px 0 16px}
+.worklist-tools .field{min-width:0}.worklist-tools input,.worklist-tools select{background:#182f41!important}
+.worklist-count{font-size:13px;line-height:1.45;color:#c3d3db;font-variant-numeric:tabular-nums}
+.worklist-rows{margin-top:16px}.worklist-rows .inbox-row{min-height:95px}
+[data-work-row][hidden]{display:none!important}
+.worklist-pager{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:10px;margin-top:19px;padding:16px 0 0;border-top:1px solid #3d5868}
+.worklist-pager .worklist-count{margin-right:auto}.worklist-pager button:disabled{opacity:.42}
+@media(max-width:850px){.worklist-tools{grid-template-columns:minmax(0,1fr) minmax(150px,.7fr)}.worklist-tools>[data-work-count]{grid-column:1/-1}}
+@media(max-width:590px){.worklist-tools{grid-template-columns:1fr}.worklist-tools>[data-work-count]{grid-column:auto}.worklist-pager{justify-content:space-between}.worklist-pager .worklist-count{width:100%}}
