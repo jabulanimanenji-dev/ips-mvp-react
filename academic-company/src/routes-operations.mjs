@@ -238,9 +238,11 @@ export function registerOperationsRoutes(ctx){
   const audience=a.role==='student'?'student':String(req.body?.audience||'student');
   if(!['student','internal'].includes(audience))return res.status(400).json({error:'Choose a valid quotation document audience.'});
   const {filename,mime,buffer}=checked;
+  const scanStatus=await verifyScan(res,buffer);
+  if(!scanStatus)return;
   const file={id:uid('QF'),quoteId:q.id,studentId:q.studentId,
    filename,mime,purpose:'enquiry_reference',audience,
-   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,
+   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,scanStatus,
    uploadedBy:req.rootOperatorId||a.id,uploadedRole:req.rootOperatorId?'root':a.role,createdAt:now()};
   await db.quoteFiles.insertOne(file);
   await db.quotes.updateOne({id:q.id},{$set:{updatedAt:now()}});
@@ -318,9 +320,11 @@ export function registerOperationsRoutes(ctx){
    if(!['specialist_assigned','root_in_progress','correction_requested','student_revision_requested'].includes(p.status))
     return res.status(409).json({error:'This academic case is not ready for a new deliverable.'});
   }
+  const scanStatus=await verifyScan(res,buffer);
+  if(!scanStatus)return;
   const file={id:uid('AF'),commissionId:p.id,studentId:p.studentId,specialistId:p.specialistId,
    filename,mime,purpose,kind:purpose==='reference'?'client_reference':'academic_submission',
-   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,
+   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,scanStatus,
    createdAt:now(),uploadedBy:req.rootOperatorId||a.id,revision:p.revisionCount||0,
    rootSubmission:a.role==='root'};
   await db.files.insertOne(file);
@@ -438,9 +442,11 @@ export function registerOperationsRoutes(ctx){
   const checked=quickFile({...req.body,purpose:'reference'});
   if(checked.error)return res.status(400).json({error:checked.error});
   const {filename,mime,buffer}=checked;
+  const scanStatus=await verifyScan(res,buffer);
+  if(!scanStatus)return;
   const source={id:uid('XF'),commissionId:p.id,kind,filename,mime,
    providerReference:arrangement.providerReference,sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
-   fileData:buffer,uploadedBy:rootEmail,createdAt:now(),status:'private',
+   fileData:buffer,scanStatus,uploadedBy:rootEmail,createdAt:now(),status:'private',
    createdInMode:'private_external'};
   await db.rootExternalFiles.insertOne(source);
   await audit(req.actor,'root_private_supplier_file_received',p.id,{
@@ -484,7 +490,7 @@ export function registerOperationsRoutes(ctx){
   if(sha256!==source.sha256)return res.status(409).json({error:'Supplier return checksum mismatch; QA release prohibited.'});
   const file={id:uid('AF'),commissionId:p.id,studentId:p.studentId,specialistId:'',
    filename:source.filename,mime:source.mime,purpose:'deliverable',kind:'academic_submission',
-   sha256,fileData:buffer,createdAt:now(),uploadedBy:rootEmail,
+   sha256,fileData:buffer,scanStatus:source.scanStatus||'legacy_unverified',createdAt:now(),uploadedBy:rootEmail,
    revision:p.revisionCount||0,rootSubmission:true,privateExternalSourceId:source.id};
   await db.files.insertOne(file);
   const updated=await db.projects.findOneAndUpdate({id:p.id,status:'root_in_progress',
@@ -510,9 +516,11 @@ export function registerOperationsRoutes(ctx){
   const checked=quickFile({...req.body,purpose:'reference'});
   if(checked.error)return res.status(400).json({error:checked.error});
   const {filename,mime,buffer}=checked;
+  const scanStatus=await verifyScan(res,buffer);
+  if(!scanStatus)return;
   const f={id:uid('DMF'),toId:target.id,fromId:rootEmail,filename,mime,
    sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
-   fileData:buffer,createdAt:now()};
+   fileData:buffer,scanStatus,createdAt:now()};
   await db.directFiles.insertOne(f);
   const note={id:uid('DM'),toId:target.id,fromId:rootEmail,fromRole:'root',recipientRole:target.role,
    body:'IPS has shared a private academic document: '+filename,subject:'Secure academic document',
