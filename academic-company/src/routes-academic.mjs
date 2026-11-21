@@ -6,7 +6,7 @@ import {SERVICES,SERVICE_MAP,ACADEMIC_LEVELS,academicIntegrityNotice} from './ca
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerAcademicRoutes(ctx){
- const {app,db,documentBucket,config,env,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid}=ctx;
+ const {app,db,documentBucket,inspectAcademicUpload,config,env,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid}=ctx;
  const allowedChannels=['workspace','email','telegram'];
  const quoteView=q=>{
   const x=publicDocument(q);delete x.verifyHash;delete x.verifyUntil;delete x.internalEvaluation;
@@ -412,9 +412,11 @@ export function registerAcademicRoutes(ctx){
    return res.status(400).json({error:'File contents do not match PDF format.'});
   if(mime.includes('wordprocessingml')&&buffer.subarray(0,2).toString()!=='PK')
    return res.status(400).json({error:'File contents do not match DOCX format.'});
+  const scan=await inspectAcademicUpload(buffer);
+  if(!scan.allowed)return res.status(scan.http).json({error:scan.error});
   const file={id:uid('AF'),commissionId:p.id,studentId:p.studentId,specialistId:p.specialistId,
    filename,mime,sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
-   fileData:buffer,createdAt:now(),kind:'specialist_submission',revision:p.revisionCount,
+   fileData:buffer,scanStatus:scan.status,createdAt:now(),kind:'specialist_submission',revision:p.revisionCount,
    uploadedBy:req.rootOperatorId||req.actor.id,
    ...(req.rootOperatorId?{rootAssisted:true}:{} )};
   await db.files.insertOne(file);
@@ -451,6 +453,8 @@ export function registerAcademicRoutes(ctx){
   if(mime==='application/pdf'&&buffer.subarray(0,5).toString()!=='%PDF-'||
    mime.includes('wordprocessingml')&&buffer.subarray(0,2).toString()!=='PK')
    return res.status(400).json({error:'Academic document type does not match its contents.'});
+  const scan=await inspectAcademicUpload(buffer);
+  if(!scan.allowed)return res.status(scan.http).json({error:scan.error});
   const sha256=crypto.createHash('sha256').update(buffer).digest('hex'),
    id=uid('AF'),date=now();
   const blobId=await new Promise((resolve,reject)=>{
@@ -461,7 +465,7 @@ export function registerAcademicRoutes(ctx){
    upload.end(buffer);
   });
   const file={id,commissionId:p.id,studentId:p.studentId,specialistId:p.specialistId,
-   filename,mime,sha256,blobId,byteLength:buffer.length,createdAt:date,
+   filename,mime,sha256,blobId,byteLength:buffer.length,scanStatus:scan.status,createdAt:date,
    kind:'specialist_submission',revision:p.revisionCount,uploadedBy:req.rootOperatorId||req.actor.id,
    ...(req.rootOperatorId?{rootAssisted:true}:{})};
   try{
