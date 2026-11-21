@@ -10,6 +10,7 @@ import {email,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid} from 
 import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
 import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs';
+import {registerOperationsRoutes} from './routes-operations.mjs';
 
 const env=process.env;
 const config=ensureRuntime(env);
@@ -20,10 +21,10 @@ app.disable('x-powered-by');
 if(config.prod)app.set('trust proxy',1);
 app.use(helmet({contentSecurityPolicy:{directives:{
  "default-src":["'self'"],"script-src":["'self'"],"style-src":["'self'"],
- "img-src":["'self'","data:"],"connect-src":["'self'"],
+ "img-src":["'self'","data:","https://images.unsplash.com"],"connect-src":["'self'"],
  "font-src":["'self'"],"frame-ancestors":["'none'"]
 }}}));
-app.use(express.json({limit:'3mb'}));
+app.use(express.json({limit:'8mb'}));
 app.use((req,res,next)=>{
  res.setHeader('X-IPS-Product','IPS Academic Services');
  res.setHeader('Cache-Control','no-store');
@@ -44,7 +45,10 @@ const db={
  support:raw.collection('academic_support_cases'),
  notifications:raw.collection('academic_notifications'),
  audit:raw.collection('academic_audit_events'),
- outbox:raw.collection('academic_evaluation_mail')
+ outbox:raw.collection('academic_evaluation_mail'),
+ quoteMessages:raw.collection('academic_quote_messages'),
+ directMessages:raw.collection('academic_direct_messages'),
+ rootOperations:raw.collection('academic_root_operations')
 };
 await Promise.all([
  db.accounts.createIndex({email:1},{unique:true}),
@@ -58,7 +62,10 @@ await Promise.all([
  db.messages.createIndex({commissionId:1,createdAt:1}),
  db.support.createIndex({ownerId:1,updatedAt:-1}),
  db.audit.createIndex({at:-1}),
- db.notifications.createIndex({accountId:1,createdAt:-1})
+ db.notifications.createIndex({accountId:1,createdAt:-1}),
+ db.quoteMessages.createIndex({quoteId:1,createdAt:1}),
+ db.directMessages.createIndex({toId:1,createdAt:-1}),
+ db.rootOperations.createIndex({commissionId:1},{unique:true})
 ]);
 const rootEmail=email(env.ROOT_EMAIL);
 async function sendEmail(to,subject,text){
@@ -162,6 +169,7 @@ app.get('/api/session',wrap(async(req,res)=>{
 registerIdentityRoutes(ctx);
 registerAcademicRoutes(ctx);
 registerSupportRoutes(ctx);
+registerOperationsRoutes(ctx);
 beginCompanyAutomation(ctx);
 const dist=path.join(path.dirname(fileURLToPath(import.meta.url)),'../public');
 app.use(express.static(dist,{index:false,maxAge:0}));
