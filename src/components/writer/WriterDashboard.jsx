@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardZone from '../common/DashboardZone';
 import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
+import PrivateNotificationInbox from '../common/PrivateNotificationInbox.jsx';
 
 const done = ['Completed', 'Cancelled'];
 
@@ -65,6 +66,8 @@ export default function WriterDashboard() {
         <ConfigurableActionGroup portal="writer" area="hero" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: '1.25rem' }} />
       </section>
       </DashboardZone>
+
+      <PrivateNotificationInbox role="writer" recipientId={writer?.writer_id}/>
 
       <DashboardZone portal="writer" id="attention">
       {attention.length > 0 && <section className="card" style={{ marginBottom: '1.5rem', borderLeft: '5px solid #ee7b54' }}>
