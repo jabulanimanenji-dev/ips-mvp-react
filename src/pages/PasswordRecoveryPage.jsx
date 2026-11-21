@@ -9,7 +9,7 @@ export default function PasswordRecoveryPage(){
   const navigate=useNavigate();
   const writerRecovery=window.location.pathname.startsWith('/writer/');
   const role=writerRecovery?'writer':'client';
-  const [token,setToken]=useState('');
+  const [token,setToken]=useState(()=>new URLSearchParams(window.location.hash.slice(1)).get('token')||'');
   const [requestMode,setRequestMode]=useState(true);
   const [email,setEmail]=useState('');
   const [password,setPassword]=useState('');
@@ -23,7 +23,7 @@ export default function PasswordRecoveryPage(){
     const provided=params.get('token')||'';
     setRequestMode(!window.location.pathname.endsWith('/reset-password'));
 
-    setToken(provided);
+    if(provided)setToken(provided);
     if(window.location.hash)window.history.replaceState(window.history.state,'',window.location.pathname+window.location.search);
   },[]);
   async function submit(event){
