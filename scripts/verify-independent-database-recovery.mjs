@@ -4,6 +4,7 @@ import {mkdtemp,readFile,readdir,lstat,writeFile,mkdir,rm} from 'node:fs/promise
 import os from 'node:os';
 import path from 'node:path';
 import {MongoClient,BSON} from 'mongodb';
+import {spawn} from 'node:child_process';
 
 // This test deliberately excludes all real accounts and real infrastructure.
 // Source and restoration MUST be different MongoDB 7 processes on different
@@ -214,6 +215,111 @@ try{
   });
   assert.ok(restoredCaseNotifications>=2,
     'Client/specialist project notifications were not restored');
+
+  // A restored database is useful only if the ACTUAL production application
+  // binary (in disposable mode) can authenticate and retrieve the recovered
+  // client project and bytes from independent restored storage.
+  const restoreApiPort=8091;
+  const restoredApp=spawn(process.execPath,['server.js'],{
+    cwd:process.cwd(),
+    env:{
+      PATH:process.env.PATH||'',
+      HOME:process.env.HOME||'',
+      NODE_ENV:'development',PORT:String(restoreApiPort),
+      MONGODB_URI:restoreUri,STORAGE_PROVIDER:'local',UPLOADS_DIR:restoreFiles,
+      ADMIN_EMAIL:'owner-ci@example.invalid',
+      ADMIN_PASSWORD:'LocalOnlyAdminPassword123!',
+      SESSION_SECRET:'ci-restore-verification-session-secret-not-production-2026',
+      TELEGRAM_WEBHOOK_SECRET:'ci_telegram_secret_random_123',
+      WHATSAPP_APP_SECRET:'ci_whatsapp_app_secret_123',
+      IPS_PAYMENTS_ENABLED:'false',
+      CONTACT_EMAIL_NOTIFICATIONS_ENABLED:'false',
+      IPS_EVALUATION_MODE:'false'
+    },
+    stdio:['ignore','pipe','pipe']
+  });
+  let tail='';
+  const appendLog=chunk=>{tail=(tail+String(chunk)).slice(-1800);};
+  restoredApp.stdout.on('data',appendLog);
+  restoredApp.stderr.on('data',appendLog);
+  const restoredApi='http://127.0.0.1:'+restoreApiPort;
+  const restoredCall=async(route,{method='GET',body,cookie}={})=>{
+    const response=await fetch(restoredApi+route,{
+      method,signal:AbortSignal.timeout(8000),
+      headers:{...(body?{'Content-Type':'application/json'}:{}),
+        ...(cookie?{Cookie:cookie}:{})},
+      ...(body?{body:JSON.stringify(body)}:{})
+    });
+    const bytes=Buffer.from(await response.arrayBuffer());
+    let data={};
+    try{data=JSON.parse(bytes.toString('utf8'));}catch{}
+    return {status:response.status,body:bytes,data,
+      cookie:(response.headers.get('set-cookie')||'').split(';')[0]};
+  };
+  try{
+    let healthy=false;
+    for(let attempt=0;attempt<90;attempt++){
+      if(restoredApp.exitCode!==null)throw Error('Restored IPS application cannot start: '+tail.slice(-200));
+      try{
+        const health=await restoredCall('/api/health');
+        if(health.status===200&&health.data.database==='connected'&&health.data.storage==='local'){
+          healthy=true;break;
+        }
+      }catch{}
+      await new Promise(resolve=>setTimeout(resolve,350));
+    }
+    assert.ok(healthy,'Restored IPS app cannot connect to independent MongoDB and private file store.');
+    const client=await restoredCall('/api/client/login',{method:'POST',
+      body:{email:'alice.test@example.org',password:'ExampleTestPassword123!'}});
+    assert.equal(client.status,200,'Recovered verified client login rejected.');
+    assert.ok(client.cookie.startsWith('ips_session='));
+    const specialist=await restoredCall('/api/writer/login',{method:'POST',
+      body:{email:'writer.ci@example.org',password:'ExampleTestPassword123!'}});
+    assert.equal(specialist.status,200,'Recovered approved specialist login rejected.');
+    assert.ok(specialist.cookie.startsWith('ips_session='));
+    const root=await restoredCall('/api/admin/login',{method:'POST',
+      body:{email:'owner-ci@example.invalid',password:'LocalOnlyAdminPassword123!'}});
+    assert.equal(root.status,200,'Recovered Root Admin login rejected.');
+    assert.equal(root.data.admin?.name,'Nyoro');
+    const projectReadback=await restoredCall('/api/services/'+project.request_id,{cookie:client.cookie});
+    assert.equal(projectReadback.status,200,'Recovered client cannot open their completed project.');
+    assert.equal(projectReadback.data.request?.status,'Completed');
+    assert.equal(projectReadback.data.request?.provider_id,project.provider_id);
+    const specialistInbox=await restoredCall('/api/services?provider_id='+project.provider_id,
+      {cookie:specialist.cookie});
+    assert.equal(specialistInbox.status,200,'Recovered specialist cannot open assignments.');
+    assert.ok((specialistInbox.data.requests||[]).some(r=>r.request_id===project.request_id));
+    const protectedDocument=await restoredCall('/api/files/'+String(file._id)+'/download',
+      {cookie:client.cookie});
+    assert.equal(protectedDocument.status,200,'Recovered client cannot download delivered document.');
+    assert.equal(sha(protectedDocument.body),file.checksum);
+    const outsider=await restoredCall('/api/client/login',{method:'POST',
+      body:{email:'bob.test@example.org',password:'NewestStrongPassword10!'}});
+    assert.equal(outsider.status,200);
+    const forbidden=await restoredCall('/api/files/'+String(file._id)+'/download',
+      {cookie:outsider.cookie});
+    assert.equal(forbidden.status,403,'Restored IPS must deny another customer private file bytes.');
+    const financeDenied=await restoredCall('/api/admin/finance/operating-ledger');
+    assert.equal(financeDenied.status,401);
+    const financeReadback=await restoredCall('/api/admin/finance/operating-ledger',
+      {cookie:root.cookie});
+    assert.equal(financeReadback.status,200,'Restored Root finance ledger unavailable.');
+    report.restored_application={
+      genuine_express_http_boot:true,verified_client_login:true,
+      verified_specialist_login:true,root_admin_nyoro_login:true,
+      completed_project_available:true,specialist_assignment_available:true,
+      approved_file_http_sha256_verified:true,unrelated_customer_denied:true,
+      anonymous_finance_denied:true,private_root_finance_available:true
+    };
+    console.log('IPS_RESTORED_LIVE_HTTP_GREEN '+JSON.stringify(report.restored_application));
+  }finally{
+    restoredApp.kill('SIGTERM');
+    await Promise.race([
+      new Promise(resolve=>restoredApp.once('close',resolve)),
+      new Promise(resolve=>setTimeout(resolve,4000))
+    ]);
+    if(restoredApp.exitCode===null)restoredApp.kill('SIGKILL');
+  }
   const sourceFingerprint=sha(disk);
   report.result='PASS';
   report.integrity={
