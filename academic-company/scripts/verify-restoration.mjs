@@ -39,7 +39,11 @@ try{
  const p=await request('/academic/commissions/'+project.id,{cookie:studentCookie});
  assert.equal(p.status,200);assert.equal(p.json.commission.serviceId,'academic-editing');
  const list=await request('/academic/commissions/'+project.id+'/files',{cookie:studentCookie});
- assert.equal(list.status,200);assert.ok(list.json.files.length>=2,'Restored academic file revisions absent');
+ assert.equal(list.status,200);
+ assert.equal(list.json.files.length,1,'Student must receive only the final QA-approved release');
+ assert.equal(list.json.files[0].id,project.releasedFileId,'Wrong academic file released after restore');
+ assert.ok(await db.collection('academic_private_files').countDocuments({commissionId:project.id})>=2,
+  'Restored history of earlier academic draft versions is missing');
  const chosen=list.json.files[0];
  const downloaded=await fetch(base+'/api/academic/files/'+chosen.id,{headers:{Cookie:studentCookie}});
  assert.equal(downloaded.status,200);const bytes=Buffer.from(await downloaded.arrayBuffer());
