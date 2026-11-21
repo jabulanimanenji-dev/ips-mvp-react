@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SERVICES,CATEGORIES,DEPARTMENTS,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
-import {email,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid} from './security.mjs';
+import {email,validEmail,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid} from './security.mjs';
 import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
 import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs';
@@ -93,22 +93,50 @@ async function audit(actor,action,ref='',details={}){
   actorRole:assisted?'root':actor?.role||'system',
   action,ref:String(ref),details:assisted?{...details,rootAssisted:true,selectedAccountId:actor.id,selectedRole:actor.role}:details});
 }
-async function notify(accountId,message,kind='academic_work'){
- if(!accountId)return;
- const item={id:uid('NT'),accountId,message,kind,read:false,createdAt:now()};
- await db.notifications.insertOne(item);
- // User-selected email updates are dispatched by an independent retryable queue.
- // Never send case text, private document names, academic topics or identities by email.
- // Workspace-only and Telegram-preferring recipients continue to use their private inbox.
- const owner=await db.accounts.findOne({id:accountId,verified:true,status:'active',
-   contactPreference:'email'},{projection:{email:1}});
- if(owner?.email)await db.notificationDeliveries.insertOne({
-  id:uid('OUT'),notificationId:item.id,accountId,to:owner.email,
+// Every non-transactional notice uses the same durable delivery queue. Provider acceptance
+// is not a read receipt; no academic subject, name, price, file or message is emailed.
+async function queuePrivateNotice(to,kind,notificationId,accountId=''){
+ const recipient=email(to);
+ if(!validEmail(recipient))throw Error('A verified email address is required for private notices.');
+ await db.notificationDeliveries.insertOne({
+  id:uid('OUT'),notificationId,accountId,to:recipient,
   subject:'IPS Academic Services — new private update',
   text:'A private IPS Academic Services update is ready in your secure workspace.\n'+
        'Sign in: '+config.origin+'\n\nFor security, this email contains no academic case details.',
   kind,status:'pending',attempts:0,nextAttemptAt:now(),createdAt:now()
  });
+}
+async function notify(accountId,message,kind='academic_work',options={}){
+ if(!accountId)return;
+ const item={id:uid('NT'),accountId,message,kind,read:false,createdAt:now()};
+ await db.notifications.insertOne(item);
+ const owner=await db.accounts.findOne({id:accountId,verified:true,status:'active'},
+  {projection:{email:1,contactPreference:1}});
+ // Quote-specific consent overrides account-level notification defaults, but only for
+ // that verified quote owner. All unrelated messages keep the chosen profile preference.
+ const channel=options.channel||owner?.contactPreference;
+ if(owner?.email&&channel==='email')
+  await queuePrivateNotice(owner.email,kind,item.id,accountId);
+}
+async function notifyQuotation(q,message,kind='quotation'){
+ // A quote's explicit written contact selection is authoritative for quote updates.
+ // Claimed quotes notify their verified owner; verified guests receive only generic
+ // email notices, and never academic detail, price, terms or private correspondence.
+ if(q.studentId){
+  await notify(q.studentId,message,kind,{channel:q.contactChannel||'workspace'});
+ }else if(q.contactVerified&&q.contactChannel==='email'){
+  await queuePrivateNotice(q.contactEmail,kind,uid('GUEST-NOTICE'));
+ }
+ if(q.contactChannel==='telegram'){
+  // A Telegram username alone is not a verified bot chat destination. Do not
+  // misrepresent this as delivered, nor silently substitute unsolicited email.
+  await db.quotes.updateOne({id:q.id},{$set:{outboundStatus:'telegram_not_connected',updatedAt:now()}});
+  await db.notifications.updateOne({accountId:rootEmail,kind:'communication_failure',ref:q.id},
+   {$setOnInsert:{id:uid('NT'),accountId:rootEmail,kind:'communication_failure',
+    ref:q.id,message:'Telegram delivery not connected for academic enquiry '+q.id+
+     '. Use the authenticated IPS workspace until the approved channel is available.',
+    read:false,createdAt:now()}},{upsert:true});
+ }
 }
 async function resolveActor(req){
  const token=security.read(req);
@@ -136,7 +164,7 @@ function wrap(handler){return async(req,res)=>{try{await handler(req,res)}catch(
  console.error('IPS Academic Services operation failed',e?.name||'Error');
  if(!res.headersSent)res.status(500).json({error:'IPS could not complete the operation. Your previous state remains available.'});
 }}}
-const ctx={app,db,env,config,security,throttle,sendEmail,rootEmail,notify,audit,authorize,department,wrap,now,uid};
+const ctx={app,db,env,config,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
 app.get('/api/health',wrap(async(_req,res)=>res.json({
  ready:mongoose.connection.readyState===1,
  product:'IPS Academic Services',identity:'academic-services-only',release:'academic-company-2026-v1',
