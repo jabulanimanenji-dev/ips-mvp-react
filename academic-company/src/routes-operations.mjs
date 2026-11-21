@@ -93,7 +93,10 @@ export function registerOperationsRoutes(ctx){
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
   const a=req.actor;
   const qFilter=a.role==='student'?{studentId:a.id}:
-   (a.role==='root'||intake(a))?{}:{id:'none'};
+   a.role==='root'||a.role==='manager'&&a.department==='client_relations'?{}:
+   a.role==='staff'&&a.department==='client_relations'?
+    {$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]}:
+    {id:'none'};
   const cFilter=a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:
    (a.role==='root'||delivery(a)||intake(a))?{}:{id:'none'};
   const [quotes,commissions,cases,dm,alerts]=await Promise.all([
