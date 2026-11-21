@@ -24,6 +24,7 @@ on:
       - work/ips-academic-quote-ownership-20261121
       - work/ips-academic-mail-state-20261121
       - work/ips-academic-specialist-capacity-20261121
+      - work/ips-academic-governed-people-20261121
   pull_request:
     branches:
       - main
@@ -70,6 +71,7 @@ jobs:
           node --check scripts/verify-production-admission.mjs
           node --check scripts/verify-staging-boundary.mjs
           node --check src/routes-operations.mjs
+          node --check src/routes-people-governance.mjs
           node --check public/app.js
           node --check scripts/verify-lifecycle.mjs
           node --check scripts/verify-browser.mjs
