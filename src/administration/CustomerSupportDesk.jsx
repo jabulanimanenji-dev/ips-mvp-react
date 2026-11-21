@@ -4,20 +4,25 @@ import {useAuth} from '../context/AuthContext.jsx';
 import {useFeed,useAction,Title,Panel,Button,Tag,Notice,Empty,dateTime} from './core.jsx';
 
 export default function CustomerSupportDesk(){
-  const {hasAdminPermission}=useAuth();
+  const {admin,hasAdminPermission}=useAuth();
   const [params,setParams]=useSearchParams();
   const data=useFeed('/api/support-tickets','tickets',hasAdminPermission('support.view'));
+  const staff=useFeed('/api/admin/company-cases/staff','staff',hasAdminPermission('team.manage')&&hasAdminPermission('support.manage'));
   const action=useAction(data.refresh);
   const [selected,setSelected]=useState(params.get('ticket')||''),[text,setText]=useState(''),
-    [search,setSearch]=useState(''),[filter,setFilter]=useState('open');
+    [search,setSearch]=useState(''),[filter,setFilter]=useState('open'),[assignment,setAssignment]=useState('');
   const items=data.records||[];
   const mine=items.find(t=>t.ticket_id===selected)||null;
   const manage=hasAdminPermission('support.manage');
+  const canManageTeam=hasAdminPermission('team.manage');
+  const assignedToMe=Boolean(admin?.id&&mine?.assigned_admin===admin.id);
+  const supportPeople=(staff.records||[]).filter(p=>p.id!==undefined&&
+    (admin?.isRoot?p.role==='manager':p.role==='staff'||p.id===admin?.id));
   const visible=useMemo(()=>items.filter(t=>(filter==='all'||(filter==='open'?!['Resolved','Closed'].includes(t.status):
     filter==='urgent'?t.priority==='urgent':t.status===filter))&&
     [t.subject,t.ticket_id,t.client_name,t.client_email].join(' ').toLowerCase().includes(search.toLowerCase())),[data.records,filter,search]);
   useEffect(()=>{const target=params.get('ticket');if(target&&target!==selected)setSelected(target);},[params.get('ticket')]);
-  const choose=id=>{setSelected(id);setText('');action.setError('');const q=new URLSearchParams(params);q.set('ticket',id);setParams(q);};
+  const choose=id=>{setSelected(id);setText('');setAssignment('');action.setError('');const q=new URLSearchParams(params);q.set('ticket',id);setParams(q);};
   async function update(payload){
     if(!mine||!manage)return;
     await action.run('/api/support-tickets/'+encodeURIComponent(mine.ticket_id),'PATCH',payload,'Client support case updated.');
@@ -51,6 +56,25 @@ export default function CustomerSupportDesk(){
             ['Current status',mine.status],['Priority',mine.priority||'standard'],
             ['Responsible person',mine.assigned_admin||'Unassigned'],
             ['Issue type',mine.category||'General'],['Contact',mine.client_email||'Client workspace']].map(([k,v])=><div className="ips4-fact" key={k}><small>{k}</small><strong>{v}</strong></div>)}</div>
+          {manage&&<div className="ips4-stack" style={{marginTop:18,marginBottom:18}}>
+            {!mine.assigned_admin&&!admin?.isRoot&&<Button kind="gold" disabled={action.pending}
+              onClick={()=>void update({assigned_admin:admin.id})}>Take accountable ownership</Button>}
+            {canManageTeam&&<form className="ips4-form" onSubmit={async e=>{
+              e.preventDefault();
+              if(assignment)await update({assigned_admin:assignment});
+            }}>
+              <label className="ips4-field">Assign to an authorized team member
+                <select value={assignment} onChange={e=>setAssignment(e.target.value)} required>
+                  <option value="">Select a responsible person</option>
+                  {supportPeople.map(p=><option key={p.id} value={p.id}>{p.name} · {p.role}</option>)}
+                </select>
+              </label>
+              {staff.error&&<Notice kind="danger">{staff.error}</Notice>}
+              <Button kind="gold" type="submit" disabled={!assignment||action.pending}>Save governed assignment</Button>
+            </form>}
+            {!canManageTeam&&!assignedToMe&&Boolean(mine.assigned_admin)&&
+              <div className="ips4-note">Another employee owns this support case. Your manager must transfer responsibility before you can change it.</div>}
+          </div>}
           {manage&&<div className="ips4-fields">
             <label className="ips4-field">Escalation priority<select value={mine.priority||'standard'} disabled={action.pending} onChange={e=>void update({priority:e.target.value})}><option value="standard">Standard</option><option value="urgent">Urgent</option></select></label>
             <label className="ips4-field">Case resolution status<select value={mine.status} disabled={action.pending} onChange={e=>void update({status:e.target.value})}>{['Open','In Progress','Waiting for Client','Resolved','Closed'].map(s=><option key={s}>{s}</option>)}</select></label>
