@@ -69,6 +69,36 @@ try{
    {name:'Secure final delivery',status:'complete',at:now}
   ],createdAt:now,updatedAt:now,synthetic:true};
  await projects.updateOne({id:project.id},{$setOnInsert:project},{upsert:true});
+ // Deliberately open fictional academic cases so Nyoro can exercise both role workspaces,
+ // not just inspect previously completed records. No real payment is represented.
+ const offeredQuote={...q,id:'IPS-Q-EVAL-RESEARCH-OFFER',
+  serviceId:'research-methods',serviceName:'Research Methodology Consultation',
+  subject:'Undergraduate Nursing Research Design',status:'offered',priceMinor:18500,
+  requirements:'EVALUATION ONLY: researcher asks for guidance on study design and sampling in a self-authored nursing project.',
+  deliverables:'Research design consultation and methodological feedback on researcher-owned drafts.',
+  terms:'EVALUATION ONLY: fictional offer to test written acceptance, not a contractual or financial transaction.'};
+ await quotes.updateOne({id:offeredQuote.id},{$setOnInsert:offeredQuote},{upsert:true});
+ const activeQuote={...q,id:'IPS-Q-EVAL-EDITING-ASSIGNMENT',
+  serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',status:'accepted',
+  subject:'Nursing Literature Review Editorial Feedback',
+  requirements:'EVALUATION ONLY: an approved academic editor is assigned to provide clarity and citation-consistency feedback.',
+  deliverables:'Tracked feedback on the author-owned nursing literature review and permitted academic formatting guidance.',
+  priceMinor:16500};
+ await quotes.updateOne({id:activeQuote.id},{$setOnInsert:activeQuote},{upsert:true});
+ const activeCase={...project,id:'IPS-A-EVAL-EDITING-ACTIVE',quoteId:activeQuote.id,
+  serviceId:activeQuote.serviceId,serviceName:activeQuote.serviceName,
+  subject:activeQuote.subject,requirements:activeQuote.requirements,
+  deliverables:activeQuote.deliverables,priceMinor:activeQuote.priceMinor,
+  status:'specialist_assigned',revisionCount:0,qaReviewer:'',qaDecision:'',qaNote:'',
+  pendingFileId:'',releasedFileId:'',
+  milestones:[
+   {name:'Academic scope and quotation',status:'complete',at:now},
+   {name:'Commission/payment verification',status:'synthetic_test_only',at:now},
+   {name:'Specialist assignment',status:'complete',at:now},
+   {name:'Academic quality assurance',status:'pending',at:now},
+   {name:'Secure final delivery',status:'pending',at:now}
+  ]};
+ await projects.updateOne({id:activeCase.id},{$setOnInsert:activeCase},{upsert:true});
  const bytes=Buffer.from('IPS ACADEMIC SERVICES — FICTIONAL EVALUATION DOCUMENT.\nThis sample demonstrates permissible research methods coaching and editorial feedback. It is not a genuine client deliverable, scholarly source or payment receipt.\n');
  const document={id:'AF-EVAL-FINAL',commissionId:project.id,studentId:stu.id,specialistId:sp.id,
   filename:'academic-methodology-consultation-evaluation.txt',mime:'text/plain',
