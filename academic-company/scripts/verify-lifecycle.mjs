@@ -297,6 +297,8 @@ try{
   const assigned=await call('/operations/'+job.id+'/takeover',withAuth(rootCookie,{
    reason:'No approved Specialist available for this subject, Root assumes academic delivery.'}));
   assert.equal(assigned.data.commission.status,'root_in_progress');
+  assert.equal(assigned.data.commission.milestones.find(x=>x.name==='Specialist assignment')?.status,'complete',
+   'Root work allocation must not remain incorrectly pending');
   await call('/operations/'+job.id+'/outsourcing',withAuth(rootCookie,{
    provider:'Private offline research editor reference, known only to Nyoro',
    instructions:'Root arranges independent academic editing assistance manually and takes responsibility for review.'}));
