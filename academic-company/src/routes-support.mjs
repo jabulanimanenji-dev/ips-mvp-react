@@ -110,7 +110,7 @@ export function registerSupportRoutes(ctx){
  }));
 }
 export function beginCompanyAutomation(ctx){
- const {db,rootEmail,notify,sendEmail,uid,config}=ctx;
+ const {db,rootEmail,notify,notifyQuotation,audit,sendEmail,uid,config}=ctx;
  let busy=false,mailBusy=false;
  const deliveryTick=async()=>{
   if(mailBusy)return;mailBusy=true;
@@ -161,9 +161,35 @@ export function beginCompanyAutomation(ctx){
      {$setOnInsert:{id:'NT-QA-'+p.id,accountId:rootEmail,kind:'qa_escalation',ref:p.id,
       message:'Academic deliverable QA overdue for '+p.id,read:false,createdAt:new Date()}},{upsert:true});
    }
+    // Date-only quote validity is expressed in UTC to keep enforcement stable.
+    // Transition expiry atomically; only the winning worker notifies the Student.
+    const today=new Date().toISOString().slice(0,10);
+    const inTwoDays=new Date(Date.now()+2*86400000).toISOString().slice(0,10);
+    for(const q of await db.quotes.find({status:'offered',expires:{$gt:'',$lt:today}})
+      .limit(100).toArray()){
+     const expired=await db.quotes.findOneAndUpdate({
+      id:q.id,status:'offered',expires:{$gt:'',$lt:today}
+     },{$set:{status:'expired',expiredAt:new Date(),updatedAt:new Date()}},
+     {returnDocument:'after'});
+     if(expired){
+      await notifyQuotation(expired,'Your reviewed academic quotation has expired. IPS can issue an updated offer.',
+       'quotation_expired');
+      await audit({id:'system',role:'system'},'academic_quotation_expired',q.id);
+     }
+    }
+    for(const q of await db.quotes.find({status:'offered',
+     expires:{$gte:today,$lte:inTwoDays},reminderSentAt:{$exists:false}})
+     .limit(100).toArray()){
+     const claimed=await db.quotes.findOneAndUpdate({
+      id:q.id,status:'offered',expires:{$gte:today,$lte:inTwoDays},
+      reminderSentAt:{$exists:false}
+     },{$set:{reminderSentAt:new Date()}},{returnDocument:'after'});
+     if(claimed)await notifyQuotation(claimed,'Your reviewed academic quotation '+claimed.id+' will expire soon.',
+      'quotation_expiry_reminder');
+    }
   }catch(e){console.error('IPS academic automation incident',e?.name||'Error')}
   finally{busy=false}
  };
- const handle=setInterval(tick,60000);handle.unref?.();void tick();
+ const handle=setInterval(tick,config.sandbox?1200:60000);handle.unref?.();void tick();
  const mailHandle=setInterval(deliveryTick,2500);mailHandle.unref?.();void deliveryTick();
 }

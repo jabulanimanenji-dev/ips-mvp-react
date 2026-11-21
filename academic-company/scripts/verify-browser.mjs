@@ -320,6 +320,69 @@ try{
   await overflow(staffPage);
   await screen(staffPage,'22-client-relations-accountable-ownership');
  });
+ await pass('Student clarification and Root revised quotation forms work in authenticated browser',async()=>{
+  const q=await studentPage.evaluate(async()=>{
+   const r=await fetch('/api/academic/quotes',{method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({serviceId:'academic-editing',academicLevel:'Undergraduate',
+     subject:'Browser Academic Clarification Workflow',
+     requirements:'I require legitimate editorial comments on student-authored academic research text.',
+     institutionGuidance:'Faculty style instructions will be supplied after clarification.',
+     deadline:'2026-12-30',contactChannel:'workspace',integrityAcknowledged:true})});
+   return {status:r.status,body:await r.json()};
+  });
+  assert.equal(q.status,201,JSON.stringify(q.body));
+  const id=q.body.quote.id;
+  const scope=await rootPage.evaluate(async id=>{
+   const r=await fetch('/api/academic/quotes/'+encodeURIComponent(id)+'/scope',
+    {method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({decision:'clarify',
+      note:'Please confirm the existing manuscript, institutional instructions and permissible feedback scope.'})});
+   return {status:r.status,body:await r.json()};
+  },id);
+  assert.equal(scope.status,200,JSON.stringify(scope.body));
+  await studentPage.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
+  await studentPage.locator('.record').filter({hasText:'Browser Academic Clarification Workflow'})
+   .getByRole('button',{name:'Open enquiry & messages'}).click();
+  await studentPage.getByRole('heading',{name:'Clarification requested by IPS'}).waitFor();
+  await studentPage.locator('form[data-form=quote-resubmit] textarea[name=clarification]')
+   .fill('My source manuscript and the faculty rules are ready; I request permitted writing clarity feedback.');
+  await studentPage.locator('form[data-form=quote-resubmit]')
+   .getByRole('button',{name:'Resubmit for academic scope review'}).click();
+  await studentPage.getByText('Your clarification was received').waitFor();
+  await overflow(studentPage);
+  await screen(studentPage,'23-student-clarification-submitted');
+  const ready=await rootPage.evaluate(async id=>{
+   const base='/api/academic/quotes/'+encodeURIComponent(id);
+   const opts=body=>({method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+   const scope=await fetch(base+'/scope',opts({decision:'approved',
+    note:'Verified student-authored content for permitted editorial and citation feedback.'}));
+   const offer=await fetch(base+'/offer',opts({
+    priceMinor:12500,deliverables:'Editorial notes on existing student-authored text.',
+    terms:'No ghostwriting, fabricated references or unpermitted academic assistance.'}));
+   return {scope:scope.status,offer:offer.status,body:await offer.json()};
+  },id);
+  assert.equal(ready.scope,200);
+  assert.equal(ready.offer,200,JSON.stringify(ready.body));
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Enquiries',exact:true}).click();
+  await rootPage.locator('.record').filter({hasText:'Browser Academic Clarification Workflow'})
+   .getByRole('button',{name:'Open enquiry & messages'}).click();
+  await rootPage.getByRole('heading',{name:'Revise written quotation'}).waitFor();
+  const form=rootPage.locator('form[data-form=quote-revise]');
+  await form.locator('input[name=pricePLN]').fill('155');
+  await form.locator('textarea[name=deliverables]')
+   .fill('Expanded English editing feedback for an existing student research document.');
+  await form.locator('textarea[name=terms]')
+   .fill('All authorial work remains the Student’s; two consultations and no invented findings.');
+  await form.locator('textarea[name=reason]')
+   .fill('Additional permitted academic clarity questions require more consultation time.');
+  await form.getByRole('button',{name:'Issue revised quotation'}).click();
+  await rootPage.getByText('New quotation version issued').waitFor();
+  await rootPage.getByText('Quotation version:').waitFor();
+  await overflow(rootPage);
+  await screen(rootPage,'24-root-versioned-written-quotation');
+ });
  const mobile=await pageOpen(true);
  await pass('Mobile academic homepage and Root workspace have no glare or horizontal overflow',async()=>{
   await mobile.goto(origin+'/',{waitUntil:'domcontentloaded'});

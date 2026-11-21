@@ -30,6 +30,22 @@ export function registerAcademicRoutes(ctx){
   if(input?.integrityAcknowledged!==true)return {error:'Confirm that your request complies with academic integrity requirements.'};
   return {service,serviceId,level,subject,brief,deadline,instructions};
  };
+ const utcDate=()=>new Date().toISOString().slice(0,10);
+ const reviewedOffer=input=>{
+  const total=Number(input?.priceMinor),terms=String(input?.terms||'').trim(),
+   deliverables=String(input?.deliverables||'').trim();
+  const requested=String(input?.expires||'').trim();
+  const expires=requested||new Date(Date.now()+14*86400000).toISOString().slice(0,10);
+  if(!Number.isSafeInteger(total)||total<=0||total>100000000||
+   terms.length<20||terms.length>2500||deliverables.length<15||deliverables.length>2000)
+   return {error:'Provide a positive PLN price, complete academic deliverables and written terms.'};
+  const expiryDate=new Date(expires+'T23:59:59.999Z');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(expires)||!Number.isFinite(expiryDate.getTime())||
+   expiryDate.toISOString().slice(0,10)!==expires||
+   expires<utcDate()||expiryDate.getTime()>Date.now()+366*86400000)
+   return {error:'Choose a real quotation expiry date from today up to one year ahead (UTC date).'};
+  return {priceMinor:total,currency:'PLN',terms,deliverables,expires};
+ };
  const quoteBase=(input,valid,owner)=>({
   id:uid('IPS-Q'),studentId:owner?.id||'',username:owner?.username||String(input?.username||''),
   contactEmail:owner?.email||email(input?.email),
@@ -40,6 +56,7 @@ export function registerAcademicRoutes(ctx){
   createdAt:now(),updatedAt:now(),priceMinor:null,currency:'PLN',
   assignedDepartment:'client_relations',assignedTo:'',assignedBy:'',ownerAssignedAt:null,
   ownershipHistory:[],reviewedBy:'',scopeDecision:'pending',
+  offerVersion:0,offerHistory:[],clarificationHistory:[],
   autoAcknowledged:!!owner
  });
  app.post('/api/academic/guest-quote',wrap(async(req,res)=>{
@@ -194,25 +211,92 @@ export function registerAcademicRoutes(ctx){
   if(!authorize(req,res,['root','manager']))return;
   if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
    return res.status(403).json({error:'Only Client Relations management may issue a binding written quotation.'});
-  const total=Number(req.body?.priceMinor),terms=String(req.body?.terms||'').trim(),
-   scope=String(req.body?.deliverables||'').trim(),expires=String(req.body?.expires||'').trim();
-  if(!Number.isSafeInteger(total)||total<=0||total>100000000||terms.length<20||terms.length>2500||scope.length<15||scope.length>2000)
-   return res.status(400).json({error:'Provide a real, positive PLN price and complete academic scope and quotation terms.'});
-  const q=await db.quotes.findOneAndUpdate({id:req.params.id,status:'scoped',scopeDecision:'approved'},
-   {$set:{status:'offered',priceMinor:total,currency:'PLN',terms,deliverables:scope,expires,
-     offeredBy:req.actor.id,updatedAt:now()}},{returnDocument:'after'});
+  const offer=reviewedOffer(req.body);
+  if(offer.error)return res.status(400).json({error:offer.error});
+  const at=now();
+  const q=await db.quotes.findOneAndUpdate({id:req.params.id,status:'scoped',scopeDecision:'approved'},{
+   $set:{status:'offered',...offer,offeredBy:req.actor.id,offeredAt:at,updatedAt:at},
+   $inc:{offerVersion:1},
+   $push:{offerHistory:{version:1,...offer,issuedAt:at,issuedBy:req.actor.id,
+     note:'Initial reviewed academic quotation'}}
+  },{returnDocument:'after'});
   if(!q)return res.status(409).json({error:'Academic scope approval is required before a final quotation.'});
   await audit(req.actor,'academic_written_offer_issued',q.id,{currency:'PLN'});
   await notifyQuotation(q,'Your reviewed academic quotation '+q.id+' is ready','quotation');
+  res.json({quote:quoteView(q)});
+ }));
+ // When IPS requests clarification the Student has a direct, tracked route back
+ // to human scope review; the quotation must not remain indefinitely stuck.
+ app.post('/api/academic/quotes/:id/resubmit',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student']))return;
+  const note=String(req.body?.clarification||'').trim();
+  const requirements=String(req.body?.requirements||'').trim();
+  if(note.length<20||note.length>3500||(requirements&&
+   (requirements.length<25||requirements.length>6000)))
+   return res.status(400).json({error:'Provide an academic clarification of 20–3,500 characters and a valid revised brief.'});
+  const at=now();
+  const q=await db.quotes.findOneAndUpdate({
+   id:req.params.id,studentId:req.actor.id,status:'clarify'},{
+   $set:{status:'received',scopeDecision:'pending',scopeNote:'',
+    reviewedBy:'',updatedAt:at,...(requirements?{requirements}:{})},
+   $inc:{scopeRevision:1},
+   $push:{clarificationHistory:{message:note,at,by:req.actor.id}}
+  },{returnDocument:'after'});
+  if(!q)return res.status(409).json({error:'This academic enquiry is not awaiting your clarification.'});
+  await db.quoteMessages.insertOne({id:uid('QM'),quoteId:q.id,actorId:req.actor.id,
+   actorRole:'student',audience:'student',body:note,createdAt:at});
+  await audit(req.actor,'academic_quotation_clarification_submitted',q.id);
+  await notify(q.assignedTo||rootEmail,'Student supplied requested academic clarification for '+q.id,'intake');
+  res.json({quote:quoteView(q)});
+ }));
+ // A revised offer retains every earlier written price, scope and set of terms.
+ // Optimistic version checks ensure simultaneous managers cannot overwrite a quote.
+ app.post('/api/academic/quotes/:id/revise-offer',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','manager']))return;
+  if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
+   return res.status(403).json({error:'Only Client Relations management may revise a written quotation.'});
+  const reason=String(req.body?.reason||'').trim();
+  const offer=reviewedOffer(req.body);
+  if(offer.error)return res.status(400).json({error:offer.error});
+  if(reason.length<15||reason.length>1400)
+   return res.status(400).json({error:'Document why the academic price, scope or terms must change.'});
+  const current=await db.quotes.findOne({id:req.params.id,
+   status:{$in:['offered','expired']},scopeDecision:'approved'});
+  if(!current)return res.status(409).json({error:'Only a previously approved academic quotation can be revised.'});
+  const version=current.offerVersion||1,next=version+1,at=now();
+  const initial=current.offerHistory?.length?[]:[{version:1,priceMinor:current.priceMinor,
+   currency:current.currency||'PLN',terms:current.terms||'',deliverables:current.deliverables||'',
+   expires:current.expires||'',issuedAt:current.offeredAt||current.updatedAt,
+   issuedBy:current.offeredBy||'',note:'Previous preserved academic offer'}];
+  const q=await db.quotes.findOneAndUpdate({id:current.id,status:current.status,
+   ...(current.offerVersion?{offerVersion:current.offerVersion}:{offerVersion:{$exists:false}})
+  },{
+   $set:{status:'offered',...offer,offerVersion:next,offeredBy:req.actor.id,
+    offeredAt:at,updatedAt:at},
+   $unset:{reminderSentAt:''},
+   $push:{offerHistory:{$each:[...initial,{version:next,...offer,issuedAt:at,
+    issuedBy:req.actor.id,note:reason}]}}
+  },{returnDocument:'after'});
+  if(!q)return res.status(409).json({error:'Another manager changed this quotation. Reload before revising.'});
+  await audit(req.actor,'academic_written_offer_revised',q.id,{from:version,to:next,reason});
+  await notifyQuotation(q,'A revised academic quotation '+q.id+' is ready for review','quotation');
   res.json({quote:quoteView(q)});
  }));
  app.post('/api/academic/quotes/:id/decision',wrap(async(req,res)=>{
   if(!authorize(req,res,['student']))return;
   const decision=String(req.body?.decision||'');
   if(!['accept','decline'].includes(decision))return res.status(400).json({error:'Choose accept or decline.'});
-  const q=await db.quotes.findOneAndUpdate({id:req.params.id,studentId:req.actor.id,status:'offered'},
-   {$set:{status:decision==='accept'?'accepted':'declined',clientDecisionAt:now(),updatedAt:now(),...(req.rootOperatorId?{rootEvaluationDecision:true,decisionActorId:req.rootOperatorId}:{} )}},{returnDocument:'after'});
-  if(!q)return res.status(409).json({error:'Only your outstanding reviewed quotation can be accepted or declined.'});
+  const q=await db.quotes.findOneAndUpdate({id:req.params.id,studentId:req.actor.id,
+   status:'offered',
+   $or:[{expires:{$gte:utcDate()}},{expires:''},{expires:{$exists:false}}]
+  },{$set:{status:decision==='accept'?'accepted':'declined',clientDecisionAt:now(),
+   updatedAt:now(),
+   ...(req.rootOperatorId?{rootEvaluationDecision:true,decisionActorId:req.rootOperatorId}:{} )}},
+   {returnDocument:'after'});
+  if(!q)return res.status(409).json({error:'Only a valid, unexpired reviewed quotation can be accepted or declined. Request a revised offer from IPS.'});
+  if(decision==='accept')
+   await db.quotes.updateOne({id:q.id,status:'accepted'},
+    {$set:{acceptedOfferVersion:q.offerVersion||1}});
   await audit(req.actor,'academic_quote_'+decision,q.id);
   if(decision==='decline')return res.json({success:true,quote:quoteView(q)});
   const project={id:uid('IPS-A'),quoteId:q.id,studentId:q.studentId,specialistId:'',

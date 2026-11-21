@@ -493,6 +493,13 @@ async function quoteDetail(q,a){
    field('PDF, DOCX or TXT (up to 5 MB)','upload','file','','true'),
    'Upload document'));
  const authorizedQuoteManager=state.account?.role==='root'||['root','manager'].includes(a.role);
+ const clarificationActions=a.role==='student'&&q.status==='clarify'&&(!state.rootLens||state.isEvaluation)?
+  panel('Clarification requested by IPS','Send your updated instructions back into the academic scope review queue.',
+   form('quote-resubmit',
+    '<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
+    textarea('Your academic clarification','clarification','Explain exactly what IPS requested and what you need')+
+    textarea('Revised requirements (optional)','requirements','Replace the original brief if its scope changed',false),
+    'Resubmit for academic scope review')):'';
  const decisionActions=a.role==='student'&&q.status==='offered'&&(!state.rootLens||state.isEvaluation)?
   '<div class="case-actions">'+b('Accept quotation','quote-accept',q.id,'primary')+
    b('Decline quotation','quote-decline',q.id)+'</div>':'';
@@ -533,17 +540,29 @@ async function quoteDetail(q,a){
   }else ownershipPanel=panel('Academic enquiry ownership','',current+
     (claimable?b('Claim this enquiry','quote-claim',q.id,'small primary'):''));
  }
+ const revisionActions=authorizedQuoteManager&&['offered','expired'].includes(q.status)?
+  panel('Revise written quotation','Preserve every earlier amount, scope and expiry. The Student must review this new version.',
+   form('quote-revise',
+    '<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
+    field('Revised amount in PLN','pricePLN','number','Enter reviewed amount')+
+    textarea('Revised academic deliverables','deliverables','State the permitted service')+
+    textarea('Revised quotation terms','terms','State limits, deadlines and revision terms')+
+    field('Valid until (UTC date)','expires','date','',false)+
+    textarea('Reason for revision','reason','Document what changed from the previous offer'),
+    'Issue revised quotation')):'';
  const summary='<div class="case-summary"><div class="kicker">ENQUIRY / '+e(q.id)+'</div><h3>'+
    e(q.subject)+'</h3><p>'+e(q.requirements)+'</p><div class="separator"></div>'+
    '<div class="case-flow"><span>'+e(q.academicLevel)+'</span><span>'+e(q.serviceName)+'</span>'+
    stat(q.status)+'</div><p><strong>Deadline:</strong> '+e(q.deadline||'To be agreed')+'</p>'+
+   (q.offerVersion?'<p><strong>Quotation version:</strong> '+e(q.offerVersion)+'</p>':'')+
+   (q.expires?'<p><strong>Offer valid until (UTC):</strong> '+e(q.expires)+'</p>':'')+
    (q.scopeNote?'<p><strong>Reviewed scope:</strong> '+e(q.scopeNote)+'</p>':'')+
    (q.deliverables?'<p><strong>Deliverables:</strong> '+e(q.deliverables)+'</p>':'')+
    (Number.isInteger(q.priceMinor)?'<p><strong>Written quotation:</strong> '+price(q.priceMinor)+'</p>':'')+
    (q.terms?'<p><strong>Terms:</strong> '+e(q.terms)+'</p>':'')+
    decisionActions+'<div class="case-actions">'+b('← Back to quotations','close-case')+'</div></div>';
  return '<section class="mt"><div class="section-head"><h2>Enquiry & written conversation</h2></div>'+
- '<div class="case-layout"><div>'+summary+ownershipPanel+adminActions+docsPanel+'</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
+ '<div class="case-layout"><div>'+summary+ownershipPanel+clarificationActions+adminActions+revisionActions+docsPanel+'</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
 }
 async function commissionDetail(p,a){
  if(!p)return '';
@@ -736,6 +755,19 @@ async function submit(name,formNode){
  }
  if(name==='claim-quote'){await api('/academic/quotes/claim',{method:'POST',body:data});return 'Your previously verified guest academic enquiry is now attached to your account.'}
  if(name==='staff-invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
+ if(name==='quote-resubmit'){
+  await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/resubmit',
+   {method:'POST',body:{clarification:data.clarification,requirements:data.requirements}});
+  return 'Your clarification was received; the academic scope is back in Client Relations review.';
+ }
+ if(name==='quote-revise'){
+  data.priceMinor=Math.round(Number(data.pricePLN)*100);delete data.pricePLN;
+  await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/revise-offer',
+   {method:'POST',operator:state.account?.role==='root',
+    body:{priceMinor:data.priceMinor,terms:data.terms,deliverables:data.deliverables,
+     expires:data.expires,reason:data.reason}});
+  return 'New quotation version issued and client notified according to contact preference.';
+ }
  if(name==='quote-assign'){
   await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/assign',
    {method:'POST',operator:state.account?.role==='root',
