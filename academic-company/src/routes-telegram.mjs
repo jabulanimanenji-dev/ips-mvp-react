@@ -43,6 +43,9 @@ export function registerTelegramRoutes(ctx){
     telegramLinkHash:'',telegramLinkUntil:'',telegramLinkRequestedAt:''},
     $set:{contactPreference:'workspace',updatedAt:now()}},{returnDocument:'after'});
   if(!row)return res.status(403).json({error:'An active verified account is required.'});
+  await db.notificationDeliveries.updateMany({accountId:row.id,channel:'telegram',
+   status:{$in:['pending','sending']}},{$set:{status:'cancelled',cancelledAt:now()},
+    $unset:{lockedAt:''}});
   await audit(req.actor,'telegram_private_contact_revoked',row.id);
   res.json({success:true,linked:false,contactPreference:'workspace'});
  }));
