@@ -7,7 +7,7 @@ import {publicDocument,normalizeFilename,validEmail,email} from './security.mjs'
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerOperationsRoutes(ctx){
- const {app,db,documentBucket,rootEmail,notify,notifyQuotation,audit,authorize,throttle,wrap,now,uid}=ctx;
+ const {app,db,documentBucket,inspectAcademicUpload,rootEmail,notify,notifyQuotation,audit,authorize,throttle,wrap,now,uid}=ctx;
  const deny=res=>res.status(403).json({error:'You do not have access to this academic case.'});
  const staff=a=>a&&(['root','manager','staff'].includes(a.role));
  const intake=a=>a?.role==='root'||(staff(a)&&a.department==='client_relations');
@@ -74,8 +74,13 @@ export function registerOperationsRoutes(ctx){
    reader.pipe(res);
   }else res.send(Buffer.from(file.fileData?.buffer||file.fileData));
  };
+ const verifyScan=async(res,buffer)=>{
+  const result=await inspectAcademicUpload(buffer);
+  if(!result.allowed){res.status(result.http).json({error:result.error});return null}
+  return result.status;
+ };
  const metadata=x=>({id:x.id,commissionId:x.commissionId,filename:x.filename,mime:x.mime,
-  purpose:x.purpose||x.kind||'deliverable',sha256:x.sha256,createdAt:x.createdAt,
+  purpose:x.purpose||x.kind||'deliverable',sha256:x.sha256,scanStatus:x.scanStatus||'legacy_unverified',createdAt:x.createdAt,
   uploadedBy:x.uploadedBy||'',revision:x.revision??0,approved:!!x.approved});
  const visibleFile=(a,p,f)=>{
   if(a.role==='root'||delivery(a))return true;
@@ -204,9 +209,11 @@ export function registerOperationsRoutes(ctx){
   if(!['student','internal'].includes(audience))
    return res.status(400).json({error:'Choose the appropriate private enquiry audience.'});
   const id=uid('QF'),date=now();
+  const scanStatus=await verifyScan(res,checked.buffer);
+  if(!scanStatus)return;
   const blob=await storePrivateBlob({id,...checked,context:{kind:'enquiry_reference',quoteId:q.id}});
   const file={id,quoteId:q.id,studentId:q.studentId,filename:checked.filename,
-   mime:checked.mime,purpose:'enquiry_reference',audience,...blob,
+   mime:checked.mime,purpose:'enquiry_reference',audience,...blob,scanStatus,
    uploadedBy:req.rootOperatorId||a.id,
    uploadedRole:req.rootOperatorId?'root':a.role,createdAt:date};
   try{await db.quoteFiles.insertOne(file)}
@@ -277,11 +284,13 @@ export function registerOperationsRoutes(ctx){
   const checked=binaryDocument(req);
   if(checked.error)return res.status(400).json({error:checked.error});
   const id=uid('AF'),date=now();
+  const scanStatus=await verifyScan(res,checked.buffer);
+  if(!scanStatus)return;
   const blob=await storePrivateBlob({id,...checked,context:{
    kind:'client_reference',commissionId:p.id}});
   const file={id,commissionId:p.id,studentId:p.studentId,
    specialistId:p.specialistId,filename:checked.filename,mime:checked.mime,
-   purpose:'reference',kind:'client_reference',...blob,
+   purpose:'reference',kind:'client_reference',...blob,scanStatus,
    createdAt:date,revision:p.revisionCount||0,uploadedBy:req.rootOperatorId||a.id};
   try{await db.files.insertOne(file)}
   catch(err){await documentBucket.delete(blob.blobId).catch(()=>{});throw err}
