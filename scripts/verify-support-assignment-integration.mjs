@@ -72,6 +72,9 @@ try{
   assert.equal(foreignEdit.status,403);
   const staffUnauthorized=await patch(tickets.main,staff,{priority:'urgent'});
   assert.equal(staffUnauthorized.status,403);
+  const prematureReply=await call('/api/support-tickets/'+tickets.main+'/messages',{
+    method:'POST',cookie:staff,body:{message:'I must not reply before I own the customer case.'}});
+  assert.equal(prematureReply.status,403);
   const rootForbidden=await patch(tickets.main,root,{assigned_admin:ids.staff});
   assert.equal(rootForbidden.status,403,'Root must never bypass departmental managers');
   const rootAssign=await patch(tickets.main,root,{assigned_admin:ids.manager});
@@ -86,6 +89,9 @@ try{
   assert.equal(managerDelegate.data.ticket.assigned_admin,ids.staff);
   const staffUpdate=await patch(tickets.main,staff,{status:'In Progress'});
   assert.equal(staffUpdate.status,200,JSON.stringify(staffUpdate.data));
+  const realReply=await call('/api/support-tickets/'+tickets.main+'/messages',{
+    method:'POST',cookie:staff,body:{message:'Your private support case is being investigated by IPS.'}});
+  assert.equal(realReply.status,200,JSON.stringify(realReply.data));
   const staffSelfClaim=await patch(tickets.unclaimed,staff,{assigned_admin:ids.staff});
   assert.equal(staffSelfClaim.status,200,JSON.stringify(staffSelfClaim.data));
   const staffSteal=await patch(tickets.main,staff,{assigned_admin:ids.manager});
@@ -102,7 +108,16 @@ try{
     x.type==='support_assignment'&&x.order_id===tickets.main));
   assert.equal((await call('/api/notifications/admin/'+ids.staff,{cookie:manager})).status,403,
     'Support managers do not gain private inbox access to their employees');
-  console.log('SUPPORT_ASSIGNMENT_E2E_GREEN actual signed Root, two managers, staff, private notifications and governed support handoff');
+  await mongoose.connect(process.env.MONGODB_URI);
+  const privateCustomerNotice=await Notification.findOne({
+    type:'support_reply',recipient_role:'client',recipient_id:'CID-SUPPORT-CI-'+unique,
+    order_id:tickets.main
+  }).lean();
+  assert.ok(privateCustomerNotice,'An actual support reply must notify its private client');
+  assert.ok(!privateCustomerNotice.message.includes('private support case is being investigated'),
+    'Notification must not contain confidential response details');
+  await mongoose.disconnect();
+  console.log('SUPPORT_ASSIGNMENT_E2E_GREEN actual signed Root, two managers, staff, confidential replies, private notifications and governed support handoff');
 }finally{
   if(mongoose.connection.readyState!==1)await mongoose.connect(process.env.MONGODB_URI).catch(()=>{});
   if(mongoose.connection.readyState===1){
