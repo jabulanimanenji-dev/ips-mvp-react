@@ -2256,6 +2256,26 @@ app.get('/api/notifications/:role/:id', async (req, res) => {
   }
 });
 
+// Acknowledgement changes only the signed-in account's notification; it
+// cannot mutate another client's, specialist's, or employee's private inbox.
+app.patch('/api/notifications/:role/:id/:notificationId/read',async(req,res)=>{
+  try{
+    const session=requireSession(req,res);
+    if(!session)return;
+    const {role,id,notificationId}=req.params;
+    if(!canReadNotificationInbox(session,role,id,req.adminAccess))
+      return res.status(403).json({success:false,error:'You may only acknowledge your own notifications.'});
+    if(!mongoose.isValidObjectId(notificationId))
+      return res.status(400).json({success:false,error:'Invalid notification reference.'});
+    const record=await Notification.findOneAndUpdate({
+      _id:notificationId,recipient_role:role,recipient_id:id
+    },{$set:{read:true}},{new:true}).lean();
+    if(!record)return res.status(404).json({success:false,error:'Notification unavailable.'});
+    res.set('Cache-Control','private, no-store');
+    return res.json({success:true,notification:{id:String(record._id),read:record.read}});
+  }catch{return res.status(503).json({success:false,error:'Notification acknowledgement is temporarily unavailable.'});}
+});
+
 // ========== PROFESSIONAL SERVICES & ODD JOBS ==========
 
 app.get('/api/services', async (req, res) => {
