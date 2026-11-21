@@ -20,7 +20,7 @@ const actorAllowed=(req,res,requireSession)=>{
   const session=requireSession(req,res);
   if(!session)return null;
   if(session.role!=='admin'||!req.adminAccess||
-    !(req.adminAccess.isRoot||req.adminAccess.companyRole==='manager')){
+    !(req.adminAccess.isRoot||(req.adminAccess.companyRole==='manager'&&hasAdminPermission(req.adminAccess,'team.manage')))){
     res.status(403).json({success:false,error:'Only the company owner or an authorized department manager may govern staff.'});return null;
   }
   return req.adminAccess;
