@@ -131,6 +131,7 @@ try{
  await assertCheck('Only isolated test mode permits a declared synthetic financial witness',async()=>{
   const r=await call('/evaluation/confirm-synthetic-payment/'+commissionId,withAuth(rootCookie,{}));
   assert.equal(r.data.synthetic,true);assert.equal(r.data.commission.paymentStatus,'synthetic_test_only');
+  assert.equal(r.data.commission.milestones.find(m=>m.name==='Commission/payment verification')?.status,'synthetic_test_only');
   const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
   const a=await call('/academic/commissions/'+commissionId+'/assign',withAuth(rootCookie,{specialistId:specialist.id}));
   assert.equal(a.data.commission.status,'specialist_assigned');
@@ -163,6 +164,11 @@ try{
    note:'IPS independent academic QA confirms corrected feedback and appropriate client release.'}));
   const final=await call('/academic/commissions/'+commissionId+'/student-decision',withAuth(studentCookie,{decision:'accept'}));
   assert.equal(final.data.commission.status,'completed');
+  const stages=Object.fromEntries(final.data.commission.milestones.map(m=>[m.name,m.status]));
+  assert.equal(stages['Commission/payment verification'],'synthetic_test_only');
+  assert.equal(stages['Specialist assignment'],'complete');
+  assert.equal(stages['Academic quality assurance'],'complete');
+  assert.equal(stages['Secure final delivery'],'complete');
   const file=await fetch(url+'/api/academic/files/'+doc.data.submissionId,{headers:{Cookie:studentCookie}});
   assert.equal(file.status,200);assert.equal(file.headers.get('x-content-sha256'),doc.data.checksum);
  });
