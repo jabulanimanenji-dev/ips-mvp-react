@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import mongoose from 'mongoose';
 import {SPECIALIST_AGREEMENT} from '../src/specialist-agreement.mjs';
+import {Throttle} from '../src/security.mjs';
 import {startFakeClamd} from './scan-test-server.mjs';
 import {setTimeout as sleep} from 'node:timers/promises';
 
@@ -61,6 +62,32 @@ try{
   assert.ok(r.data.services.some(x=>x.id==='thesis-dissertation'));assert.ok(r.data.services.every(x=>x.questions.length));
   const h=await call('/health');assert.equal(h.data.environment,'ISOLATED_ACADEMIC_REVIEW');
   assert.equal(h.data.payments,'integration-pending');
+ });
+ await assertCheck('Distributed production abuse limits are atomic, shared, private and fail closed',async()=>{
+  const collection=db.collection('academic_abuse_rate_windows');
+  const first=new Throttle(),second=new Throttle();
+  first.attach(collection,{production:true,secret:vars.SESSION_SECRET});
+  second.attach(collection,{production:true,secret:vars.SESSION_SECRET});
+  const req={ip:'198.51.100.73'},action='production-test-'+random();
+  const decisions=await Promise.all(Array.from({length:18},(_,i)=>
+   (i%2?first:second).limited(req,action,6)));
+  assert.equal(decisions.filter(x=>x===false).length,6,
+   'Concurrent workers must never admit more than the configured shared limit');
+  assert.equal(decisions.filter(x=>x===true).length,12);
+  assert.equal(await first.limited(req,action,6),true);
+  assert.equal(await first.limited(req,action+'-other',6),false);
+  const record=await collection.findOne({action});
+  assert.ok(record?record._id.length===64:false,'Throttle key must be hashed');
+  assert.equal(record.attempts,19);
+  assert.ok(record.expiresAt instanceof Date);
+  const leaked=JSON.stringify(record);
+  assert.ok(!leaked.includes(req.ip),'MongoDB abuse counters must not expose a raw IP');
+  const unavailable=new Throttle();
+  unavailable.attach({findOneAndUpdate:async()=>{throw Error('simulated_db_unavailable')}},
+   {production:true,secret:vars.SESSION_SECRET});
+  await assert.rejects(()=>unavailable.limited(req,'fails-closed',4),/simulated_db_unavailable/);
+  assert.throws(()=>new Throttle().attach(null,{production:true,secret:'short'}),
+   /shared MongoDB abuse limiter/);
  });
  await assertCheck('Nyoro Root is environment-controlled, has no manager and no deletable row',async()=>{
   rootCookie=await signIn(vars.ROOT_EMAIL,vars.ROOT_PASSWORD);
