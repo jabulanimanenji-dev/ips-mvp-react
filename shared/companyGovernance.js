@@ -34,7 +34,7 @@ export const mayManageTeamMember=(actor,target)=>Boolean(actor&&target&&!target.
 // A department manager's private roster is NOT a company-wide leadership register.
 export function managementDepartments(actor){
   if(actor?.isRoot)return Object.entries(COMPANY_DEPARTMENTS);
-  if(actor?.companyRole==='manager'&&isCompanyDepartment(actor.department))
+  if(['manager','staff'].includes(actor?.companyRole)&&isCompanyDepartment(actor.department))
     return [[actor.department,COMPANY_DEPARTMENTS[actor.department]]];
   return [];
 }
