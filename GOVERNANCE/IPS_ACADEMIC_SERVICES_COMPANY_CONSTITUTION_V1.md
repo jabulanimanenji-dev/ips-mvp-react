@@ -211,3 +211,36 @@ This binding amendment records additional direct owner instruction. It supplemen
 6. Admission requires evidence for both password confirmation and mismatch rejection, actual image loading, direct \`/root\` access controls, a complete Root → Student workspace → Root → Specialist workspace journey without swapping sign-ins, and a real persisted audit trail for Root-assisted actions. No screenshots-only qualification.
 
 **Interpretation:** “Root can actually be everything” requires one command centre with complete company authority and genuine operational views across user roles—not unsafe possession of other users' credentials or unrecorded impersonation.
+
+
+## Owner amendment 02 — 21 November 2026: The simple, complete IPS academic company
+
+### 1. One real service journey
+The canonical operational path is **enquiry → scope review and quotation → client acceptance → verified commission/payment gate → academic assignment/Root takeover → work and written correspondence → file submission → independent QA → client delivery → revision/closure**. A single academic case is the source of truth. No ornamental dashboard, generic marketplace, or separate chat/file application may replace that path. The source record and exact next actionable operation must be visible throughout.
+
+### 2. Familiar navigation and premium composition
+Every screen, including Root, Student, Specialist and public service details, must offer a functioning Back path as well as browser history support. Show clear, readable controls at desktop and mobile sizes, with responsive layouts, adequate whitespace but no huge empty canvases or tiny stranded widgets. Test visual scaling at multiple viewport widths. Professional visual identity uses refined typography, restrained navy/gold contrast and **realistic photographic academic materials** (where legitimately licensed); reject obviously synthetic/generated-looking imagery and repeated illustrations. No single image may be used merely to fill space.
+
+### 3. Genuine privacy without suspicious claims
+Protect personal data in enforced access controls, account verification, logging, secure delivery and storage, not in relentless explanatory copy. Do not add the recurring “Your confidentiality comes first”, “We verify email ownership automatically”, or multi-item integrity/security sermons throughout the pages. Keep concise user-facing notices exactly where needed, a substantive dedicated privacy page, lawful/necessary consent at collection points, and no absolute claims of guaranteed confidentiality that technical or organizational processes cannot prove. Clients may use chosen usernames; Specialists provide genuine professional names. No telephone calls.
+
+### 4. Separate people, integrated company
+Students / Researchers, Specialists and Managers / Staff are **distinct searchable directories** and distinct operating responsibilities, with relevant management, status, workflows and permissions. They must not be merged into one undifferentiated people table. Root has the complete picture through the company console and can open a selected genuine Student or Specialist workspace in place without exchanging credentials.
+
+### 5. Complete workroom for every academic job
+One job screen presents the brief, its status, current owner, quotations/terms, deadline, academic messages, uploaded supporting documents, Specialist drafts (appropriately protected), QA results, approved deliverable, downloads, and revision history. Students can upload references, read IPS responses and download approved delivery. Specialists can read briefs and IPS correspondence, upload work and corrections, and view assigned tasks. Authorized company staff can review, assign, respond, inspect versions, and release QA-approved materials.
+
+### 6. Root emergency intervention and private outsourcing
+Nyoro can inspect any company case, message any verified participant, send/receive/download any authorized company work document, take responsibility for a job, submit work for QA, and coordinate the case when no approved Specialist is available. The Root-only external sourcing register is private to Nyoro: vendor identities, instructions and terms are not exposed in ordinary Student, Specialist or staff workspaces. Root may independently contact an appropriate external provider and manage return files, while IPS retains responsibility for academic integrity, confidentiality, permissions, QA and client communication. Keep vendor access and contracts legally controlled; outsourcing does not bypass the real payment gate, consent or confidentiality obligations. Every Root intervention is auditable.
+
+### 7. Centralized written messaging and attachments
+All quote, job, support and Root-direct messages must be discoverable from a single inbox and also appear beside the relevant case. Root can send a private message/document to any verified Student, Specialist or staff identity. Recipients can reply; private file downloads are authorization-checked. The company should notify recipients promptly through a connected provider, with transparent delivery failures and retries. No uncontrolled direct Specialist–Student messages bypass the IPS company.
+
+### 8. Automation, no needless waiting
+Verified Students, Specialists and invited employees can request secure password recovery links **immediately**, themselves, without Root, managers or staff intervening. Email ownership verification should be automated. Expiration, retries, abuse limits and session revocation must function. New quote intake, status changes, job assignments, file submissions, QA decisions and written responses generate immediate in-app notices and appropriate automated outbound notifications. Delayed or failed deliveries create visible exception queues, not silent loss.
+
+### 9. Source-bound qualification
+Release requires real MongoDB data tests; browser journeys (including Back, search, all role workspaces, working chat and file upload/download); deliberate permission-denial tests; independent backup-and-restore with actual file SHA-256; and deployment identity tied to the accepted source revision. Visually professional but non-functional screens are not acceptable. Synthetic evaluation data must remain separate from real users; genuine production claims require genuine production evidence, not mock payments or scripted emails. Do not overwrite historical IPS accounts/data without a verified authorized migration plan and reversible backup.
+
+### 10. No endless rebuilding
+Preserve already-correct functionality, fix root causes and adjacent paths, and repeat only the meaningful failing or changed qualifications. Payment provider integration is the final milestone; do not fabricate actual settlement, receipts, customer emails or real contractor transactions.
