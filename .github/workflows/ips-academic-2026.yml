@@ -94,10 +94,9 @@ jobs:
         working-directory: .
         run: |
           mkdir -p academic-company/academic-recovery
-          docker run --rm --network host \
-            -v "$PWD/academic-company/academic-recovery:/recovery" mongo:7 \
+          docker run --rm --network host mongo:7 \
             mongodump --uri mongodb://127.0.0.1:27017/ips_academic_sandbox \
-            --archive=/recovery/academic-backup.archive
+            --archive > academic-company/academic-recovery/academic-backup.archive
           test -s academic-company/academic-recovery/academic-backup.archive
           sha256sum academic-company/academic-recovery/academic-backup.archive
       - name: Independently restore archive into another real MongoDB 7 server
@@ -105,15 +104,15 @@ jobs:
         run: |
           set -euo pipefail
           docker run -d --name ips-academic-independent-restore \
-            -p 127.0.0.1:27018:27017 \
-            -v "$PWD/academic-company/academic-recovery:/recovery:ro" mongo:7 --bind_ip_all
+            -p 127.0.0.1:27018:27017 mongo:7 --bind_ip_all
           ready=0
           for i in $(seq 1 60); do
             if docker exec ips-academic-independent-restore mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q '1'; then ready=1; break; fi
             sleep 1
           done
           test "$ready" -eq 1
-          docker exec ips-academic-independent-restore mongorestore --archive=/recovery/academic-backup.archive
+          docker cp academic-company/academic-recovery/academic-backup.archive ips-academic-independent-restore:/tmp/academic-backup.archive
+          docker exec ips-academic-independent-restore mongorestore --archive=/tmp/academic-backup.archive
       - name: Boot recovered academic application and authenticate against restored private file
         run: node scripts/verify-restoration.mjs
       - name: Capture academic review failure diagnostics
