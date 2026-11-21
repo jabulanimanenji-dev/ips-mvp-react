@@ -7,6 +7,7 @@ on:
       - company/ips-academic-services-2026
       - work/ips-academic-telegram-owned-channel-20261121
       - work/ips-academic-telegram-conversations-20261121
+      - work/ips-academic-resend-webhooks-20261121
       - work/ips-academic-upload-malware-gate-20261121
       - work/ips-academic-client-gridfs-20261121
       - work/ips-academic-gridfs-documents-20261121
@@ -57,6 +58,7 @@ jobs:
           node --check src/routes-academic.mjs
           node --check src/routes-support.mjs
           node --check src/routes-telegram.mjs
+          node --check src/routes-resend-webhook.mjs
           node --check src/routes-operations.mjs
           node --check public/app.js
           node --check scripts/verify-lifecycle.mjs
