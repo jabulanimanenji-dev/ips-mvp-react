@@ -227,6 +227,13 @@ try{
   await overflow(studentPage);
   await screen(studentPage,'21-student-direct-file-and-reply');
  });
+ await pass('Root can inspect actual delivery queue and notification exceptions from administration',async()=>{
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Alerts & delivery'}).click();
+  await rootPage.getByRole('heading',{name:'Email delivery operations'}).waitFor();
+  await rootPage.getByText('Delivered',{exact:true}).first().waitFor();
+  await overflow(rootPage);
+  await screen(rootPage,'22-nyoro-private-delivery-monitor');
+ });
  const rootDirect=await pageOpen(false);
  await pass('Direct /root URL authenticates Nyoro and stays within Root Administrator identity',async()=>{
   await rootDirect.goto(origin+'/root',{waitUntil:'domcontentloaded'});
