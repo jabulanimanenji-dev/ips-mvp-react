@@ -245,7 +245,7 @@ async function loadTab(){
   const invite=['root','manager'].includes(a.role)&&tab==='workforce';
   html=(invite?panel(a.role==='root'?'Appoint an IPS department manager':'Invite staff into my department',
     'Root has no manager. Department managers can invite only their own staff.',
-    form('invite',field('Professional full name','name')+field('Work email address','email','email')+
+    form('staff-invite',field('Professional full name','name')+field('Work email address','email','email')+
      (a.role==='root'?options('Accountable department','department',state.catalogue.departments.map(x=>[x.id,x.name])):''),'Send private invitation')):'')+
    panel(tab==='workforce'?'Workforce governance':'Students / Researchers and qualified Specialists',
    'View actual verified identities and perform only authorized company actions.',
@@ -361,7 +361,7 @@ function supportDetail(t){
 }
 function render(){
  if(!state.catalogue){root.textContent='IPS Academic Services is loading…';return}
- if(state.account)return work();
+ if(state.account&&!['quote','services','service','how','privacy'].includes(state.page))return work();
  const params=new URLSearchParams(location.hash.slice(1));
  for(const k of ['verify','recover','invite','guestconfirm'])if(params.has(k)){tokenForm(k);return}
  switch(state.page){case 'services':services();break;case 'service':serviceDetail();break;
@@ -374,19 +374,19 @@ async function submit(name,formNode){
  const data={};new FormData(formNode).forEach((v,k)=>{if(k==='expertise'){if(!data.expertise)data.expertise=[];data.expertise.push(v)}else if(v instanceof File)data[k]=v;else data[k]=v});
  for(const c of ['privacyConsent','integrityAcknowledged'])if(formNode.querySelector('[name="'+c+'"]'))data[c]=!!formNode.querySelector('[name="'+c+'"]').checked;
  const id=formNode.dataset.id||data.commissionId||'';
- if(name==='login'){const r=await api('/auth/login',{method:'POST',body:data});state.account=r.account;state.firstLogin=!!r.account.firstLogin;state.tab='overview';state.opened='';return 'Signed in securely.'}
+ if(name==='login'){const r=await api('/auth/login',{method:'POST',body:data});state.account=r.account;state.firstLogin=!!r.account.firstLogin;state.page='workspace';state.tab='overview';state.opened='';return 'Signed in securely.'}
  if(name==='register'){
   const r=await api('/auth/register',{method:'POST',body:data});state.page='login';return 'IPS sent your verification link. Confirm your mailbox before signing in.';
  }
  if(name==='guest-quote'){const r=await api('/academic/guest-quote',{method:'POST',body:data});state.page='login';return 'Your private academic enquiry '+r.reference+' needs email confirmation. IPS has sent a one-use link.'}
- if(name==='student-quote'){const r=await api('/academic/quotes',{method:'POST',body:data});state.tab='quotes';return 'IPS received your academic enquiry '+r.quote.id+'. A qualified team member will review its scope.'}
+ if(name==='student-quote'){const r=await api('/academic/quotes',{method:'POST',body:data});state.page='workspace';state.tab='quotes';return 'IPS received your academic enquiry '+r.quote.id+'. A qualified team member will review its scope.'}
  if(name==='guestconfirm'){await api('/academic/guest-confirm',{method:'POST',body:data});location.hash='';state.page='login';return 'Your academic quotation enquiry is verified and awaiting written IPS review.'}
- if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
+ if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
  if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page='login';return 'If the verified account exists, IPS sent a secure one-use recovery email.'}
  if(name==='recover'||name==='invite'){if(data.password!==data.confirm)throw Error('Passwords must match.');delete data.confirm;
-  const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
+  const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
  if(name==='claim-quote'){await api('/academic/quotes/claim',{method:'POST',body:data});return 'Your previously verified guest academic enquiry is now attached to your account.'}
- if(name==='invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
+ if(name==='staff-invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
  if(name==='scope'){await api('/academic/quotes/'+encodeURIComponent(id)+'/scope',{method:'POST',body:data});return 'Academic scope decision has been recorded.'}
  if(name==='offer'){data.priceMinor=Math.round(Number(data.pricePLN)*100);delete data.pricePLN;
   await api('/academic/quotes/'+encodeURIComponent(id)+'/offer',{method:'POST',body:data});return 'Reviewed academic quotation issued in writing.'}
@@ -420,7 +420,7 @@ document.addEventListener('click',async ev=>{
  const route=ev.target.closest('[data-nav]'),tab=ev.target.closest('[data-tab]'),action=ev.target.closest('[data-action]'),category=ev.target.closest('[data-category]');
  if(category){state.category=category.dataset.category;services();return}
  if(route){ev.preventDefault();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
-  if(state.account&&['home','services','quote','how','privacy'].includes(dest)){state.page=dest;state.account=null;state.page='home';render();return}
+  if(state.account&&['home','services','quote','how','privacy'].includes(dest)){state.page=dest==='home'?'services':dest;render();return}
   state.page=dest;state.category=dest==='specialist'?'specialist':dest==='register'?'student':state.category;render();return}
  if(tab){state.tab=tab.dataset.tab;state.opened='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;state.error='';state.message='';
@@ -460,7 +460,7 @@ document.addEventListener('click',async ev=>{
  try{
   state.catalogue=await api('/catalogue');
   const h=await api('/health');state.isEvaluation=h.environment==='ISOLATED_ACADEMIC_REVIEW';
-  try{const s=await api('/session');state.account=s.account}catch{}
+  try{const s=await api('/session');state.account=s.account;state.page='workspace'}catch{}
   render();
  }catch(ex){root.innerHTML='<main class="page"><h1>IPS Academic Services</h1><div class="notice error">'+e(ex.message)+'</div></main>'}
 })();
