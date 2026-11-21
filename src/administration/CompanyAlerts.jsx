@@ -8,7 +8,7 @@ export default function CompanyAlerts(){
   const {admin}=useAuth();
   const recipient=admin?.isRoot?'admin':admin?.id;
   const feed=useFeed(recipient?'/api/notifications/admin/'+encodeURIComponent(recipient):'','notifications',Boolean(recipient));
-  const alerts=(feed.records||[]).filter(n=>['company_task_overdue','company_task_escalated'].includes(n.type)).slice(0,6);
+  const alerts=(feed.records||[]).filter(n=>['company_task_overdue','company_task_escalated','company_case_unowned'].includes(n.type)).slice(0,6);
   return <Panel title="Automatic overdue alerts" description="System-created accountability events. A recorded alert is not proof the task remains open; inspect the live case before taking action."
     aside={<LinkButton to="/admin/case-desk">Open Action Centre</LinkButton>}>
     {feed.error?<Notice kind="danger">{feed.error}</Notice>:
@@ -16,7 +16,12 @@ export default function CompanyAlerts(){
       !alerts.length?<Empty>No recorded overdue-task alerts for this company identity.</Empty>:
       <div className="ips4-stack">{alerts.map(n=><div className="ips4-row" key={n._id}>
         <div className="ips4-row-text"><strong>{n.message}</strong><small>Recorded {dateTime(n.createdAt)} · Case {n.order_id||'protected reference'}</small></div>
-        <Tag tone={n.type==='company_task_escalated'?'danger':'warn'}>{n.type==='company_task_escalated'?'Escalated':'Overdue alert'}</Tag>
+        <div className="ips4-stack" style={{justifyItems:'end'}}>
+          <Tag tone={n.type==='company_task_escalated'?'danger':'warn'}>
+            {n.type==='company_task_escalated'?'Escalated':n.type==='company_case_unowned'?'Unassigned':'Overdue alert'}</Tag>
+          {n.type==='company_case_unowned'&&<LinkButton to={String(n.order_id||'').startsWith('IPS-Q-')||
+            String(n.order_id||'').startsWith('ENQ-')?'/admin/enquiries':'/admin/support'}>Review queue</LinkButton>}
+        </div>
       </div>)}</div>}
   </Panel>;
 }
