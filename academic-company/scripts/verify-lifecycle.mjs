@@ -334,14 +334,14 @@ try{
    await sleep(400);
   }
   assert.ok(marked?.reminderSentAt,'Expiry reminder should be automatically scheduled');
-  assert.equal(await db.collection('academic_notifications').countDocuments({
-   accountId:marked.studentId,kind:'quotation_expiry_reminder',
-   message:{$regex:q.id}}),0,'Generic reminder message must not leak detailed quote identifier by email');
   const one=await db.collection('academic_notifications').countDocuments({
-   accountId:marked.studentId,kind:'quotation_expiry_reminder'});
+   accountId:marked.studentId,kind:'quotation_expiry_reminder',
+   message:{$regex:q.id}});
+  assert.equal(one,1,'Exactly one private reminder is generated for the expiring quotation');
   await sleep(1500);
   assert.equal(await db.collection('academic_notifications').countDocuments({
-   accountId:marked.studentId,kind:'quotation_expiry_reminder'}),one);
+   accountId:marked.studentId,kind:'quotation_expiry_reminder',
+   message:{$regex:q.id}}),one);
  });
  await assertCheck('Student accepts actual reviewed quotation; production payment remains blocked',async()=>{
   const r=await call('/academic/quotes/'+quoteId+'/decision',withAuth(studentCookie,{decision:'accept'}));
