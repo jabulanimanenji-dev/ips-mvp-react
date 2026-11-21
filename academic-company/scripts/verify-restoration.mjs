@@ -83,6 +83,23 @@ try{
  const directRes=await fetch(base+'/api/operations/direct-file/'+directRecord.id,{headers:{Cookie:studentCookie}});
  assert.equal(directRes.status,200);
  assert.equal(crypto.createHash('sha256').update(Buffer.from(await directRes.arrayBuffer())).digest('hex'),directRecord.sha256);
+ const largeFile=await db.collection('academic_private_files').findOne({blobId:{$exists:true}});
+ assert.ok(largeFile?.blobId&&largeFile.byteLength>5*1024*1024,
+  'Large private GridFS document was not included in independent MongoDB archive');
+ assert.ok(await db.collection('academic_document_blobs.files').findOne({_id:largeFile.blobId}),
+  'Restored GridFS manifest missing');
+ assert.ok((await db.collection('academic_document_blobs.chunks').countDocuments({
+  files_id:largeFile.blobId}))>2,'Restored private document chunks missing');
+ const largeAuthorized=await fetch(base+'/api/academic/files/'+largeFile.id,{headers:{Cookie:rootCookie}});
+ assert.equal(largeAuthorized.status,200);
+ const restoredBytes=Buffer.from(await largeAuthorized.arrayBuffer());
+ assert.equal(restoredBytes.length,largeFile.byteLength);
+ assert.equal(crypto.createHash('sha256').update(restoredBytes).digest('hex'),largeFile.sha256,
+  'Restored 7 MB academic document checksum mismatch');
+ const largeDenied=await request('/academic/files/'+largeFile.id,{cookie:specialistCookie});
+ assert.equal(largeDenied.status,200,'Assigned Specialist must retain access to their own stored document');
+ const outsiderLarge=await request('/academic/files/'+largeFile.id);
+ assert.equal(outsiderLarge.status,403,'An anonymous user must never download a restored academic file');
  const rootAudit=await request('/administration/audit',{cookie:rootCookie});
  assert.equal(rootAudit.status,200);assert.ok(rootAudit.json.events.length>10);
  const index=await db.collection('academic_accounts').indexes();assert.ok(index.some(i=>i.name==='email_1'));
