@@ -422,11 +422,11 @@ document.addEventListener('click',async ev=>{
  if(route){ev.preventDefault();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
   if(state.account&&['home','services','quote','how','privacy'].includes(dest)){state.page=dest==='home'?'services':dest;render();return}
   state.page=dest;state.category=dest==='specialist'?'specialist':dest==='register'?'student':state.category;render();return}
- if(tab){state.tab=tab.dataset.tab;state.opened='';render();return}
+ if(tab){state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;state.error='';state.message='';
  if(act==='service'){state.service=id;state.page='service';serviceDetail();return}
  if(act==='request-service'){state.service=id;state.page='quote';quote();return}
- if(act==='tab-commissions'||act==='tab-queues'){state.tab=act.slice(4);state.opened='';render();return}
+ if(act==='tab-commissions'||act==='tab-queues'){state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
  if(act==='quote-detail'||act==='commission-open'||act==='support-open'){state.opened=state.opened===id?'':id;render();return}
  if(act==='scope-form'||act==='offer-form'){
   const anchor=action.closest('.record');const markup=act==='scope-form'?
