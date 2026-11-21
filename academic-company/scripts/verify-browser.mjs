@@ -296,6 +296,30 @@ try{
   assert.equal(await staffPage.getByRole('button',{name:'Audit',exact:true}).count(),0);
   await screen(staffPage,'11-client-relations-staff');
  });
+ await pass('Client Relations staff claims academic enquiry and opens private ownership workroom',async()=>{
+  const created=await studentPage.evaluate(async()=>{
+   const res=await fetch('/api/academic/quotes',{method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({serviceId:'academic-editing',academicLevel:'Undergraduate',
+     subject:'Intake Ownership Browser Verification',
+     requirements:'I need editorial feedback on my independently authored literature review and referencing.',
+     institutionGuidance:'Use appropriate faculty reference guidance.',deadline:'2026-12-30',
+     integrityAcknowledged:true,contactChannel:'workspace'})});
+   return {status:res.status,body:await res.json()};
+  });
+  assert.equal(created.status,201,JSON.stringify(created.body).slice(0,500));
+  await staffPage.locator('.sidebar').getByRole('button',{name:'Enquiries',exact:true}).click();
+  const row=staffPage.locator('.record').filter({hasText:'Intake Ownership Browser Verification'});
+  await row.waitFor({timeout:12000});
+  await row.getByRole('button',{name:'Claim enquiry'}).click();
+  await staffPage.getByText('You are now accountable for this academic enquiry.').waitFor();
+  await staffPage.locator('.record').filter({hasText:'Intake Ownership Browser Verification'})
+   .getByRole('button',{name:'Open enquiry & messages'}).click();
+  await staffPage.getByRole('heading',{name:'Academic enquiry ownership'}).waitFor();
+  await staffPage.getByText(staff.id,{exact:false}).first().waitFor();
+  await overflow(staffPage);
+  await screen(staffPage,'22-client-relations-accountable-ownership');
+ });
  const mobile=await pageOpen(true);
  await pass('Mobile academic homepage and Root workspace have no glare or horizontal overflow',async()=>{
   await mobile.goto(origin+'/',{waitUntil:'domcontentloaded'});
