@@ -127,6 +127,76 @@ try{
    terms:'Consultation and comments on existing text; one revision within seven days.'}));
   assert.equal(offer.data.quote.status,'offered');assert.equal(offer.data.quote.priceMinor,25000);
  });
+ await assertCheck('Workspace quotation is private and never generates an unsolicited offer email',async()=>{
+  const row=await db.collection('academic_quotations').findOne({id:quoteId});
+  assert.equal(row.contactChannel,'workspace');
+  assert.equal(row.status,'offered');
+  assert.equal(await db.collection('academic_evaluation_mail').countDocuments({
+   to:studentMail,subject:{$regex:'your reviewed quotation'}}),0);
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  assert.equal(await db.collection('academic_notification_deliveries').countDocuments({
+   accountId:student.id,kind:'quotation'}),0);
+ });
+ await assertCheck('Explicit quotation email preference queues generic notices; private terms stay inside IPS',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,{
+   ...brief('academic-editing'),contactChannel:'email'}),201)).data.quote;
+  assert.equal(q.contactChannel,'email');
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Academic scope is eligible for private editorial feedback.'}));
+  await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
+   priceMinor:32100,deliverables:'Highly confidential academic editing scope for this test.',
+   terms:'Private fee agreement and subject details must never appear in an email notice.'}));
+  const queue=db.collection('academic_notification_deliveries');
+  const notices=await queue.find({to:studentMail,kind:'quotation'}).toArray();
+  assert.equal(notices.length,1,'Offer must queue one generic notice for explicit email opt-in');
+  assert.ok(notices[0].text.includes('secure workspace'));
+  assert.ok(!notices[0].text.includes('321.00')&&!notices[0].text.includes('Highly confidential')&&
+   !notices[0].text.includes('Private fee agreement'));
+  assert.equal(await db.collection('academic_evaluation_mail').countDocuments({
+   to:studentMail,subject:{$regex:'your reviewed quotation'}}),0);
+  await call('/academic/quotes/'+q.id+'/messages',withAuth(rootCookie,{
+   body:'A confidential private academic clarification is available in IPS only.',
+   audience:'student'}),201);
+  const messageNotices=await queue.find({to:studentMail,kind:'quote_message'}).toArray();
+  assert.equal(messageNotices.length,1);
+  assert.ok(!messageNotices[0].text.includes('academic clarification'));
+ });
+ await assertCheck('Telegram quote preference is not secretly redirected to email',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const queue=db.collection('academic_notification_deliveries');
+  const prior=await queue.countDocuments({accountId:student.id});
+  const q=(await call('/academic/quotes',withAuth(studentCookie,{
+   ...brief('academic-editing'),contactChannel:'telegram',telegramUsername:'AcademicResearchDesk'}),201)).data.quote;
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Legitimate language and methodology support is approved.'}));
+  await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
+   priceMinor:19900,deliverables:'Permitted editorial guidance on existing academic work.',
+   terms:'Independent work, no ghostwriting, signed approval required before any commission.'}));
+  assert.equal(await queue.countDocuments({accountId:student.id}),prior);
+  const updated=await db.collection('academic_quotations').findOne({id:q.id});
+  assert.equal(updated.outboundStatus,'telegram_not_connected');
+  assert.ok(await db.collection('academic_notifications').findOne({
+   accountId:vars.ROOT_EMAIL,kind:'communication_failure',ref:q.id}));
+ });
+ await assertCheck('Verified guest receives queued generic offer notice without academic or financial content',async()=>{
+  const guestEmail=emailFor('guest-quote');
+  const q=(await call('/academic/guest-quote',{method:'POST',body:{
+   ...brief('literature-reviews'),username:'GuestResearch'+random(),
+   email:guestEmail,contactChannel:'email',privacyConsent:true}},202)).data.reference;
+  const confirm=await inbox(guestEmail,'Confirm your confidential IPS Academic Services quotation request');
+  await call('/academic/guest-confirm',{method:'POST',body:{
+   email:guestEmail,reference:q,token:token(confirm,'guestconfirm')}});
+  await call('/academic/quotes/'+q+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'The proposed literature-search feedback is within legitimate services.'}));
+  await call('/academic/quotes/'+q+'/offer',withAuth(rootCookie,{
+   priceMinor:54000,deliverables:'Privately discussed research consultation and permitted reference verification.',
+   terms:'Private academic service agreement and permitted scope acceptance in the secured workspace.'}));
+  const items=await db.collection('academic_notification_deliveries').find({
+   to:guestEmail,kind:'quotation'}).toArray();
+  assert.equal(items.length,1);
+  assert.equal(items[0].accountId,'');
+  assert.ok(!items[0].text.includes('540.00')&&!items[0].text.includes('research consultation'));
+ });
  await assertCheck('Student accepts actual reviewed quotation; production payment remains blocked',async()=>{
   const r=await call('/academic/quotes/'+quoteId+'/decision',withAuth(studentCookie,{decision:'accept'}));
   commissionId=r.data.commission.id;assert.equal(r.data.commission.status,'awaiting_payment_integration');
