@@ -60,7 +60,7 @@ try{
   priceMinor:q.priceMinor,currency:'PLN',status:'completed',paymentStatus:'synthetic_test_only',
   evaluationPayment:true,revisionCount:1,assignedBy:env.ROOT_EMAIL,qaReviewer:env.ROOT_EMAIL,
   qaDecision:'approve',qaNote:'EVALUATION ONLY: fictional QA approval of fictional support material.',
-  pendingFileId:'AF-EVAL-FINAL',
+  pendingFileId:'AF-EVAL-FINAL',releasedFileId:'AF-EVAL-FINAL',
   milestones:[
    {name:'Academic scope and quotation',status:'complete',at:now},
    {name:'Commission/payment verification',status:'synthetic_test_only',at:now},
