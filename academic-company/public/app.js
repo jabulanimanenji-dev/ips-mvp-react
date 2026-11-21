@@ -1275,7 +1275,7 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
 (async()=>{
  try{
   state.catalogue=await api('/catalogue');
-  const h=await api('/health');state.isEvaluation=h.environment==='ISOLATED_ACADEMIC_REVIEW';
+  const h=await api('/health');state.isEvaluation=h.environment==='ISOLATED_ACADEMIC_REVIEW';state.isStaging=h.environment==='STAGING_REAL_PROVIDER_VALIDATION';
   try{const s=await api('/session');state.account=s.account;state.page='workspace'}catch{state.page=state.rootEntry?'root-login':'home'}
   render();
  }catch(ex){root.innerHTML='<main class="page"><h1>IPS Academic Services</h1><div class="notice error">'+e(ex.message)+'</div></main>'}
