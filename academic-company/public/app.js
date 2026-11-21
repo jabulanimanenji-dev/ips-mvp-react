@@ -38,7 +38,11 @@ async function api(endpoint,{method='GET',body}={}){
  if(!res.ok)throw Error(data.error||'IPS could not complete the requested action.');
  return data;
 }
-function academicCard(s,i){return '<article class="service-card"><div class="service-code">IPS / '+e(s.category.toUpperCase())+' · '+String(i+1).padStart(2,'0')+'</div><h3>'+e(s.title)+'</h3><p>'+e(s.subtitle)+'</p>'+b('Explore academic support','service',s.id,'small')+'</article>'}
+function academicCard(s,i){
+ const graphic=['methods','presentation'].includes(s.category)?'/assets/academic-analysis.svg':'/assets/academic-research.svg';
+ return '<article class="service-card"><img class="service-visual" src="'+graphic+'" alt="'+e(s.category==='methods'?'Statistical analysis charts and research materials':'Academic research volumes, manuscripts and scholarly desk materials')+'" loading="lazy">'+
+ '<div class="service-code">IPS / '+e(s.category.toUpperCase())+' · '+String(i+1).padStart(2,'0')+'</div><h3>'+e(s.title)+'</h3><p>'+e(s.subtitle)+'</p>'+b('Explore academic support','service',s.id,'small')+'</article>';
+}
 function home(){
  const featured=state.catalogue.services.filter(s=>['thesis-dissertation','statistics','academic-editing','research-methods','references-formatting','literature-reviews'].includes(s.id));
  shell('<main>'+
@@ -47,7 +51,7 @@ function home(){
  '<p>Research methodology, thesis guidance, statistical interpretation, academic editing, referencing and more — coordinated by IPS and delivered through qualified academic Specialists.</p>'+
  '<div class="cta-row">'+buttonRoute('Get a private academic quote','quote','primary')+buttonRoute('Explore academic services','services')+buttonRoute('Specialist opportunities','specialist','quiet')+'</div>'+
  '<div class="trust"><span>Students & Researchers</span><span>Verified Specialist network</span><span>Private, written correspondence</span></div></div>'+
- '<aside class="hero-side"><span class="kicker">HOW IPS SUPPORTS YOU</span><h2>Academic standards. Personal discretion.</h2>'+
+ '<aside class="hero-side"><img class="hero-illustration" src="/assets/academic-research.svg" alt="Academic research illustration: scholarly books, open manuscript, charts and a globe" fetchpriority="high"><span class="kicker">HOW IPS SUPPORTS YOU</span><h2>Academic standards. Personal discretion.</h2>'+
  [['01','Tell us what academic guidance you need','Choose a service and describe your discipline, requirements and deadline.'],['02','Receive a professionally reviewed quotation','IPS checks scope and academic integrity, then replies in writing.'],['03','Work through one accountable company','Qualified Specialists work under IPS coordination and independent quality assurance.']].map(x=>'<div class="step"><b>'+x[0]+'</b><div><strong>'+x[1]+'</strong><p>'+x[2]+'</p></div></div>').join('')+
  '</aside></div></section>'+
  '<div class="strip"><section class="section"><div class="section-head"><div><span class="kicker">ACADEMIC EXPERTISE</span><h2>Support for genuine academic work</h2></div><p>From an undergraduate draft to doctoral research methods, IPS helps clients understand, improve and present their own work.</p></div>'+
@@ -64,7 +68,7 @@ function services(){
  shell('<main class="page">'+intro('IPS ACADEMIC SERVICES / CATALOGUE','Academic services designed around your discipline.',
  'Explore our academic guidance, research support, editing and data services. Each service has a defined scope and a confidential written quotation process.')+
  '<div class="category-tabs" role="group" aria-label="Academic service categories">'+cats.map(c=>'<button data-category="'+e(c[0])+'" class="'+(state.category===c[0]?'selected':'')+'">'+e(c[1])+'</button>').join('')+'</div>'+
- '<div class="service-grid">'+rows.map(academicCard).join('')+'</div><div class="notice mt">'+e(state.catalogue.academicIntegrityNotice)+'</div></main>');
+ '<div class="service-visual-banner"><img src="/assets/academic-analysis.svg" alt="Academic statistics and reproducible research charts shown on a laboratory desk" loading="lazy"><div><span class="kicker">EVIDENCE-LED ACADEMIC SUPPORT</span><h3>Thesis guidance, research methods and analytical support.</h3><p>Explore academically appropriate services, then submit a private enquiry for a reviewed written quotation.</p></div></div><div class="service-grid">'+rows.map(academicCard).join('')+'</div><div class="notice mt">'+e(state.catalogue.academicIntegrityNotice)+'</div></main>');
 }
 function serviceDetail(){
  const s=state.catalogue.services.find(x=>x.id===state.service);
@@ -216,6 +220,17 @@ function work(){
  '<div id="workbody" aria-live="polite"><div class="boot">Loading real academic company records…</div></div></main></div>');
  void loadTab();
 }
+const realActivityChart=metrics=>{
+ const bars=[['Enquiries',metrics.enquiries],['Commissions',metrics.academicCommissions],['Support',metrics.support],['Alerts',metrics.alerts]].map(([label,count])=>[label,Math.max(0,Number(count)||0)]);
+ const max=Math.max(1,...bars.map(x=>x[1]));
+ return '<section class="panel activity-visual" aria-label="Real academic operations visualization"><span class="kicker">LIVE COMPANY ACTIVITY</span><h2>Academic operations at a glance</h2><p>Recorded counts from the actual authenticated IPS database; no fabricated performance statistics.</p>'+
+ '<svg viewBox="0 0 680 224" role="img" aria-label="Bar chart of academic enquiries, commissions, support cases and private alerts">'+
+ '<g stroke="#496477" stroke-width="1"><path d="M35 40H650 M35 85H650 M35 130H650 M35 175H650"/></g>'+
+ bars.map(([label,count],i)=>{const x=80+i*158,h=Math.max(2,Math.round(130*count/max)),y=175-h;
+ return '<rect x="'+x+'" y="'+y+'" width="61" height="'+h+'" rx="6" fill="'+(i%2?'#9fc9c1':'#d6b47b')+'"/>'+
+ '<text x="'+(x+30)+'" y="'+(y-9)+'" text-anchor="middle" fill="#eeddbb" font-size="16" font-weight="700">'+count+'</text>'+
+ '<text x="'+(x+30)+'" y="202" text-anchor="middle" fill="#d7e4e7" font-size="12">'+label+'</text>'}).join('')+'</svg></section>';
+};
 const kpi=(name,count,sub)=>'<div class="metric"><span>'+e(name)+'</span><strong>'+e(count)+'</strong><small>'+e(sub)+'</small></div>';
 const record=(heading,desc,id,stage,buttons='')=>'<article class="record"><div><h3>'+e(heading)+'</h3><p>'+e(short(desc))+'</p><small class="subtle">'+e(id)+'</small></div><aside>'+stat(stage)+buttons+'</aside></article>';
 async function loadTab(){
@@ -238,13 +253,13 @@ async function loadTab(){
   html='<div class="metrics">'+kpi('Academic enquiries',m.enquiries,'Actual scoped cases')+
    kpi('Academic commissions',m.academicCommissions,'Visible to this role')+
    kpi('Support cases',m.support,'Written cases')+
-   kpi('Unread updates',m.alerts,'Account-specific')+'</div><div class="cols">'+
+   kpi('Unread updates',m.alerts,'Account-specific')+'</div>'+(a.role==='root'?realActivityChart(m):'')+'<div class="cols">'+
    panel(a.role==='student'?'Your next academic step':a.role==='specialist'?'Your academic work':'Today at IPS Academic Services',
    a.role==='student'?'Submit a private academic quotation or inspect your existing projects.':
    a.role==='specialist'?'Review only the assignments formally allocated by IPS.':
    'The company is organized around academic intake, Specialist eligibility, work coordination and independent QA.',
-   '<div class="action-row">'+(a.role==='student'?buttonRoute('Request academic assistance','quote','primary'):
-   a.role==='specialist'?b('View assignments','tab-commissions','','primary'):b('Open company queues','tab-queues','','primary'))+'</div>')+
+   '<div class="action-row">'+(a.role==='student'?(state.rootLens&&!state.isEvaluation?'<div class="notice">Nyoro may observe this workspace. Only the Student can commission genuine work.</div>':buttonRoute('Request academic assistance','quote','primary')):
+   a.role==='specialist'?b('View assignments','tab-commissions','','primary'):b('Open company queues','tab-queues','','primary')+b('Student workspace','tab-root-students')+b('Specialist workspace','tab-root-specialists'))+'</div>')+
    panel('Academic standards and confidentiality','IPS coordinates legitimate academic support through authorized personnel.',
    '<div class="bullet">Verified email and controlled accounts</div><div class="bullet">Professionally scoped academic services</div>'+
    '<div class="bullet">Independent academic quality review</div><div class="bullet">Written contact only; no phone calls</div>'+
@@ -474,7 +489,7 @@ document.addEventListener('click',async ev=>{
  if(act==='root-lens-open'){try{await openRootLens(id)}catch(err){state.error=err.message;render()}return}
  if(act==='service'){state.service=id;state.page='service';serviceDetail();return}
  if(act==='request-service'){state.service=id;state.page='quote';quote();return}
- if(act==='tab-commissions'||act==='tab-queues'){state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
+ if(['tab-commissions','tab-queues','tab-root-students','tab-root-specialists'].includes(act)){state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
  if(act==='quote-detail'||act==='commission-open'||act==='support-open'){state.opened=state.opened===id?'':id;render();return}
  if(act==='scope-form'||act==='offer-form'){
   const anchor=action.closest('.record');const markup=act==='scope-form'?
