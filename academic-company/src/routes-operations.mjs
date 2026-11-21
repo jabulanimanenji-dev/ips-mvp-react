@@ -171,7 +171,7 @@ export function registerOperationsRoutes(ctx){
   await audit(req.actor,'root_academic_job_takeover',p.id,{reason:note,priorSpecialist:before});
   if(before)await notify(before,'IPS Root Administration has reassigned academic job '+p.id,'assignment');
   await notify(p.studentId,'IPS is directly coordinating your academic work '+p.id,'assignment');
-  res.json({commission:publicDocument(u),rootInCharge:true});
+  res.json({commission:publicDocument(await db.projects.findOne({id:p.id})),rootInCharge:true});
  }));
  app.post('/api/operations/:id/outsourcing',wrap(async(req,res)=>{
   if(!authorize(req,res,['root']))return;
