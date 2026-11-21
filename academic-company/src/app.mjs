@@ -12,6 +12,7 @@ import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
 import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs';
 import {registerOperationsRoutes} from './routes-operations.mjs';
+import {registerTelegramRoutes,telegramConfigured} from './routes-telegram.mjs';
 import {inspectAcademicFile,scanConfiguration} from './document-scan.mjs';
 
 const env=process.env;
@@ -118,6 +119,37 @@ async function sendEmail(to,subject,text,deliveryKey=''){
   return {provider:'resend',id:response.id,providerAccepted:true};
  }finally{clearTimeout(timeout)}
 }
+// A Telegram API response confirms provider acceptance, never human receipt.
+async function sendTelegram(chatId,message,deliveryKey=''){
+ if(!Number.isSafeInteger(Number(chatId))||Number(chatId)<=0)throw Error('Telegram chat is not verified.');
+ const text=String(message||'');
+ if(!text||text.length>4000)throw Error('Telegram notice invalid.');
+ if(config.sandbox){
+  const item={id:uid('TG'),to:'telegram:'+chatId,subject:'IPS Telegram notification',
+   text,provider:'telegram-sandbox',synthetic:true,createdAt:now(),
+   ...(deliveryKey?{idempotencyKey:deliveryKey}:{})};
+  if(deliveryKey){
+   await db.outbox.updateOne({idempotencyKey:deliveryKey},{$setOnInsert:item},{upsert:true});
+   const original=await db.outbox.findOne({idempotencyKey:deliveryKey});
+   return {provider:'telegram-sandbox',id:original.id,synthetic:true};
+  }
+  await db.outbox.insertOne(item);
+  return {provider:'telegram-sandbox',id:item.id,synthetic:true};
+ }
+ if(!telegramConfigured(env))throw Error('Telegram provider is not configured.');
+ const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
+ try{
+  const r=await fetch('https://api.telegram.org/bot'+env.TELEGRAM_BOT_TOKEN+'/sendMessage',{
+   method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({chat_id:Number(chatId),text,disable_web_page_preview:true}),
+   signal:controller.signal});
+  if(!r.ok)throw Error('Telegram provider rejected outgoing message.');
+  const answer=await r.json().catch(()=>null);
+  if(answer?.ok!==true||!Number.isSafeInteger(answer?.result?.message_id))
+   throw Error('Telegram provider did not confirm accepting the message.');
+  return {provider:'telegram',id:String(answer.result.message_id),providerAccepted:true};
+ }finally{clearTimeout(timeout)}
+}
 async function audit(actor,action,ref='',details={}){
  const assisted=actor?.rootAssistedBy===rootEmail;
  await db.audit.insertOne({id:uid('AUD'),at:now(),
@@ -138,17 +170,33 @@ async function queuePrivateNotice(to,kind,notificationId,accountId=''){
   kind,status:'pending',attempts:0,nextAttemptAt:now(),createdAt:now()
  });
 }
+async function queueTelegramNotice(accountId,chatId,kind,notificationId){
+ await db.notificationDeliveries.insertOne({id:uid('OUT'),notificationId,
+  accountId,channel:'telegram',chatId:Number(chatId),
+  text:'A private IPS Academic Services update is ready in your secure workspace.\\n'+
+       'Sign in: '+config.origin+'\\nNo academic case details are sent in Telegram.',
+  kind,status:'pending',attempts:0,nextAttemptAt:now(),createdAt:now()});
+}
 async function notify(accountId,message,kind='academic_work',options={}){
  if(!accountId)return;
  const item={id:uid('NT'),accountId,message,kind,read:false,createdAt:now()};
  await db.notifications.insertOne(item);
  const owner=await db.accounts.findOne({id:accountId,verified:true,status:'active'},
-  {projection:{email:1,contactPreference:1}});
+  {projection:{email:1,contactPreference:1,telegramChatId:1,telegramVerifiedAt:1,telegramConnectionStatus:1}});
  // Quote-specific consent overrides account-level notification defaults, but only for
  // that verified quote owner. All unrelated messages keep the chosen profile preference.
  const channel=options.channel||owner?.contactPreference;
  if(owner?.email&&channel==='email')
   await queuePrivateNotice(owner.email,kind,item.id,accountId);
+ else if(channel==='telegram'&&owner?.telegramChatId&&owner?.telegramVerifiedAt&&
+  owner?.telegramConnectionStatus==='confirmed')
+  await queueTelegramNotice(accountId,owner.telegramChatId,kind,item.id);
+ else if(channel==='telegram')
+  await db.notifications.updateOne({accountId:rootEmail,kind:'communication_failure',ref:item.id},
+   {$setOnInsert:{id:uid('NT'),accountId:rootEmail,kind:'communication_failure',
+    ref:item.id,message:'IPS account '+accountId+
+     ' selected Telegram without a confirmed private bot destination; secure workspace update retained.',
+    read:false,createdAt:now()}},{upsert:true});
 }
 async function notifyQuotation(q,message,kind='quotation'){
  // A quote's explicit written contact selection is authoritative for quote updates.
@@ -159,7 +207,7 @@ async function notifyQuotation(q,message,kind='quotation'){
  }else if(q.contactVerified&&q.contactChannel==='email'){
   await queuePrivateNotice(q.contactEmail,kind,uid('GUEST-NOTICE'));
  }
- if(q.contactChannel==='telegram'){
+ if(q.contactChannel==='telegram'&&!q.studentId){
   // A Telegram username alone is not a verified bot chat destination. Do not
   // misrepresent this as delivered, nor silently substitute unsolicited email.
   await db.quotes.updateOne({id:q.id},{$set:{outboundStatus:'telegram_not_connected',updatedAt:now()}});
@@ -201,7 +249,7 @@ function wrap(handler){return async(req,res)=>{try{await handler(req,res)}catch(
  if(!res.headersSent)res.status(500).json({error:'IPS could not complete the operation. Your previous state remains available.'});
 }}}
 const inspectAcademicUpload=buffer=>inspectAcademicFile(buffer,{env,sandbox:config.sandbox});
-const ctx={app,db,documentBucket,inspectAcademicUpload,env,config,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
+const ctx={app,db,documentBucket,inspectAcademicUpload,env,config,security,throttle,sendEmail,sendTelegram,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
 app.get('/api/health',wrap(async(_req,res)=>res.json({
  ready:mongoose.connection.readyState===1,
  product:'IPS Academic Services',identity:'academic-services-only',release:'academic-company-2026-v1',
@@ -214,7 +262,8 @@ app.get('/api/health',wrap(async(_req,res)=>res.json({
 app.get('/api/catalogue',(_req,res)=>res.json({
  company:'IPS Academic Services',categories:CATEGORIES,services:SERVICES,
  levels:ACADEMIC_LEVELS,departments:Object.entries(DEPARTMENTS).map(([id,name])=>({id,name})),
- academicIntegrityNotice,noPhoneCalls:true,specialistAgreement:SPECIALIST_AGREEMENT
+ academicIntegrityNotice,noPhoneCalls:true,specialistAgreement:SPECIALIST_AGREEMENT,
+ telegramBotUsername:telegramConfigured(env)?env.IPS_TELEGRAM_BOT_USERNAME:''
 }));
 // Root's assisted workspaces reuse the genuine Student and Specialist APIs without changing
 // the Root session. Every delegated mutation is attributed to Nyoro, never the client.
@@ -263,6 +312,7 @@ registerIdentityRoutes(ctx);
 registerAcademicRoutes(ctx);
 registerSupportRoutes(ctx);
 registerOperationsRoutes(ctx);
+registerTelegramRoutes(ctx);
 beginCompanyAutomation(ctx);
 const dist=path.join(path.dirname(fileURLToPath(import.meta.url)),'../public');
 app.use(express.static(dist,{index:false,maxAge:0}));
