@@ -52,6 +52,17 @@ try{
  assert.equal(downloaded.headers.get('x-content-sha256'),digest);
  const specialistView=await request('/academic/commissions',{cookie:specialistCookie});
  assert.ok(specialistView.json.commissions.some(x=>x.id===project.id));
+ const privateVendor=await db.collection('academic_root_operations').findOne({mode:'private_external'});
+ assert.ok(privateVendor?.providerReference,'Root-only sourcing record absent from independent restore');
+ const rootVendor=await request('/operations/'+privateVendor.commissionId+'/outsourcing',{cookie:rootCookie});
+ assert.equal(rootVendor.status,200);assert.equal(rootVendor.json.privateFulfilment.providerReference,privateVendor.providerReference);
+ const unauthorized=await request('/operations/'+privateVendor.commissionId+'/outsourcing',{cookie:studentCookie});
+ assert.equal(unauthorized.status,403,'Private external provider must not be exposed after restoration');
+ const directRecord=await db.collection('academic_direct_files').findOne({toId:student.id});
+ assert.ok(directRecord?.sha256,'Root-shared private academic file missing after restoration');
+ const directRes=await fetch(base+'/api/operations/direct-file/'+directRecord.id,{headers:{Cookie:studentCookie}});
+ assert.equal(directRes.status,200);
+ assert.equal(crypto.createHash('sha256').update(Buffer.from(await directRes.arrayBuffer())).digest('hex'),directRecord.sha256);
  const rootAudit=await request('/administration/audit',{cookie:rootCookie});
  assert.equal(rootAudit.status,200);assert.ok(rootAudit.json.events.length>10);
  const index=await db.collection('academic_accounts').indexes();assert.ok(index.some(i=>i.name==='email_1'));
