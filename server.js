@@ -3835,6 +3835,19 @@ app.get('*', (req, res) => {
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  // A source-bound, real HTTP witness runs only in the disposable evaluation
+  // container. Any failed login, reporting-line, private inbox or payment
+  // boundary fails its deployment rather than presenting a broken demo as live.
+  if(isProduction&&process.env.IPS_EVALUATION_MODE==='true'){
+    void import('./services/evaluationSelfcheck.js')
+      .then(({verifyIsolatedEvaluationRuntime})=>verifyIsolatedEvaluationRuntime({port:PORT}))
+      .then(report=>console.log('IPS_EVAL_RUNTIME_6_ROLES_GREEN '+JSON.stringify(report)))
+      .catch(error=>{
+        console.error('IPS_EVAL_RUNTIME_ROLE_CHECK_FAILED:',
+          String(error?.message||'Isolated verification unavailable').slice(0,200));
+        server.close(()=>process.exit(1));
+      });
+  }
 });
 
 // Operational delivery is opt-in and requires verified server-side IPS credentials.
