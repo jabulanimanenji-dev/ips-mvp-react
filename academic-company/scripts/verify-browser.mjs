@@ -262,7 +262,7 @@ try{
   assert.ok(match,'Root reset link missing from email');
   await rootRecovery.goto(origin+'/root#recover='+match[1]+
    '&email='+encodeURIComponent(vars.ROOT_EMAIL),{waitUntil:'domcontentloaded'});
-  await rootRecovery.getByRole('heading',{name:'Reset your password'}).waitFor();
+  await rootRecovery.getByRole('heading',{name:'Set a new password'}).waitFor();
   await rootRecovery.locator('input[name=confirmPassword]').waitFor();
   await overflow(rootRecovery);
   await screen(rootRecovery,'24-nyoro-root-email-recovery');
