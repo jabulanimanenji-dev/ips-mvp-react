@@ -37,6 +37,7 @@ jobs:
           node --check src/routes-identity.mjs
           node --check src/routes-academic.mjs
           node --check src/routes-support.mjs
+          node --check src/routes-operations.mjs
           node --check public/app.js
           node --check scripts/verify-lifecycle.mjs
           node --check scripts/verify-browser.mjs
