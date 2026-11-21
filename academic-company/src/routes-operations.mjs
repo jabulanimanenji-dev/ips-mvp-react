@@ -7,7 +7,7 @@ import {publicDocument,normalizeFilename,validEmail,email} from './security.mjs'
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerOperationsRoutes(ctx){
- const {app,db,documentBucket,rootEmail,notify,notifyQuotation,audit,authorize,wrap,now,uid}=ctx;
+ const {app,db,documentBucket,rootEmail,notify,notifyQuotation,audit,authorize,throttle,wrap,now,uid}=ctx;
  const deny=res=>res.status(403).json({error:'You do not have access to this academic case.'});
  const staff=a=>a&&(['root','manager','staff'].includes(a.role));
  const intake=a=>a?.role==='root'||(staff(a)&&a.department==='client_relations');
@@ -189,6 +189,36 @@ export function registerOperationsRoutes(ctx){
  }));
  // Academic enquiry documents are available before commission/payment, subject to the same
  // ownership boundary as quotations. Guest enquiries require a verified registered account.
+ app.post('/api/academic/quotes/:id/files-binary',
+  express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','root','manager','staff']))return;
+  if(throttle.limited(req,'academic-quote-file',20))
+   return res.status(429).json({error:'Please retry your document upload later.'});
+  const q=await db.quotes.findOne({id:req.params.id});
+  if(!q||!quoteAccess(req.actor,q))return deny(res);
+  if(req.actor.role==='student'&&(!q.studentId||q.studentId!==req.actor.id))return deny(res);
+  const checked=binaryDocument(req);
+  if(checked.error)return res.status(400).json({error:checked.error});
+  const a=req.actor,audience=a.role==='student'?'student':
+   String(req.get('X-IPS-File-Audience')||'student');
+  if(!['student','internal'].includes(audience))
+   return res.status(400).json({error:'Choose the appropriate private enquiry audience.'});
+  const id=uid('QF'),date=now();
+  const blob=await storePrivateBlob({id,...checked,context:{kind:'enquiry_reference',quoteId:q.id}});
+  const file={id,quoteId:q.id,studentId:q.studentId,filename:checked.filename,
+   mime:checked.mime,purpose:'enquiry_reference',audience,...blob,
+   uploadedBy:req.rootOperatorId||a.id,
+   uploadedRole:req.rootOperatorId?'root':a.role,createdAt:date};
+  try{await db.quoteFiles.insertOne(file)}
+  catch(err){await documentBucket.delete(blob.blobId).catch(()=>{});throw err}
+  await db.quotes.updateOne({id:q.id},{$set:{updatedAt:now()}});
+  await notify(a.role==='student'?rootEmail:q.studentId,
+   'Academic enquiry document uploaded for '+q.id,'quote_file');
+  await audit(a,'academic_enquiry_document_uploaded',q.id,
+   {fileId:id,audience,sha256:blob.sha256,byteLength:blob.byteLength});
+  res.status(201).json({file:{id,filename:file.filename,mime:file.mime,
+   audience,sha256:blob.sha256,byteLength:blob.byteLength,createdAt:date}});
+ }));
  app.post('/api/academic/quotes/:id/files',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','root','manager','staff']))return;
   const q=await db.quotes.findOne({id:req.params.id});
