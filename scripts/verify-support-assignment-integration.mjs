@@ -9,7 +9,7 @@ import {permittedCompanyPermissions} from '../shared/companyGovernance.js';
 const BASE=process.env.IPS_TEST_BASE_URL||'http://127.0.0.1:8080';
 const unique=crypto.randomBytes(5).toString('hex');
 const prefix='SUP-CI-'+unique;
-const ids={manager:prefix+'-MANAGER',staff:prefix+'-STAFF',foreign:prefix+'-FOREIGN'};
+const ids={manager:prefix+'-MANAGER',staff:prefix+'-STAFF',foreign:prefix+'-FOREIGN',communications:prefix+'-COMM'};
 const tickets={main:prefix+'-MAIN',unclaimed:prefix+'-UNCLAIMED'};
 const password='CaseSupportPassword2026!';
 const hash=p=>{
@@ -51,7 +51,12 @@ try{
       email:'support-other-'+unique+'@example.org',password:hash(password),role:'admin',
       company_role:'manager',department:'academic_delivery',status:'Active',
       email_verified_at:at,must_change_password:false,
-      permissions:permittedCompanyPermissions('academic_delivery','manager')}
+      permissions:permittedCompanyPermissions('academic_delivery','manager')},
+    {id:ids.communications,name:'Support CI Communications Manager',
+      email:'support-communications-'+unique+'@example.org',password:hash(password),role:'admin',
+      company_role:'manager',department:'communications',status:'Active',
+      email_verified_at:at,must_change_password:false,
+      permissions:permittedCompanyPermissions('communications','manager')}
   ]);
   await SupportTicket.insertMany([tickets.main,tickets.unclaimed].map((ticket_id,i)=>({
     ticket_id,client_id:'CID-SUPPORT-CI-'+unique,
@@ -66,10 +71,15 @@ try{
   const manager=await login('support-manager-'+unique+'@example.org');
   const staff=await login('support-staff-'+unique+'@example.org');
   const foreign=await login('support-other-'+unique+'@example.org');
+  const communication=await login('support-communications-'+unique+'@example.org');
   const patch=(ticket_id,cookie,body)=>call('/api/support-tickets/'+ticket_id,{method:'PATCH',cookie,body});
 
   const foreignListing=await call('/api/support-tickets',{cookie:foreign});
   assert.equal(foreignListing.status,403,'Academic managers cannot read confidential customer ticket conversations');
+  const communicationBefore=await call('/api/support-tickets',{cookie:communication});
+  assert.equal(communicationBefore.status,200);
+  assert.ok(communicationBefore.data.tickets.some(t=>t.ticket_id===tickets.unclaimed),
+    'An authorized second department may inspect unclaimed work, but not another team ownership.');
   const noSupportListing=await call('/api/support-tickets');
   assert.equal(noSupportListing.status,401,'Guests cannot list private support cases');
   const managerListing=await call('/api/support-tickets',{cookie:manager});
@@ -99,9 +109,17 @@ try{
   assert.equal(managerPriority.status,200);
   const crossManager=await patch(tickets.main,foreign,{assigned_admin:ids.foreign});
   assert.equal(crossManager.status,403);
+  const communicationAfter=await call('/api/support-tickets',{cookie:communication});
+  assert.equal(communicationAfter.status,200);
+  assert.ok(!communicationAfter.data.tickets.some(t=>t.ticket_id===tickets.main),
+    'Communications manager cannot inspect client-relations manager private cases after assignment.');
   const managerDelegate=await patch(tickets.main,manager,{assigned_admin:ids.staff});
   assert.equal(managerDelegate.status,200,JSON.stringify(managerDelegate.data));
   assert.equal(managerDelegate.data.ticket.assigned_admin,ids.staff);
+  const communicationAfterStaff=await call('/api/support-tickets',{cookie:communication});
+  assert.equal(communicationAfterStaff.status,200);
+  assert.ok(!communicationAfterStaff.data.tickets.some(t=>t.ticket_id===tickets.main),
+    'Unrelated department must not read messages after internal team delegation.');
   const staffUpdate=await patch(tickets.main,staff,{status:'In Progress'});
   assert.equal(staffUpdate.status,200,JSON.stringify(staffUpdate.data));
   const realReply=await call('/api/support-tickets/'+tickets.main+'/messages',{
