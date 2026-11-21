@@ -1,6 +1,7 @@
 // Student, Specialist and IPS staff identity: new academic-services implementation.
 import {email,username,validEmail,validUsername,validPassword,hashPassword,checkPassword,publicAccount,publicDocument,strongToken,validToken} from './security.mjs';
 import {SERVICE_MAP,DEPARTMENTS} from './catalogue.mjs';
+import {SPECIALIST_AGREEMENT} from './specialist-agreement.mjs';
 
 export function registerIdentityRoutes(ctx){
  const {app,db,env,config,security,throttle,sendEmail,rootEmail,notify,audit,authorize,department,wrap,now,uid}=ctx;
@@ -11,6 +12,11 @@ export function registerIdentityRoutes(ctx){
   return root&&checkPassword(String(p||''),root.passwordHash)?root:null;
  };
  const readonlyUser=a=>publicDocument(publicAccount(a));
+ const normalizeName=x=>String(x||'').trim().replace(/\\s+/g,' ').toLocaleLowerCase('en');
+ const signedAgreement=(name,body)=>body?.specialistAgreementAccepted===true&&
+  body?.specialistAgreementVersion===SPECIALIST_AGREEMENT.version&&
+  normalizeName(body?.specialistSignature)===normalizeName(name);
+
  async function mailChallenge(a,reason='verify'){
   const token=strongToken(),hash=security.digest(reason+':'+token),deadline=requestedAt();
   const keys=reason==='verify'?{challengeHash:hash,challengeUntil:deadline}:{recoveryHash:hash,recoveryUntil:deadline};
@@ -27,6 +33,22 @@ export function registerIdentityRoutes(ctx){
    throw e;
   }
  }
+ app.get('/api/specialist/agreement',(_req,res)=>res.json(SPECIALIST_AGREEMENT));
+ app.post('/api/specialist/agreement/accept',wrap(async(req,res)=>{
+  if(!authorize(req,res,['specialist']))return;
+  const a=await db.accounts.findOne({id:req.actor.id,role:'specialist',verified:true,status:'active'});
+  if(!a)return res.status(403).json({error:'Active Specialist access is required.'});
+  if(!signedAgreement(a.name,req.body))
+   return res.status(400).json({error:'Read the current confidentiality agreement and type your verified professional name to accept it.'});
+  await db.accounts.updateOne({id:a.id,role:'specialist'},{$set:{
+   specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
+   specialistAgreementSha256:SPECIALIST_AGREEMENT.sha256,
+   specialistAgreementSignature:a.name,
+   specialistAgreementAcceptedAt:now(),updatedAt:now()}});
+  await audit(req.actor,'academic_specialist_agreement_accepted',a.id,
+   {version:SPECIALIST_AGREEMENT.version,sha256:SPECIALIST_AGREEMENT.sha256});
+  res.json({success:true,agreementVersion:SPECIALIST_AGREEMENT.version});
+ }));
  app.post('/api/auth/register',wrap(async(req,res)=>{
   if(throttle.limited(req,'academic-register',7))return res.status(429).json({error:'Too many requests. Please retry later.'});
   const role=String(req.body?.role||''),mail=email(req.body?.email),password=String(req.body?.password||'');
@@ -38,12 +60,18 @@ export function registerIdentityRoutes(ctx){
   const expertise=role==='specialist'?Array.isArray(req.body.expertise)?
    [...new Set(req.body.expertise.filter(id=>SERVICE_MAP.has(id)))].slice(0,12):[]:[];
   if(role==='specialist'&&!expertise.length)return res.status(400).json({error:'Choose the actual academic services you can professionally support.'});
+  if(role==='specialist'&&(String(req.body?.qualification||'').trim().length<3||
+   !signedAgreement(fullName,req.body)))
+   return res.status(400).json({error:'Provide a professional qualification and explicitly sign the current IPS Specialist confidentiality agreement with your full name.'});
   if(mail===rootEmail||await db.accounts.findOne({$or:[{email:mail},...(role==='student'?[{usernameKey:uname.toLowerCase()}]:[])]}))
    return res.status(409).json({error:'The email or username is already registered.'});
   const item={id:uid(role==='student'?'STU':'SPC'),role,email:mail,username:role==='student'?uname:'',
    ...(role==='student'?{usernameKey:uname.toLowerCase()}:{}),name:role==='specialist'?fullName:'',
    expertise,passwordHash:hashPassword(password),verified:false,approved:false,status:'pending_verification',
    sessionVersion:1,department:'',managerId:'',contactPreference:'workspace',
+   ...(role==='specialist'?{specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
+     specialistAgreementSha256:SPECIALIST_AGREEMENT.sha256,
+     specialistAgreementSignature:fullName,specialistAgreementAcceptedAt:now()}:{}),
    ...(role==='specialist'?{availabilityStatus:'unavailable',maxConcurrentCases:0,
      activeAssignments:0,turnaroundDays:0}:{}),
    privacyConsentAt:now(),createdAt:now(),lastLoginAt:null,
@@ -266,6 +294,10 @@ export function registerIdentityRoutes(ctx){
   if(decision==='approve_specialist'){
    if(target.role!=='specialist'||target.status!=='pending_review'||!target.verified)return res.status(409).json({error:'The applicant is not eligible for specialist approval.'});
    if(req.actor.role!=='root'&&req.actor.department!=='specialist_network')return res.status(403).json({error:'Specialist Network permission required.'});
+   if(target.specialistAgreementVersion!==SPECIALIST_AGREEMENT.version||
+    target.specialistAgreementSha256!==SPECIALIST_AGREEMENT.sha256||
+    !target.specialistAgreementSignature||!target.qualification?.trim())
+    return res.status(409).json({error:'The Specialist must first sign the current confidentiality agreement and submit a professional qualification.'});
    await db.accounts.updateOne({id:target.id,status:'pending_review'},{$set:{approved:true,status:'active',reviewedBy:req.actor.id,reviewedAt:now()}});
   }else if(['suspend','reactivate'].includes(decision)){
    const permitted=req.actor.role==='root'||(target.role==='staff'&&target.managerId===req.actor.id);
