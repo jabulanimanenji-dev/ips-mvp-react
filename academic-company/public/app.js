@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],telegramLinkUrl:''};
+ message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',telegramLinkUrl:''};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
@@ -406,9 +406,17 @@ async function loadTab(){
      empty('No academic jobs in this view.'))+
    '';
  }else if(['students','specialists','root-students','root-specialists','workforce'].includes(tab)){
-  const d=await api('/administration/people');
+  if(state.directoryTab!==tab){
+   state.directoryTab=tab;state.directoryPage=1;
+   state.directoryQuery='';state.directoryStatus='all';
+  }
   const role=tab==='root-students'||tab==='students'?'student':
     tab==='root-specialists'||tab==='specialists'?'specialist':'employee';
+  const lookup=new URLSearchParams({page:String(state.directoryPage),pageSize:'100'});
+  if(role!=='employee')lookup.set('role',role);
+  if(state.directoryQuery)lookup.set('search',state.directoryQuery);
+  if(state.directoryStatus!=='all')lookup.set('status',state.directoryStatus);
+  const d=await api('/administration/people?'+lookup.toString());
   const people=d.people.filter(p=>role==='employee'?['manager','staff'].includes(p.role):p.role===role);
   state.rootDirectory=people;
   const rootLensList=tab==='root-students'||tab==='root-specialists';
@@ -421,12 +429,14 @@ async function loadTab(){
   const labels={student:'Students / Researchers',specialist:'Academic Specialists',employee:'Managers & staff'};
   html=invite+panel(rootLensList?'Select a workspace':labels[role],
    rootLensList?'Open the actual workspace under Nyoro’s accountable Root session.':'Separate people directories with straightforward management.',
-   '<div class="directory-toolbar"><label class="field">Search<input type="search" data-directory-search placeholder="Name, username or email" autocomplete="off"></label>'+
-   '<label class="field">Status<select data-directory-status><option value="all">All statuses</option>'+
-   '<option value="active">Active</option><option value="pending_review">Pending approval</option>'+
-   '<option value="suspended">Suspended</option>'+
-   '<option value="disabled">Offboarded</option><option value="rejected">Rejected</option>'+
-   '<option value="invited">Invited</option></select></label></div>'+
+   '<div class="directory-toolbar"><label class="field">Search<input type="search" data-directory-search placeholder="Name, username or email" value="'+e(state.directoryQuery)+'" autocomplete="off"></label>'+
+   '<label class="field">Status<select data-directory-status>'+
+   [['all','All statuses'],['active','Active'],['pending_review','Pending approval'],['suspended','Suspended'],['disabled','Offboarded'],['rejected','Rejected'],['invited','Invited']].map(([value,label])=>
+    '<option value="'+e(value)+'"'+(state.directoryStatus===value?' selected':'')+'>'+e(label)+'</option>').join('')+'</select></label></div>'+
+   '<div class="case-actions">'+b('Search whole company','directory-apply','','small primary')+
+   b('Clear search','directory-clear','','small')+'</div>'+
+   '<p class="subtle">Showing '+people.length+' of '+d.total+
+   ' authorised account records · Page '+d.page+'. Search the complete company directory rather than only the first 300.</p>'+
    (people.length?'<div class="table-wrap"><table class="table directory-table"><thead><tr><th>Account</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
    people.map(p=>'<tr data-directory-row data-status="'+e(p.status)+'" data-search="'+e((p.username||p.name||'')+' '+p.email)+'"><td><b>'+e(p.username||p.name||'Private account')+'</b><small>'+e(p.email)+'</small></td>'+
    '<td>'+e(p.role==='student'?'Student / Researcher':p.role==='specialist'?'Specialist':p.role)+'</td>'+
@@ -442,7 +452,9 @@ async function loadTab(){
     !canApprove(a,p)?b('Manage','person-manage',p.id,'small'):'')+
    (!rootLensList&&canSuspend(a,p)?b('Suspend','person-suspend',p.id,'small danger'):'')+
    (!rootLensList&&p.status==='suspended'&&a.role==='root'?b('Reactivate','person-reactivate',p.id,'small'):'')+
-   '</div></td></tr>').join('')+'</tbody></table></div>':empty('No accounts found.')))+
+   '</div></td></tr>').join('')+'</tbody></table></div>':empty('No accounts found.'))+
+   '<div class="case-actions">'+(d.hasPrevious?b('Previous accounts','directory-prev','','small'):'')+
+   (d.hasNext?b('Next accounts','directory-next','','small'):'')+'</div>')+
    '';
   if(a.role==='root'&&state.opened?.startsWith('DMTO:'))html=directCompose(state.opened.slice(5),people);
   if(state.opened?.startsWith('PERSON:')){
@@ -1236,6 +1248,16 @@ document.addEventListener('click',async ev=>{
   state.page=dest;state.registerRole=dest==='specialist'?'specialist':dest==='register'?'student':state.registerRole;render();return}
  if(tab){remember();state.workPage=0;state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;
+ if(['directory-prev','directory-next','directory-apply','directory-clear'].includes(act)){
+  if(act==='directory-apply'){
+   state.directoryQuery=(root.querySelector('[data-directory-search]')?.value||'').trim();
+   state.directoryStatus=root.querySelector('[data-directory-status]')?.value||'all';
+   state.directoryPage=1;
+  }else if(act==='directory-clear'){
+   state.directoryQuery='';state.directoryStatus='all';state.directoryPage=1;
+  }else state.directoryPage=Math.max(1,state.directoryPage+(act==='directory-next'?1:-1));
+  state.opened='';state.error='';render();return;
+ }
  if(act==='work-prev'||act==='work-next'){
   state.workPage=Math.max(0,state.workPage+(act==='work-next'?1:-1));
   filterWorklist();return;
