@@ -424,7 +424,9 @@ async function loadTab(){
    '<div class="directory-toolbar"><label class="field">Search<input type="search" data-directory-search placeholder="Name, username or email" autocomplete="off"></label>'+
    '<label class="field">Status<select data-directory-status><option value="all">All statuses</option>'+
    '<option value="active">Active</option><option value="pending_review">Pending approval</option>'+
-   '<option value="suspended">Suspended</option></select></label></div>'+
+   '<option value="suspended">Suspended</option>'+
+   '<option value="disabled">Offboarded</option><option value="rejected">Rejected</option>'+
+   '<option value="invited">Invited</option></select></label></div>'+
    (people.length?'<div class="table-wrap"><table class="table directory-table"><thead><tr><th>Account</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
    people.map(p=>'<tr data-directory-row data-status="'+e(p.status)+'" data-search="'+e((p.username||p.name||'')+' '+p.email)+'"><td><b>'+e(p.username||p.name||'Private account')+'</b><small>'+e(p.email)+'</small></td>'+
    '<td>'+e(p.role==='student'?'Student / Researcher':p.role==='specialist'?'Specialist':p.role)+'</td>'+
@@ -435,12 +437,18 @@ async function loadTab(){
     b('Open workspace','root-lens-open',p.id,'small primary'):'')+
    (a.role==='root'?b('Message','person-message',p.id,'small'):'')+
    (!rootLensList&&canRecover(a,p)?b('Send reset link','person-recover',p.id,'small'):'')+
-   (!rootLensList&&canApprove(a,p)?b('Approve','person-approve',p.id,'small'):'')+
+   (!rootLensList&&canApprove(a,p)?b('Review','person-manage',p.id,'small primary'):'')+
+   (!rootLensList&&(a.role==='root'||a.role==='manager'&&p.role==='staff'&&p.managerId===a.id)&&
+    !canApprove(a,p)?b('Manage','person-manage',p.id,'small'):'')+
    (!rootLensList&&canSuspend(a,p)?b('Suspend','person-suspend',p.id,'small danger'):'')+
    (!rootLensList&&p.status==='suspended'&&a.role==='root'?b('Reactivate','person-reactivate',p.id,'small'):'')+
    '</div></td></tr>').join('')+'</tbody></table></div>':empty('No accounts found.')))+
    '';
   if(a.role==='root'&&state.opened?.startsWith('DMTO:'))html=directCompose(state.opened.slice(5),people);
+  if(state.opened?.startsWith('PERSON:')){
+   const selected=d.people.find(p=>p.id===state.opened.slice(7));
+   if(selected)html+=await peopleManagementDetail(selected,a,d.people);
+  }
  }else if(tab==='support'){
   const d=await api('/support');
   if(state.opened)html=supportDetail(d.tickets.find(t=>t.id===state.opened));
@@ -658,6 +666,35 @@ async function telegramDetail(accountId){
     '<label class="field full"><span><input type="checkbox" name="privacyConfirmed" required> I confirm this reply contains no confidential case, identity, payment or document information.</span></label>',
     'Queue Telegram reply'):
    '<p>This Telegram chat is no longer linked. Previous correspondence is retained for authorized review only.</p>'))+'</div>';
+}
+async function peopleManagementDetail(p,a,people){
+ const r=await api('/administration/people/'+encodeURIComponent(p.id)+'/history');
+ const note='<p>Historical company records are preserved. No employee can view or set account passwords, and Nyoro cannot be deleted.</p>';
+ const id='<input type="hidden" name="personId" value="'+e(p.id)+'">';
+ const reason=textarea('Written governance reason','reason','Explain the business need and approved authority');
+ const isManagedStaff=p.role==='staff'&&(a.role==='root'||a.role==='manager'&&p.managerId===a.id);
+ const reviewer=canApprove(a,p);
+ const managerChoices=people.filter(x=>x.role==='manager'&&x.department===p.department&&
+  x.status==='active'&&x.verified&&x.id!==p.managerId).map(x=>[x.id,x.name||x.email]);
+ const history=r.history.length?'<div class="small-list">'+r.history.map(h=>
+  record(h.action.replaceAll('_',' '),h.actorRole+' · '+date(h.at),h.id,'recorded')).join('')+
+  '</div>':empty('No recorded governance actions for this account yet.');
+ return panel('Manage IPS person · '+(p.username||p.name||p.id),
+  e(p.role)+' · '+e(p.status)+' · '+e(p.department||'Academic account'),
+  '<div class="case-actions">'+b('← Back to directory','close-case')+'</div>'+note+
+  form('person-session-revoke',id+reason,'Revoke all sessions')+
+  (reviewer?form('specialist-review',id+
+   options('Application decision','decision',[['approve_specialist','Approve after credential review'],['reject_specialist','Reject with written explanation']])+
+   textarea('Credential evidence and decision explanation','reviewNote',
+    'Record the actual credential checks, academic experience and reason for approval or refusal')+
+   '<label class="field full"><span><input type="checkbox" name="credentialEvidenceReviewed"> I personally verified professional credential evidence (mandatory for approval).</span></label>',
+   'Record Specialist review'):'')+
+  (isManagedStaff?form('people-offboard',id+reason,
+    'Offboard employee without deleting records'):'')+
+  (a.role==='root'&&p.role==='staff'&&managerChoices.length?
+   form('people-reassign',id+options('New departmental manager','managerId',managerChoices)+reason,
+    'Reassign employee'):'')+
+  panel('Recorded account management history','Actions are attributed to authorized IPS personnel.',history));
 }
 function canRecover(a,p){return p.verified&&p.status==='active'&&
  (a.role==='root'||(a.role==='manager'&&p.role==='staff'&&p.managerId===a.id)||
@@ -1095,6 +1132,30 @@ async function submit(name,formNode){
  }
  if(name==='claim-quote'){await api('/academic/quotes/claim',{method:'POST',body:data});return 'Your previously verified guest academic enquiry is now attached to your account.'}
  if(name==='staff-invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
+ if(name==='person-session-revoke'){
+  await api('/administration/people/'+encodeURIComponent(data.personId)+'/revoke-sessions',
+   {method:'POST',body:{reason:data.reason}});
+  return 'Account sessions revoked. The account owner must sign in again.';
+ }
+ if(name==='people-offboard'){
+  await api('/administration/people/'+encodeURIComponent(data.personId)+'/offboard',
+   {method:'POST',body:{reason:data.reason}});
+  state.opened='';
+  return 'The employee was offboarded. Prior work, records and audit trails remain preserved.';
+ }
+ if(name==='people-reassign'){
+  await api('/administration/people/'+encodeURIComponent(data.personId)+'/reassign-manager',
+   {method:'POST',body:{managerId:data.managerId,reason:data.reason}});
+  state.opened='';
+  return 'The staff reporting manager was changed with old sessions revoked.';
+ }
+ if(name==='specialist-review'){
+  await api('/administration/people/'+encodeURIComponent(data.personId)+'/decision',
+   {method:'POST',body:{decision:data.decision,reviewNote:data.reviewNote,
+    credentialEvidenceReviewed:!!formNode.querySelector('[name=credentialEvidenceReviewed]:checked')}});
+  state.opened='';
+  return 'The recorded Specialist Network decision was queued for written delivery.';
+ }
  if(name==='quote-resubmit'){
   await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/resubmit',
    {method:'POST',body:{clarification:data.clarification,requirements:data.requirements}});
@@ -1249,9 +1310,13 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
     {method:'POST',operator:state.account?.role==='root',body:{}});
    state.message='You are now accountable for this academic enquiry.';
   }
-  else if(['person-recover','person-approve','person-suspend','person-reactivate'].includes(act)){
+  else if(act==='person-manage'){
+   state.opened='PERSON:'+id;
+   state.message='';
+  }
+  else if(['person-recover','person-suspend','person-reactivate'].includes(act)){
    if(act==='person-recover'){await api('/administration/people/'+encodeURIComponent(id)+'/send-recovery',{method:'POST'});state.message='IPS emailed a secure recovery link to the account owner.'}
-   else{const decision=act==='person-approve'?'approve_specialist':act==='person-reactivate'?'reactivate':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
+   else{const decision=act==='person-reactivate'?'reactivate':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
   }
   else if(act==='support-close'){await api('/support/'+encodeURIComponent(id)+'/resolve',{method:'POST'});state.message='Written support case resolved.'}
   else if(act==='notification-read'){await api('/notifications/'+encodeURIComponent(id)+'/read',{method:'POST'});state.message='Notification marked read.'}
