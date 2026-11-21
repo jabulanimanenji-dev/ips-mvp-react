@@ -264,6 +264,31 @@ try{
   assert.equal(view.data.messages.length,2);
   await call('/academic/quotes/'+q.id+'/messages',{cookie:otherCookie},403);
  });
+ await assertCheck('Student and Root upload and download genuine academic enquiry attachments before paid commissioning',async()=>{
+  const q=await db.collection('academic_quotations').findOne({studentId:{$exists:true},status:{$in:['received','scoped','offered']}});
+  assert.ok(q?.id,'A pre-commission academic enquiry must exist');
+  const source=Buffer.from('Student-owned nursing research guidance and approved supervisor comments for academic scope review.');
+  const shared=await call('/academic/quotes/'+q.id+'/files',withAuth(studentCookie,{
+   filename:'research-brief.txt',mime:'text/plain',data:source.toString('base64')}),201);
+  assert.equal(shared.data.file.audience,'student');
+  const quoteFiles=await call('/academic/quotes/'+q.id+'/files',{cookie:studentCookie});
+  assert.ok(quoteFiles.data.files.some(f=>f.id===shared.data.file.id));
+  const raw=await fetch(url+'/api/academic/quote-files/'+shared.data.file.id,{headers:{Cookie:studentCookie}});
+  assert.equal(raw.status,200);
+  assert.equal(Buffer.from(await raw.arrayBuffer()).toString(),source.toString());
+  const internal=await call('/academic/quotes/'+q.id+'/files',withAuth(rootCookie,{
+   filename:'internal-review.txt',mime:'text/plain',
+   data:Buffer.from('Internal IPS pre-commission academic integrity review notes.').toString('base64'),
+   audience:'internal'}),201);
+  assert.equal(internal.data.file.audience,'internal');
+  const studentView=await call('/academic/quotes/'+q.id+'/files',{cookie:studentCookie});
+  assert.ok(!studentView.data.files.some(f=>f.id===internal.data.file.id));
+  const staffView=await call('/academic/quotes/'+q.id+'/files',{cookie:rootCookie});
+  assert.ok(staffView.data.files.some(f=>f.id===internal.data.file.id));
+  await call('/academic/quote-files/'+internal.data.file.id,{cookie:studentCookie},403);
+  await call('/academic/quotes/'+q.id+'/files',{cookie:otherCookie},403);
+  assert.ok(await db.collection('academic_audit_events').findOne({action:'academic_enquiry_document_uploaded',ref:q.id}));
+ });
  await assertCheck('Root sends any verified Student a direct message and a private downloadable document; Student replies',async()=>{
   const student=await db.collection('academic_accounts').findOne({email:studentMail});
   const msg=await call('/operations/direct-message',withAuth(rootCookie,{recipientId:student.id,
