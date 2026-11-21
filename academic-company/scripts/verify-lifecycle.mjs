@@ -102,6 +102,48 @@ try{
   staffCookie=(await call('/auth/invitation/accept',{method:'POST',body:{email:staffMail,token:st,password:'StaffAcademic2026!',confirmPassword:'StaffAcademic2026!'}})).cookie;
   await call('/administration/invite',withAuth(staffCookie,{name:'Unauthorized Manager',email:emailFor('unauthorized'),department:'governance'}),403);
  });
+ await assertCheck('Client Relations staff claims an unowned enquiry and managers perform audited handoff',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes/'+q.id+'/claim',withAuth(studentCookie,{}),403);
+  await call('/academic/quotes/'+q.id+'/claim',withAuth(specialistCookie,{}),403);
+  const claimed=await call('/academic/quotes/'+q.id+'/claim',withAuth(staffCookie,{}));
+  const staff=await db.collection('academic_accounts').findOne({email:staffMail});
+  const manager=await db.collection('academic_accounts').findOne({email:managerMail});
+  assert.equal(claimed.data.quote.assignedTo,staff.id);
+  await call('/academic/quotes/'+q.id+'/claim',withAuth(managerCookie,{}),409);
+  await call('/academic/quotes/'+q.id+'/messages',{cookie:staffCookie});
+  await call('/academic/quotes/'+q.id+'/assign',withAuth(staffCookie,{
+   assigneeId:manager.id,reason:'This enquiry requires Client Relations oversight.'}),403);
+  const assigned=await call('/academic/quotes/'+q.id+'/assign',withAuth(managerCookie,{
+   assigneeId:manager.id,reason:'Manager takes responsibility for revised academic scope.'}));
+  assert.equal(assigned.data.quote.assignedTo,manager.id);
+  await call('/academic/quotes/'+q.id+'/messages',{cookie:staffCookie},403);
+  await call('/academic/quotes/'+q.id+'/files',{cookie:staffCookie},403);
+  assert.ok(!(await call('/academic/quotes',{cookie:staffCookie})).data.quotes.some(x=>x.id===q.id));
+  const student=await call('/academic/quotes',{cookie:studentCookie});
+  const studentQuote=student.data.quotes.find(x=>x.id===q.id);
+  assert.ok(studentQuote);
+  assert.equal(Object.hasOwn(studentQuote,'ownershipHistory'),false);
+  assert.equal(Object.hasOwn(studentQuote,'assignedBy'),false);
+  await call('/academic/quotes/'+q.id+'/ownership',{cookie:studentCookie},403);
+  const history=await call('/academic/quotes/'+q.id+'/ownership',{cookie:managerCookie});
+  assert.equal(history.data.history.length,2);
+  assert.equal(history.data.history[1].from,staff.id);
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'academic_enquiry_reassigned',ref:q.id}));
+ });
+ await assertCheck('Competing enquiry claims cannot silently assign two different employees',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  const outcomes=await Promise.all([
+   request('/academic/quotes/'+q.id+'/claim',withAuth(rootCookie,{})),
+   request('/academic/quotes/'+q.id+'/claim',withAuth(staffCookie,{}))
+  ]);
+  assert.deepEqual(outcomes.map(x=>x.status).sort((a,b)=>a-b),[200,409]);
+  const saved=await db.collection('academic_quotations').findOne({id:q.id});
+  assert.equal(saved.ownershipHistory.length,1);
+  assert.ok([vars.ROOT_EMAIL,(await db.collection('academic_accounts').findOne({email:staffMail})).id]
+   .includes(saved.assignedTo));
+ });
  await assertCheck('Guest sends real subject-specific academic quote without supplying legal name',async()=>{
   const guestEmail=studentMail;
   const q=await call('/academic/guest-quote',{method:'POST',body:{...brief('literature-reviews'),
