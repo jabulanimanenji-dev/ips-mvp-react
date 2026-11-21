@@ -163,6 +163,16 @@ function rootForbidden(){
  panel('Protected company workspace','Sign out of this account and authenticate as Nyoro to access the Root command centre.',
  '<div class="action-row">'+b('Sign out','logout','','primary')+'</div>')+'</main>');
 }
+function specialistAgreementFields(){
+ const agreement=state.catalogue?.specialistAgreement;
+ if(!agreement)return '<div class="notice error">The Specialist agreement is temporarily unavailable.</div>';
+ return '<details class="agreement-box field full" open><summary>'+e(agreement.title)+
+  ' · '+e(agreement.version)+'</summary><div class="agreement-copy">'+e(agreement.text)+'</div></details>'+
+  '<input type="hidden" name="specialistAgreementVersion" value="'+e(agreement.version)+'">'+
+  field('Type your full professional name to sign','specialistSignature','text','Exactly as registered')+
+  '<label class="field full"><span><input type="checkbox" name="specialistAgreementAccepted" required> '+
+  'I have read and accept the current IPS Specialist Confidentiality and Service Agreement.</span></label>';
+}
 function register(role='student'){
  state.page='register';state.service='';state.account=null;state.registerRole=role;
  const specialist=role==='specialist';
@@ -175,6 +185,7 @@ function register(role='student'){
  field('Professional experience','experience','text','Relevant research or editing experience',false)+
  '<label class="field full">Academic services you can professionally provide'+
  '<select name="expertise" multiple size="8">'+selectService().map(x=>'<option value="'+e(x[0])+'">'+e(x[1])+'</option>').join('')+'</select><small>Hold Ctrl to select multiple academic specialisms.</small></label>':'')+
+ (specialist?specialistAgreementFields():'')+
  privacyCheck;
  auth(specialist?'Join our academic specialist network':'Get started with IPS',
  specialist?'Qualified Specialists use their real names and must pass review before assignment.':
@@ -389,6 +400,12 @@ async function loadTab(){
      field('Telegram username (optional)','telegram','text','@username',false),'Save changes')+
    '<div class="case-actions">'+buttonRoute('Email me a password reset link','recover')+'</div>'));
   if(a.role==='specialist'&&!rootAssisted){
+   const agreement=state.catalogue.specialistAgreement;
+   html+=panel('Specialist confidentiality agreement',
+    'Your service obligations are retained with their exact signed version.',
+    a.specialistAgreementVersion===agreement.version?
+     '<p>Current agreement accepted: <strong>'+e(agreement.version)+'</strong></p>':
+     form('specialist-agreement',specialistAgreementFields(),'Accept current agreement'));
    const availability=await api('/specialist/availability');
    html+=panel('Availability & assignments',
     'Keep your capacity accurate so IPS can offer assignments you can deliver responsibly.',
@@ -730,7 +747,7 @@ async function filePayload(formNode){
 }
 async function submit(name,formNode){
  const data={};new FormData(formNode).forEach((v,k)=>{if(k==='expertise'){if(!data.expertise)data.expertise=[];data.expertise.push(v)}else if(v instanceof File)data[k]=v;else data[k]=v});
- for(const c of ['privacyConsent','integrityAcknowledged'])if(formNode.querySelector('[name="'+c+'"]'))data[c]=!!formNode.querySelector('[name="'+c+'"]').checked;
+ for(const c of ['privacyConsent','integrityAcknowledged','specialistAgreementAccepted'])if(formNode.querySelector('[name="'+c+'"]'))data[c]=!!formNode.querySelector('[name="'+c+'"]').checked;
  const id=formNode.dataset.id||data.commissionId||'';
  if(name==='login'){const r=await api('/auth/login',{method:'POST',body:data});if(state.rootEntry&&r.account.role!=='root'){await api('/auth/logout',{method:'POST'});throw Error('This address is restricted to Nyoro Root Administration. Use the standard IPS login for other accounts.')}state.account=r.account;state.rootLens=null;state.firstLogin=!!r.account.firstLogin;state.page='workspace';state.tab='overview';state.opened='';return 'Signed in securely.'}
  if(name==='register'){
@@ -842,6 +859,11 @@ async function submit(name,formNode){
  if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Message sent and attached to this academic job.'}
  if(name==='support'){await api('/support',{method:'POST',body:data});return 'Your written academic support case is in the IPS Client Relations queue.'}
  if(name==='support-reply'){await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',{method:'POST',body:{message:data.message}});return 'Private support response recorded.'}
+ if(name==='specialist-agreement'){
+  const r=await api('/specialist/agreement/accept',{method:'POST',body:data});
+  state.account.specialistAgreementVersion=r.agreementVersion;
+  return 'Your signed confidentiality agreement is recorded in your Specialist workspace.';
+ }
  if(name==='specialist-availability'){
   await api('/specialist/availability',{method:'PATCH',body:data});
   return 'Your availability and assignment capacity are saved for IPS Academic Delivery.';
