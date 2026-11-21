@@ -78,7 +78,7 @@ try{
   await terms.waitFor();
   assert.ok((await terms.innerText()).includes('ACADEMIC SERVICES'));
   assert.ok((await terms.innerText()).includes('academic integrity'));
-  await publicPage.locator('input[name=specialistAgreementVersion]').waitFor();
+  await publicPage.locator('input[name=specialistAgreementVersion]').waitFor({state:'attached'});
   await publicPage.locator('input[name=specialistSignature]').waitFor();
   assert.equal(await publicPage.locator('input[name=specialistAgreementAccepted]').count(),1);
   await overflow(publicPage);
