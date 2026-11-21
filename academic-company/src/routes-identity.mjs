@@ -12,7 +12,7 @@ export function registerIdentityRoutes(ctx){
   return root&&checkPassword(String(p||''),root.passwordHash)?root:null;
  };
  const readonlyUser=a=>publicDocument(publicAccount(a));
- const normalizeName=x=>String(x||'').trim().replace(/\\s+/g,' ').toLocaleLowerCase('en');
+ const normalizeName=x=>String(x||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('en');
  const signedAgreement=(name,body)=>body?.specialistAgreementAccepted===true&&
   body?.specialistAgreementVersion===SPECIALIST_AGREEMENT.version&&
   normalizeName(body?.specialistSignature)===normalizeName(name);
