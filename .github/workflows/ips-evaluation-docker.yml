@@ -92,6 +92,23 @@ jobs:
           assert.equal(page.status,200);
           console.log('PASS Five actual IPS role types, seven departments, synthetic projects, payment isolation and private notifications');
           JS
+      - name: Require real six-role HTTP runtime witness from the isolated backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 45); do
+            if docker logs ips-evaluation-ci 2>&1 | grep -q 'IPS_EVAL_RUNTIME_6_ROLES_GREEN'; then
+              echo 'PASS Root, manager, staff, client, specialist and finance were authenticated by the running server'
+              exit 0
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' ips-evaluation-ci 2>/dev/null)" != "true" ]; then
+              echo 'Isolated evaluation server stopped before completing the real HTTP witness'
+              exit 1
+            fi
+            sleep 1
+          done
+          echo 'Isolated real HTTP witness did not complete'
+          exit 1
       - name: Show only sanitized startup evidence when isolated sandbox fails
         if: failure()
         run: |
