@@ -2,6 +2,7 @@
 // Sandbox only; never authenticates real students, pays anyone or contacts a real provider.
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
+import {SPECIALIST_AGREEMENT} from '../src/specialist-agreement.mjs';
 const env=process.env;
 if(env.NODE_ENV!=='test'||env.IPS_ACADEMIC_MODE!=='evaluation'||env.IPS_ACADEMIC_TEST_SETTLEMENT==='true')
  throw Error('Synthetic academic seed refuses non-isolated or payment-test runtime.');
@@ -26,6 +27,12 @@ try{
   name:role==='specialist'?'Evaluation Academic Research Editor':role==='manager'?'Evaluation Client Relations Manager':role==='staff'?'Evaluation Student Services Associate':'',
   verified:true,approved:role==='specialist',status:'active',sessionVersion:1,
   expertise:role==='specialist'?['thesis-dissertation','academic-editing','research-methods','references-formatting']:[],
+  ...(role==='specialist'?{
+    specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
+    specialistAgreementSha256:SPECIALIST_AGREEMENT.sha256,
+    specialistAgreementSignature:'Evaluation Academic Research Editor',
+    specialistAgreementAcceptedAt:now
+  }:{}),
   ...(role==='specialist'?{availabilityStatus:'available',maxConcurrentCases:3,
     activeAssignments:1,turnaroundDays:7}:{}),
   department:role==='manager'||role==='staff'?'client_relations':'',
