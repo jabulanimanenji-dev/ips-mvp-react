@@ -517,13 +517,19 @@ async function quoteDetail(q,a){
   if(authorizedIntake){
    const people=(await api('/administration/people',{operator:true})).people.filter(p=>
     ['manager','staff'].includes(p.role)&&p.department==='client_relations'&&p.status==='active');
-   ownershipPanel=panel('Academic enquiry ownership','Every request has a responsible Client Relations employee. Reassignment is audited.',
+   const history=await api('/academic/quotes/'+encodeURIComponent(q.id)+'/ownership',{operator:true});
+   const trail=history.history.length?
+    '<div class="small-list">'+history.history.slice(-5).reverse().map(h=>
+     '<p><strong>'+e(h.action)+' → '+e(h.to)+'</strong><small> · '+date(h.at)+
+      '</small>'+(h.reason?'<span>'+e(h.reason)+'</span>':'')+'</p>').join('')+'</div>':'';
+   ownershipPanel=panel('Academic enquiry ownership','Each request has an accountable Client Relations employee. Staff handoffs are audited and private.',
     current+(claimable?b('Claim this enquiry','quote-claim',q.id,'small'):'')+
-    (people.length?form('quote-assign',
-     '<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
-     options('Assign to Client Relations','assigneeId',people.map(p=>[p.id,p.name||p.email]))+
-     textarea('Reason for assignment or handoff','reason','Document who is responsible and why'),
-     'Assign accountable employee'):empty('Invite a verified Client Relations employee before allocating this enquiry.')));
+    (['received','clarify','scoped','offered','offer_delivery_failed'].includes(q.status)&&people.length?
+     form('quote-assign',
+      '<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
+      options('Assign to Client Relations','assigneeId',people.map(p=>[p.id,p.name||p.email]))+
+      textarea('Reason for assignment or handoff','reason','Document the accountable employee and reason'),
+      'Assign accountable employee'):'')+trail);
   }else ownershipPanel=panel('Academic enquiry ownership','',current+
     (claimable?b('Claim this enquiry','quote-claim',q.id,'small primary'):''));
  }
