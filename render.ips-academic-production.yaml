@@ -1,0 +1,44 @@
+# PROPOSED ONLY. Do not activate until source-bound production admission and owner cutover.
+# Do not point IPS's current domain here or enable automated deployment yet.
+services:
+  - type: web
+    name: ips-academic-services-production
+    runtime: docker
+    repo: https://github.com/jabulanimanenji-dev/ips-mvp-react
+    branch: company/ips-academic-services-2026
+    dockerfilePath: ./Dockerfile.ips-academic-production
+    autoDeploy: false
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: IPS_ACADEMIC_MODE
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: ROOT_EMAIL
+        sync: false
+      - key: ROOT_PASSWORD
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FROM_EMAIL
+        sync: false
+      - key: RESEND_WEBHOOK_SECRET
+        sync: false
+      - key: IPS_TELEGRAM_BOT_USERNAME
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: IPS_TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: IPS_CLAMAV_HOST
+        sync: false
+      - key: IPS_CLAMAV_PORT
+        sync: false
