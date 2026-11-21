@@ -614,6 +614,73 @@ try{
   assert.ok(await db.collection('academic_audit_events').findOne({action:'root_academic_job_takeover',ref:job.id}));
   assert.ok(await db.collection('academic_audit_events').findOne({action:'root_private_external_fulfilment_recorded',ref:job.id}));
  });
+ await assertCheck('Nyoro authorizes private supplier safeguards and alone accesses the checksummed vault',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Only legitimate student-authored editorial assistance is permitted.'}));
+  await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
+   priceMinor:29000,deliverables:'Independent professional written commentary on author-owned academic material.',
+   terms:'Academic integrity, confidential document handling and an accountable Root review are mandatory.'}));
+  const accepted=await call('/academic/quotes/'+q.id+'/decision',withAuth(studentCookie,{decision:'accept'}));
+  const jobId=accepted.data.commission.id;
+  await call('/evaluation/confirm-synthetic-payment/'+jobId,withAuth(rootCookie,{}));
+  await call('/operations/'+jobId+'/takeover',withAuth(rootCookie,{
+   reason:'Root must coordinate a permitted private academic editorial consultation.'}));
+  await call('/operations/'+jobId+'/outsourcing',withAuth(rootCookie,{
+   provider:'Private Research Editorial Supplier 2026 - Root eyes only',
+   instructions:'Provide lawful source verification and editorial feedback; never invent research or author contributions.'}));
+  const returned=Buffer.from('Independent editorial check: adjust the citation format and explain the factual limitations in student-authored nursing research.');
+  const supplier={filename:'private-supplier-return.txt',mime:'text/plain',
+   data:returned.toString('base64'),kind:'supplier_return'};
+  await call('/operations/'+jobId+'/external-files',withAuth(rootCookie,supplier),409);
+  await call('/operations/'+jobId+'/outsourcing/authorize',withAuth(rootCookie,{
+   agreementReference:'Signed confidential NDA dated 2026-11-21, synthetic evaluation only',
+   clientDisclosureReference:'Documented fictional student privacy and permitted subcontracting policy',
+   confidentialityChecked:true,academicIntegrityChecked:true,minimumNecessaryDataOnly:true}));
+  await call('/operations/'+jobId+'/outsourcing/authorize',withAuth(studentCookie,{
+   agreementReference:'Not authorized',clientDisclosureReference:'Not authorized',
+   confidentialityChecked:true,academicIntegrityChecked:true,minimumNecessaryDataOnly:true}),403);
+  const saved=await call('/operations/'+jobId+'/external-files',withAuth(rootCookie,supplier),201);
+  const file=saved.data.file;
+  assert.equal(file.sha256,crypto.createHash('sha256').update(returned).digest('hex'));
+  await call('/operations/'+jobId+'/external-files',{cookie:studentCookie},403);
+  await call('/operations/'+jobId+'/external-files',{cookie:managerCookie},403);
+  await call('/operations/external-files/'+file.id,{cookie:studentCookie},403);
+  const download=await fetch(url+'/api/operations/external-files/'+file.id,{headers:{Cookie:rootCookie}});
+  assert.equal(download.status,200);
+  assert.equal(Buffer.from(await download.arrayBuffer()).toString(),returned.toString());
+  assert.equal(download.headers.get('x-content-sha256'),file.sha256);
+  const publicCase=await call('/academic/commissions/'+jobId,{cookie:studentCookie});
+  assert.ok(!JSON.stringify(publicCase.data).includes('Private Research Editorial Supplier'));
+  const normalFiles=await call('/operations/'+jobId+'/files',{cookie:studentCookie});
+  assert.ok(!normalFiles.data.files.some(f=>f.id===file.id));
+  const rootOnly=await call('/operations/'+jobId+'/external-files',{cookie:rootCookie});
+  assert.equal(rootOnly.data.files.length,1);
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'root_private_supplier_file_downloaded',ref:jobId}));
+  const qa=await call('/operations/'+jobId+'/external-files/'+file.id+'/submit-qa',
+   withAuth(rootCookie,{}));
+  assert.equal(qa.data.releaseMode,'root_supervised_exception');
+  assert.equal(qa.data.sha256,file.sha256);
+  await call('/operations/'+jobId+'/external-files/'+file.id+'/submit-qa',
+   withAuth(rootCookie,{}),409);
+  const caseAfter=await db.collection('academic_commissions').findOne({id:jobId});
+  assert.equal(caseAfter.status,'qa_pending');
+  assert.equal(caseAfter.qaMode,'root_supervised_exception');
+  const pending=await call('/operations/'+jobId+'/files',{cookie:studentCookie});
+  assert.ok(!pending.data.files.some(f=>f.id===qa.data.fileId));
+  const qaDone=await call('/academic/commissions/'+jobId+'/quality',withAuth(rootCookie,{
+   decision:'approve',note:'Root-supervised exceptional QA confirms the sourced editing is lawful and accurately attributed.'}));
+  assert.equal(qaDone.data.commission.qaMode,'root_supervised_exception');
+  const accessible=await call('/operations/'+jobId+'/files',{cookie:studentCookie});
+  assert.ok(accessible.data.files.some(f=>f.id===qa.data.fileId));
+  assert.ok(!JSON.stringify(accessible.data).includes('Private Research Editorial Supplier'));
+  const rootProof=await db.collection('academic_root_external_files').findOne({id:file.id});
+  assert.equal(rootProof.status,'sent_to_qa');
+  assert.equal(rootProof.qaFileId,qa.data.fileId);
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'root_supplier_return_accepted_for_qa',ref:jobId}));
+ });
  await assertCheck('Verified pending Specialist recovers immediately without manager or Root action',async()=>{
   const pendingEmail=emailFor('pending-specialist');
   await call('/auth/register',{method:'POST',body:{role:'specialist',email:pendingEmail,

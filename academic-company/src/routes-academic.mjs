@@ -99,7 +99,7 @@ export function registerAcademicRoutes(ctx){
  }));
  app.post('/api/academic/quotes',wrap(async(req,res)=>{
   if(!authorize(req,res,['student']))return;
-  if(throttle.limited(req,'student-academic-quotes',12))return res.status(429).json({error:'Please wait before sending another quotation.'});
+  if(throttle.limited(req,'student-academic-quotes',config.sandbox?60:12))return res.status(429).json({error:'Please wait before sending another quotation.'});
   const valid=validateBrief(req.body);if(valid.error)return res.status(400).json({error:valid.error});
   const input={...req.body,username:req.actor.username,email:req.actor.email};
   const channel=String(input.contactChannel||'workspace');

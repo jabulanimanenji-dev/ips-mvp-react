@@ -624,17 +624,50 @@ async function commissionDetail(p,a){
    ((manager||assisted)?options('Send to','audience',
       [['student','Student / Researcher'],['specialist','Assigned Specialist'],['shared','Both']]):'')+
    textarea('Message','body','Write a message about this job'),'Send message');
- if(isRoot){
+ if(isRoot&&!state.rootLens){
   const takeover=['ready_for_assignment','specialist_assigned','root_in_progress','correction_requested','student_revision_requested'].includes(p.status);
   if(takeover)actions+=panel('Root takeover','Manage the assignment directly if no Specialist is available.',
    form('root-takeover','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
      textarea('Reason','reason','Why is Root taking responsibility?'),'Take responsibility'));
-  if(p.status==='root_in_progress')
-   actions+=panel('Private outsourcing','Nyoro-only sourcing details. Other IPS accounts cannot view the provider information.',
+  if(p.status==='root_in_progress'){
+   const [sourceData,supplierDocs]=await Promise.all([
+    api('/operations/'+encodeURIComponent(p.id)+'/outsourcing',{operator:true}),
+    api('/operations/'+encodeURIComponent(p.id)+'/external-files',{operator:true})]);
+   const arrangement=sourceData.privateFulfilment;
+   const authorized=arrangement?.activationStatus==='authorized';
+   const files=supplierDocs.files||[];
+   const fileRows=files.length?'<div class="file-tray">'+files.map(f=>
+    '<article class="file-item"><div><strong>'+e(f.filename)+'</strong>'+
+     '<small>'+e(f.kind.replaceAll('_',' '))+' · SHA-256 '+e(f.sha256.slice(0,14))+
+     ' · '+date(f.createdAt)+'</small></div>'+
+     '<div class="case-actions"><a href="/api/operations/external-files/'+encodeURIComponent(f.id)+
+     '" download>Download privately ↓</a>'+
+     (f.kind==='supplier_return'&&f.status==='private'&&authorized?
+      b('Submit for QA','external-qa',p.id+'::'+f.id,'small'):'')+'</div></article>').join('')+
+    '</div>':empty('No supplier files stored in the Root-only vault yet.');
+   actions+=panel('Private external sourcing & document vault',
+    'Only Nyoro can inspect supplier identities, contracts, instructions and returned work. IPS must approve confidentiality and academic-integrity safeguards before any supplier return is accepted.',
+    '<p><strong>Arrangement:</strong> '+e(arrangement?.providerReference||'Not yet registered')+
+    ' · '+e(authorized?'Authorized and recorded':'Not yet authorized')+'</p>'+
     form('root-outsourcing','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
-     field('External provider reference','provider','text','Private name or reference')+
-     textarea('Private brief','instructions','Outsourced work scope and instructions'),
-     'Record private outsourcing'));
+      field('External provider reference','provider','text','Private name or reference')+
+      textarea('Private brief','instructions','Instructions and minimum necessary academic scope'),
+      'Record or update private sourcing')+
+    (arrangement?.mode==='private_external'&&!authorized?
+     form('root-outsourcing-authorize','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+      field('Signed NDA / contract reference','agreementReference','text','Identifiable executed agreement')+
+      field('Permitted client disclosure / consent reference','clientDisclosureReference','text','Relevant terms or authorization')+
+      '<label class="check"><input type="checkbox" name="confidentialityChecked" required> Confidentiality obligations verified</label>'+
+      '<label class="check"><input type="checkbox" name="academicIntegrityChecked" required> Permitted academic assistance independently reviewed</label>'+
+      '<label class="check"><input type="checkbox" name="minimumNecessaryDataOnly" required> Supplier receives only minimum necessary personal data</label>',
+      'Authorize private sourcing'):'')+
+    (arrangement?.mode==='private_external'?
+      form('root-external-file','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+       options('Document type','kind',[['agreement','NDA or contract'],['instructions','Private work instructions'],
+        ['supplier_return','Supplier returned work for QA'],['qa_reference','Private QA reference']])+
+       field('Upload Root-only document (up to 5 MB)','upload','file','','true'),
+       'Store in private vault'):'')+files);
+  }
  }
  const overview='<div class="case-summary"><span class="kicker">ACADEMIC JOB / '+e(p.id)+'</span>'+
   '<h3>'+e(p.subject)+'</h3><p>'+e(p.requirements)+'</p>'+
@@ -737,6 +770,22 @@ async function submit(name,formNode){
   await api('/operations/'+encodeURIComponent(data.commissionId)+'/outsourcing',
    {method:'POST',operator:true,body:{provider:data.provider,instructions:data.instructions}});
   return 'Root-only external sourcing saved. IPS remains responsible for academic QA and client delivery.';
+ }
+ if(name==='root-outsourcing-authorize'){
+  await api('/operations/'+encodeURIComponent(data.commissionId)+'/outsourcing/authorize',
+   {method:'POST',operator:true,body:{
+    agreementReference:data.agreementReference,
+    clientDisclosureReference:data.clientDisclosureReference,
+    confidentialityChecked:!!formNode.querySelector('[name=confidentialityChecked]:checked'),
+    academicIntegrityChecked:!!formNode.querySelector('[name=academicIntegrityChecked]:checked'),
+    minimumNecessaryDataOnly:!!formNode.querySelector('[name=minimumNecessaryDataOnly]:checked')}});
+  return 'Root recorded confidentiality, academic-integrity and permission authorization for this supplier.';
+ }
+ if(name==='root-external-file'){
+  const payload=await filePayload(formNode);
+  await api('/operations/'+encodeURIComponent(data.commissionId)+'/external-files',
+   {method:'POST',operator:true,body:{...payload,kind:data.kind}});
+  return 'Supplier document saved into Nyoro’s separate, auditable private vault.';
  }
  if(name==='direct-message'){
   await api('/operations/direct-message',{method:'POST',operator:true,body:data});
@@ -867,6 +916,13 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
    const decision=act==='quote-accept'?'accept':'decline';
    const r=await api('/academic/quotes/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});
    state.message=decision==='accept'?'Your quotation is accepted. IPS will tell you when verified payment commissioning becomes available.':'Your quotation has been declined.';}
+  else if(act==='external-qa'){
+   const [commissionId,fileId]=id.split('::');
+   if(!commissionId||!fileId)throw Error('Select a valid Root-only supplier file.');
+   await api('/operations/'+encodeURIComponent(commissionId)+'/external-files/'+
+    encodeURIComponent(fileId)+'/submit-qa',{method:'POST',operator:true});
+   state.message='Private supplier return submitted to IPS quality assurance with a recorded checksum.';
+  }
   else if(act==='quote-claim'){
    await api('/academic/quotes/'+encodeURIComponent(id)+'/claim',
     {method:'POST',operator:state.account?.role==='root',body:{}});

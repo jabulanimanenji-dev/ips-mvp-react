@@ -58,6 +58,26 @@ try{
  assert.equal(rootVendor.status,200);assert.equal(rootVendor.json.privateFulfilment.providerReference,privateVendor.providerReference);
  const unauthorized=await request('/operations/'+privateVendor.commissionId+'/outsourcing',{cookie:studentCookie});
  assert.equal(unauthorized.status,403,'Private external provider must not be exposed after restoration');
+ const vendorReturn=await db.collection('academic_root_external_files').findOne({kind:'supplier_return'});
+ assert.ok(vendorReturn?.sha256,'Root-only supplier returns absent from independent database restore');
+ const vault=await request('/operations/'+vendorReturn.commissionId+'/external-files',{cookie:rootCookie});
+ assert.equal(vault.status,200);
+ assert.ok(vault.json.files.some(x=>x.id===vendorReturn.id));
+ const vaultDenied=await request('/operations/'+vendorReturn.commissionId+'/external-files',{cookie:studentCookie});
+ assert.equal(vaultDenied.status,403,'No Student may list supplier file metadata after restore');
+ const rawSupplier=await fetch(base+'/api/operations/external-files/'+vendorReturn.id,
+  {headers:{Cookie:rootCookie}});
+ assert.equal(rawSupplier.status,200);
+ const restoredSupplierDigest=crypto.createHash('sha256')
+  .update(Buffer.from(await rawSupplier.arrayBuffer())).digest('hex');
+ assert.equal(restoredSupplierDigest,vendorReturn.sha256);
+ const supplierDenied=await request('/operations/external-files/'+vendorReturn.id,{cookie:studentCookie});
+ assert.equal(supplierDenied.status,403,'Private supplier document bytes must remain inaccessible');
+ const qaCopy=await db.collection('academic_private_files').findOne({
+  privateExternalSourceId:vendorReturn.id});
+ assert.ok(qaCopy?.sha256);
+ assert.equal(qaCopy.sha256,vendorReturn.sha256,
+  'Approved academic delivery must preserve original Root supplier file checksum');
  const directRecord=await db.collection('academic_direct_files').findOne({toId:student.id});
  assert.ok(directRecord?.sha256,'Root-shared private academic file missing after restoration');
  const directRes=await fetch(base+'/api/operations/direct-file/'+directRecord.id,{headers:{Cookie:studentCookie}});
@@ -68,6 +88,6 @@ try{
  const index=await db.collection('academic_accounts').indexes();assert.ok(index.some(i=>i.name==='email_1'));
  const outsider=await request('/academic/commissions/'+project.id);
  assert.equal(outsider.status,403);
- console.log('IPS_ACADEMIC_INDEPENDENT_RESTORE_GREEN restored client, specialist and Root sessions, real academic deliverable SHA-256, indices, audit and boundaries');
+ console.log('IPS_ACADEMIC_INDEPENDENT_RESTORE_GREEN restored roles, academic deliverable and Root-only supplier file SHA-256, indices, audit and privacy boundaries');
 }catch(err){console.error('IPS_ACADEMIC_RESTORE_FAIL',String(err),logs);process.exitCode=1}
 finally{try{await conn?.close()}catch{}api.kill('SIGTERM')}
