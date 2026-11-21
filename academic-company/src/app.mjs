@@ -13,6 +13,7 @@ import {registerAcademicRoutes} from './routes-academic.mjs';
 import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs';
 import {registerOperationsRoutes} from './routes-operations.mjs';
 import {registerTelegramRoutes,telegramConfigured} from './routes-telegram.mjs';
+import {registerFinanceRoutes} from './routes-finance.mjs';
 import {inspectAcademicFile,scanConfiguration} from './document-scan.mjs';
 import {verifyResendSignature,recordResendEvent} from './routes-resend-webhook.mjs';
 
@@ -77,7 +78,11 @@ const db={
  rootOperations:raw.collection('academic_root_operations'),
  rootExternalFiles:raw.collection('academic_root_external_files'),
  providerEvents:raw.collection('academic_provider_delivery_events'),
- telegramMessages:raw.collection('academic_telegram_messages')
+ telegramMessages:raw.collection('academic_telegram_messages'),
+ billing:raw.collection('academic_billing_records'),
+ workLogs:raw.collection('academic_specialist_work_logs'),
+ compensation:raw.collection('academic_specialist_compensation'),
+ billingDisputes:raw.collection('academic_billing_disputes')
 };
 await Promise.all([
  db.accounts.createIndex({email:1},{unique:true}),
@@ -104,7 +109,13 @@ await Promise.all([
   partialFilterExpression:{providerUpdateId:{$type:'number'}}}),
  db.telegramMessages.createIndex({accountId:1,createdAt:-1}),
  db.providerEvents.createIndex({id:1},{unique:true}),
- db.providerEvents.createIndex({emailId:1,receivedAt:-1})
+ db.providerEvents.createIndex({emailId:1,receivedAt:-1}),
+ db.billing.createIndex({commissionId:1},{unique:true}),
+ db.billing.createIndex({studentId:1,createdAt:-1}),
+ db.workLogs.createIndex({specialistId:1,requestId:1},{unique:true}),
+ db.workLogs.createIndex({commissionId:1,createdAt:-1}),
+ db.compensation.createIndex({commissionId:1},{unique:true}),
+ db.billingDisputes.createIndex({studentId:1,openedAt:-1})
 ]);
 const rootEmail=email(env.ROOT_EMAIL);
 // The immutable Root identity is intentionally not a user-directory account.
@@ -338,6 +349,7 @@ registerAcademicRoutes(ctx);
 registerSupportRoutes(ctx);
 registerOperationsRoutes(ctx);
 registerTelegramRoutes(ctx);
+registerFinanceRoutes(ctx);
 beginCompanyAutomation(ctx);
 const dist=path.join(path.dirname(fileURLToPath(import.meta.url)),'../public');
 app.use(express.static(dist,{index:false,maxAge:0}));
