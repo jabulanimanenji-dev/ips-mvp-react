@@ -56,3 +56,14 @@ Each `archive/legacy-ips-20261121/...` reference preserves the exact head commit
 3. Confirm actual emails, Telegram delivery, private object storage, backup/recovery, browser accessibility, audit and nonpayment state.
 4. Never treat simulated paid fixtures as real revenue.
 5. Preserve production rollback and obtain owner inspection of the new user-facing experience.
+
+## 21 November 2026 cutover verification
+- New Company OS merged and deployed from source commit `41905a8ff1508469b86e6fb4f3de3e4c68306165` (PR #28); previous production deploy is deactivated but remains restorable from its protected Git snapshot.
+- Permanent read-only live acceptance gate merged in `53a21cf7c52fe7fa43a1c50f1ceec323121d2e4a` (PR #29). Its eight checks passed against the real production domain without creating customer or financial records: https://github.com/jabulanimanenji-dev/ips-mvp-react/actions/runs/44852162476
+- Production service confirmed MongoDB connected, R2 byte-integrity success and registered signed Telegram webhook on post-cutover startup. Public configuration also confirms intake, email, Telegram, direct WhatsApp and payment-disabled status; provider receipt and database restore drills remain separate.
+- Historical Phase 12 preview branch `phase-11-visual-builder-2-admin-hierarchy` now serves only an archival read-only redirect to the new IPS. Its original code remains unchanged on its exact `archive/legacy-ips-20261121/phase-11-visual-builder-2-admin-hierarchy` snapshot.
+- Two obsolete draft reviews #8 and #12 were closed without deleting the source or audit history.
+- Primary review link: https://www.ipsglobalservice.com
+- Isolated functioning review with synthetic data: https://ips-academic-evaluation-20261119.onrender.com/evaluation
+
+**Archive policy:** Historical versions remain recoverable in Git. They are not alternative production authorities. Source archives do not substitute for authenticated backups of MongoDB collections or private file objects.
