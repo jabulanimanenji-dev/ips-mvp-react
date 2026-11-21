@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],telegramLinkUrl:''};
+ message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],telegramLinkUrl:''};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
