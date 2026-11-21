@@ -749,7 +749,7 @@ document.addEventListener('click',async ev=>{
  if(act==='back'){if(state.backStack.length)history.back();else goBack();return}
  if(act==='root-lens-exit'){remember();state.rootLens=null;state.rootDirectory=[];state.page='workspace';state.tab='overview';state.opened='';history.replaceState(null,'','/root');render();return}
  if(act==='root-lens-open'){remember();try{await openRootLens(id)}catch(err){state.error=err.message;render()}return}
- if(act==='close-case'){state.opened='';render();return}
+ if(act==='close-case'){if(state.backStack.length)history.back();else{state.opened='';render()}return}
  if(['tab-inbox','tab-students','tab-specialists','tab-workforce'].includes(act)){
   remember();state.tab=act.slice(4);state.opened='';render();return}
  if(act==='inbox-open'||act==='queue-open'){
