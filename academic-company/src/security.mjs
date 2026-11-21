@@ -31,9 +31,17 @@ export const publicDocument=d=>{
  return x;
 };
 export const ensureRuntime=env=>{
- const sandbox=env.IPS_ACADEMIC_MODE==='evaluation';
+ const mode=String(env.IPS_ACADEMIC_MODE||'production');
+ if(!['evaluation','staging','production'].includes(mode))
+  throw Error('IPS academic runtime mode must be explicitly recognized.');
+ const sandbox=mode==='evaluation',staging=mode==='staging',production=mode==='production';
  const prod=!sandbox;
- const dbName=sandbox?'ips_academic_sandbox':'ips_academic_services_2026';
+ const dbName=sandbox?'ips_academic_sandbox':staging?'ips_academic_staging':'ips_academic_services_2026';
+ const allowedStagingEmails=staging?String(env.IPS_STAGING_ALLOWED_EMAILS||'')
+  .split(',').map(email).filter(Boolean):[];
+ if(staging&&(!allowedStagingEmails.length||allowedStagingEmails.some(x=>!validEmail(x))||
+  new Set(allowedStagingEmails).size!==allowedStagingEmails.length))
+  throw Error('IPS academic staging requires unique, valid, explicit allowed test account email addresses.');
  const origin=String(env.PUBLIC_APP_URL||'').replace(/\/$/,'');
  if(!env.MONGODB_URI)throw Error('IPS academic MongoDB must be explicitly configured');
  if(!env.SESSION_SECRET||env.SESSION_SECRET.length<40)throw Error('IPS academic session signing secret is missing or too short');
@@ -42,7 +50,7 @@ export const ensureRuntime=env=>{
  if(sandbox&&env.NODE_ENV!=='test')throw Error('Academic evaluation must use NODE_ENV=test');
  if(!origin.startsWith('http://')&&!origin.startsWith('https://'))throw Error('PUBLIC_APP_URL must be an absolute HTTP(S) URL');
  if(prod&&(!env.RESEND_API_KEY||!validEmail(email(env.FROM_EMAIL))))throw Error('Production needs a real email verification provider');
- return {sandbox,dbName,origin,prod};
+ return {sandbox,staging,production,allowedStagingEmails,dbName,origin,prod};
 };
 export function createSecurity(env,{sandbox}){
  const secret=env.SESSION_SECRET,secure=sandbox?'':'; Secure';
