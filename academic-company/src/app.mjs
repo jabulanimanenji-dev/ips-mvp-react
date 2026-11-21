@@ -14,6 +14,7 @@ import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs
 import {registerOperationsRoutes} from './routes-operations.mjs';
 import {registerTelegramRoutes,telegramConfigured} from './routes-telegram.mjs';
 import {registerFinanceRoutes} from './routes-finance.mjs';
+import {assertProductionAdmission} from './release-admission.mjs';
 import {inspectAcademicFile,scanConfiguration} from './document-scan.mjs';
 import {verifyResendSignature,recordResendEvent} from './routes-resend-webhook.mjs';
 
@@ -57,6 +58,12 @@ app.use((req,res,next)=>{
 });
 await mongoose.connect(env.MONGODB_URI,{dbName:config.dbName,serverSelectionTimeoutMS:12000});
 const raw=mongoose.connection.db;
+if(config.prod){
+ const controls=await raw.collection('academic_release_controls')
+  .find({}).limit(2).toArray();
+ if(controls.length!==1)throw Error('IPS production admission denied: exactly one authoritative release control is required.');
+ assertProductionAdmission(controls[0],env.RENDER_GIT_COMMIT||env.IPS_ACADEMIC_SOURCE_COMMIT);
+}
 // The native MongoDB GridFS bucket supports private academic files beyond the 16 MB document limit.
 const documentBucket=new mongoose.mongo.GridFSBucket(raw,{bucketName:'academic_document_blobs'});
 const db={
