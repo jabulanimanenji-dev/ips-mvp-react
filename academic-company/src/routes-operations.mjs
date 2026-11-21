@@ -163,6 +163,8 @@ export function registerOperationsRoutes(ctx){
    {$set:{status:'root_in_progress',specialistId:'',managedBy:rootEmail,
      fulfilmentMode:'root',updatedAt:now()}},{returnDocument:'after'});
   if(!u)return res.status(409).json({error:'The case changed while Root took responsibility.'});
+  await db.projects.updateOne({id:p.id,'milestones.name':'Specialist assignment'},
+   {$set:{'milestones.$.status':'complete','milestones.$.at':now()}});
   await db.rootOperations.updateOne({commissionId:p.id},
    {$set:{mode:'root',managedBy:rootEmail,reason:note,priorSpecialistId:before,
       updatedAt:now()}},{upsert:true});
