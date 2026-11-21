@@ -559,6 +559,20 @@ function render(){
  case 'specialist':register('specialist');break;case 'recovery':recovery();break;
  default:home();}
 }
+async function filePayload(formNode){
+ const file=formNode.querySelector('input[name=upload]')?.files?.[0];
+ if(!file)throw Error('Choose an academic PDF, DOCX or TXT file.');
+ if(file.size<12||file.size>5*1024*1024)throw Error('The file must be smaller than 5 MB.');
+ const ext=file.name.toLowerCase().split('.').pop();
+ const mime={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  txt:'text/plain'}[ext];
+ if(!mime)throw Error('Only PDF, DOCX and TXT documents can be uploaded.');
+ const contents=await new Promise((resolve,reject)=>{
+  const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]);
+  reader.onerror=()=>reject(Error('Could not read the selected file.'));reader.readAsDataURL(file);
+ });
+ return {filename:file.name,mime,data:contents};
+}
 async function submit(name,formNode){
  const data={};new FormData(formNode).forEach((v,k)=>{if(k==='expertise'){if(!data.expertise)data.expertise=[];data.expertise.push(v)}else if(v instanceof File)data[k]=v;else data[k]=v});
  for(const c of ['privacyConsent','integrityAcknowledged'])if(formNode.querySelector('[name="'+c+'"]'))data[c]=!!formNode.querySelector('[name="'+c+'"]').checked;
@@ -572,9 +586,46 @@ async function submit(name,formNode){
  if(name==='student-quote'){const r=await api('/academic/quotes',{method:'POST',body:data});state.page='workspace';state.tab='quotes';return 'IPS received your academic enquiry '+r.quote.id+'. A qualified team member will review its scope.'}
  if(name==='guestconfirm'){await api('/academic/guest-confirm',{method:'POST',body:data});location.hash='';state.page='login';return 'Your academic quotation enquiry is verified and awaiting written IPS review.'}
  if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
- if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page='login';return 'If the verified account exists, IPS sent a secure one-use recovery email.'}
+ if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page=state.account?'workspace':'login';if(state.account)state.tab='profile';return 'A private recovery link has been requested immediately. Check the registered mailbox.'}
  if(name==='recover'||name==='invite'){if(data.password!==data.confirmPassword)throw Error('Passwords do not match.');
   const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
+ if(name==='quote-message'){
+  await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/messages',
+   {method:'POST',body:{body:data.body,audience:data.audience||'student'}});
+  return 'Message added to the academic enquiry.';
+ }
+ if(name==='case-upload'){
+  const payload=await filePayload(formNode);
+  const operator=!!state.rootLens&&!state.isEvaluation;
+  const result=await api('/operations/'+encodeURIComponent(data.commissionId)+'/upload',
+   {method:'POST',operator,body:{...payload,purpose:data.purpose}});
+  return result.needsQa?'Deliverable uploaded. IPS quality review is next.':'Reference uploaded and available to authorized participants.';
+ }
+ if(name==='root-takeover'){
+  await api('/operations/'+encodeURIComponent(data.commissionId)+'/takeover',
+   {method:'POST',operator:true,body:{reason:data.reason}});
+  return 'Nyoro now manages this academic job directly. This action is recorded in the audit trail.';
+ }
+ if(name==='root-outsourcing'){
+  await api('/operations/'+encodeURIComponent(data.commissionId)+'/outsourcing',
+   {method:'POST',operator:true,body:{provider:data.provider,instructions:data.instructions}});
+  return 'Root-only external sourcing saved. IPS remains responsible for academic QA and client delivery.';
+ }
+ if(name==='direct-message'){
+  await api('/operations/direct-message',{method:'POST',operator:true,body:data});
+  return 'Private message sent to this IPS account.';
+ }
+ if(name==='direct-file'){
+  const payload=await filePayload(formNode);
+  await api('/operations/direct-message/file',
+   {method:'POST',operator:true,body:{...payload,recipientId:data.recipientId}});
+  return 'Document sent securely to this account’s IPS inbox.';
+ }
+ if(name==='direct-reply'){
+  await api('/operations/direct-message/'+encodeURIComponent(data.messageId)+'/reply',
+   {method:'POST',operator:true,body:{body:data.body}});
+  return 'Private reply recorded.';
+ }
  if(name==='claim-quote'){await api('/academic/quotes/claim',{method:'POST',body:data});return 'Your previously verified guest academic enquiry is now attached to your account.'}
  if(name==='staff-invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
  if(name==='scope'){await api('/academic/quotes/'+encodeURIComponent(id)+'/scope',{method:'POST',body:data});return 'Academic scope decision has been recorded.'}
@@ -591,7 +642,7 @@ async function submit(name,formNode){
  }
  if(name==='quality'){await api('/academic/commissions/'+encodeURIComponent(id)+'/quality',{method:'POST',body:data});return 'Academic QA decision recorded and responsible parties notified.'}
  if(name==='student-decision'){await api('/academic/commissions/'+encodeURIComponent(id)+'/student-decision',{method:'POST',body:data});return 'Your academic delivery decision is saved.'}
- if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Your private written academic message is recorded in the IPS coordination desk.'}
+ if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Message sent and attached to this academic job.'}
  if(name==='support'){await api('/support',{method:'POST',body:data});return 'Your written academic support case is in the IPS Client Relations queue.'}
  if(name==='support-reply'){await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',{method:'POST',body:{message:data.message}});return 'Private support response recorded.'}
  if(name==='contact-preference'){await api('/profile',{method:'PATCH',body:data});return 'Your preferred written contact channel was saved.'}
@@ -622,7 +673,18 @@ document.addEventListener('click',async ev=>{
  if(act==='back'){if(state.backStack.length)history.back();else goBack();return}
  if(act==='root-lens-exit'){remember();state.rootLens=null;state.rootDirectory=[];state.page='workspace';state.tab='overview';state.opened='';history.replaceState(null,'','/root');render();return}
  if(act==='root-lens-open'){remember();try{await openRootLens(id)}catch(err){state.error=err.message;render()}return}
- if(act==='service'){remember();state.service=id;state.page='service';serviceDetail();return}
+ if(act==='close-case'){state.opened='';render();return}
+ if(['tab-inbox','tab-students','tab-specialists','tab-workforce'].includes(act)){
+  remember();state.tab=act.slice(4);state.opened='';render();return}
+ if(act==='inbox-open'||act==='queue-open'){
+  remember();
+  const parts=act==='inbox-open'?id.split('::'): [id.startsWith('IPS-Q')?'quote':id.startsWith('IPS-S')?'support':'commission',id];
+  const kind=parts[0];state.opened=parts.slice(1).join('::');
+  state.tab=kind==='quote'?'quotes':kind==='support'?'support':kind==='direct'?'inbox':'commissions';
+  render();return;
+ }
+ if(act==='person-message'){remember();state.opened='DMTO:'+id;render();return}
+if(act==='service'){remember();state.service=id;state.page='service';serviceDetail();return}
  if(act==='request-service'){remember();state.service=id;state.page='quote';quote();return}
  if(['tab-commissions','tab-queues','tab-root-students','tab-root-specialists'].includes(act)){remember();state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
  if(act==='quote-detail'||act==='commission-open'||act==='support-open'){remember();state.opened=state.opened===id?'':id;render();return}
@@ -643,9 +705,9 @@ document.addEventListener('click',async ev=>{
    const decision=act==='quote-accept'?'accept':'decline';
    const r=await api('/academic/quotes/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});
    state.message=decision==='accept'?'Your quotation is accepted. IPS will tell you when verified payment commissioning becomes available.':'Your quotation has been declined.';}
-  else if(['person-recover','person-approve','person-suspend'].includes(act)){
+  else if(['person-recover','person-approve','person-suspend','person-reactivate'].includes(act)){
    if(act==='person-recover'){await api('/administration/people/'+encodeURIComponent(id)+'/send-recovery',{method:'POST'});state.message='IPS emailed a secure recovery link to the account owner.'}
-   else{const decision=act==='person-approve'?'approve_specialist':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
+   else{const decision=act==='person-approve'?'approve_specialist':act==='person-reactivate'?'reactivate':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
   }
   else if(act==='support-close'){await api('/support/'+encodeURIComponent(id)+'/resolve',{method:'POST'});state.message='Written support case resolved.'}
   else if(act==='notification-read'){await api('/notifications/'+encodeURIComponent(id)+'/read',{method:'POST'});state.message='Notification marked read.'}
