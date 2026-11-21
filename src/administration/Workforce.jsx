@@ -29,6 +29,10 @@ export default function Workforce(){
   const roster=useMemo(()=>people.filter(x=>filter==='all'||(filter==='working'?
     ['Active','Invited','Locked'].includes(x.status):x.status===filter)),[team.records,filter]);
   const managerMap=new Map(people.filter(x=>x.company_role==='manager').map(x=>[x.id,x.name]));
+  // A manager's protected roster contains only direct reports, never peers.
+  // Show the authenticated leader's name instead of a misleading placeholder.
+  if(!isRoot&&admin?.id&&admin?.companyRole==='manager')
+    managerMap.set(admin.id,admin.name||'Your department manager');
   const activeManagers=people.filter(x=>x.company_role==='manager'&&active(x));
   const coverage=managementDepartments(admin).map(([id,info])=>({id,info,
     managers:isRoot?people.filter(x=>x.department===id&&x.company_role==='manager'&&active(x)):
