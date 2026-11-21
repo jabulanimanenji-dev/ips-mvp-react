@@ -1,4 +1,5 @@
 import React,{useMemo} from 'react';
+import CompanyAlerts from './CompanyAlerts.jsx';
 import {Link} from 'react-router-dom';
 import {useAuth} from '../context/AuthContext.jsx';
 import {COMPANY_DEPARTMENTS} from '../../shared/companyGovernance.js';
@@ -45,6 +46,7 @@ export function CompanyBridge(){
       {label:'Unassigned verified enquiries',value:summary?.unowned,hint:'Claim or delegate to an authorized reviewer',tone:'gold'},
       {label:'Overdue promises / tasks',value:summary?.overdue,hint:'Real deadlines, not estimates',tone:'attention'}
     ]}/>
+    <CompanyAlerts/>
     <div className="ips4-grid split">
       <Panel title="Decisions on your desk" description="An actionable case or deadline—not a decorative status count." aside={<LinkButton to="/admin/case-desk">Open action centre →</LinkButton>}>
         {!work.available?<Empty>{work.busy?'Loading accountable company work…':'Company case evidence unavailable.'}</Empty>:
