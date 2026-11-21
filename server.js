@@ -30,7 +30,7 @@ import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { registerCompanyCaseDesk } from './services/companyCaseDesk.js';
 import {registerCompanyOperatingSystem} from './services/companyOperatingSystem.js';
 import {registerCompanyFinanceRoutes} from './services/companyFinance.js';
-import {permittedCompanyPermissions} from './shared/companyGovernance.js';
+import {permittedCompanyPermissions,companyStaffPasswordValid} from './shared/companyGovernance.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import {startCompanyAutomationWorker} from './services/companyAutomation.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
@@ -1192,8 +1192,8 @@ app.post('/api/admin/change-password', async (req, res) => {
     }
     const currentPassword = String(req.body?.currentPassword || '');
     const newPassword = String(req.body?.newPassword || '');
-    if (!validAdminPassword(newPassword)) {
-      return res.status(400).json({ success: false, error: 'The new password must contain at least 10 characters, one letter, and one number.' });
+    if (!companyStaffPasswordValid(newPassword)) {
+      return res.status(400).json({ success: false, error: 'Use at least 10 characters, an uppercase letter, number and symbol.' });
     }
     const admin = await Admin.findOne({ id: req.adminAccess.adminId });
     if (!admin || !verifyPassword(currentPassword, admin.password)) {
