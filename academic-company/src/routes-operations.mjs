@@ -2,11 +2,12 @@
 // One case, one visible conversation and document tray; Root can intervene without
 // copying an account's password, signing as a client or exposing private vendor details.
 import crypto from 'node:crypto';
+import express from 'express';
 import {publicDocument,normalizeFilename,validEmail,email} from './security.mjs';
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerOperationsRoutes(ctx){
- const {app,db,rootEmail,notify,notifyQuotation,audit,authorize,wrap,now,uid}=ctx;
+ const {app,db,documentBucket,rootEmail,notify,notifyQuotation,audit,authorize,wrap,now,uid}=ctx;
  const deny=res=>res.status(403).json({error:'You do not have access to this academic case.'});
  const staff=a=>a&&(['root','manager','staff'].includes(a.role));
  const intake=a=>a?.role==='root'||(staff(a)&&a.department==='client_relations');
@@ -34,6 +35,44 @@ export function registerOperationsRoutes(ctx){
   if(mime==='application/pdf'&&buffer.subarray(0,5).toString()!=='%PDF-')return {error:'PDF contents are invalid.'};
   if(mime.includes('wordprocessingml')&&buffer.subarray(0,2).toString()!=='PK')return {error:'DOCX contents are invalid.'};
   return {filename,mime,purpose,buffer};
+ };
+ const binaryDocument=req=>{
+  let rawName='';
+  try{rawName=decodeURIComponent(String(req.get('X-IPS-File-Name')||''))}
+  catch{return {error:'Academic document filename encoding is invalid.'}}
+  const filename=normalizeFilename(rawName),mime=String(req.get('X-IPS-File-Type')||'');
+  const format=filename.toLowerCase().split('.').pop();
+  const supported={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',txt:'text/plain'};
+  const buffer=req.body;
+  if(!Buffer.isBuffer(buffer)||buffer.length<12||buffer.length>20*1024*1024||
+   supported[format]!==mime||!/^[A-Za-z0-9_.-]{1,100}$/.test(filename))
+   return {error:'Choose a genuine PDF, DOCX or TXT document not exceeding 20 MB.'};
+  if(mime==='application/pdf'&&buffer.subarray(0,5).toString()!=='%PDF-'||
+    mime.includes('wordprocessingml')&&buffer.subarray(0,2).toString()!=='PK')
+   return {error:'The academic document contents do not match its file type.'};
+  return {filename,mime,buffer};
+ };
+ const storePrivateBlob=async({id,filename,mime,buffer,context})=>{
+  const sha256=crypto.createHash('sha256').update(buffer).digest('hex');
+  const blobId=await new Promise((resolve,reject)=>{
+   const writer=documentBucket.openUploadStream(filename,{metadata:{
+    academicFileId:id,sha256,mime,...context}});
+   writer.once('error',reject);
+   writer.once('finish',()=>resolve(writer.id));
+   writer.end(buffer);
+  });
+  return {blobId,byteLength:buffer.length,sha256};
+ };
+ const streamPrivateBlob=(res,file)=>{
+  if(file.blobId){
+   if(Number.isSafeInteger(file.byteLength))res.set('Content-Length',file.byteLength);
+   const reader=documentBucket.openDownloadStream(file.blobId);
+   reader.on('error',()=>{
+    if(!res.headersSent)res.status(503).json({error:'Private academic document storage is unavailable.'});
+    else res.destroy();
+   });
+   reader.pipe(res);
+  }else res.send(Buffer.from(file.fileData?.buffer||file.fileData));
  };
  const metadata=x=>({id:x.id,commissionId:x.commissionId,filename:x.filename,mime:x.mime,
   purpose:x.purpose||x.kind||'deliverable',sha256:x.sha256,createdAt:x.createdAt,
