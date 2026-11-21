@@ -241,7 +241,7 @@ try{
   assert.equal(rootQuote.data.quote.studentId,student.id);
   assert.equal(rootQuote.data.quote.rootAssistedBy,vars.ROOT_EMAIL);
   const assistedMessage=await call('/academic/commissions/'+commissionId+'/messages',{method:'POST',
-   cookie:rootCookie,rootTarget:specialist.id,body:{body:'IPS Root is coordinating the academic revision in this workspace.'}},201);
+   cookie:rootCookie,rootTarget:specialist.id,body:{body:'IPS Root is coordinating the academic revision in this workspace.',audience:'student'}},201);
   assert.equal(assistedMessage.data.message.actorRole,'root');
   assert.equal(assistedMessage.data.message.actorId,vars.ROOT_EMAIL);
   assert.equal(assistedMessage.data.message.assistedAccountId,specialist.id);
