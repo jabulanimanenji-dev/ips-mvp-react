@@ -1,6 +1,6 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
-const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
+const state={account:null,catalogue:null,specialistAgreement:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
  message:'',error:'',busy:false,backStack:[],isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[]};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
@@ -172,8 +172,16 @@ function register(role='student'){
  field('Confirm password','confirmPassword','password','Re-enter the same secure password')+
  (specialist?field('Academic qualification','qualification','text','Degree, field or training')+
  field('Professional experience','experience','text','Relevant research or editing experience',false)+
+ field('Qualification evidence reference','credentialEvidenceReference','text',
+  'Awarding institution, credential ID or document/portfolio reference')+
+ field('Professional languages','professionalLanguages','text','Languages in which you can work',false)+
  '<label class="field full">Academic services you can professionally provide'+
- '<select name="expertise" multiple size="8">'+selectService().map(x=>'<option value="'+e(x[0])+'">'+e(x[1])+'</option>').join('')+'</select><small>Hold Ctrl to select multiple academic specialisms.</small></label>':'')+
+ '<select name="expertise" multiple size="8">'+selectService().map(x=>'<option value="'+e(x[0])+'">'+e(x[1])+'</option>').join('')+'</select><small>Hold Ctrl to select multiple academic specialisms.</small></label>'+
+ '<details class="agreement"><summary>IPS Specialist confidentiality & academic-integrity agreement ('+
+ e(state.specialistAgreement?.version||'Version unavailable')+')</summary>'+
+ (state.specialistAgreement?.sections||[]).map(t=>'<p><strong>'+e(t.title)+'</strong> '+e(t.text)+'</p>').join('')+'</details>'+
+ '<input type="hidden" name="agreementVersion" value="'+e(state.specialistAgreement?.version||'')+'">'+
+ '<label class="check"><input type="checkbox" name="specialistAgreementAccepted" value="true" required> I have read and accept the current IPS Specialist confidentiality and professional conduct agreement.</label>':'')+
  privacyCheck;
  auth(specialist?'Join our academic specialist network':'Get started with IPS',
  specialist?'Qualified Specialists use their real names and must pass review before assignment.':
@@ -728,7 +736,7 @@ async function filePayload(formNode){
 }
 async function submit(name,formNode){
  const data={};new FormData(formNode).forEach((v,k)=>{if(k==='expertise'){if(!data.expertise)data.expertise=[];data.expertise.push(v)}else if(v instanceof File)data[k]=v;else data[k]=v});
- for(const c of ['privacyConsent','integrityAcknowledged'])if(formNode.querySelector('[name="'+c+'"]'))data[c]=!!formNode.querySelector('[name="'+c+'"]').checked;
+ for(const c of ['privacyConsent','integrityAcknowledged','specialistAgreementAccepted'])if(formNode.querySelector('[name="'+c+'"]'))data[c]=!!formNode.querySelector('[name="'+c+'"]').checked;
  const id=formNode.dataset.id||data.commissionId||'';
  if(name==='login'){const r=await api('/auth/login',{method:'POST',body:data});if(state.rootEntry&&r.account.role!=='root'){await api('/auth/logout',{method:'POST'});throw Error('This address is restricted to Nyoro Root Administration. Use the standard IPS login for other accounts.')}state.account=r.account;state.rootLens=null;state.firstLogin=!!r.account.firstLogin;state.page='workspace';state.tab='overview';state.opened='';return 'Signed in securely.'}
  if(name==='register'){
@@ -942,7 +950,8 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
 });
 (async()=>{
  try{
-  state.catalogue=await api('/catalogue');
+  [state.catalogue,state.specialistAgreement]=await Promise.all([
+   api('/catalogue'),api('/specialist/agreement')]);
   const h=await api('/health');state.isEvaluation=h.environment==='ISOLATED_ACADEMIC_REVIEW';
   try{const s=await api('/session');state.account=s.account;state.page='workspace'}catch{state.page=state.rootEntry?'root-login':'home'}
   render();
