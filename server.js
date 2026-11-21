@@ -30,6 +30,7 @@ import { registerCompanyCaseDesk } from './services/companyCaseDesk.js';
 import {registerCompanyOperatingSystem} from './services/companyOperatingSystem.js';
 import {permittedCompanyPermissions} from './shared/companyGovernance.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
+import {startCompanyAutomationWorker} from './services/companyAutomation.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
 import { qualifyOwnerTelegramInbound } from './services/telegramInboundEvidence.js';
 import {isIpsQaFixtureAdmin,isIpsQaFixtureClient,isIpsQaFixtureEmail,scopeIpsMessagingDirectory} from './shared/ipsCompanyScope.js';
@@ -3728,12 +3729,14 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
 // Operational delivery is opt-in and requires verified server-side IPS credentials.
 const stopEmailWorker=startContactEmailWorker();
+const stopCompanyAutomationWorker=startCompanyAutomationWorker();
 
 let shuttingDown = false;
 const shutDown = signal => {
   if (shuttingDown) return;
   shuttingDown = true;
   stopEmailWorker?.();
+  stopCompanyAutomationWorker?.();
   console.log(`${signal} received. Closing the HTTP server and database connection.`);
 
   const forcedExit = setTimeout(() => {
