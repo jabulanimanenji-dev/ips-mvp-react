@@ -59,7 +59,7 @@ export async function runCompanyAutomationTick({
       id:task.assigned_to,status:'Active',company_role:{$in:['manager','staff']}
     }).select('id email department company_role manager_id status').lean();
     if(!rootAssigned&&!assignee)continue;
-    if(assignee&&isIpsQaFixtureAdmin(assignee)&&env.NODE_ENV==='production')continue;
+    if(assignee&&isIpsQaFixtureAdmin(assignee)&&env.NODE_ENV==='production'&&env.IPS_EVALUATION_MODE!=='true')continue;
     await notify('overdue',task,rootAssigned?rootRecipient:{recipient_id:assignee.id,recipient_role:'admin'});
     if(at.getTime()-new Date(task.due_at).getTime()<ESCALATION_MS)continue;
     let recipient=null;
@@ -109,7 +109,7 @@ export async function runUnownedCaseTick({
       String(a.record._id).localeCompare(String(b.record._id))).slice(0,pageLimit);
   let created=0;
   for(const item of items){
-    if(!item.ref||env.NODE_ENV==='production'&&isIpsQaFixtureEmail(item.email))continue;
+    if(!item.ref||env.NODE_ENV==='production'&&env.IPS_EVALUATION_MODE!=='true'&&isIpsQaFixtureEmail(item.email))continue;
     const dedupe_key='ips-unowned/'+item.kind+'/'+String(item.record._id);
     const result=await notificationModel.updateOne({dedupe_key},{$setOnInsert:{
       dedupe_key,...rootRecipient,order_id:item.ref,type:'company_case_unowned',
