@@ -204,8 +204,10 @@ export function registerAcademicRoutes(ctx){
     {$set:{status:'ready_for_assignment',paymentStatus:'synthetic_test_only',
       evaluationPayment:true,updatedAt:now()}},{returnDocument:'after'});
    if(!p)return res.status(409).json({error:'No eligible isolated test academic commission.'});
+   await db.projects.updateOne({id:p.id,'milestones.name':'Commission/payment verification'},
+    {$set:{'milestones.$.status':'synthetic_test_only','milestones.$.at':now()}});
    await audit(req.actor,'evaluation_synthetic_payment_witness',p.id);
-   res.json({commission:commissionView(p),synthetic:true});
+   res.json({commission:commissionView(await db.projects.findOne({id:p.id})),synthetic:true});
   }));
  }
  app.post('/api/academic/commissions/:id/assign',wrap(async(req,res)=>{
@@ -267,8 +269,11 @@ export function registerAcademicRoutes(ctx){
    {$set:{status:decision==='approve'?'client_delivery':'correction_requested',
     qaReviewer:req.actor.id,qaDecision:decision,qaNote:note,updatedAt:now()}},{returnDocument:'after'});
   if(!p)return res.status(409).json({error:'No submitted academic work awaits QA.'});
-  if(decision==='approve')await db.projects.updateOne({id:p.id,'milestones.name':'Academic quality assurance'},
-   {$set:{'milestones.$.status':'complete','milestones.$.at':now()}});
+  await db.projects.updateOne({id:p.id,'milestones.name':'Academic quality assurance'},
+   {$set:{'milestones.$.status':decision==='approve'?'complete':'pending',
+    'milestones.$.at':now()}});
+  if(decision==='return_for_correction')await db.projects.updateOne({id:p.id,'milestones.name':'Secure final delivery'},
+   {$set:{'milestones.$.status':'pending'}});
   await notify(decision==='approve'?p.studentId:p.specialistId,
    'IPS academic quality review '+(decision==='approve'?'approved delivery':'requested corrections')+' on '+p.id,'quality');
   await audit(req.actor,'academic_qa_'+decision,p.id,{note});
@@ -286,9 +291,14 @@ export function registerAcademicRoutes(ctx){
      studentDecisionNote:note,updatedAt:now()},
     $inc:{revisionCount:decision==='request_revision'?1:0}},{returnDocument:'after'});
   if(!p)return res.status(409).json({error:'No academic delivery is awaiting your decision.'});
+  await db.projects.updateOne({id:p.id,'milestones.name':'Secure final delivery'},
+   {$set:{'milestones.$.status':decision==='accept'?'complete':'pending',
+    'milestones.$.at':now()}});
+  if(decision==='request_revision')await db.projects.updateOne({id:p.id,'milestones.name':'Academic quality assurance'},
+   {$set:{'milestones.$.status':'pending'}});
   await notify(p.specialistId,'Student '+decision+' on academic commission '+p.id,'client_decision');
   await audit(req.actor,'academic_client_'+decision,p.id);
-  res.json({commission:commissionView(p)});
+  res.json({commission:commissionView(await db.projects.findOne({id:p.id}))});
  }));
  app.get('/api/academic/commissions/:id/files',wrap(async(req,res)=>{
   const p=await db.projects.findOne({id:req.params.id});
