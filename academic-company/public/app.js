@@ -51,7 +51,9 @@ const integrityCheck='<label class="field full"><span><input type="checkbox" nam
 async function api(endpoint,{method='GET',body,operator=false}={}){
  const res=await fetch('/api'+endpoint,{method,credentials:'same-origin',cache:'no-store',
   headers:{...(body?{'Content-Type':'application/json'}:{}),...(state.rootLens&&!operator&&(/^\/(academic|support|notifications)(\/|$)/.test(endpoint)||
-   /^\/operations\/inbox$/.test(endpoint)||/^\/operations\/[^/]+\/(?:files|upload)$/.test(endpoint))?{'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},body:body?JSON.stringify(body):undefined});
+   /^\/operations\/inbox$/.test(endpoint)||/^\/operations\/[^/]+\/(?:files|upload)$/.test(endpoint)||
+   (method==='GET'&&(/^\/operations\/direct-message$/.test(endpoint)||
+   /^\/operations\/direct-message\/[^/]+\/thread$/.test(endpoint))))?{'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},body:body?JSON.stringify(body):undefined});
  const data=await res.json().catch(()=>({}));
  if(!res.ok)throw Error(data.error||'IPS could not complete the requested action.');
  return data;
