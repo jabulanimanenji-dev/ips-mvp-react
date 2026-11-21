@@ -35,7 +35,12 @@ for(const [email,password,expected] of people){
 }
 const studentDocs=await call('/academic/commissions',{cookie:studentCookie});
 assert.equal(studentDocs.status,200);assert.ok(studentDocs.data.commissions.some(p=>p.serviceId==='thesis-dissertation'));
-const p=studentDocs.data.commissions[0];
+const p=studentDocs.data.commissions.find(x=>x.id==='IPS-A-EVAL-THESIS'&&x.status==='completed');
+assert.ok(p,'Completed fictional thesis guidance must remain accessible alongside active academic cases');
+const active=studentDocs.data.commissions.find(x=>x.id==='IPS-A-EVAL-EDITING-ACTIVE');
+assert.ok(active&&active.status==='specialist_assigned');
+const offers=await call('/academic/quotes',{cookie:studentCookie});
+assert.ok(offers.data.quotes.some(q=>q.id==='IPS-Q-EVAL-RESEARCH-OFFER'&&q.status==='offered'));
 const files=await call('/academic/commissions/'+p.id+'/files',{cookie:studentCookie});
 assert.ok(files.data.files.length);
 const data=await fetch(origin+'/api/academic/files/'+files.data.files[0].id,{headers:{Cookie:studentCookie}});
