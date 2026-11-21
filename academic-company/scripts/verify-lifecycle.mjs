@@ -265,7 +265,8 @@ try{
   await call('/academic/quotes/'+q.id+'/messages',{cookie:otherCookie},403);
  });
  await assertCheck('Student and Root upload and download genuine academic enquiry attachments before paid commissioning',async()=>{
-  const q=await db.collection('academic_quotations').findOne({studentId:{$exists:true},status:{$in:['received','scoped','offered']}});
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const q=await db.collection('academic_quotations').findOne({studentId:student.id,status:{$in:['received','scoped','offered']}});
   assert.ok(q?.id,'A pre-commission academic enquiry must exist');
   const source=Buffer.from('Student-owned nursing research guidance and approved supervisor comments for academic scope review.');
   const shared=await call('/academic/quotes/'+q.id+'/files',withAuth(studentCookie,{
