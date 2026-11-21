@@ -62,7 +62,7 @@ export function registerTelegramRoutes(ctx){
   const message=String(m?.text||'');
   const match=message.match(/^\/start(?:@[A-Za-z0-9_]+)?\s+ips_([A-Za-z0-9_-]{43})$/);
   const chatId=Number(chat?.id);
-  if(!match||chat?.type!=='private'||!Number.isSafeInteger(chatId)||chatId<=0||
+  if(chat?.type!=='private'||!Number.isSafeInteger(chatId)||chatId<=0||
    Number(from?.id)!==chatId)return res.json({ok:true,linked:false});
   if(!match){
    const result=await receiveTelegramMessage(ctx,req.body);
