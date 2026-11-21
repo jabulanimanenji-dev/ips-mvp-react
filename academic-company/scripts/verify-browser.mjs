@@ -72,6 +72,19 @@ try{
   await publicPage.getByText('Confirm password must match').waitFor();
   await publicPage.getByRole('button',{name:'Academic services',exact:true}).click();
  });
+ await pass('Specialist signup shows the actual versioned agreement, signature and acceptance controls',async()=>{
+  await publicPage.getByRole('button',{name:'Join our specialist network'}).click();
+  const terms=publicPage.locator('details.agreement-box');
+  await terms.waitFor();
+  assert.ok((await terms.innerText()).includes('ACADEMIC SERVICES'));
+  assert.ok((await terms.innerText()).includes('academic integrity'));
+  await publicPage.locator('input[name=specialistAgreementVersion]').waitFor({state:'attached'});
+  await publicPage.locator('input[name=specialistSignature]').waitFor();
+  assert.equal(await publicPage.locator('input[name=specialistAgreementAccepted]').count(),1);
+  await overflow(publicPage);
+  await screen(publicPage,'25-specialist-signed-confidentiality');
+  await publicPage.getByRole('button',{name:'Academic services',exact:true}).click();
+ });
  await pass('Academic catalogue contains 16 real disciplines and detailed subject-specific enquiries',async()=>{
   await publicPage.getByRole('button',{name:'Academic services',exact:true}).click();
   await publicPage.getByRole('button',{name:'All academic services'}).count().catch(()=>0);
@@ -183,6 +196,7 @@ try{
   await rootPage.getByText('Nyoro · Root Administration').first().waitFor();
   await rootPage.getByRole('button',{name:'Specialists',exact:true}).click();
   await rootPage.getByText('Evaluation Academic Nursing Editor').first().waitFor();
+  await rootPage.getByText('Agreement signed').first().waitFor();
   await screen(rootPage,'08-nyoro-academic-people-management');
   await rootPage.getByRole('button',{name:'Inbox & messages'}).click();
   await rootPage.getByText('Pediatric Nursing Research').first().waitFor();

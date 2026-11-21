@@ -20,7 +20,8 @@ export const checkPassword=(password,stored)=>{
 export const publicAccount=a=>a?({
  id:a.id,role:a.role,username:a.username||'',name:a.name||'',email:a.email,
  verified:!!a.verified,approved:!!a.approved,status:a.status,department:a.department||'',
- managerId:a.managerId||'',expertise:a.expertise||[],firstLogin:!a.lastLoginAt
+ managerId:a.managerId||'',expertise:a.expertise||[],firstLogin:!a.lastLoginAt,
+ specialistAgreementVersion:a.specialistAgreementVersion||''
 }):null;
 export const publicDocument=d=>{
  if(!d)return null;

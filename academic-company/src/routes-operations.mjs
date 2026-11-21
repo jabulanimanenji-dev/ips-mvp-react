@@ -3,6 +3,7 @@
 // copying an account's password, signing as a client or exposing private vendor details.
 import crypto from 'node:crypto';
 import {publicDocument,normalizeFilename,validEmail,email} from './security.mjs';
+import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerOperationsRoutes(ctx){
  const {app,db,rootEmail,notify,notifyQuotation,audit,authorize,wrap,now,uid}=ctx;
@@ -76,6 +77,7 @@ export function registerOperationsRoutes(ctx){
   const service=String(req.query.service||'');
   const rows=await db.accounts.find({role:'specialist',verified:true,approved:true,
    status:'active',availabilityStatus:{$in:['available','limited']},
+   specialistAgreementVersion:SPECIALIST_AGREEMENT_VERSION,
    ...(service?{expertise:service}:{})}).sort({name:1}).limit(100).toArray();
   const eligible=await Promise.all(rows.map(async a=>{
    const active=await db.projects.countDocuments({specialistId:a.id,

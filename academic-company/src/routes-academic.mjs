@@ -2,6 +2,7 @@
 import crypto from 'node:crypto';
 import {email,validEmail,validUsername,publicDocument,normalizeFilename,strongToken,validToken} from './security.mjs';
 import {SERVICES,SERVICE_MAP,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
+import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerAcademicRoutes(ctx){
  const {app,db,config,env,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid}=ctx;
@@ -355,6 +356,8 @@ export function registerAcademicRoutes(ctx){
   if(!specialist)return res.status(400).json({error:'Select a verified and approved IPS academic Specialist.'});
   const p=await db.projects.findOne({id:req.params.id,status:'ready_for_assignment'});
   if(!p)return res.status(409).json({error:'The commission cannot be assigned until verified payment readiness.'});
+  if(specialist.specialistAgreementVersion!==SPECIALIST_AGREEMENT_VERSION)
+   return res.status(409).json({error:'This Specialist must accept the current confidentiality agreement before being assigned private academic work.'});
   if(!specialist.expertise?.includes(p.serviceId))
    return res.status(409).json({error:'The Specialist is not approved for this academic service.'});
   if(!['available','limited'].includes(specialist.availabilityStatus)||!specialist.maxConcurrentCases)

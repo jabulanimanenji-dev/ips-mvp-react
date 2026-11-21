@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import mongoose from 'mongoose';
+import {SPECIALIST_AGREEMENT} from '../src/specialist-agreement.mjs';
 import {setTimeout as sleep} from 'node:timers/promises';
 
 const url='http://127.0.0.1:18122';
@@ -75,18 +76,46 @@ try{
    privacyConsent:true}},400);
   assert.equal(await db.collection('academic_accounts').countDocuments({usernameKey:{$regex:'^mismatchedstudent'}}),0);
  });
+ await assertCheck('Specialist application publishes immutable confidentiality terms and rejects unsigned identities',async()=>{
+  const terms=(await call('/specialist/agreement')).data;
+  assert.equal(terms.version,SPECIALIST_AGREEMENT.version);
+  assert.equal(terms.sha256,crypto.createHash('sha256').update(terms.text).digest('hex'));
+  const baseline={role:'specialist',email:emailFor('unsigned-specialist'),
+   password:'ResearchEditor2026!',confirmPassword:'ResearchEditor2026!',
+   fullName:'Academic Research Consultant',qualification:'MA Research Methods',
+   expertise:['academic-editing'],privacyConsent:true};
+  await call('/auth/register',{method:'POST',body:baseline},400);
+  await call('/auth/register',{method:'POST',body:{
+   ...baseline,email:emailFor('mismatched-signature'),
+   specialistAgreementVersion:terms.version,specialistAgreementAccepted:true,
+   specialistSignature:'Someone Else'}},400);
+  assert.equal(await db.collection('academic_accounts').countDocuments({
+   email:baseline.email}),0);
+ });
  await assertCheck('Qualified Specialist verifies email and cannot work until approved',async()=>{
   specialistMail=emailFor('academic-specialist');
   await call('/auth/register',{method:'POST',body:{role:'specialist',email:specialistMail,password:'SpecialistAcademic2026!',confirmPassword:'SpecialistAcademic2026!',
    fullName:'Evaluation Academic Nursing Editor',qualification:'MSc Nursing Research',experience:'Editorial and methodology consultation',
-   expertise:['academic-editing','thesis-dissertation'],privacyConsent:true}},202);
+   expertise:['academic-editing','thesis-dissertation'],privacyConsent:true,
+   specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
+   specialistAgreementAccepted:true,specialistSignature:'Evaluation Academic Nursing Editor'}},202);
   const m=await inbox(specialistMail,'Confirm your IPS Academic Services email');
   const r=await call('/auth/verify',{method:'POST',body:{email:specialistMail,token:token(m,'verify')}});
   assert.equal(r.data.reviewRequired,true);
   await call('/auth/login',{method:'POST',body:{email:specialistMail,password:'SpecialistAcademic2026!'}},403);
   const person=await db.collection('academic_accounts').findOne({email:specialistMail});
+  assert.equal(person.specialistAgreementVersion,SPECIALIST_AGREEMENT.version);
+  assert.equal(person.specialistAgreementSha256,SPECIALIST_AGREEMENT.sha256);
+  assert.equal(person.specialistAgreementSignature,'Evaluation Academic Nursing Editor');
   await call('/administration/people/'+person.id+'/decision',withAuth(rootCookie,{decision:'approve_specialist'}));
   specialistCookie=await signIn(specialistMail,'SpecialistAcademic2026!');
+  await call('/specialist/agreement/accept',withAuth(specialistCookie,{
+   specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
+   specialistAgreementAccepted:true,specialistSignature:'Another Person'}),400);
+  const receipt=await call('/specialist/agreement/accept',withAuth(specialistCookie,{
+   specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
+   specialistAgreementAccepted:true,specialistSignature:'Evaluation Academic Nursing Editor'}));
+  assert.equal(receipt.data.agreementVersion,SPECIALIST_AGREEMENT.version);
  });
  await assertCheck('Root appoints manager, manager invites department staff, staff cannot invite',async()=>{
   managerMail=emailFor('clientrelations-manager');
@@ -686,7 +715,8 @@ try{
   await call('/auth/register',{method:'POST',body:{role:'specialist',email:pendingEmail,
    fullName:'Evaluation Pending Academic Specialist',password:'PendingAcademic2026!',
    confirmPassword:'PendingAcademic2026!',qualification:'BSc Research',expertise:['academic-editing'],
-   privacyConsent:true}},202);
+   privacyConsent:true,specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
+   specialistAgreementAccepted:true,specialistSignature:'Evaluation Pending Academic Specialist'}},202);
   const verification=token(await inbox(pendingEmail,'Confirm your IPS Academic Services email'),'verify');
   await call('/auth/verify',{method:'POST',body:{email:pendingEmail,token:verification}});
   const request=await call('/auth/recovery/request',{method:'POST',body:{email:pendingEmail}},202);
