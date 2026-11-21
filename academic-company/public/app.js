@@ -1,6 +1,6 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
-const state={account:null,catalogue:null,page:'home',category:'all',service:'',tab:'overview',opened:'',
+const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
  message:'',error:'',busy:false,isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[]};
 const escapeText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&#39;'}[c]));
 const e=escapeText;
@@ -145,7 +145,7 @@ function rootForbidden(){
  '<div class="action-row">'+b('Sign out','logout','','primary')+'</div>')+'</main>');
 }
 function register(role='student'){
- state.page='register';state.service='';state.account=null;state.category=role;
+ state.page='register';state.service='';state.account=null;state.registerRole=role;
  const specialist=role==='specialist';
  const content=options('Account type','role',[['student','Student / Researcher'],['specialist','Academic Specialist']])+
  (specialist?field('Full professional name','fullName','text','Your actual name'):field('Your private username','username','text','Choose a username'))+
@@ -421,7 +421,7 @@ function render(){
  for(const k of ['verify','recover','invite','guestconfirm'])if(params.has(k)){tokenForm(k);return}
  switch(state.page){case 'services':services();break;case 'service':serviceDetail();break;
  case 'how':how();break;case 'privacy':privacy();break;case 'quote':quote();break;
- case 'login':login();break;case 'register':register(state.category==='specialist'?'specialist':'student');break;
+ case 'login':login();break;case 'register':register(state.registerRole==='specialist'?'specialist':'student');break;
  case 'specialist':register('specialist');break;case 'recovery':recovery();break;
  default:home();}
 }
@@ -482,7 +482,7 @@ document.addEventListener('click',async ev=>{
  if(category){state.category=category.dataset.category;services();return}
  if(route){ev.preventDefault();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
   if(state.account&&['home','services','quote','how','privacy'].includes(dest)){if(state.rootLens&&dest==='quote'&&!state.isEvaluation){state.error='Real client quote authorization must come from the account holder.';render();return}state.page=dest==='home'?'services':dest;render();return}
-  state.page=dest;state.category=dest==='specialist'?'specialist':dest==='register'?'student':state.category;render();return}
+  state.page=dest;state.registerRole=dest==='specialist'?'specialist':dest==='register'?'student':state.registerRole;render();return}
  if(tab){state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;state.error='';state.message='';
  if(act==='root-lens-exit'){state.rootLens=null;state.rootDirectory=[];state.page='workspace';state.tab='overview';state.opened='';history.replaceState(null,'','/root');render();return}
