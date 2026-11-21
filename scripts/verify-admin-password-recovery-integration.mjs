@@ -56,7 +56,7 @@ try{
   ]);
   const app=express();app.use(express.json());
   registerAdminPasswordRecoveryRoutes(app,{
-    env,model:Admin,hashPassword,
+    env,model:Admin,hashPassword:hash,
     send:async message=>{sent.push(message);return 'ci-accepted';},
     grantSession:async(res,account)=>{
       granted.push(account.id);
