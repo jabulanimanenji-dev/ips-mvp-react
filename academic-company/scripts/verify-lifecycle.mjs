@@ -209,9 +209,34 @@ try{
   assert.equal(r.data.synthetic,true);assert.equal(r.data.commission.paymentStatus,'synthetic_test_only');
   assert.equal(r.data.commission.milestones.find(m=>m.name==='Commission/payment verification')?.status,'synthetic_test_only');
   const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
+  const initially=await call('/specialist/availability',{cookie:specialistCookie});
+  assert.equal(initially.data.availabilityStatus,'unavailable');
+  await call('/academic/commissions/'+commissionId+'/assign',withAuth(rootCookie,{specialistId:specialist.id}),409);
+  await call('/specialist/availability',{method:'PATCH',cookie:specialistCookie,body:{
+   availabilityStatus:'available',maxConcurrentCases:1,turnaroundDays:5}});
   const a=await call('/academic/commissions/'+commissionId+'/assign',withAuth(rootCookie,{specialistId:specialist.id}));
   assert.equal(a.data.commission.status,'specialist_assigned');
   await call('/academic/commissions/'+commissionId+'/assign',withAuth(staffCookie,{specialistId:specialist.id}),403);
+ });
+ let secondCommissionId;
+ await assertCheck('A fully booked Specialist cannot be assigned a second academic case',async()=>{
+  const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Permitted editing of independently authored academic content.'}));
+  await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
+   priceMinor:21000,deliverables:'Editorial notes and verified citations for a student-owned manuscript.',
+   terms:'Academic editing is limited to student-authored materials and requires independent review.'}));
+  const r=await call('/academic/quotes/'+q.id+'/decision',withAuth(studentCookie,{decision:'accept'}));
+  secondCommissionId=r.data.commission.id;
+  await call('/evaluation/confirm-synthetic-payment/'+secondCommissionId,withAuth(rootCookie,{}));
+  await call('/academic/commissions/'+secondCommissionId+'/assign',
+   withAuth(rootCookie,{specialistId:specialist.id}),409);
+  const listing=await call('/operations/available-specialists?service=academic-editing',{cookie:rootCookie});
+  assert.ok(!listing.data.specialists.some(x=>x.id===specialist.id));
+  assert.equal((await db.collection('academic_accounts').findOne({id:specialist.id})).activeAssignments,1);
+  await call('/specialist/availability',{method:'PATCH',cookie:specialistCookie,body:{
+   availabilityStatus:'limited',maxConcurrentCases:0,turnaroundDays:5}},400);
  });
  const upload=async(text)=>call('/academic/commissions/'+commissionId+'/submission',
   withAuth(specialistCookie,{filename:'nursing-editing-feedback.txt',mime:'text/plain',data:Buffer.from(text).toString('base64')}),201);
@@ -287,6 +312,21 @@ try{
   const all=await call('/support',{cookie:studentCookie});assert.ok(all.data.tickets.some(t=>t.id===id&&t.replies.length===2));
   await call('/support/'+id+'/resolve',withAuth(studentCookie,{}));
   await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'Should not be appended.'}),409);
+ });
+ await assertCheck('Completing a case releases the reserved slot for another real commission',async()=>{
+  const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
+  assert.equal(specialist.activeAssignments,0);
+  const choices=await call('/operations/available-specialists?service=academic-editing',{cookie:rootCookie});
+  const free=choices.data.specialists.find(x=>x.id===specialist.id);
+  assert.equal(free.availableSlots,1);
+  const assigned=await call('/academic/commissions/'+secondCommissionId+'/assign',
+   withAuth(rootCookie,{specialistId:specialist.id}));
+  assert.equal(assigned.data.commission.status,'specialist_assigned');
+  assert.equal((await db.collection('academic_accounts').findOne({id:specialist.id})).activeAssignments,1);
+  await call('/specialist/availability',{method:'PATCH',cookie:specialistCookie,body:{
+   availabilityStatus:'unavailable',maxConcurrentCases:0,turnaroundDays:0}});
+  const hidden=await call('/operations/available-specialists?service=academic-editing',{cookie:rootCookie});
+  assert.ok(!hidden.data.specialists.some(x=>x.id===specialist.id));
  });
  await assertCheck('Authorized staff email account recovery; old student session gets revoked',async()=>{
   const user=await db.collection('academic_accounts').findOne({email:studentMail});
