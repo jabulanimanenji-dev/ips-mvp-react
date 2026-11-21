@@ -9,6 +9,7 @@ on:
       - work/ips-academic-telegram-conversations-20261121
       - work/ips-academic-resend-webhooks-20261121
       - work/ips-academic-finance-prepayment-20261121
+      - work/ips-academic-worklist-ux-20261121
       - work/ips-academic-upload-malware-gate-20261121
       - work/ips-academic-client-gridfs-20261121
       - work/ips-academic-gridfs-documents-20261121
