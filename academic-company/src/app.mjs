@@ -82,7 +82,8 @@ const db={
  billing:raw.collection('academic_billing_records'),
  workLogs:raw.collection('academic_specialist_work_logs'),
  compensation:raw.collection('academic_specialist_compensation'),
- billingDisputes:raw.collection('academic_billing_disputes')
+ billingDisputes:raw.collection('academic_billing_disputes'),
+ rateLimits:raw.collection('academic_abuse_rate_windows')
 };
 await Promise.all([
  db.accounts.createIndex({email:1},{unique:true}),
@@ -115,8 +116,10 @@ await Promise.all([
  db.workLogs.createIndex({specialistId:1,requestId:1},{unique:true}),
  db.workLogs.createIndex({commissionId:1,createdAt:-1}),
  db.compensation.createIndex({commissionId:1},{unique:true}),
- db.billingDisputes.createIndex({studentId:1,openedAt:-1})
+ db.billingDisputes.createIndex({studentId:1,openedAt:-1}),
+ db.rateLimits.createIndex({expiresAt:1},{expireAfterSeconds:0})
 ]);
+throttle.attach(db.rateLimits,{production:config.prod,secret:env.SESSION_SECRET});
 const rootEmail=email(env.ROOT_EMAIL);
 // The immutable Root identity is intentionally not a user-directory account.
 // Its credential is durable so email recovery survives deployments and restores.
