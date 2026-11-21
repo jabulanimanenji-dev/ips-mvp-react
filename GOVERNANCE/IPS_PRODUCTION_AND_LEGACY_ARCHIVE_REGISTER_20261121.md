@@ -57,6 +57,10 @@ Read-only MongoDB Atlas grouped inventory on legacy `ips` (no customer values ex
 
 Legacy field names differ from the new academic schema (old `clients/client_id`, `writers/writer_id`, `orders/order_id`, `servicerequests/request_id`, `invoices/invoice_id`, `channelmessages/contact_id`, `platformfiles/order_id`). The legacy client, account, writer and admin documents all contain historical credential fields; **never export them to Git or copy them to new identities**. Build an explicit source-to-destination mapping and one-time verification before migration. The combined state is **not yet production reconciled**. No archive delete/unmount is authorized until verified escrow backup, independent restore and obligation-by-obligation reconciliation.
 
+## New independent company database infrastructure (created, not production admitted)
+
+Atlas project **IPS Academic Services Production**, ID `6b0222c3b054b0e3c183a91a`, was created under the same Atlas organization on 2026-11-21. Its own Free cluster `ips-academic-prod`, ID `6b0222d5447d0280dd1af6ca`, AWS `EU_CENTRAL_1` Frankfurt, MongoDB 8.0.39, was independently verified as `IDLE`/ready. This is **separate from** original Atlas project `6a5800b52d2de3b806c0b679` and `ips-cluster`, which retain legacy data unchanged. No production credentials, network allowlist, live business records or release-control approval have been copied into the new cluster yet. Free-tier cluster provisioning is not proof of paid backup coverage or production capacity; configure and independently restore real backups before accepting user records. Never point the legacy application at the new cluster or copy `ips` collections wholesale. Move only verified business obligations and verified account owners under a documented lawful migration.
+
 ## Required non-payment go-live gate
 1. Single release source and protected deployment with independent hosting configuration, monitoring, meaningful health checks and costs.
 2. Dedicated backed-up production MongoDB and verified byte-level private file storage, properly isolated from legacy and staging.
