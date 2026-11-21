@@ -70,6 +70,11 @@ try{
 
   const foreignEdit=await patch(tickets.main,foreign,{priority:'urgent'});
   assert.equal(foreignEdit.status,403);
+  assert.equal((await call('/api/student-payments/admin',{cookie:manager})).status,403,
+    'Client Relations managers cannot inspect the private company payment ledger');
+  assert.equal((await call('/api/admin/finance/operating-ledger',{cookie:staff})).status,403,
+    'Support employees cannot inspect protected finance');
+  console.log('FINANCIAL_LEAST_PRIVILEGE_PASS authenticated nonfinance manager and support employee are denied');
   const staffUnauthorized=await patch(tickets.main,staff,{priority:'urgent'});
   assert.equal(staffUnauthorized.status,403);
   const prematureReply=await call('/api/support-tickets/'+tickets.main+'/messages',{
