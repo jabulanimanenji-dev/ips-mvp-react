@@ -181,6 +181,20 @@ try{
   await overflow(specialistPage);await screen(specialistPage,'07-approved-specialist-academic-work');
  });
  await pass('Real Specialist browser submits a 6 MB document through GridFS',async()=>{
+  const now=new Date(),id='IPS-A-CHROME-BINARY-'+Date.now().toString(36).toUpperCase();
+  await mongo.db.collection('academic_commissions').insertOne({
+   id,quoteId:'IPS-Q-CHROME-BINARY-'+Date.now().toString(36).toUpperCase(),
+   studentId:student.id,specialistId:specialist.id,
+   subject:'Synthetic Large Document Upload',serviceId:'academic-editing',
+   serviceName:'Academic Editing & Proofreading',
+   academicLevel:'Undergraduate',status:'specialist_assigned',
+   requirements:'Fictional permitted editing feedback for browser evaluation.',
+   paymentStatus:'synthetic_test_only',evaluationPayment:true,
+   revisionCount:0,createdAt:now,updatedAt:now,synthetic:true
+  });
+  await specialistPage.locator('.sidebar').getByRole('button',{name:'Assignments & files'}).click();
+  await specialistPage.locator('.record').filter({hasText:'Synthetic Large Document Upload'})
+   .getByRole('button',{name:'Open job'}).click();
   const form=specialistPage.locator('form[data-form=case-upload]');
   await form.locator('select[name=purpose]').selectOption('deliverable');
   await form.locator('input[name=upload]').setInputFiles({
