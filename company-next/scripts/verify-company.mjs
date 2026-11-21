@@ -14,7 +14,7 @@ const env={...process.env,NODE_ENV:'test',IPS_CLEANROOM_MODE:'sandbox',IPS_TEST_
  PUBLIC_APP_URL:base,PORT:'18088',RESEND_API_KEY:'',FROM_EMAIL:''};
 const app=spawn(process.execPath,['company-next/server.mjs'],{env,stdio:['ignore','pipe','pipe']});
 let logs='';for(const stream of [app.stdout,app.stderr])stream.on('data',data=>{logs=(logs+String(data)).slice(-2400)});
-let clientDB;let tests=0;
+let clientDB,mongoClient;let tests=0;
 const run=async(label,fn)=>{await fn();tests++;console.log('PASS '+label)};
 const emailFor=(prefix)=>prefix+'-'+crypto.randomBytes(5).toString('hex')+'@example.org';
 async function http(path,{method='GET',body,cookie}={}){
@@ -33,7 +33,7 @@ async function signIn(email,password){const r=await check('/auth/login',{method:
 async function verifyAccount(email){const mail=await lastMail(email,'Verify your IPS account');const token=extract(mail,'verify');return check('/auth/verify',{method:'POST',body:{email,token}})}
 try{
  for(let n=0;n<90;n++){try{const r=await http('/health');if(r.status===200&&r.data.ready)break}catch{}if(n===89)throw Error('IPS new runtime failed health: '+logs);await sleep(250)}
- const mongoClient=new MongoClient(mongo);await mongoClient.connect();clientDB=mongoClient.db(database);
+ mongoClient=new MongoClient(mongo);await mongoClient.connect();clientDB=mongoClient.db(database);
  const cEmail=emailFor('private-client'),wEmail=emailFor('professional'),mEmail=emailFor('manager'),sEmail=emailFor('employee');
  let cCookie,sCookie,wCookie,mCookie,rootCookie;
  const clientPass='ClientPrivacy2026!',writerPass='SpecialistSecure2026!',staffPass='StaffSecure2026!',managerPass='ManagerSecure2026!';
@@ -149,6 +149,5 @@ try{
    const ix=await clientDB.collection('company_accounts').indexes();assert.ok(ix.some(i=>i.name.includes('email')));
  });
  console.log('IPS_CLEANROOM_GENUINE_MONGODB_LIFECYCLE_PASS '+tests+' authenticated checks and a completed corrected deliverable.');
- await mongoClient.close();
 }catch(error){console.error('IPS_CLEANROOM_FAIL',String(error),logs.slice(-2200));process.exitCode=1;}
-finally{app.kill('SIGTERM');await sleep(300);}
+finally{try{await mongoClient?.close(true)}catch{}app.kill('SIGTERM');await sleep(300);}
