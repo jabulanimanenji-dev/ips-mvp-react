@@ -197,7 +197,7 @@ export function registerOperationsRoutes(ctx){
  app.post('/api/academic/quotes/:id/files-binary',
   express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
   if(!authorize(req,res,['student','root','manager','staff']))return;
-  if(throttle.limited(req,'academic-quote-file',20))
+  if(await throttle.limited(req,'academic-quote-file',20))
    return res.status(429).json({error:'Please retry your document upload later.'});
   const q=await db.quotes.findOne({id:req.params.id});
   if(!q||!quoteAccess(req.actor,q))return deny(res);
@@ -275,7 +275,7 @@ export function registerOperationsRoutes(ctx){
  app.post('/api/operations/:id/upload-reference-binary',
   express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root']))return;
-  if(throttle.limited(req,'academic-case-reference',20))
+  if(await throttle.limited(req,'academic-case-reference',20))
    return res.status(429).json({error:'Please retry the academic document upload later.'});
   const p=await db.projects.findOne({id:req.params.id});
   if(!p||!caseAccess(req.actor,p))return deny(res);
