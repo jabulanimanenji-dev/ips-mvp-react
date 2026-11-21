@@ -164,6 +164,13 @@ try{
    note:'IPS independent academic QA confirms corrected feedback and appropriate client release.'}));
   const final=await call('/academic/commissions/'+commissionId+'/student-decision',withAuth(studentCookie,{decision:'accept'}));
   assert.equal(final.data.commission.status,'completed');
+  const finalFiles=await call('/academic/commissions/'+commissionId+'/files',{cookie:studentCookie});
+  assert.equal(finalFiles.data.files.length,1,'Student received non-approved Specialist drafts');
+  assert.equal(finalFiles.data.files[0].id,doc.data.submissionId);
+  const rejectedDraft=await call('/academic/files/'+academicFileId,{cookie:studentCookie},403);
+  assert.ok(rejectedDraft);
+  assert.ok(await db.collection('academic_private_files').countDocuments({commissionId})>=3,
+   'Academic correction versions should be retained for IPS governance');
   const stages=Object.fromEntries(final.data.commission.milestones.map(m=>[m.name,m.status]));
   assert.equal(stages['Commission/payment verification'],'synthetic_test_only');
   assert.equal(stages['Specialist assignment'],'complete');
