@@ -75,7 +75,7 @@ try{
    fullName:'Evaluation Academic Nursing Editor',qualification:'MSc Nursing Research',experience:'Editorial and methodology consultation',
    expertise:['academic-editing','thesis-dissertation'],privacyConsent:true}},202);
   const m=await inbox(specialistMail,'Confirm your IPS Academic Services email');
-  const r=await call('/auth/verify',{method:'POST',body:{email:specialistMail,token:token(m,'verify')}));
+  const r=await call('/auth/verify',{method:'POST',body:{email:specialistMail,token:token(m,'verify')}});
   assert.equal(r.data.reviewRequired,true);
   await call('/auth/login',{method:'POST',body:{email:specialistMail,password:'SpecialistAcademic2026!'}},403);
   const person=await db.collection('academic_accounts').findOne({email:specialistMail});
