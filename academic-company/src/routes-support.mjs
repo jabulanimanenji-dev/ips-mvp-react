@@ -1,5 +1,6 @@
 // Central IPS communications, support ownership, academic queues and safe automation.
 import {publicDocument} from './security.mjs';
+import {reconcileResendDelivery} from './routes-resend-webhook.mjs';
 export function registerSupportRoutes(ctx){
  const {app,db,rootEmail,notify,audit,authorize,department,wrap,now,uid}=ctx;
  const canSee=(a,t)=>a&&(a.role==='root'||a.id===t.ownerId||
@@ -139,6 +140,7 @@ export function beginCompanyAutomation(ctx){
        acceptedAt:new Date()},$unset:{lockedAt:''}});
      if(job.telegramMessageId)await db.telegramMessages.updateOne({id:job.telegramMessageId},
       {$set:{status,provider:receipt.provider,providerMessageId:receipt.id,acceptedAt:new Date()}});
+     if(receipt.provider==='resend')await reconcileResendDelivery(db,receipt.id);
     }catch(e){
      const attempts=(job.attempts||0)+1,failed=attempts>=4;
      const delay=Math.min(180000,4000*(2**(attempts-1)));
