@@ -370,7 +370,9 @@ async function loadTab(){
    (people.length?'<div class="table-wrap"><table class="table directory-table"><thead><tr><th>Account</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
    people.map(p=>'<tr data-directory-row data-status="'+e(p.status)+'" data-search="'+e((p.username||p.name||'')+' '+p.email)+'"><td><b>'+e(p.username||p.name||'Private account')+'</b><small>'+e(p.email)+'</small></td>'+
    '<td>'+e(p.role==='student'?'Student / Researcher':p.role==='specialist'?'Specialist':p.role)+'</td>'+
-   '<td>'+stat(p.verified?p.status:'unverified')+'</td><td><div class="actions">'+
+   '<td>'+stat(p.verified?p.status:'unverified')+
+   (p.role==='specialist'?'<small>'+e(p.specialistAgreementVersion===state.catalogue.specialistAgreement.version?
+    'Agreement signed':'Agreement required')+'</small>':'')+'</td><td><div class="actions">'+
    (a.role==='root'&&['student','specialist'].includes(p.role)&&p.verified&&p.status==='active'?
     b('Open workspace','root-lens-open',p.id,'small primary'):'')+
    (a.role==='root'?b('Message','person-message',p.id,'small'):'')+
