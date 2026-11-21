@@ -1348,6 +1348,11 @@ try{
   await call('/administration/people?role=student&status=secret',{cookie:rootCookie},400);
   await call('/administration/people?pageSize=301',{cookie:rootCookie},400);
   await call('/administration/people?page=-1',{cookie:rootCookie},400);
+  // This suite shares its disposable database with the later Chrome run.
+  // Remove ONLY the synthetic stress fixture so browser accounts remain visible.
+  const cleanup=await db.collection('academic_accounts').deleteMany({
+   id:{$regex:'^CI-DIR-'+salt+'-'}});
+  assert.equal(cleanup.deletedCount,330);
  });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
   const people=await call('/administration/people',{cookie:rootCookie});
