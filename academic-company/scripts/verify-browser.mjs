@@ -103,7 +103,7 @@ try{
  const specialistPage=await pageOpen(false);
  await pass('Approved academic Specialist sees only assigned nursing work and IPS coordination',async()=>{
   await signIn(specialistPage,specialist.email,'SpecialistAcademic2026!');
-  await specialistPage.getByRole('button',{name:'Assignments & files'}).click();
+  await specialistPage.locator('.sidebar').getByRole('button',{name:'Assignments & files',exact:true}).click();
   await specialistPage.getByText('Academic Editing & Proofreading').first().waitFor();
   await specialistPage.getByRole('button',{name:'Open job'}).first().click();
   await specialistPage.getByText('Job messages').waitFor();
