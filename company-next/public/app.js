@@ -1,6 +1,6 @@
 // IPS COMPANY — entirely new standalone client application, no old IPS UI imports.
 const root=document.getElementById('app');
-const S={account:null,page:'home',tab:'overview',selected:'',data:[],project:null,notice:'',error:'',busy:false};
+const S={account:null,page:'home',tab:'overview',selected:'',data:[],project:null,notice:'',error:'',busy:false,sandbox:false};
 const E=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>typeof n==='number'?(n/100).toLocaleString('en-PL',{style:'currency',currency:'PLN'}):'Awaiting quotation';
 const date=x=>x?new Date(x).toLocaleString(undefined,{dateStyle:'medium',timeStyle:'short'}):'Not scheduled';
@@ -16,7 +16,7 @@ const empty=message=>'<div class="empty">'+E(message)+'</div>';
 const nav=()=>'<header class="top"><a class="logo" href="#" data-route="home"><div class="monogram">IPS</div><span><strong>INTERNATIONAL<br>PROJECT SERVICES</strong><small>PRIVATE COMPANY OPERATING SYSTEM</small></span></a><div class="top-actions">'+(S.account?'<span class="pill">'+E(S.account.role==='root'?'NYORO · ROOT ADMIN':S.account.role.toUpperCase())+'</span>'+button('Sign out securely','logout'):'<button data-route="login">Sign in</button><button class="primary" data-route="signup">Join IPS</button>')+'</div></header>';
 const footer=()=>'<footer class="foot"><span>IPS · International Project Services · A confidential professional company</span><span>No telephone calls · No payments are collected until the payment system is approved</span></footer>';
 const flash=()=>S.error?'<div role="alert" class="notice error">'+E(S.error)+'</div>':S.notice?'<div role="status" class="notice success">'+E(S.notice)+'</div>':'';
-const layout=body=>{root.innerHTML=nav()+body+footer();document.title='IPS | '+(S.account?'Private Workspace':'International Project Services');};
+const layout=body=>{root.innerHTML=nav()+(S.sandbox?'<div role="status" class="notice" style="margin:0;border-radius:0;text-align:center">ISOLATED IPS EVALUATION — All identities, documents and paid-example records are fictional. No external emails or real payments. Do not submit personal or confidential materials here.</div>':'')+body+footer();document.title='IPS | '+(S.account?'Private Workspace':'International Project Services');};
 const api=async(route,{method='GET',body}={})=>{
  const response=await fetch('/api'+route,{method,credentials:'same-origin',cache:'no-store',headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
  const data=await response.json().catch(()=>({}));
@@ -173,4 +173,4 @@ document.addEventListener('click',async e=>{
  }catch(error){S.error=error.message}finally{S.busy=false}
  S.account?workspace():render();
 });
-(async()=>{try{const d=await api('/me');S.account=d.account}catch{}render()})();
+(async()=>{try{const state=await api('/health');S.sandbox=state.environment==='ISOLATED_EVALUATION'}catch{}try{const d=await api('/me');S.account=d.account}catch{}render()})();
