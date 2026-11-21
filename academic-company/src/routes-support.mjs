@@ -190,6 +190,6 @@ export function beginCompanyAutomation(ctx){
   }catch(e){console.error('IPS academic automation incident',e?.name||'Error')}
   finally{busy=false}
  };
- const handle=setInterval(tick,60000);handle.unref?.();void tick();
+ const handle=setInterval(tick,config.sandbox?1200:60000);handle.unref?.();void tick();
  const mailHandle=setInterval(deliveryTick,2500);mailHandle.unref?.();void deliveryTick();
 }
