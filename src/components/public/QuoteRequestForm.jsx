@@ -12,7 +12,7 @@ export default function QuoteRequestForm({selectedService=''}) {
   const {user}=useAuth();
   const [form,setForm]=useState({...start,service:selectedService});
   const [config,setConfig]=useState({email:false,telegram:false,whatsapp:false,workspace:true,accepting_requests:false});
-  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState(null),[code,setCode]=useState('');
+  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[result,setResult]=useState(null),[code,setCode]=useState('');
   useEffect(()=>setForm(old=>({...old,service:selectedService||old.service})),[selectedService]);
   useEffect(()=>{
     if(demo)return;
@@ -39,7 +39,7 @@ export default function QuoteRequestForm({selectedService=''}) {
     (chatReference?'?text='+encodeURIComponent(chatReference):'');
   const mailHref='mailto:'+IPS_EMAILS.contact+'?subject='+encodeURIComponent('IPS academic support enquiry');
   async function submit(e){
-    e.preventDefault();setError('');setResult(null);
+    e.preventDefault();setError('');setNotice('');setResult(null);
     if(!usernameValid(identity||''))return setError('Choose a username using 3–32 letters, numbers, periods, underscores or hyphens.');
     if(form.message.trim().length<20)return setError('Describe your requirements in at least 20 characters.');
     if(!form.contact_consent)return setError('Please agree to written contact about this request.');
@@ -67,6 +67,18 @@ export default function QuoteRequestForm({selectedService=''}) {
     }catch(e){setError(e.message);}
     finally{setBusy(false);}
   }
+  async function resendQuoteVerification(){
+    if(!result?.quote_id||!form.email)return setError('Keep your private quotation reference and contact email to request a new verification link.');
+    setBusy(true);setError('');setNotice('');
+    try{
+      const response=await fetch('/api/quote-requests/resend-verification',{method:'POST',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({quote_id:result.quote_id,email:form.email})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!data.success)throw Error(data.error||'IPS could not request a new link.');
+      setNotice('If your request is still awaiting email proof, IPS will send a new verification link when the resend cooldown permits. Your original request is safely retained.');
+    }catch(e){setError(e.message||'Could not request another link. Your original request is still saved.');}
+    finally{setBusy(false);}
+  }
   return <section className="ipsa-quote-form-wrap" aria-label="Get a Quote">
     <div className="ipsa-quote-heading">
       <h3>Get a Quote</h3>
@@ -75,13 +87,20 @@ export default function QuoteRequestForm({selectedService=''}) {
     {result&&!result.preview?<div role="status" className="ipsa-form-success" style={{padding:18}}>
       <strong>Your private reference: {result.quote_id}</strong>
       <p>{result.message}</p>
-      {result.verification_required?<form onSubmit={verifyEmail}>
-        <label>8-digit email verification code
-          <input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8}
-            value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,8))} placeholder="Code from your email"/>
-        </label>
-        <button className="ipsa-btn ipsa-btn-dark" disabled={busy||code.length!==8}>{busy?'Verifying…':'Verify email & submit request'}</button>
-      </form>:null}
+      {result.verification_required?<div>
+        <p>{result.email_delivery_pending?'Your request is safely saved even though IPS could not deliver the first email. Use the resend control below.':'Open the verification link emailed to you and IPS will verify the contact automatically. You may use the code below if the link is unavailable.'}</p>
+        <form onSubmit={verifyEmail}>
+          <label>Optional 8-digit verification code
+            <input required inputMode="numeric" pattern="[0-9]{8}" maxLength={8}
+              value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,'').slice(0,8))} placeholder="Fallback code from your email"/>
+          </label>
+          <button className="ipsa-btn ipsa-btn-dark" disabled={busy||code.length!==8}>{busy?'Verifying…':'Verify using code'}</button>
+        </form>
+        <button type="button" className="ipsa-btn ipsa-btn-outline-light" disabled={busy} onClick={resendQuoteVerification}>
+          {busy?'Requesting…':'Resend verification email'}
+        </button>
+        {notice&&<p role="status">{notice}</p>}
+      </div>:null}
       {result.requires_chat_start?<div>
         <p>For your privacy, IPS cannot respond to an unverified contact. Open {channel==='whatsapp'?'WhatsApp':'Telegram'} and send only this reference: <strong>{result.quote_id}</strong>. {channel==='whatsapp'?'An IPS reviewer will manually check that the sender number matches your form. WhatsApp is not synchronized with the IPS inbox.':'The IPS bot must verify the linked Telegram conversation.'} Do not send private documents there.</p>
         <a className="ipsa-btn ipsa-btn-dark" href={channel==='telegram'?telegramHref:waHref} target="_blank" rel="noopener noreferrer">
