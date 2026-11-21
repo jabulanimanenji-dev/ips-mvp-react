@@ -109,6 +109,18 @@ try{
     assert.equal(await student.locator('body').evaluate(el=>el.scrollWidth>window.innerWidth+4),false);
     await evidence(student,name);
   });
+  await check('Client dashboard never shows invented zero metrics when the real API fails',async()=>{
+    const offline='**/api/orders/client/**';
+    await student.route(offline,route=>route.fulfill({status:503,contentType:'application/json',
+      body:JSON.stringify({success:false,error:'CI-only unavailable order service'})}));
+    try{
+      await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
+      await student.getByText('Project records are temporarily unavailable',{exact:true}).waitFor({timeout:15000});
+    }finally{await student.unroute(offline);}
+    await student.getByRole('button',{name:'Retry project records'}).click();
+    await student.getByText('Project records are temporarily unavailable',{exact:true})
+      .waitFor({state:'hidden',timeout:15000});
+  });
   const specialist=await open();
   await check('Real approved Specialist login opens only the Specialist workspace',async()=>{
     await specialist.goto(base+'/writer/login',{waitUntil:'domcontentloaded'});
@@ -137,6 +149,19 @@ try{
       'Specialist totals must reflect the assigned paid work.');
     await specialist.getByRole('heading',{name:/My private updates/}).waitFor({timeout:15000});
     await evidence(specialist,'specialist-dashboard');
+  });
+  await check('Specialist dashboard explains backend outages and recovers without re-login',async()=>{
+    const offline='**/api/orders/writer/**';
+    await specialist.route(offline,route=>route.fulfill({status:503,contentType:'application/json',
+      body:JSON.stringify({success:false,error:'CI-only unavailable assignment service'})}));
+    try{
+      await specialist.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
+      await specialist.getByText('Your assignment data is temporarily unavailable',{exact:true})
+        .waitFor({timeout:15000});
+    }finally{await specialist.unroute(offline);}
+    await specialist.getByRole('button',{name:'Retry assignments'}).click();
+    await specialist.getByText('Your assignment data is temporarily unavailable',{exact:true})
+      .waitFor({state:'hidden',timeout:15000});
   });
   for(const [route,name] of [
     ['/writer/orders','specialist-orders'],
