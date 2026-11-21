@@ -221,9 +221,9 @@ function departmentsForRole(a){
   ['quotes','My quotations'],['commissions','My academic work'],['billing','Billing'],['support','Support'],['profile','Profile']];
  if(a.role==='specialist')return [['overview','My work'],['inbox','Inbox & messages'],['notifications','Updates'],
   ['commissions','Assignments & files'],['worklogs','Work records'],['support','Support'],['profile','Profile']];
- if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],['notifications','Alerts & delivery'],
+ if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],['queues','Department queues'],['notifications','Alerts & delivery'],
   ['quotes','Enquiries'],['students','Students'],['specialists','Specialists'],
-  ['commissions','Academic jobs'],['root-students','Student workspace'],
+  ['commissions','Academic jobs'],['quality','Quality review'],['root-students','Student workspace'],
   ['root-specialists','Specialist workspace'],['workforce','Team & managers'],
   ['finance','Finance'],['audit','Audit']];
  const t=[['overview','Overview'],['inbox','Inbox & messages'],['notifications','Updates'],['queues','My queue']];
