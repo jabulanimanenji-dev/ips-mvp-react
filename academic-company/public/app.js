@@ -510,7 +510,7 @@ async function quoteDetail(q,a){
   '<div class="file-tray">'+(docRows||empty('No supporting documents yet.'))+'</div>'+
   form('quote-upload','<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
    (manager?options('Document audience','audience',[['student','Student / Researcher'],['internal','IPS internal']]):'')+
-   field('PDF, DOCX or TXT (up to 5 MB)','upload','file','','true'),
+   field('PDF, DOCX or TXT (up to 20 MB)','upload','file','','true'),
    'Upload document'));
  const authorizedQuoteManager=state.account?.role==='root'||['root','manager'].includes(a.role);
  const clarificationActions=a.role==='student'&&q.status==='clarify'&&(!state.rootLens||state.isEvaluation)?
@@ -626,7 +626,7 @@ async function commissionDetail(p,a){
  const purposes=canDeliver&&canReference?[['reference','Supporting document'],['deliverable','Deliverable for QA']]:
    canDeliver?[['deliverable','Deliverable for QA']]:[['reference','Supporting document']];
  const upload=(canReference||canDeliver)?panel('Upload a document',
-  specialist&&canDeliver?'Specialist deliverables up to 20 MB · reference documents up to 5 MB.':'PDF, DOCX or TXT · maximum 5 MB per file.',
+  'Private PDF, DOCX or TXT references and Specialist deliverables · up to 20 MB per document.',
   form('case-upload','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
    options('File type','purpose',purposes)+
    field('Choose file','upload','file','','true'),'Upload document')):'';
@@ -748,6 +748,26 @@ async function filePayload(formNode){
  });
  return {filename:file.name,mime,data:contents};
 }
+async function uploadAcademicReferenceBinary(endpoint,file,audience='student'){
+ if(!file||file.size<12||file.size>20*1024*1024)
+  throw Error('Choose a PDF, DOCX or TXT document no larger than 20 MB.');
+ const ext=file.name.split('.').pop()?.toLowerCase()||'';
+ const accepted={pdf:'application/pdf',
+  docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  txt:'text/plain'};
+ if(!accepted[ext])throw Error('Academic reference documents must be PDF, DOCX or TXT.');
+ const result=await fetch(endpoint,{method:'POST',credentials:'same-origin',cache:'no-store',
+  headers:{'Content-Type':'application/octet-stream',
+   'X-IPS-File-Name':encodeURIComponent(file.name),
+   'X-IPS-File-Type':accepted[ext],
+   'X-IPS-File-Audience':audience,
+   ...(state.rootLens&&state.isEvaluation?
+    {'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},
+  body:file});
+ const response=await result.json().catch(()=>({}));
+ if(!result.ok)throw Error(response.error||'IPS could not store the private reference.');
+ return response;
+}
 async function uploadAcademicBinary(commissionId,file){
  if(!file||file.size<12||file.size>20*1024*1024)
   throw Error('Choose a genuine PDF, DOCX or TXT document under 20 MB.');
@@ -786,6 +806,13 @@ async function submit(name,formNode){
  if(name==='recover'||name==='invite'){if(data.password!==data.confirmPassword)throw Error('Passwords do not match.');
   const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
  if(name==='quote-upload'){
+  const file=formNode.querySelector('input[name=upload]')?.files?.[0];
+  if(file?.size>5*1024*1024){
+   await uploadAcademicReferenceBinary('/api/academic/quotes/'+
+    encodeURIComponent(data.quoteId)+'/files-binary',
+    file,data.audience||'student');
+   return 'Your large academic document is securely attached to this enquiry.';
+  }
   const payload=await filePayload(formNode);
   await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/files',
    {method:'POST',operator:state.account?.role==='root',body:{...payload,audience:data.audience||'student'}});
@@ -797,6 +824,12 @@ async function submit(name,formNode){
   return 'Message added to the academic enquiry.';
  }
  if(name==='case-upload'){
+  const chosen=formNode.querySelector('input[name=upload]')?.files?.[0];
+  if(data.purpose==='reference'&&chosen?.size>5*1024*1024){
+   await uploadAcademicReferenceBinary('/api/operations/'+
+    encodeURIComponent(data.commissionId)+'/upload-reference-binary',chosen);
+   return 'Your large academic reference is securely attached to this workroom.';
+  }
   if(data.purpose==='deliverable'&&
    (state.account?.role==='specialist'||state.rootLens?.account?.role==='specialist')){
    const file=formNode.querySelector('input[name=upload]')?.files?.[0];

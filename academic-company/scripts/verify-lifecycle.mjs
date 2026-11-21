@@ -802,6 +802,64 @@ try{
    id,status:'delivered'}),0,'External delivery must not be falsely asserted in isolated testing');
   assert.ok(await db.collection('academic_audit_events').findOne({action:'academic_notification_retry_requested',ref:id}));
  });
+ await assertCheck('Student uploads and privately retrieves a 7 MB pre-commission enquiry attachment',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const quote=(await db.collection('academic_quotations').findOne({studentId:student.id}));
+  assert.ok(quote?.id);
+  const bytes=Buffer.alloc(7*1024*1024,65);
+  const checksum=crypto.createHash('sha256').update(bytes).digest('hex');
+  const saved=await fetch(url+'/api/academic/quotes/'+quote.id+'/files-binary',{
+   method:'POST',headers:{Cookie:studentCookie,Origin:url,
+    'Content-Type':'application/octet-stream',
+    'X-IPS-File-Name':'thesis-source-reference.txt',
+    'X-IPS-File-Type':'text/plain'},body:bytes});
+  assert.equal(saved.status,201,'Academic Client precommission upload failed: '+(await saved.clone().text()).slice(0,220));
+  const data=await saved.json();
+  assert.equal(data.file.sha256,checksum);
+  assert.equal(data.file.byteLength,bytes.length);
+  const stored=await db.collection('academic_quote_files').findOne({id:data.file.id});
+  assert.ok(stored?.blobId);
+  assert.equal(stored.fileData,undefined);
+  const studentDownload=await fetch(url+'/api/academic/quote-files/'+stored.id,{headers:{Cookie:studentCookie}});
+  assert.equal(studentDownload.status,200);
+  assert.equal(crypto.createHash('sha256').update(Buffer.from(await studentDownload.arrayBuffer())).digest('hex'),checksum);
+  const staffDownload=await fetch(url+'/api/academic/quote-files/'+stored.id,{headers:{Cookie:rootCookie}});
+  assert.equal(staffDownload.status,200);
+  assert.equal((await staffDownload.arrayBuffer()).byteLength,bytes.length);
+  const excluded=await fetch(url+'/api/academic/quote-files/'+stored.id,{headers:{Cookie:otherCookie}});
+  assert.equal(excluded.status,403);
+  const internal=await fetch(url+'/api/academic/quotes/'+quote.id+'/files-binary',{
+   method:'POST',headers:{Cookie:rootCookie,Origin:url,
+    'Content-Type':'application/octet-stream','X-IPS-File-Name':'private-ips-note.txt',
+    'X-IPS-File-Type':'text/plain','X-IPS-File-Audience':'internal'},
+   body:Buffer.from('Confidential IPS internal assessment for this quotation.')});
+  assert.equal(internal.status,201);
+  const internalData=await internal.json();
+  await call('/academic/quote-files/'+internalData.file.id,{cookie:studentCookie},403);
+  const studentListing=await call('/academic/quotes/'+quote.id+'/files',{cookie:studentCookie});
+  assert.ok(!studentListing.data.files.some(f=>f.id===internalData.file.id));
+ });
+ await assertCheck('Student uploads a 6 MB commissioned reference without bypassing privacy or QA',async()=>{
+  const bytes=Buffer.alloc(6*1024*1024,66);
+  const checksum=crypto.createHash('sha256').update(bytes).digest('hex');
+  const saved=await fetch(url+'/api/operations/'+commissionId+'/upload-reference-binary',{
+   method:'POST',headers:{Cookie:studentCookie,Origin:url,
+    'Content-Type':'application/octet-stream',
+    'X-IPS-File-Name':'research-dataset-guidance.txt',
+    'X-IPS-File-Type':'text/plain'},body:bytes});
+  assert.equal(saved.status,201,'Commission reference upload failed: '+(await saved.clone().text()).slice(0,220));
+  const item=(await saved.json()).file;
+  assert.equal(item.sha256,checksum);
+  const stored=await db.collection('academic_private_files').findOne({id:item.id});
+  assert.ok(stored?.blobId);
+  assert.equal(stored.purpose,'reference');
+  const retrieved=await fetch(url+'/api/academic/files/'+item.id,{headers:{Cookie:studentCookie}});
+  assert.equal(retrieved.status,200);
+  assert.equal(crypto.createHash('sha256').update(Buffer.from(await retrieved.arrayBuffer())).digest('hex'),checksum);
+  await call('/academic/files/'+item.id,{cookie:otherCookie},403);
+  const listing=await call('/operations/'+commissionId+'/files',{cookie:studentCookie});
+  assert.ok(listing.data.files.some(f=>f.id===item.id));
+ });
  await assertCheck('Multi-megabyte Specialist document streams securely through GridFS, QA and client delivery',async()=>{
   const prefix=Buffer.from('IPS permitted academic editing and research-guidance notes.\\n');
   const bytes=Buffer.concat([prefix,Buffer.alloc(7*1024*1024-prefix.length,65)]);

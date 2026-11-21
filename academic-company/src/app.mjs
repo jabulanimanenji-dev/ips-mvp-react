@@ -223,7 +223,7 @@ app.use('/api',async(req,res,next)=>{
   if(!/^(?:STU|SPC)-[A-Z0-9-]{4,55}$/.test(targetId))
    return res.status(400).json({error:'Choose a real Student or Specialist workspace from the IPS directory.'});
   if(!(/^(?:\/academic\/|\/support(?:\/|$)|\/notifications(?:\/|$))/.test(req.path)||
-   /^\/operations\/inbox$/.test(req.path)||/^\/operations\/[^/]+\/(?:files|upload)$/.test(req.path)||
+   /^\/operations\/inbox$/.test(req.path)||/^\/operations\/[^/]+\/(?:files|upload|upload-reference-binary)$/.test(req.path)||
    (['GET','HEAD'].includes(req.method)&&(/^\/operations\/direct-message$/.test(req.path)||
     /^\/operations\/direct-message\/[^/]+\/thread$/.test(req.path)))))
    return res.status(403).json({error:'Root assisted workspaces cannot change identity, authentication or administration.'});
@@ -232,11 +232,12 @@ app.use('/api',async(req,res,next)=>{
    /^\/academic\/commissions\/[^/]+\/messages$/.test(req.path)||
    /^\/academic\/quotes\/[^/]+\/messages$/.test(req.path));
   const evaluationAction=req.method==='POST'&&config.sandbox&&
-   (/^\/academic\/quotes$/.test(req.path)||/^\/support$/.test(req.path)||
+   (/^\/academic\/quotes$/.test(req.path)||
+    /^\/academic\/quotes\/[^/]+\/files-binary$/.test(req.path)||/^\/support$/.test(req.path)||
     /^\/support\/[^/]+\/reply$/.test(req.path)||
     /^\/academic\/quotes\/[^/]+\/decision$/.test(req.path)||
     /^\/academic\/commissions\/[^/]+\/(?:submission|submission-binary|student-decision)$/.test(req.path)||
-    /^\/operations\/[^/]+\/upload$/.test(req.path));
+    /^\/operations\/[^/]+\/(?:upload|upload-reference-binary)$/.test(req.path));
   if(!permittedRead&&!rootOfficialMessage&&!evaluationAction)
    return res.status(403).json({error:'Root can inspect and coordinate here. Identity, consent, personal settings and client acceptance cannot be forged.'});
   const target=await db.accounts.findOne({id:targetId,role:{$in:['student','specialist']},

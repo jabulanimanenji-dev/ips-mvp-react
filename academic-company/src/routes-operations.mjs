@@ -2,11 +2,12 @@
 // One case, one visible conversation and document tray; Root can intervene without
 // copying an account's password, signing as a client or exposing private vendor details.
 import crypto from 'node:crypto';
+import express from 'express';
 import {publicDocument,normalizeFilename,validEmail,email} from './security.mjs';
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerOperationsRoutes(ctx){
- const {app,db,rootEmail,notify,notifyQuotation,audit,authorize,wrap,now,uid}=ctx;
+ const {app,db,documentBucket,rootEmail,notify,notifyQuotation,audit,authorize,throttle,wrap,now,uid}=ctx;
  const deny=res=>res.status(403).json({error:'You do not have access to this academic case.'});
  const staff=a=>a&&(['root','manager','staff'].includes(a.role));
  const intake=a=>a?.role==='root'||(staff(a)&&a.department==='client_relations');
@@ -34,6 +35,44 @@ export function registerOperationsRoutes(ctx){
   if(mime==='application/pdf'&&buffer.subarray(0,5).toString()!=='%PDF-')return {error:'PDF contents are invalid.'};
   if(mime.includes('wordprocessingml')&&buffer.subarray(0,2).toString()!=='PK')return {error:'DOCX contents are invalid.'};
   return {filename,mime,purpose,buffer};
+ };
+ const binaryDocument=req=>{
+  let rawName='';
+  try{rawName=decodeURIComponent(String(req.get('X-IPS-File-Name')||''))}
+  catch{return {error:'Academic document filename encoding is invalid.'}}
+  const filename=normalizeFilename(rawName),mime=String(req.get('X-IPS-File-Type')||'');
+  const format=filename.toLowerCase().split('.').pop();
+  const supported={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',txt:'text/plain'};
+  const buffer=req.body;
+  if(!Buffer.isBuffer(buffer)||buffer.length<12||buffer.length>20*1024*1024||
+   supported[format]!==mime||!/^[A-Za-z0-9_.-]{1,100}$/.test(filename))
+   return {error:'Choose a genuine PDF, DOCX or TXT document not exceeding 20 MB.'};
+  if(mime==='application/pdf'&&buffer.subarray(0,5).toString()!=='%PDF-'||
+    mime.includes('wordprocessingml')&&buffer.subarray(0,2).toString()!=='PK')
+   return {error:'The academic document contents do not match its file type.'};
+  return {filename,mime,buffer};
+ };
+ const storePrivateBlob=async({id,filename,mime,buffer,context})=>{
+  const sha256=crypto.createHash('sha256').update(buffer).digest('hex');
+  const blobId=await new Promise((resolve,reject)=>{
+   const writer=documentBucket.openUploadStream(filename,{metadata:{
+    academicFileId:id,sha256,mime,...context}});
+   writer.once('error',reject);
+   writer.once('finish',()=>resolve(writer.id));
+   writer.end(buffer);
+  });
+  return {blobId,byteLength:buffer.length,sha256};
+ };
+ const streamPrivateBlob=(res,file)=>{
+  if(file.blobId){
+   if(Number.isSafeInteger(file.byteLength))res.set('Content-Length',file.byteLength);
+   const reader=documentBucket.openDownloadStream(file.blobId);
+   reader.on('error',()=>{
+    if(!res.headersSent)res.status(503).json({error:'Private academic document storage is unavailable.'});
+    else res.destroy();
+   });
+   reader.pipe(res);
+  }else res.send(Buffer.from(file.fileData?.buffer||file.fileData));
  };
  const metadata=x=>({id:x.id,commissionId:x.commissionId,filename:x.filename,mime:x.mime,
   purpose:x.purpose||x.kind||'deliverable',sha256:x.sha256,createdAt:x.createdAt,
@@ -150,6 +189,36 @@ export function registerOperationsRoutes(ctx){
  }));
  // Academic enquiry documents are available before commission/payment, subject to the same
  // ownership boundary as quotations. Guest enquiries require a verified registered account.
+ app.post('/api/academic/quotes/:id/files-binary',
+  express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','root','manager','staff']))return;
+  if(throttle.limited(req,'academic-quote-file',20))
+   return res.status(429).json({error:'Please retry your document upload later.'});
+  const q=await db.quotes.findOne({id:req.params.id});
+  if(!q||!quoteAccess(req.actor,q))return deny(res);
+  if(req.actor.role==='student'&&(!q.studentId||q.studentId!==req.actor.id))return deny(res);
+  const checked=binaryDocument(req);
+  if(checked.error)return res.status(400).json({error:checked.error});
+  const a=req.actor,audience=a.role==='student'?'student':
+   String(req.get('X-IPS-File-Audience')||'student');
+  if(!['student','internal'].includes(audience))
+   return res.status(400).json({error:'Choose the appropriate private enquiry audience.'});
+  const id=uid('QF'),date=now();
+  const blob=await storePrivateBlob({id,...checked,context:{kind:'enquiry_reference',quoteId:q.id}});
+  const file={id,quoteId:q.id,studentId:q.studentId,filename:checked.filename,
+   mime:checked.mime,purpose:'enquiry_reference',audience,...blob,
+   uploadedBy:req.rootOperatorId||a.id,
+   uploadedRole:req.rootOperatorId?'root':a.role,createdAt:date};
+  try{await db.quoteFiles.insertOne(file)}
+  catch(err){await documentBucket.delete(blob.blobId).catch(()=>{});throw err}
+  await db.quotes.updateOne({id:q.id},{$set:{updatedAt:now()}});
+  await notify(a.role==='student'?rootEmail:q.studentId,
+   'Academic enquiry document uploaded for '+q.id,'quote_file');
+  await audit(a,'academic_enquiry_document_uploaded',q.id,
+   {fileId:id,audience,sha256:blob.sha256,byteLength:blob.byteLength});
+  res.status(201).json({file:{id,filename:file.filename,mime:file.mime,
+   audience,sha256:blob.sha256,byteLength:blob.byteLength,createdAt:date}});
+ }));
  app.post('/api/academic/quotes/:id/files',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','root','manager','staff']))return;
   const q=await db.quotes.findOne({id:req.params.id});
@@ -192,7 +261,36 @@ export function registerOperationsRoutes(ctx){
   res.set('Content-Type',file.mime).set('Content-Disposition','attachment; filename="'+file.filename+'"')
    .set('Cache-Control','private,no-store').set('X-Content-Type-Options','nosniff')
    .set('X-Content-SHA256',file.sha256);
-  res.send(Buffer.from(file.fileData?.buffer||file.fileData));
+  streamPrivateBlob(res,file);
+ }));
+ app.post('/api/operations/:id/upload-reference-binary',
+  express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','specialist','root']))return;
+  if(throttle.limited(req,'academic-case-reference',20))
+   return res.status(429).json({error:'Please retry the academic document upload later.'});
+  const p=await db.projects.findOne({id:req.params.id});
+  if(!p||!caseAccess(req.actor,p))return deny(res);
+  const a=req.actor;
+  if(!(a.role==='root'||a.role==='student'&&p.studentId===a.id||
+    a.role==='specialist'&&p.specialistId===a.id))
+   return res.status(403).json({error:'Only the Client, assigned Specialist or Root may upload private case references.'});
+  const checked=binaryDocument(req);
+  if(checked.error)return res.status(400).json({error:checked.error});
+  const id=uid('AF'),date=now();
+  const blob=await storePrivateBlob({id,...checked,context:{
+   kind:'client_reference',commissionId:p.id}});
+  const file={id,commissionId:p.id,studentId:p.studentId,
+   specialistId:p.specialistId,filename:checked.filename,mime:checked.mime,
+   purpose:'reference',kind:'client_reference',...blob,
+   createdAt:date,revision:p.revisionCount||0,uploadedBy:req.rootOperatorId||a.id};
+  try{await db.files.insertOne(file)}
+  catch(err){await documentBucket.delete(blob.blobId).catch(()=>{});throw err}
+  await db.projects.updateOne({id:p.id},{$set:{updatedAt:now()}});
+  await audit(a,'academic_reference_uploaded',p.id,
+   {fileId:id,sha256:blob.sha256,byteLength:blob.byteLength});
+  await notify(rootEmail,'New academic reference uploaded for '+p.id,'file');
+  res.status(201).json({file:metadata(file),storage:'private_gridfs',
+   byteLength:blob.byteLength});
  }));
  app.post('/api/operations/:id/upload',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','student','specialist','manager','staff']))return;
