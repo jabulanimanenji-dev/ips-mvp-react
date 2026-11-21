@@ -14,7 +14,10 @@ const vars={...process.env,NODE_ENV:'test',IPS_ACADEMIC_MODE:'evaluation',IPS_AC
  MONGODB_URI:'mongodb://127.0.0.1:27017/'+dbName,PORT:'18122',PUBLIC_APP_URL:url,
  ROOT_EMAIL:'nyoro.ips-academic-test@example.org',ROOT_PASSWORD:'AcademicRootTest2026!',
  SESSION_SECRET:'Academic-test-only-HMAC-secret-of-sufficient-length-2026-abcdefghijklmnopqrstuvwxyz',
- RESEND_API_KEY:'',FROM_EMAIL:'',IPS_CLAMAV_HOST:'127.0.0.1',
+ RESEND_API_KEY:'',FROM_EMAIL:'',IPS_TELEGRAM_BOT_USERNAME:'IPSAcademicReviewBot',
+ TELEGRAM_BOT_TOKEN:'synthetic-no-live-provider-token',
+ IPS_TELEGRAM_WEBHOOK_SECRET:'Academic_2026_Synthetic_Webhook_Secret_Only',
+ IPS_CLAMAV_HOST:'127.0.0.1',
  IPS_CLAMAV_PORT:String(mockScanner.port)};
 const server=spawn(process.execPath,['src/app.mjs'],{env:vars,stdio:['ignore','pipe','pipe']});
 let stderr='';for(const stream of [server.stdout,server.stderr])stream.on('data',d=>{stderr=(stderr+String(d)).slice(-2700)});
@@ -235,22 +238,74 @@ try{
   assert.equal(messageNotices.length,1);
   assert.ok(!messageNotices[0].text.includes('academic clarification'));
  });
- await assertCheck('Telegram quote preference is not secretly redirected to email',async()=>{
+ await assertCheck('One-use Telegram bot linking verifies private chat ownership and safely queues private updates',async()=>{
   const student=await db.collection('academic_accounts').findOne({email:studentMail});
   const queue=db.collection('academic_notification_deliveries');
-  const prior=await queue.countDocuments({accountId:student.id});
+  const priorEmail=await queue.countDocuments({to:studentMail,kind:'quotation'});
+  const unlinked=await call('/contact/telegram/status',{cookie:studentCookie});
+  assert.equal(unlinked.data.available,true);assert.equal(unlinked.data.linked,false);
+  await call('/profile',{method:'PATCH',cookie:studentCookie,body:{contactPreference:'telegram'}},409);
+  await call('/academic/quotes',withAuth(studentCookie,{
+   ...brief(),contactChannel:'telegram'}),409);
+  await call('/academic/guest-quote',{method:'POST',body:{
+   ...brief(),username:'GuestTgResearch'+random(),email:emailFor('guest-telegram'),
+   contactChannel:'telegram',privacyConsent:true}},409);
+  const link=await call('/contact/telegram/link',withAuth(studentCookie,{}));
+  const startPayload=new URL(link.data.url).searchParams.get('start');
+  assert.ok(/^ips_[A-Za-z0-9_-]{43}$/.test(startPayload));
+  const update={update_id:21001,message:{
+   text:'/start '+startPayload,chat:{id:487654321,type:'private'},
+   from:{id:487654321,username:'PrivateAcademicTester'}}};
+  const webhook=async (secret,payload)=>fetch(url+'/api/integrations/telegram/webhook',{
+   method:'POST',headers:{'Content-Type':'application/json',
+    'X-Telegram-Bot-Api-Secret-Token':secret},body:JSON.stringify(payload)});
+  const unauthorized=await webhook('invalid-token',update);
+  assert.equal(unauthorized.status,401);
+  const mismatch=await webhook(vars.IPS_TELEGRAM_WEBHOOK_SECRET,{...update,message:{
+   ...update.message,from:{id:999999999}}});
+  assert.equal(mismatch.status,200);assert.equal((await mismatch.json()).linked,false);
+  const accepted=await webhook(vars.IPS_TELEGRAM_WEBHOOK_SECRET,update);
+  assert.equal(accepted.status,200);assert.equal((await accepted.json()).linked,true);
+  const replay=await webhook(vars.IPS_TELEGRAM_WEBHOOK_SECRET,update);
+  assert.equal(replay.status,200);assert.equal((await replay.json()).linked,false);
+  assert.equal((await call('/contact/telegram/status',{cookie:studentCookie})).data.linked,true);
+  const account=await db.collection('academic_accounts').findOne({id:student.id});
+  assert.equal(account.telegramChatId,487654321);
+  assert.equal(account.telegramConnectionStatus,'confirmed');
+  assert.equal(account.telegramLinkHash,undefined);
+  const confirmation=await db.collection('academic_evaluation_mail').findOne({
+   to:'telegram:487654321',provider:'telegram-sandbox'});
+  assert.ok(confirmation,'No synthetic Telegram bot confirmation was recorded');
+  await call('/profile',{method:'PATCH',cookie:studentCookie,body:{contactPreference:'telegram'}});
   const q=(await call('/academic/quotes',withAuth(studentCookie,{
-   ...brief('academic-editing'),contactChannel:'telegram',telegramUsername:'AcademicResearchDesk'}),201)).data.quote;
+   ...brief('academic-editing'),contactChannel:'telegram'}),201)).data.quote;
   await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
-   decision:'approved',note:'Legitimate language and methodology support is approved.'}));
+   decision:'approved',note:'Legitimate academic guidance and editorial feedback approved.'}));
   await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
-   priceMinor:19900,deliverables:'Permitted editorial guidance on existing academic work.',
-   terms:'Independent work, no ghostwriting, signed approval required before any commission.'}));
-  assert.equal(await queue.countDocuments({accountId:student.id}),prior);
-  const updated=await db.collection('academic_quotations').findOne({id:q.id});
-  assert.equal(updated.outboundStatus,'telegram_not_connected');
-  assert.ok(await db.collection('academic_notifications').findOne({
-   accountId:vars.ROOT_EMAIL,kind:'communication_failure',ref:q.id}));
+   priceMinor:19900,deliverables:'Permitted editorial guidance on student-owned academic work.',
+   terms:'The reviewed academic scope and price are available only inside the private IPS workspace.'}));
+  const outbound=await queue.findOne({accountId:student.id,channel:'telegram',kind:'quotation'});
+  assert.ok(outbound,'A chosen verified Telegram channel must queue a real provider job');
+  assert.equal(outbound.chatId,487654321);
+  assert.ok(!outbound.text.includes('199.00')&&!outbound.text.includes('Permitted editorial'));
+  assert.equal(await queue.countDocuments({to:studentMail,kind:'quotation'}),priorEmail,
+   'Telegram choice must never silently switch to an email notice');
+  let sent;
+  for(let i=0;i<35;i++){
+   sent=await queue.findOne({id:outbound.id});
+   if(sent?.status==='synthetic_dispatched')break;
+   await sleep(300);
+  }
+  assert.equal(sent?.status,'synthetic_dispatched',
+   'Sandbox Telegram should be recorded as synthetic, never as a human receipt');
+  assert.equal(sent?.provider,'telegram-sandbox');
+  await call('/contact/telegram/unlink',withAuth(studentCookie,{}));
+  assert.equal((await call('/contact/telegram/status',{cookie:studentCookie})).data.linked,false);
+  const after=await db.collection('academic_accounts').findOne({id:student.id});
+  assert.equal(after.contactPreference,'workspace');
+  assert.equal(after.telegramChatId,undefined);
+  await call('/academic/quotes',withAuth(studentCookie,{
+   ...brief(),contactChannel:'telegram'}),409);
  });
  await assertCheck('Verified guest receives queued generic offer notice without academic or financial content',async()=>{
   const guestEmail=emailFor('guest-quote');
