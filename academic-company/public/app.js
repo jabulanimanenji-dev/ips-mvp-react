@@ -625,7 +625,8 @@ async function commissionDetail(p,a){
  const canReference=isRoot||student||specialist;
  const purposes=canDeliver&&canReference?[['reference','Supporting document'],['deliverable','Deliverable for QA']]:
    canDeliver?[['deliverable','Deliverable for QA']]:[['reference','Supporting document']];
- const upload=(canReference||canDeliver)?panel('Upload a document','PDF, DOCX or TXT · maximum 5 MB per file.',
+ const upload=(canReference||canDeliver)?panel('Upload a document',
+  specialist&&canDeliver?'Specialist deliverables up to 20 MB · reference documents up to 5 MB.':'PDF, DOCX or TXT · maximum 5 MB per file.',
   form('case-upload','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
    options('File type','purpose',purposes)+
    field('Choose file','upload','file','','true'),'Upload document')):'';
@@ -747,6 +748,26 @@ async function filePayload(formNode){
  });
  return {filename:file.name,mime,data:contents};
 }
+async function uploadAcademicBinary(commissionId,file){
+ if(!file||file.size<12||file.size>20*1024*1024)
+  throw Error('Choose a genuine PDF, DOCX or TXT document under 20 MB.');
+ const ext=file.name.split('.').pop()?.toLowerCase()||'';
+ const types={pdf:'application/pdf',docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  txt:'text/plain'};
+ if(!types[ext])throw Error('Use PDF, DOCX or TXT for academic deliverables.');
+ const res=await fetch('/api/academic/commissions/'+encodeURIComponent(commissionId)+'/submission-binary',{
+  method:'POST',credentials:'same-origin',cache:'no-store',
+  headers:{'Content-Type':'application/octet-stream',
+   'X-IPS-File-Name':encodeURIComponent(file.name),
+   'X-IPS-File-Type':types[ext],
+   ...(state.rootLens?.account?.role==='specialist'&&state.isEvaluation?
+    {'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},
+  body:file
+ });
+ const result=await res.json().catch(()=>({}));
+ if(!res.ok)throw Error(result.error||'IPS could not safely store your academic document.');
+ return result;
+}
 async function submit(name,formNode){
  const data={};new FormData(formNode).forEach((v,k)=>{if(k==='expertise'){if(!data.expertise)data.expertise=[];data.expertise.push(v)}else if(v instanceof File)data[k]=v;else data[k]=v});
  for(const c of ['privacyConsent','integrityAcknowledged','specialistAgreementAccepted'])if(formNode.querySelector('[name="'+c+'"]'))data[c]=!!formNode.querySelector('[name="'+c+'"]').checked;
@@ -776,6 +797,12 @@ async function submit(name,formNode){
   return 'Message added to the academic enquiry.';
  }
  if(name==='case-upload'){
+  if(data.purpose==='deliverable'&&
+   (state.account?.role==='specialist'||state.rootLens?.account?.role==='specialist')){
+   const file=formNode.querySelector('input[name=upload]')?.files?.[0];
+   await uploadAcademicBinary(data.commissionId,file);
+   return 'Document securely submitted for independent IPS quality review.';
+  }
   const payload=await filePayload(formNode);
   const operator=!!state.rootLens&&!state.isEvaluation;
   const result=await api('/operations/'+encodeURIComponent(data.commissionId)+'/upload',
@@ -850,11 +877,8 @@ async function submit(name,formNode){
  if(name==='assign'){await api('/academic/commissions/'+encodeURIComponent(id)+'/assign',{method:'POST',operator:state.account?.role==='root',body:{specialistId:data.specialistId}});return 'Approved academic Specialist assignment recorded.'}
  if(name==='submit-academic'){
   const file=formNode.querySelector('input[name=upload]')?.files?.[0];
-  if(!file)throw Error('Select a real academic deliverable.');
-  if(file.size>1048576)throw Error('Academic file is over the current 1 MB evaluation limit.');
-  const encoded=await new Promise((resolve,reject)=>{const rd=new FileReader();rd.onload=()=>resolve(String(rd.result).split(',')[1]);rd.onerror=()=>reject(Error('Cannot read academic file.'));rd.readAsDataURL(file)});
-  await api('/academic/commissions/'+encodeURIComponent(id)+'/submission',{method:'POST',body:{filename:file.name,mime:file.type,data:encoded}});
-  return 'Academic deliverable submitted to independent IPS QA.';
+  await uploadAcademicBinary(id,file);
+  return 'Document securely submitted for independent IPS quality review.';
  }
  if(name==='quality'){await api('/academic/commissions/'+encodeURIComponent(id)+'/quality',{method:'POST',operator:state.account?.role==='root',body:data});return 'Academic QA decision recorded and responsible parties notified.'}
  if(name==='student-decision'){await api('/academic/commissions/'+encodeURIComponent(id)+'/student-decision',{method:'POST',body:data});return 'Your academic delivery decision is saved.'}
