@@ -115,6 +115,16 @@ try{
   await overflow(p);
   await p.close();
  });
+ await pass('Specialist application shows current confidentiality agreement and evidence requirements',async()=>{
+  const p=await pageOpen(false);
+  await p.goto(origin+'/',{waitUntil:'domcontentloaded'});
+  await p.getByRole('button',{name:'Join our specialist network'}).first().click();
+  await p.locator('input[name=credentialEvidenceReference]').waitFor();
+  await p.locator('input[name=specialistAgreementAccepted]').waitFor();
+  await p.getByText('IPS Specialist confidentiality & academic-integrity agreement').waitFor();
+  await overflow(p);await screen(p,'26-specialist-professional-agreement');
+  await p.close();
+ });
  const studentPage=await pageOpen(false);
  await pass('Authenticated private student academic quotes and completed thesis commission',async()=>{
   await signIn(studentPage,student.email,'RecoveredAcademic2027!');
