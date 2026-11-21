@@ -190,6 +190,17 @@ try{
     });
     assert.equal(colors.background,'rgb(16, 27, 37)');
     await evidence(admin,'ips4-nyoro-company-bridge');
+    // Verify data isolation through the actual authenticated HTTP session.
+    const ownBroadcast=await admin.request.get(base+'/api/notifications/admin/admin');
+    assert.equal(ownBroadcast.status(),200,'Root retains the owned company broadcast inbox');
+    const clientInbox=await admin.request.get(base+'/api/notifications/client/CID-TEST-ALICE');
+    assert.equal(clientInbox.status(),403,'Root must not read private client notifications');
+    const writerInbox=await admin.request.get(base+'/api/notifications/writer/WID-CI-VERIFIED-01');
+    assert.equal(writerInbox.status(),403,'Root must not read specialist notifications');
+    const studentInbox=await student.request.get(base+'/api/notifications/client/CID-TEST-ALICE');
+    assert.equal(studentInbox.status(),200,'Client retains access to own private notifications');
+    const otherClientInbox=await student.request.get(base+'/api/notifications/client/CID-OTHER');
+    assert.equal(otherClientInbox.status(),403,'Client may never query a different private inbox');
   });
   await check('Fresh company leadership bridges seven actual departments and accountable decisions',async()=>{
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
