@@ -53,7 +53,7 @@ const brief=(serviceId='academic-editing')=>({
  deadline:'2026-12-15',integrityAcknowledged:true,contactChannel:'workspace'
 });
 let rootCookie,studentCookie,specialistCookie,managerCookie,staffCookie,otherCookie;
-let studentMail,specialistMail,managerMail,staffMail,guestReference,commissionId,quoteId,academicFileId;
+let studentMail,specialistMail,pendingSpecialistMail,managerMail,staffMail,guestReference,commissionId,quoteId,academicFileId;
 try{
  for(let i=0;i<100;i++){try{const r=await request('/health');if(r.status===200&&r.data.ready)break}catch{}if(i===99)throw Error('Academic API failed boot: '+stderr);await sleep(220)}
  client=await mongoose.createConnection(vars.MONGODB_URI).asPromise();db=client.db;
@@ -984,6 +984,7 @@ try{
  });
  await assertCheck('Verified pending Specialist recovers immediately without manager or Root action',async()=>{
   const pendingEmail=emailFor('pending-specialist');
+  pendingSpecialistMail=pendingEmail;
   await call('/auth/register',{method:'POST',body:{role:'specialist',email:pendingEmail,
    fullName:'Evaluation Pending Academic Specialist',password:'PendingAcademic2026!',
    confirmPassword:'PendingAcademic2026!',qualification:'BSc Research',expertise:['academic-editing'],
@@ -1279,17 +1280,14 @@ try{
   assert.equal((await db.collection('academic_accounts').findOne({id:secondStaff.id})).status,'disabled');
  });
  await assertCheck('Documented Specialist rejection is private, role-controlled and queued for written delivery',async()=>{
-  const emailAddr=emailFor('rejected-academic-specialist');
-  await call('/auth/register',{method:'POST',body:{
-   role:'specialist',email:emailAddr,password:'RejectedSpecialist2026!',
-   confirmPassword:'RejectedSpecialist2026!',fullName:'Applicant Academic Research Consultant',
-   qualification:'MA Social Research',expertise:['academic-editing'],
-   privacyConsent:true,specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
-   specialistAgreementAccepted:true,specialistSignature:'Applicant Academic Research Consultant'
-  }},202);
-  const m=await inbox(emailAddr,'Confirm your IPS Academic Services email');
-  await call('/auth/verify',{method:'POST',body:{email:emailAddr,token:token(m,'verify')}});
+  // Reuse the fully verified, agreement-signed pending applicant from the previous
+  // recovery journey. This retains the real seven-attempt-per-IP registration
+  // abuse policy rather than disabling rate limits to satisfy a long CI suite.
+  const emailAddr=pendingSpecialistMail;
   const applicant=await db.collection('academic_accounts').findOne({email:emailAddr});
+  assert.equal(applicant.status,'pending_review');
+  assert.equal(applicant.verified,true);
+  assert.equal(applicant.specialistAgreementVersion,SPECIALIST_AGREEMENT.version);
   await call('/administration/people/'+applicant.id+'/decision',withAuth(managerCookie,{
    decision:'reject_specialist',reviewNote:'Client Relations cannot decide Specialist Network professional applications.'}),403);
   await call('/administration/people/'+applicant.id+'/decision',withAuth(rootCookie,{
@@ -1303,7 +1301,7 @@ try{
   assert.equal(record.credentialReviewDecision,'rejected');
   assert.equal(record.credentialReviewNote,reason);
   await call('/auth/login',{method:'POST',body:{
-   email:emailAddr,password:'RejectedSpecialist2026!'}},403);
+   email:emailAddr,password:'RecoveredPending2026!'}},403);
   assert.ok(await db.collection('academic_notification_deliveries').findOne({
    accountId:applicant.id,kind:'specialist_application_review',channel:'email'}));
   await call('/administration/people/'+applicant.id+'/decision',withAuth(rootCookie,{
