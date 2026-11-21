@@ -495,6 +495,12 @@ export function registerAcademicRoutes(ctx){
   const decision=String(req.body?.decision||''),note=String(req.body?.note||'').trim();
   if(!['approve','return_for_correction'].includes(decision)||note.length<15||note.length>2500)
    return res.status(400).json({error:'A documented academic quality decision and specific feedback are required.'});
+  if(!config.sandbox&&decision==='approve'){
+   const candidate=await db.projects.findOne({id:req.params.id,status:'qa_pending'});
+   const released=candidate?.pendingFileId?await db.files.findOne({id:candidate.pendingFileId}):null;
+   if(!released||released.scanStatus!=='clean')
+    return res.status(409).json({error:'The academic document must pass verified security screening before QA release.'});
+  }
   const p=await db.projects.findOneAndUpdate({id:req.params.id,status:'qa_pending',pendingFileId:{$ne:''}},
    {$set:{status:decision==='approve'?'client_delivery':'correction_requested',
     qaReviewer:req.actor.id,qaDecision:decision,qaNote:note,updatedAt:now()}},{returnDocument:'after'});
