@@ -1,0 +1,13 @@
+# IPS NEW COMPANY — sandbox-only review image. No old IPS source copied.
+FROM node:24-bookworm-slim AS node_runtime
+FROM mongo:7.0
+COPY --from=node_runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node_runtime /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+COPY company-next ./company-next
+COPY scripts/ips-company-sandbox-entrypoint.sh ./scripts/ips-company-sandbox-entrypoint.sh
+EXPOSE 8080
+ENTRYPOINT ["/bin/bash","scripts/ips-company-sandbox-entrypoint.sh"]
