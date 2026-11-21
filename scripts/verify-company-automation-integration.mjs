@@ -66,7 +66,22 @@ try{
   const changed=await runCompanyAutomationTick({env,now:()=>now});
   assert.equal(changed.created,2,'A genuinely changed deadline may create a new accountability event');
   assert.equal(await Notification.countDocuments({}),6);
-  console.log('COMPANY_AUTOMATION_GREEN real MongoDB overdue, direct recipient, staff-manager-root escalations, idempotency, completion and reschedule');
+  // Seven more due tasks exceed the per-tick scan limit. Keyset pagination must
+  // eventually alert all of them instead of rescanning only the oldest tasks.
+  const pageCases=Array.from({length:7},(_,i)=>prefix+'-PAGE-'+i);
+  await CompanyCaseAction.insertMany(pageCases.map(ref=>task({
+    ref,assigned:staffId,dueAt:new Date(now.getTime()-6*3600000)
+  })));
+  let cursor=null,passes=0;
+  do{
+    const page=await runCompanyAutomationTick({env,now:()=>now,limit:3,cursor});
+    cursor=page.nextCursor;
+    passes++;
+  }while(cursor&&passes<10);
+  assert.ok(passes>=3,'Backlog must be scanned across multiple pages');
+  assert.equal(await Notification.countDocuments({order_id:{$in:pageCases}}),7,
+    'Every real overdue task must eventually get its unique alert');
+  console.log('COMPANY_AUTOMATION_GREEN real MongoDB overdue, role escalation, idempotency, closure, reschedule and backlog pagination');
 }finally{
   if(mongoose.connection.readyState===1){
     await mongoose.connection.dropDatabase();
