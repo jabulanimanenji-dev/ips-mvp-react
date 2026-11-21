@@ -424,7 +424,9 @@ async function loadTab(){
    html+=panel('Email delivery operations','Non-sensitive delivery status. Email notices are sent only when users have selected email updates.',
     '<div class="metrics">'+kpi('Pending',totals.pending||0,'Waiting to send')+
     kpi('Sending',totals.sending||0,'In progress')+
-    kpi('Delivered',totals.delivered||0,'Completed')+
+    kpi('Provider accepted',totals.provider_accepted||0,'Not yet verified delivered')+
+    kpi('Sandbox',totals.synthetic_dispatched||0,'Synthetic only')+
+    kpi('Delivered',totals.delivered||0,'Confirmed by provider')+
     kpi('Failed',totals.failed||0,'Action needed')+'</div>'+
     (delivery.exceptions.length?'<div class="small-list">'+delivery.exceptions.map(x=>
      record('Undelivered IPS notification',x.kind+' · attempted '+x.attempts+' times',x.id,'failed',
