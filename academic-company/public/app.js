@@ -470,7 +470,7 @@ document.addEventListener('submit',async ev=>{
  try{state.message=await submit(formNode.dataset.form,formNode)}
  catch(ex){state.error=ex.message}
  finally{state.busy=false}
- if(state.account){render()}else{const msg=state.message,err=state.error;render();const container=root.querySelector('.page-intro')||root.querySelector('.hero')||root.querySelector('.auth .page-intro');if(container)container.insertAdjacentHTML('afterend',err?'<div class="notice error">'+e(err)+'</div>':'<div class="notice success">'+e(msg)+'</div>')}
+ if(state.account){render()}else{const msg=state.message,err=state.error;render();const container=root.querySelector('.page-intro')||root.querySelector('.hero')||root.querySelector('.auth .page-intro');if(container&&!root.querySelector('.notice.error, .notice.success'))container.insertAdjacentHTML('afterend',err?'<div class="notice error" role="alert">'+e(err)+'</div>':'<div class="notice success" role="status">'+e(msg)+'</div>')}
 });
 document.addEventListener('change',async ev=>{
  const select=ev.target.closest('select[data-root-target]');
