@@ -148,6 +148,17 @@ try{
   await studentPage.locator('form[data-form=quote-upload]').getByRole('button',{name:'Upload document'}).click();
   await studentPage.getByText('Supporting academic document attached to this enquiry.').waitFor();
   await studentPage.locator('a[href*="/api/academic/quote-files/"]').first().waitFor();
+  await studentPage.locator('form[data-form=quote-upload] input[name=upload]').setInputFiles({
+   name:'student-large-thesis-reference.txt',mimeType:'text/plain',
+   buffer:Buffer.alloc(6*1024*1024,65)});
+  await studentPage.locator('form[data-form=quote-upload]').getByRole('button',{name:'Upload document'}).click();
+  await studentPage.getByText('Your large academic document is securely attached to this enquiry.')
+   .waitFor({timeout:20000});
+  const large=await mongo.db.collection('academic_quote_files').findOne({
+   filename:'student-large-thesis-reference.txt',blobId:{$exists:true}});
+  assert.ok(large?.blobId);
+  assert.equal(large.byteLength,6*1024*1024);
+
   await screen(studentPage,'19-student-precommission-quote-files-and-messages');
   await studentPage.locator('.sidebar').getByRole('button',{name:'My academic work'}).click();
  });
