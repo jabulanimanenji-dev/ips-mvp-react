@@ -301,7 +301,15 @@ async function loadTab(){
      b('Manage Specialists','tab-specialists')+b('Team','tab-workforce')+'</div>'):'')+'</div>';
  }else if(tab==='inbox'){
   const d=await api('/operations/inbox');
-  if(state.opened?.startsWith('DM-'))html=await dmDetail(state.opened,a);
+  if(!rootAssisted&&(a.role==='root'||(['manager','staff'].includes(a.role)&&a.department==='communications'))){
+   const conversations=await api('/communications/telegram/threads');
+   d.inbox.push(...conversations.threads.map(x=>({type:'telegram',id:x.accountId,
+    subject:'Telegram · '+x.label,service:'Verified IPS chat'+(x.unread?' · '+x.unread+' unread':''),
+    status:x.linked?'connected':'unlinked',updatedAt:x.updatedAt})));
+   d.inbox.sort((x,y)=>new Date(y.updatedAt)-new Date(x.updatedAt));
+  }
+  if(state.opened?.startsWith('TG:'))html=await telegramDetail(state.opened.slice(3));
+  else if(state.opened?.startsWith('DM-'))html=await dmDetail(state.opened,a);
   else html=panel('Inbox & conversations','Academic enquiries, job messages, support and direct company correspondence.',
    d.inbox.length?'<div class="small-list">'+d.inbox.slice(0,120).map(x=>
     '<article class="inbox-row"><div><span class="kicker">'+e(x.type)+' · '+e(x.service||'IPS')+'</span>'+
@@ -493,6 +501,22 @@ async function dmDetail(id,a){
    '</div>').join('')+'</div>'+
    form('direct-reply','<input type="hidden" name="messageId" value="'+e(id)+'">'+
     textarea('Reply','body','Write your reply'),'Send reply'))+'</div>';
+}
+async function telegramDetail(accountId){
+ const d=await api('/communications/telegram/threads/'+encodeURIComponent(accountId));
+ return '<div class="mt"><div class="toolbar">'+b('← Back to inbox','close-case')+'</div>'+
+ panel('Verified Telegram conversation · '+d.label,
+  'Messages here are private company records. Telegram replies must not disclose academic briefs, identities, prices, credentials or attachments.',
+  '<div class="messages">'+(d.messages.length?d.messages.map(m=>
+   '<article class="message"><small>'+e(m.direction==='inbound'?'Verified account · Telegram':'IPS operator · Telegram')+
+   ' · '+date(m.createdAt)+' · '+e(m.status)+'</small><p>'+e(m.body)+'</p></article>').join(''):
+   empty('No messages recorded yet.'))+'</div>'+
+  '<div class="case-actions">'+b('Mark incoming messages read','telegram-read',accountId)+'</div>'+
+  (d.linked?form('telegram-reply','<input type="hidden" name="accountId" value="'+e(accountId)+'">'+
+    textarea('Non-sensitive written Telegram reply','body','For academic details please sign in to your secure IPS workspace.')+
+    '<label class="field full"><span><input type="checkbox" name="privacyConfirmed" required> I confirm this reply contains no confidential case, identity, payment or document information.</span></label>',
+    'Queue Telegram reply'):
+   '<p>This Telegram chat is no longer linked. Previous correspondence is retained for authorized review only.</p>'))+'</div>';
 }
 function canRecover(a,p){return p.verified&&p.status==='active'&&
  (a.role==='root'||(a.role==='manager'&&p.role==='staff'&&p.managerId===a.id)||
@@ -881,6 +905,12 @@ async function submit(name,formNode){
    {method:'POST',operator:true,body:{...payload,kind:data.kind}});
   return 'Supplier document saved into Nyoro’s separate, auditable private vault.';
  }
+ if(name==='telegram-reply'){
+  await api('/communications/telegram/threads/'+encodeURIComponent(data.accountId)+'/reply',
+   {method:'POST',body:{body:data.body,
+    privacyConfirmed:!!formNode.querySelector('[name=privacyConfirmed]:checked')}});
+  return 'Telegram reply queued. Provider delivery and recipient reading are not yet confirmed.';
+ }
  if(name==='direct-message'){
   await api('/operations/direct-message',{method:'POST',operator:true,body:data});
   return 'Private message sent to this IPS account.';
@@ -986,8 +1016,8 @@ document.addEventListener('click',async ev=>{
  if(act==='inbox-open'||act==='queue-open'){
   remember();
   const parts=act==='inbox-open'?id.split('::'): [id.startsWith('IPS-Q')?'quote':id.startsWith('IPS-S')?'support':'commission',id];
-  const kind=parts[0];state.opened=parts.slice(1).join('::');
-  state.tab=kind==='quote'?'quotes':kind==='support'?'support':kind==='direct'?'inbox':kind==='alert'?'notifications':'commissions';
+  const kind=parts[0];state.opened=kind==='telegram'?'TG:'+parts.slice(1).join('::'):parts.slice(1).join('::');
+  state.tab=kind==='quote'?'quotes':kind==='support'?'support':kind==='direct'||kind==='telegram'?'inbox':kind==='alert'?'notifications':'commissions';
   render();return;
  }
  if(act==='telegram-link'||act==='telegram-unlink'||act==='telegram-refresh'){
@@ -1052,6 +1082,11 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
   }
   else if(act==='support-close'){await api('/support/'+encodeURIComponent(id)+'/resolve',{method:'POST'});state.message='Written support case resolved.'}
   else if(act==='notification-read'){await api('/notifications/'+encodeURIComponent(id)+'/read',{method:'POST'});state.message='Notification marked read.'}
+  else if(act==='telegram-read'){
+   await api('/communications/telegram/threads/'+encodeURIComponent(id)+'/read',
+    {method:'POST',body:{}});
+   state.message='Telegram messages marked read for IPS Communications.';
+  }
   else if(act==='delivery-retry'){await api('/operations/delivery/'+encodeURIComponent(id)+'/retry',{method:'POST',operator:true});state.message='Failed notification queued for an automatic retry.'}
   else throw Error('This academic action needs an assigned workflow.');
  }catch(ex){state.error=ex.message}
