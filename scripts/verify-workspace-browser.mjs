@@ -181,6 +181,7 @@ try{
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
     await admin.locator('.ips4').waitFor({timeout:15000});
     await admin.getByRole('heading',{name:'Welcome back, Nyoro.'}).waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'Automatic overdue alerts'}).waitFor({timeout:15000});
     await admin.locator('.ips4-persona').getByText('Nyoro',{exact:true}).waitFor();
     await admin.locator('.ips4-persona').getByText(/Root Admin/).waitFor();
     assert.equal(await admin.locator('.ips-os').count(),0,'Rejected Company OS v3 must not be mounted');
