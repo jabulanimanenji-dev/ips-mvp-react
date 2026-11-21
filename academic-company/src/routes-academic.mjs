@@ -286,9 +286,17 @@ export function registerAcademicRoutes(ctx){
   if(!authorize(req,res,['student']))return;
   const decision=String(req.body?.decision||'');
   if(!['accept','decline'].includes(decision))return res.status(400).json({error:'Choose accept or decline.'});
-  const q=await db.quotes.findOneAndUpdate({id:req.params.id,studentId:req.actor.id,status:'offered'},
-   {$set:{status:decision==='accept'?'accepted':'declined',clientDecisionAt:now(),updatedAt:now(),...(req.rootOperatorId?{rootEvaluationDecision:true,decisionActorId:req.rootOperatorId}:{} )}},{returnDocument:'after'});
-  if(!q)return res.status(409).json({error:'Only your outstanding reviewed quotation can be accepted or declined.'});
+  const q=await db.quotes.findOneAndUpdate({id:req.params.id,studentId:req.actor.id,
+   status:'offered',
+   $or:[{expires:{$gte:utcDate()}},{expires:''},{expires:{$exists:false}}]
+  },{$set:{status:decision==='accept'?'accepted':'declined',clientDecisionAt:now(),
+   updatedAt:now(),
+   ...(req.rootOperatorId?{rootEvaluationDecision:true,decisionActorId:req.rootOperatorId}:{} )}},
+   {returnDocument:'after'});
+  if(!q)return res.status(409).json({error:'Only a valid, unexpired reviewed quotation can be accepted or declined. Request a revised offer from IPS.'});
+  if(decision==='accept')
+   await db.quotes.updateOne({id:q.id,status:'accepted'},
+    {$set:{acceptedOfferVersion:q.offerVersion||1}});
   await audit(req.actor,'academic_quote_'+decision,q.id);
   if(decision==='decline')return res.json({success:true,quote:quoteView(q)});
   const project={id:uid('IPS-A'),quoteId:q.id,studentId:q.studentId,specialistId:'',
