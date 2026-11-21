@@ -19,13 +19,14 @@ const people=[
  ['staff.academic.review@example.org','AcademicStaffPreview2026!','staff'],
  ['nyoro.academic.review@example.org','AcademicRootPreview2026!','root']
 ];
-let studentCookie,rootCookie,staffCookie,managerCookie;
+let studentCookie,specialistCookie,rootCookie,staffCookie,managerCookie;
 for(const [email,password,expected] of people){
  const r=await call('/auth/login',{method:'POST',body:{email,password}});
  assert.equal(r.status,200,expected+': '+JSON.stringify(r.data));
  assert.equal(r.data.account.role,expected);assert.ok(r.cookie.startsWith('ips_academic_session='));
  const session=await call('/session',{cookie:r.cookie});assert.equal(session.status,200);
  if(expected==='student')studentCookie=r.cookie;
+ if(expected==='specialist')specialistCookie=r.cookie;
  if(expected==='root')rootCookie=r.cookie;
  if(expected==='staff')staffCookie=r.cookie;
  if(expected==='manager')managerCookie=r.cookie;
@@ -41,6 +42,33 @@ const active=studentDocs.data.commissions.find(x=>x.id==='IPS-A-EVAL-EDITING-ACT
 assert.ok(active&&active.status==='specialist_assigned');
 const offers=await call('/academic/quotes',{cookie:studentCookie});
 assert.ok(offers.data.quotes.some(q=>q.id==='IPS-Q-EVAL-RESEARCH-OFFER'&&q.status==='offered'));
+const quoteFiles=await call('/academic/quotes/IPS-Q-EVAL-EDITING/files',{cookie:studentCookie});
+assert.equal(quoteFiles.status,200);
+assert.equal(quoteFiles.data.files.length,1,'The Student must see their own fictional pre-commission brief but not private IPS notes');
+assert.equal(quoteFiles.data.files[0].filename,'nursing-review-formatting-guidance.txt');
+const rootQuoteFiles=await call('/academic/quotes/IPS-Q-EVAL-EDITING/files',{cookie:rootCookie});
+assert.equal(rootQuoteFiles.data.files.length,2,'Root should see both Student source and private IPS quote review');
+const internal=rootQuoteFiles.data.files.find(f=>f.audience==='internal');
+assert.ok(internal);
+assert.equal((await call('/academic/quote-files/'+internal.id,{cookie:studentCookie})).status,403);
+const quoteDoc=await fetch(origin+'/api/academic/quote-files/'+quoteFiles.data.files[0].id,
+ {headers:{Cookie:studentCookie}});
+assert.equal(quoteDoc.status,200);
+assert.ok((await quoteDoc.text()).includes('EVALUATION ONLY'));
+const quoteConversation=await call('/academic/quotes/IPS-Q-EVAL-EDITING/messages',{cookie:studentCookie});
+assert.equal(quoteConversation.data.messages.length,2,'The fictional enquiry must have a usable two-way correspondence history');
+const dm=await call('/operations/direct-message',{cookie:studentCookie});
+const seededMessage=dm.data.messages.find(x=>x.attachmentId==='DMF-EVAL-ROOT-GUIDANCE');
+assert.ok(seededMessage,'Student review inbox must contain real Root attachment');
+const dmThread=await call('/operations/direct-message/'+seededMessage.id+'/thread',{cookie:studentCookie});
+assert.equal(dmThread.status,200);
+assert.equal(dmThread.data.messages.length,2,'Two-way private messages must be visible');
+const privateFile=await fetch(origin+'/api/operations/direct-file/DMF-EVAL-ROOT-GUIDANCE',
+ {headers:{Cookie:studentCookie}});
+assert.equal(privateFile.status,200);
+assert.ok((await privateFile.text()).includes('EVALUATION ONLY'));
+const privateOutsider=await call('/operations/direct-file/DMF-EVAL-ROOT-GUIDANCE',{cookie:specialistCookie});
+assert.equal(privateOutsider.status,403);
 const files=await call('/academic/commissions/'+p.id+'/files',{cookie:studentCookie});
 assert.ok(files.data.files.length);
 const data=await fetch(origin+'/api/academic/files/'+files.data.files[0].id,{headers:{Cookie:studentCookie}});
