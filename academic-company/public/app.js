@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,isEvaluation:false,firstLogin:false};
+ message:'',error:'',busy:false,isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[]};
 const escapeText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&#39;'}[c]));
 const e=escapeText;
 const stat=value=>'<span class="pill '+(['active','approved','accepted','completed','client_delivery','scoped'].includes(value)?'good':['suspended','declined','correction_requested'].includes(value)?'bad':'wait')+'">'+e(String(value||'pending').replaceAll('_',' '))+'</span>';
@@ -128,6 +128,18 @@ function auth(title,subtitle,formContent,extras=''){
 function login(){state.page='login';auth('Welcome back','Sign in to your Student / Researcher, Specialist or authorized IPS staff workspace.',
  form('login',field('Verified email address','email','email','you@example.com')+field('Password','password','password'),'Open my IPS workspace'),
  '<div class="action-row">'+buttonRoute('Get started','register')+buttonRoute('Forgot password?','recover')+'</div>')}
+function rootLogin(){
+ state.page='root-login';
+ auth('Nyoro · Root Administration','Direct secure entry to IPS Academic Services company administration. Root authentication is required. Other accounts cannot use this address.',
+ form('login',field('Root email address','email','email','Root account email')+field('Password','password','password','Root Admin password'),'Sign in as Nyoro Root Admin'),
+ '<div class="notice mt">This URL provides a direct Root entry, not a login bypass. Root can open actual Student and Specialist workspaces after signing in.</div>');
+}
+function rootForbidden(){
+ shell('<main class="auth">'+intro('ACCESS RESTRICTED','Nyoro Root Administration only',
+ 'Your current account is not the Root Admin. No Root permissions were granted.')+
+ panel('Protected company workspace','Sign out of this account and authenticate as Nyoro to access the Root command centre.',
+ '<div class="action-row">'+b('Sign out','logout','','primary')+'</div>')+'</main>');
+}
 function register(role='student'){
  state.page='register';state.service='';state.account=null;state.category=role;
  const specialist=role==='specialist';
@@ -135,6 +147,7 @@ function register(role='student'){
  (specialist?field('Full professional name','fullName','text','Your actual name'):field('Your private username','username','text','Choose a username'))+
  field('Email address','email','email','you@example.com')+
  field('Secure password','password','password','8+ characters, uppercase, number and symbol')+
+ field('Confirm password','confirmPassword','password','Re-enter the same secure password')+
  (specialist?field('Academic qualification','qualification','text','Degree, field or training')+
  field('Professional experience','experience','text','Relevant research or editing experience',false)+
  '<label class="field full">Academic services you can professionally provide'+
@@ -154,7 +167,7 @@ function tokenForm(kind){
  const headline=kind==='verify'?'Verify your IPS email':kind==='invite'?'Accept your IPS staff invitation':kind==='guestconfirm'?'Verify your academic enquiry':'Set a new password';
  const contents='<input type="hidden" name="token" value="'+e(token)+'"><input type="hidden" name="email" value="'+e(mail)+'">'+
  (kind==='guestconfirm'?'<input type="hidden" name="reference" value="'+e(params.get('ref')||'')+'">':'')+
- (['recover','invite'].includes(kind)?field('New strong password','password','password','8+ characters, uppercase, number and symbol')+field('Confirm password','confirm','password'):'');
+ (['recover','invite'].includes(kind)?field('New strong password','password','password','8+ characters, uppercase, number and symbol')+field('Confirm password','confirmPassword','password'):'');
  state.page=kind;auth(headline,'This private link expires and can only be used once.',form(kind,contents,
  kind==='guestconfirm'?'Confirm my academic enquiry':kind==='verify'?'Verify my email':'Secure my account'));
 }
@@ -361,6 +374,8 @@ function supportDetail(t){
 }
 function render(){
  if(!state.catalogue){root.textContent='IPS Academic Services is loading…';return}
+ if(state.rootEntry&&state.account&&state.account.role!=='root')return rootForbidden();
+ if(state.rootEntry&&!state.account)return rootLogin();
  if(state.account&&!['quote','services','service','how','privacy'].includes(state.page))return work();
  const params=new URLSearchParams(location.hash.slice(1));
  for(const k of ['verify','recover','invite','guestconfirm'])if(params.has(k)){tokenForm(k);return}
@@ -374,8 +389,9 @@ async function submit(name,formNode){
  const data={};new FormData(formNode).forEach((v,k)=>{if(k==='expertise'){if(!data.expertise)data.expertise=[];data.expertise.push(v)}else if(v instanceof File)data[k]=v;else data[k]=v});
  for(const c of ['privacyConsent','integrityAcknowledged'])if(formNode.querySelector('[name="'+c+'"]'))data[c]=!!formNode.querySelector('[name="'+c+'"]').checked;
  const id=formNode.dataset.id||data.commissionId||'';
- if(name==='login'){const r=await api('/auth/login',{method:'POST',body:data});state.account=r.account;state.firstLogin=!!r.account.firstLogin;state.page='workspace';state.tab='overview';state.opened='';return 'Signed in securely.'}
+ if(name==='login'){const r=await api('/auth/login',{method:'POST',body:data});if(state.rootEntry&&r.account.role!=='root'){await api('/auth/logout',{method:'POST'});throw Error('This address is restricted to Nyoro Root Administration. Use the standard IPS login for other accounts.')}state.account=r.account;state.rootLens=null;state.firstLogin=!!r.account.firstLogin;state.page='workspace';state.tab='overview';state.opened='';return 'Signed in securely.'}
  if(name==='register'){
+  if(data.password!==data.confirmPassword)throw Error('Confirm password must match the password exactly.');
   const r=await api('/auth/register',{method:'POST',body:data});state.page='login';return 'IPS sent your verification link. Confirm your mailbox before signing in.';
  }
  if(name==='guest-quote'){const r=await api('/academic/guest-quote',{method:'POST',body:data});state.page='login';return 'Your private academic enquiry '+r.reference+' needs email confirmation. IPS has sent a one-use link.'}
@@ -383,7 +399,7 @@ async function submit(name,formNode){
  if(name==='guestconfirm'){await api('/academic/guest-confirm',{method:'POST',body:data});location.hash='';state.page='login';return 'Your academic quotation enquiry is verified and awaiting written IPS review.'}
  if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
  if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page='login';return 'If the verified account exists, IPS sent a secure one-use recovery email.'}
- if(name==='recover'||name==='invite'){if(data.password!==data.confirm)throw Error('Passwords must match.');delete data.confirm;
+ if(name==='recover'||name==='invite'){if(data.password!==data.confirmPassword)throw Error('Passwords do not match.');
   const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
  if(name==='claim-quote'){await api('/academic/quotes/claim',{method:'POST',body:data});return 'Your previously verified guest academic enquiry is now attached to your account.'}
  if(name==='staff-invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
@@ -440,7 +456,7 @@ document.addEventListener('click',async ev=>{
   anchor.insertAdjacentHTML('afterend','<div class="panel mt">'+markup+'</div>');return}
  state.busy=true;
  try{
-  if(act==='logout'){await api('/auth/logout',{method:'POST'});state.account=null;state.page='home';state.opened='';state.tab='overview';}
+  if(act==='logout'){await api('/auth/logout',{method:'POST'});state.account=null;state.rootLens=null;state.page=state.rootEntry?'root-login':'home';state.opened='';state.tab='overview';}
   else if(['quote-accept','quote-decline'].includes(act)){
    const decision=act==='quote-accept'?'accept':'decline';
    const r=await api('/academic/quotes/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});
@@ -460,7 +476,7 @@ document.addEventListener('click',async ev=>{
  try{
   state.catalogue=await api('/catalogue');
   const h=await api('/health');state.isEvaluation=h.environment==='ISOLATED_ACADEMIC_REVIEW';
-  try{const s=await api('/session');state.account=s.account;state.page='workspace'}catch{}
+  try{const s=await api('/session');state.account=s.account;state.page='workspace'}catch{state.page=state.rootEntry?'root-login':'home'}
   render();
  }catch(ex){root.innerHTML='<main class="page"><h1>IPS Academic Services</h1><div class="notice error">'+e(ex.message)+'</div></main>'}
 })();
