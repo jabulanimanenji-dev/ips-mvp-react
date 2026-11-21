@@ -1,7 +1,7 @@
 import React,{useEffect,useMemo,useState} from 'react';
 import {useSearchParams} from 'react-router-dom';
 import {useAuth} from '../context/AuthContext.jsx';
-import {COMPANY_DEPARTMENTS,permittedCompanyPermissions} from '../../shared/companyGovernance.js';
+import {COMPANY_DEPARTMENTS,permittedCompanyPermissions,managementDepartments} from '../../shared/companyGovernance.js';
 import {useFeed,useAction,Title,Panel,Button,Tag,Notice,Empty,Dialog,GroupTotals,Feedback} from './core.jsx';
 
 const departments=Object.entries(COMPANY_DEPARTMENTS);
@@ -20,7 +20,7 @@ export default function Workforce(){
   const [filter,setFilter]=useState('working'),[department,setDepartment]=useState(isRoot&&COMPANY_DEPARTMENTS[initial]?initial:'client_relations'),
     [name,setName]=useState(''),[email,setEmail]=useState(''),[chosen,setChosen]=useState(null),
     [modal,setModal]=useState('person'),[reason,setReason]=useState(''),[replacement,setReplacement]=useState(''),
-    [permissions,setPermissions]=useState(null),[busy,setBusy]=useState(false);
+    [permissions,setPermissions]=useState(null),[editGrant,setEditGrant]=useState([]),[busy,setBusy]=useState(false);
   useEffect(()=>{if(isRoot&&COMPANY_DEPARTMENTS[initial])setDepartment(initial);},[initial,isRoot]);
   const targetDepartment=isRoot?department:admin?.department;
   const targetLevel=isRoot?'manager':'staff';
@@ -30,12 +30,17 @@ export default function Workforce(){
     ['Active','Invited','Locked'].includes(x.status):x.status===filter)),[team.records,filter]);
   const managerMap=new Map(people.filter(x=>x.company_role==='manager').map(x=>[x.id,x.name]));
   const activeManagers=people.filter(x=>x.company_role==='manager'&&active(x));
-  const coverage=departments.map(([id,info])=>({id,info,managers:people.filter(x=>x.department===id&&x.company_role==='manager'&&active(x)),
-    pending:people.filter(x=>x.department===id&&x.company_role==='manager'&&x.status==='Invited'),
+  const coverage=managementDepartments(admin).map(([id,info])=>({id,info,
+    managers:isRoot?people.filter(x=>x.department===id&&x.company_role==='manager'&&active(x)):
+      team.available&&admin?.companyRole==='manager'?[{id:admin?.id,name:admin?.name||'You',status:'Active'}]:[],
+    pending:isRoot?people.filter(x=>x.department===id&&x.company_role==='manager'&&x.status==='Invited'):[],
     staff:people.filter(x=>x.department===id&&x.company_role==='staff'&&active(x))}));
   const replacements=people.filter(x=>chosen&&x.id!==chosen.id&&x.department===chosen.department&&active(x)&&
     (isRoot?x.company_role==='manager':x.company_role==='staff'&&x.manager_id===admin?.id));
-  const reset=()=>{setChosen(null);setModal('person');setReason('');setReplacement('');setPermissions(null);action.setError('');};
+  const selectedCeiling=chosen&&['staff','manager'].includes(chosen.company_role)?
+    permittedCompanyPermissions(chosen.department,chosen.company_role).filter(p=>isRoot||admin?.permissions?.includes(p)):[];
+  const updatedGrant=selectedCeiling.filter(p=>editGrant.includes(p));
+  const reset=()=>{setChosen(null);setModal('person');setReason('');setReplacement('');setPermissions(null);setEditGrant([]);action.setError('');};
   async function invite(e){
     e.preventDefault();if(name.trim().length<2||!email.includes('@')||!targetDepartment)return;
     const ok=await action.run('/api/admin/company-team/invite','POST',
@@ -58,10 +63,10 @@ export default function Workforce(){
     {isRoot&&<div className="ips4-note info" style={{marginBottom:20}}>
       <strong>NYORO · ROOT ADMIN · SOVEREIGN IDENTITY</strong> — outside employee and management lists, no superior, never assigned to another department and never eligible for employee suspension or deletion. Only you create department managers.
     </div>}
-    <GroupTotals items={[{label:'Company departments',value:departments.length,hint:'Distinct responsibility domains'},
-      {label:'Active accountable managers',value:team.available?activeManagers.length:null,hint:'Only real appointed management'},
-      {label:'Active company staff',value:team.available?people.filter(x=>x.company_role==='staff'&&active(x)).length:null,hint:'Excludes Nyoro, Root Admin'},
-      {label:'Management gaps',value:team.available?coverage.filter(x=>!x.managers.length).length:null,hint:'Root must appoint management',tone:'attention'}]}/>
+    <GroupTotals items={[{label:isRoot?'Company departments':'Your department',value:team.available?(isRoot?departments.length:coverage.length):null,hint:isRoot?'Distinct responsibility domains':'Your assigned responsibility only'},
+      {label:isRoot?'Active accountable managers':'Your leadership role',value:team.available?(isRoot?activeManagers.length:'Department manager'):null,hint:isRoot?'Only actual appointed managers':'Verified by your signed-in management session'},
+      {label:'Active company staff',value:team.available?people.filter(x=>x.company_role==='staff'&&active(x)).length:null,hint:isRoot?'Company-wide employees only':'Your direct reports only'},
+      {label:isRoot?'Management gaps':'Pending staff invitations',value:team.available?(isRoot?coverage.filter(x=>!x.managers.length).length:people.filter(x=>x.company_role==='staff'&&x.status==='Invited').length):null,hint:isRoot?'Root must appoint management':'Awaiting private onboarding',tone:'attention'}]}/>
     <div className="ips4-grid split">
       <Panel title={isRoot?'Appoint an actual department manager':'Invite a member of your staff'}
         description="Authorized invitation by work email. The employee opens their own one-time onboarding link and creates a private password.">
@@ -105,7 +110,7 @@ export default function Workforce(){
           <td>{labelFor(p.department)}<small>{p.permissions?.length||0} delegated capabilities</small></td>
           <td>{workload(p)} open responsibilities<small>{p.workload?.tasks||0} tasks · {p.workload?.enquiries||0} enquiries · {p.workload?.support||0} support</small></td>
           <td><Tag tone={p.status==='Active'?'good':p.status==='Suspended'?'danger':'warn'}>{p.status}</Tag></td>
-          <td><Button onClick={()=>{setChosen(p);setModal('person');action.setError('');}}>Govern employee</Button></td>
+          <td><Button onClick={()=>{setChosen(p);setModal('person');setEditGrant([...new Set(['platform.access','dashboard.view',...(p.permissions||[])])]);action.setError('');}}>Govern employee</Button></td>
         </tr>)}
       </tbody></table></div>}
     </Panel></div>
@@ -127,6 +132,18 @@ export default function Workforce(){
         <Button kind="gold" disabled={!replacement||action.pending} onClick={()=>mutate('/api/admin/company-team/legacy/'+encodeURIComponent(chosen.id)+'/adopt',
           'POST',{manager_id:replacement},'Legacy identity converted to scoped staff; old sessions invalidated.')}>Convert to governed department staff</Button>
       </div>:<div className="ips4-stack">
+        {selectedCeiling.length>0&&<section className="ips4-stack" aria-label="Employee delegated access">
+          <h3>Delegated access</h3>
+          <div className="ips4-note info">Adjust only the capabilities permitted to this employee's department and reporting role. Changes are verified on the server and revoke previous sessions.</div>
+          <div className="ips4-fields">{selectedCeiling.map(permission=><label key={permission} style={{display:'flex',alignItems:'center',gap:9,fontSize:11}}>
+            <input type="checkbox" aria-label={'Permission '+permission} checked={updatedGrant.includes(permission)}
+              disabled={['platform.access','dashboard.view'].includes(permission)}
+              onChange={e=>setEditGrant(old=>e.target.checked?[...new Set([...old,permission])]:old.filter(p=>p!==permission))}/>
+            {permission}
+          </label>)}</div>
+          <Button kind="gold" disabled={action.pending||!['platform.access','dashboard.view'].every(p=>updatedGrant.includes(p))}
+            onClick={()=>mutate(memberPath(chosen.id),'PATCH',{permissions:updatedGrant},'Delegated permissions updated and previous sessions revoked.')}>Save delegated permissions</Button>
+        </section>}
         {['Active','Suspended'].includes(chosen.status)&&<Button kind={chosen.status==='Active'?'danger':'neutral'} disabled={action.pending} onClick={()=>
           mutate('/api/admin/company-team/members/'+encodeURIComponent(chosen.id),'PATCH',
             {status:chosen.status==='Active'?'Suspended':'Active',reason:'Authorized IPS staff governance and access review'},
