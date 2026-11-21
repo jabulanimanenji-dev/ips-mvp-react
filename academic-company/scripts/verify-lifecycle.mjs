@@ -142,7 +142,17 @@ try{
   assert.equal(person.specialistAgreementVersion,SPECIALIST_AGREEMENT.version);
   assert.equal(person.specialistAgreementSha256,SPECIALIST_AGREEMENT.sha256);
   assert.equal(person.specialistAgreementSignature,'Evaluation Academic Nursing Editor');
-  await call('/administration/people/'+person.id+'/decision',withAuth(rootCookie,{decision:'approve_specialist'}));
+  await call('/administration/people/'+person.id+'/decision',withAuth(rootCookie,
+   {decision:'approve_specialist'}),400);
+  await call('/administration/people/'+person.id+'/decision',withAuth(rootCookie,{
+   decision:'approve_specialist',
+   reviewNote:'Verified professional MSc qualification, nursing research skills and institutional experience using independent credential evidence.'}),400);
+  await call('/administration/people/'+person.id+'/decision',withAuth(rootCookie,{
+   decision:'approve_specialist',credentialEvidenceReviewed:true,
+   reviewNote:'Verified professional MSc qualification, nursing research skills and institutional experience using independent credential evidence.'}));
+  const accepted=await db.collection('academic_accounts').findOne({id:person.id});
+  assert.equal(accepted.credentialEvidenceReviewed,true);
+  assert.ok(accepted.credentialReviewNote.includes('independent credential'));
   specialistCookie=await signIn(specialistMail,'SpecialistAcademic2026!');
   await call('/specialist/agreement/accept',withAuth(specialistCookie,{
    specialistAgreementVersion:SPECIALIST_AGREEMENT.version,
