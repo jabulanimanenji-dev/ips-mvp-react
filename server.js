@@ -30,7 +30,7 @@ import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { registerCompanyCaseDesk } from './services/companyCaseDesk.js';
 import {registerCompanyOperatingSystem} from './services/companyOperatingSystem.js';
 import {registerCompanyFinanceRoutes} from './services/companyFinance.js';
-import {permittedCompanyPermissions} from './shared/companyGovernance.js';
+import {permittedCompanyPermissions,companyStaffPasswordValid} from './shared/companyGovernance.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import {startCompanyAutomationWorker} from './services/companyAutomation.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
@@ -43,6 +43,7 @@ import {registerQuoteHandoffRoutes} from './services/quoteHandoff.js';
 import {registerSpecialistPayoutRoutes} from './services/specialistPayouts.js';
 import {registerStudentRefundRoutes} from './services/studentRefunds.js';
 import {registerPasswordRecoveryRoutes,sessionFilter,sessionVersion} from './services/passwordRecovery.js';
+import {registerAdminPasswordRecoveryRoutes} from './services/adminPasswordRecovery.js';
 import { usernameValid,usernameKey,normalizeUsername,passwordValid,emailValid,normalizeEmail } from './shared/privacyIdentity.js';
 import {enforcePublicationGate} from './shared/publicationReadiness.js';
 import {canTransitionService,PAYMENT_REQUIRED_SERVICE_STATES} from './shared/serviceTransitions.js';
@@ -200,7 +201,8 @@ const publicAuthPaths=new Set([
   '/writer/login','/writer/verify-email','/writer/resend-verification',
   '/client/resend-verification','/client/password-recovery/request',
    '/writer/password-recovery/request','/writer/password-recovery/complete',
-  '/client/password-recovery/complete','/admin/company-team/accept','/logout'
+  '/client/password-recovery/complete','/admin/password-recovery/request',
+  '/admin/password-recovery/complete','/admin/company-team/accept','/logout'
 ]);
 app.use('/api',async(req,res,next)=>{
   // Expired cookies must not stop people signing in or recovering an account.
@@ -339,6 +341,13 @@ registerPasswordRecoveryRoutes(app,{hashPassword,grantSession:async(res,scope,ac
   setSessionCookie(res,signSession({id,role:scope==='writer'?'writer':'client',
     email_verified:true,session_version:sessionVersion(account)}));
 }});
+// Company staff recover their own account by a verified, one-use email link.
+registerAdminPasswordRecoveryRoutes(app,{
+  hashPassword,grantSession:async(res,account)=>{
+    setSessionCookie(res,signSession({id:account.id,role:'admin',admin_role:account.role,
+      session_version:Number(account.session_version)||1}));
+  }
+});
 registerEnquiryRoutes(app, { requireSession });
 registerCompanyCaseDesk(app,{requireSession});
 registerCompanyOperatingSystem(app,{requireSession,hashPassword,validAdminPassword});
@@ -1183,8 +1192,8 @@ app.post('/api/admin/change-password', async (req, res) => {
     }
     const currentPassword = String(req.body?.currentPassword || '');
     const newPassword = String(req.body?.newPassword || '');
-    if (!validAdminPassword(newPassword)) {
-      return res.status(400).json({ success: false, error: 'The new password must contain at least 10 characters, one letter, and one number.' });
+    if (!companyStaffPasswordValid(newPassword)) {
+      return res.status(400).json({ success: false, error: 'Use at least 10 characters, an uppercase letter, number and symbol.' });
     }
     const admin = await Admin.findOne({ id: req.adminAccess.adminId });
     if (!admin || !verifyPassword(currentPassword, admin.password)) {
@@ -1723,9 +1732,24 @@ app.get('/api/support-tickets', async (req, res) => {
     const session = requireSession(req, res);
     if (!session) return;
     if (!['admin', 'client'].includes(session.role)) {
-      return res.status(403).json({ success: false, error: 'Support tickets are available to clients and administrators.' });
+      return res.status(403).json({ success: false, error: 'Support tickets are available to clients and authorized support staff.' });
     }
-    const scope = session.role === 'admin' ? {} : { client_id: session.id };
+    // Being employed by IPS does not grant universal access to confidential
+    // customer conversations. Root retains authority; staff require support.view.
+    if(session.role==='admin'&&!hasAdminPermission(req.adminAccess,'support.view'))
+      return res.status(403).json({success:false,error:'Customer support viewing authority is required.'});
+    let scope;
+    if(session.role==='client')scope={client_id:session.id};
+    else if(req.adminAccess?.isRoot)scope={};
+    else if(req.adminAccess?.companyRole==='staff')
+      scope={assigned_admin:{$in:['',null,req.adminAccess.adminId]}};
+    else if(req.adminAccess?.companyRole==='manager'){
+      // A department head sees their own assignments, genuinely unassigned
+      // support requests and direct-report cases, not other teams' clients.
+      const reports=await Admin.find({company_role:'staff',department:req.adminAccess.department,
+        manager_id:req.adminAccess.adminId,status:'Active'}).select('id').lean();
+      scope={assigned_admin:{$in:['',null,req.adminAccess.adminId,...reports.map(item=>item.id)]}};
+    }else return res.status(403).json({success:false,error:'Only governed IPS support teams can inspect customer cases.'});
     if (req.query.status) scope.status = req.query.status;
     const tickets = await SupportTicket.find(scope).sort({ last_activity_at: -1 });
     res.json({ success: true, tickets });
@@ -3835,6 +3859,20 @@ app.get('*', (req, res) => {
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  // The live witness can inspect the actual company in production using only
+  // internal loopback HTTP and the already protected Root environment identity.
+  // No customer data, credentials or inbox contents are logged. A failure
+  // refuses an explicitly requested acceptance deployment.
+  if(isProduction&&String(process.env.IPS_COMPANY_LIVE_WITNESS_RUN_ID||'').trim()&&
+     String(process.env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'){
+    void import('./services/liveCompanyWitness.js')
+      .then(({verifyCompanyLiveWitness})=>verifyCompanyLiveWitness({port:PORT}))
+      .then(result=>console.log('IPS_PRODUCTION_ROOT_READ_ONLY_GREEN '+JSON.stringify(result)))
+      .catch(error=>{
+        console.error('IPS_PRODUCTION_ROOT_READ_ONLY_FAILED',String(error?.message||'not qualified').slice(0,230));
+        server.close(()=>process.exit(1));
+      });
+  }
   // A source-bound, real HTTP witness runs only in the disposable evaluation
   // container. Any failed login, reporting-line, private inbox or payment
   // boundary fails its deployment rather than presenting a broken demo as live.

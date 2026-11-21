@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate,Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminLogin() {
@@ -122,6 +122,12 @@ export default function AdminLogin() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
+        <p style={{margin:'18px 0 0',fontSize:13,color:'#B9CDEE',textAlign:'center'}}>
+          IPS managers and employees can
+          {' '}<Link to="/admin/forgot-password" style={{color:'#DAB780',fontWeight:650,textDecoration:'underline'}}>
+            reset their password securely by email
+          </Link>.
+        </p>
       </div>
     </div>
   );

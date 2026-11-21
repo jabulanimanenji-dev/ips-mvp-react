@@ -391,6 +391,39 @@ try{
     await admin.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
     await admin.waitForURL(url=>url.pathname===adminEntry,{timeout:15000});
   });
+  const employeeRecovery=await open();
+  await check('Company employees can discover real one-use email recovery from the dark admin sign-in',async()=>{
+    await employeeRecovery.goto(base+adminEntry,{waitUntil:'domcontentloaded'});
+    await employeeRecovery.getByRole('link',{name:/reset their password securely by email/i}).click();
+    await employeeRecovery.waitForURL(/\/admin\/forgot-password/,{timeout:12000});
+    await employeeRecovery.getByRole('heading',{name:'Recover your employee account'}).waitFor();
+    const mailbox=employeeRecovery.locator('input[type=email]');
+    await mailbox.waitFor();
+    const color=await mailbox.evaluate(x=>getComputedStyle(x).backgroundColor);
+    assert.notEqual(color,'rgb(255, 255, 255)','Employee recovery must not use blinding white inputs');
+    await evidence(employeeRecovery,'ips4-employee-email-recovery');
+  });
+  await check('Employee reset requires strong confirmed password and never exposes URL fragment',async()=>{
+    const mock='A'.repeat(43);
+    await employeeRecovery.goto(base+'/admin/reset-password#token='+mock,{waitUntil:'domcontentloaded'});
+    await employeeRecovery.getByRole('heading',{name:'Choose a new password'}).waitFor();
+    await employeeRecovery.waitForFunction(()=>window.location.hash==='');
+    await employeeRecovery.locator('input[autocomplete=new-password]').first().fill('weak');
+    await employeeRecovery.locator('input[autocomplete=new-password]').last().fill('weak');
+    assert.equal(await employeeRecovery.locator('input[autocomplete=new-password]').first().evaluate(el=>el.checkValidity()),false);
+    await employeeRecovery.locator('input[autocomplete=new-password]').first().fill('SecureCompanyPassword37!');
+    await employeeRecovery.locator('input[autocomplete=new-password]').last().fill('MismatchCompanyPassword38!');
+    const formValidity=await employeeRecovery.locator('form').evaluate(form=>({
+      valid:form.checkValidity(),inputs:[...form.querySelectorAll('input')].map(x=>({valid:x.checkValidity(),
+      length:x.value.length,validation:x.validationMessage}))
+    }));
+    assert.equal(formValidity.valid,true,'Employee reset mismatch test inputs must pass native validation: '+JSON.stringify(formValidity));
+    await employeeRecovery.getByRole('button',{name:/Save password and enter workspace/}).click();
+    const actualErrors=await employeeRecovery.locator('[role=alert]').allTextContents();
+    assert.ok(actualErrors.some(x=>/confirmation does not match/i.test(x)),
+      'Employee recovery must reject mismatched passwords; actual safe notices: '+JSON.stringify(actualErrors));
+    await evidence(employeeRecovery,'ips4-employee-new-password');
+  });
   const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});pages.push(mobile);
   await check('Mobile signup and quotation display private-first labels without overflow',async()=>{
     await mobile.goto(base+'/signup',{waitUntil:'domcontentloaded'});

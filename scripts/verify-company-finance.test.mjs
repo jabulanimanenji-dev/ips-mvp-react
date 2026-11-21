@@ -16,14 +16,18 @@ test('finance register uses real source queries and separates acceptance, collec
   const [service,ui,app]=await Promise.all([
     read('services/companyFinance.js'),read('src/administration/FinanceDesk.jsx'),read('src/App.jsx')]);
   assert.match(service,/ServiceRequest\.find\(quoteQuery\)/);
-  assert.match(service,/StudentPayment\.find\(\)/);
-  assert.match(service,/SpecialistPayout\.find\(\)/);
-  assert.match(service,/StudentRefund\.find\(\)/);
+  assert.match(service,/StudentPayment\.find\(scopedFinancialQuery\)/);
+  assert.match(service,/SpecialistPayout\.find\(scopedFinancialQuery\)/);
+  assert.match(service,/StudentRefund\.find\(scopedFinancialQuery\)/);
   assert.match(service,/client_accepted_quotes/);
   assert.match(service,/payments_requiring_review/);
   assert.match(service,/refunds_pending/);
   assert.match(service,/paymentLaunchState\(env\)\.pending/);
   assert.match(service,/client_email:\{\$not:/);
+  assert.match(service,/ServiceRequest\.distinct\('request_id',quoteQuery\)/);
+  assert.match(service,/request_id:\{\$in:approvedIds\}/);
+  assert.match(service,/StudentPayment\.countDocuments\(\{\.\.\.scopedFinancialQuery,status:'review_required'\}\)/);
+  assert.match(service,/StudentRefund\.countDocuments\(\{\.\.\.scopedFinancialQuery/);
   assert.match(ui,/Finance without imaginary balances/);
   assert.match(ui,/financial_cases/);
   assert.match(ui,/Payment events/);
