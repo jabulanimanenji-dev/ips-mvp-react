@@ -75,8 +75,11 @@ async function sendEmail(to,subject,text){
  }finally{clearTimeout(timeout)}
 }
 async function audit(actor,action,ref='',details={}){
- await db.audit.insertOne({id:uid('AUD'),at:now(),actorId:actor?.id||'system',
-  actorRole:actor?.role||'system',action,ref:String(ref),details});
+ const assisted=actor?.rootAssistedBy===rootEmail;
+ await db.audit.insertOne({id:uid('AUD'),at:now(),
+  actorId:assisted?rootEmail:actor?.id||'system',
+  actorRole:assisted?'root':actor?.role||'system',
+  action,ref:String(ref),details:assisted?{...details,rootAssisted:true,selectedAccountId:actor.id,selectedRole:actor.role}:details});
 }
 async function notify(accountId,message,kind='academic_work'){
  if(accountId)await db.notifications.insertOne({id:uid('NT'),accountId,
@@ -120,10 +123,37 @@ app.get('/api/catalogue',(_req,res)=>res.json({
  levels:ACADEMIC_LEVELS,departments:Object.entries(DEPARTMENTS).map(([id,name])=>({id,name})),
  academicIntegrityNotice,noPhoneCalls:true
 }));
+// Root's assisted workspaces reuse the genuine Student and Specialist APIs without changing
+// the Root session. Every delegated mutation is attributed to Nyoro, never the client.
 app.use('/api',async(req,res,next)=>{
  if(req.path==='/health'||req.path==='/catalogue')return next();
- try{req.actor=await resolveActor(req);next()}
- catch{res.status(503).json({error:'Identity verification is temporarily unavailable.'})}
+ try{
+  req.actor=await resolveActor(req);
+  const targetId=String(req.get('X-IPS-Root-Workspace-Target')||'');
+  if(!targetId)return next();
+  if(req.actor?.role!=='root')return res.status(403).json({error:'Only Nyoro Root Admin can open assisted academic workspaces.'});
+  if(!/^(?:STU|SPC)-[A-Z0-9-]{4,55}$/.test(targetId))
+   return res.status(400).json({error:'Choose a real Student or Specialist workspace from the IPS directory.'});
+  if(!(/^(?:\/academic\/|\/support(?:\/|$)|\/notifications(?:\/|$))/.test(req.path)||req.path==='/session'))
+   return res.status(403).json({error:'Root assisted workspaces cannot change identity, authentication or administration.'});
+  const permittedRead=['GET','HEAD'].includes(req.method);
+  const rootOfficialMessage=req.method==='POST'&&/^\/academic\/commissions\/[^/]+\/messages$/.test(req.path);
+  const evaluationAction=req.method==='POST'&&config.sandbox&&
+   (/^\/academic\/quotes$/.test(req.path)||/^\/support$/.test(req.path)||
+    /^\/support\/[^/]+\/reply$/.test(req.path)||
+    /^\/academic\/quotes\/[^/]+\/decision$/.test(req.path)||
+    /^\/academic\/commissions\/[^/]+\/(?:submission|student-decision)$/.test(req.path));
+  if(!permittedRead&&!rootOfficialMessage&&!evaluationAction)
+   return res.status(403).json({error:'Root can inspect and coordinate here. Identity, consent, personal settings and client acceptance cannot be forged.'});
+  const target=await db.accounts.findOne({id:targetId,role:{$in:['student','specialist']},
+   verified:true,status:'active',...(targetId.startsWith('SPC')?{approved:true}:{})});
+  if(!target)return res.status(404).json({error:'Selected academic workspace is inactive or unavailable.'});
+  if(evaluationAction&&target.synthetic!==true)return res.status(403).json({error:'Assisted Student/Specialist simulations require fictional review identities.'});
+  req.rootOperatorId=rootEmail;
+  req.actor={...publicAccount(target),rootAssistedBy:rootEmail,rootEvaluation:config.sandbox&&target.synthetic===true};
+  if(rootOfficialMessage)req.rootOfficialMessage=true;
+  next();
+ }catch{res.status(503).json({error:'Root workspace authorization could not be verified.'})}
 });
 app.get('/api/session',wrap(async(req,res)=>{
  if(!req.actor)return res.status(401).json({error:'Not signed in.'});
