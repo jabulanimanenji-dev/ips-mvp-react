@@ -19,6 +19,7 @@ import PlatformFile from './models/PlatformFile.js';
 import Message from './models/Message.js';
 import AuditLog from './models/AuditLog.js';
 import Notification from './models/Notification.js';
+import {canAssignSupportTicket,canChangeSupportTicket} from './shared/supportAuthority.js';
 import {canReadNotificationInbox} from './shared/notificationAccess.js';
 import ServiceRequest from './models/ServiceRequest.js';
 import StudentPayment from './models/StudentPayment.js';
@@ -1805,13 +1806,37 @@ app.patch('/api/support-tickets/:id', async (req, res) => {
     if (!session) return;
     const allowed = ['status', 'priority', 'assigned_admin', 'resolution_note'];
     const updates = Object.fromEntries(Object.entries(req.body || {}).filter(([key]) => allowed.includes(key)));
+    if(Object.keys(updates).length===0)return res.status(400).json({success:false,error:'Specify a supported change to this support case.'});
+    const existing=await SupportTicket.findOne({ticket_id:req.params.id});
+    if(!existing)return res.status(404).json({success:false,error:'Support ticket not found.'});
+    const actor=req.adminAccess;
+    const assignedId=String(existing.assigned_admin||'');
+    const proposedId=updates.assigned_admin===undefined?'':String(updates.assigned_admin||'').trim();
+    const ownerRecord=assignedId?await Admin.findOne({id:assignedId})
+      .select('id department company_role manager_id status permissions').lean():null;
+    if(!canChangeSupportTicket(actor,assignedId,ownerRecord,proposedId))
+      return res.status(403).json({success:false,error:'This support case is outside your accountable management line. Assign an available case before changing it.'});
+    if(updates.assigned_admin!==undefined){
+      if(!proposedId)return res.status(400).json({success:false,error:'Choose an active accountable IPS employee.'});
+      const recipient=await Admin.findOne({id:proposedId}).select('id department company_role manager_id status permissions').lean();
+      if(!canAssignSupportTicket(actor,recipient,assignedId))
+        return res.status(403).json({success:false,error:'Support ownership can be assigned only within your authorized team.'});
+      updates.assigned_admin=proposedId;
+    }
     updates.last_activity_at = new Date();
-    const ticket = await SupportTicket.findOneAndUpdate(
-      { ticket_id: req.params.id },
-      updates,
-      { returnDocument: 'after', runValidators: true }
-    );
-    if (!ticket) return res.status(404).json({ success: false, error: 'Support ticket not found.' });
+    const filter={ticket_id:req.params.id,assigned_admin:assignedId};
+    const ticket = await SupportTicket.findOneAndUpdate(filter,updates,
+      { returnDocument: 'after', runValidators: true });
+    if(!ticket)return res.status(409).json({success:false,error:'Case ownership changed. Refresh the support desk before retrying.'});
+    if(proposedId&&proposedId!==assignedId){
+      const dedupe_key='ips-support-owner/'+ticket.ticket_id+'/'+proposedId+'/'+new Date(ticket.updatedAt).getTime();
+      try{await Notification.updateOne({dedupe_key},{$setOnInsert:{
+        dedupe_key,recipient_role:'admin',recipient_id:proposedId,order_id:ticket.ticket_id,
+        type:'support_assignment',read:false,
+        message:'An IPS customer support case is assigned to you. Open the protected support workspace.'
+      }},{upsert:true});}
+      catch(error){console.error('IPS support assignment alert pending:',error?.name||'error');}
+    }
     await AuditLog.create({
       order_id: ticket.ticket_id,
       actor_id: session.id,
