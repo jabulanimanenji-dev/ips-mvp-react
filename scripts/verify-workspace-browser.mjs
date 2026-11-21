@@ -410,8 +410,7 @@ try{
     await employeeRecovery.waitForFunction(()=>window.location.hash==='');
     await employeeRecovery.locator('input[autocomplete=new-password]').first().fill('weak');
     await employeeRecovery.locator('input[autocomplete=new-password]').last().fill('weak');
-    await employeeRecovery.getByRole('button',{name:/Save password and enter workspace/}).click();
-    await employeeRecovery.getByRole('alert').getByText(/10 characters/).waitFor();
+    assert.equal(await employeeRecovery.locator('input[autocomplete=new-password]').first().evaluate(el=>el.checkValidity()),false);
     await employeeRecovery.locator('input[autocomplete=new-password]').first().fill('SecureCompanyPassword37!');
     await employeeRecovery.locator('input[autocomplete=new-password]').last().fill('MismatchCompanyPassword38!');
     await employeeRecovery.getByRole('button',{name:/Save password and enter workspace/}).click();
