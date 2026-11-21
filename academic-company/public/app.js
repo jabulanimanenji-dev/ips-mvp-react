@@ -422,7 +422,7 @@ async function loadTab(){
 }
 function directCompose(id,people){
  const p=people.find(x=>x.id===id);if(!p)return '';
- return '<div class="mt">'+panel('Write to '+(p.username||p.name),'Send a private IPS message or academic document.',
+ return '<div class="mt"><div class="toolbar">'+b('← Back to people','close-case')+'</div>'+panel('Write to '+(p.username||p.name),'Send a private IPS message or academic document.',
  form('direct-message','<input type="hidden" name="recipientId" value="'+e(id)+'">'+
  textarea('Message','body','Your message to this account'),'Send message')+
  form('direct-file','<input type="hidden" name="recipientId" value="'+e(id)+'">'+
@@ -434,7 +434,7 @@ async function dmDetail(id,a){
  const m=all.messages.find(x=>x.id===id);
  if(!m)return '';
  const thread=await api('/operations/direct-message/'+encodeURIComponent(id)+'/thread');
- return '<div class="mt">'+panel('Private IPS conversation','',
+ return '<div class="mt"><div class="toolbar">'+b('← Back to inbox','close-case')+'</div>'+panel('Private IPS conversation','',
   '<div class="messages">'+thread.messages.map(t=>'<div class="message"><small>'+
    e(t.fromRole||'IPS')+' · '+date(t.createdAt)+'</small><p>'+e(t.body||'')+'</p>'+
    (t.attachmentId?'<p><a href="/api/operations/direct-file/'+e(t.attachmentId)+'" download>Download attached document</a></p>':'')+
@@ -473,6 +473,22 @@ async function quoteDetail(q,a){
    (manager?options('Document audience','audience',[['student','Student / Researcher'],['internal','IPS internal']]):'')+
    field('PDF, DOCX or TXT (up to 5 MB)','upload','file','','true'),
    'Upload document'));
+ const authorizedQuoteManager=state.account?.role==='root'||['root','manager'].includes(a.role);
+ const decisionActions=a.role==='student'&&q.status==='offered'&&(!state.rootLens||state.isEvaluation)?
+  '<div class="case-actions">'+b('Accept quotation','quote-accept',q.id,'primary')+
+   b('Decline quotation','quote-decline',q.id)+'</div>':'';
+ const adminActions=authorizedQuoteManager&&q.status==='received'?
+  panel('Review academic scope','',
+   form('scope',options('Decision','decision',[['approved','Approve appropriate support'],
+    ['clarify','Ask for clarification'],['declined','Decline scope']])+
+    textarea('Review note','note','Explain the permitted academic scope'),
+    'Record review',' data-id="'+e(q.id)+'"')):authorizedQuoteManager&&q.status==='scoped'?
+  panel('Send written quotation','',
+   form('offer',field('Reviewed amount (PLN)','pricePLN','number','250.00')+
+    textarea('Academic deliverables','deliverables','Describe the permitted work')+
+    textarea('Quotation terms','terms','Scope, deadlines and revisions')+
+    field('Offer valid until','expires','date','',false),
+    'Send quotation',' data-id="'+e(q.id)+'"')):'';
  const summary='<div class="case-summary"><div class="kicker">ENQUIRY / '+e(q.id)+'</div><h3>'+
    e(q.subject)+'</h3><p>'+e(q.requirements)+'</p><div class="separator"></div>'+
    '<div class="case-flow"><span>'+e(q.academicLevel)+'</span><span>'+e(q.serviceName)+'</span>'+
@@ -481,9 +497,9 @@ async function quoteDetail(q,a){
    (q.deliverables?'<p><strong>Deliverables:</strong> '+e(q.deliverables)+'</p>':'')+
    (Number.isInteger(q.priceMinor)?'<p><strong>Written quotation:</strong> '+price(q.priceMinor)+'</p>':'')+
    (q.terms?'<p><strong>Terms:</strong> '+e(q.terms)+'</p>':'')+
-   '<div class="case-actions">'+b('Close enquiry','close-case')+'</div></div>';
+   decisionActions+'<div class="case-actions">'+b('← Back to quotations','close-case')+'</div></div>';
  return '<section class="mt"><div class="section-head"><h2>Enquiry & written conversation</h2></div>'+
- '<div class="case-layout"><div>'+summary+docsPanel+'</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
+ '<div class="case-layout"><div>'+summary+adminActions+docsPanel+'</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
 }
 async function commissionDetail(p,a){
  if(!p)return '';
@@ -565,7 +581,7 @@ async function commissionDetail(p,a){
   '<p><strong>Company responsibility:</strong> '+e(p.managedBy?'Nyoro · IPS Root':
     p.specialistId?'Assigned IPS Specialist':'IPS Academic Delivery')+'</p>'+
   (p.qaMode==='root_supervised_exception'?'<p><strong>Quality record:</strong> IPS Root-supervised release exception</p>':'')+
-  '<div class="case-actions">'+b('Close job','close-case')+
+  '<div class="case-actions">'+b('← Back to jobs','close-case')+
    b('Open inbox','tab-inbox')+'</div></div>';
  return '<section class="mt"><div class="section-head"><div><span class="kicker">SINGLE JOB WORKSPACE</span>'+
   '<h2>Work, messages & delivery</h2></div></div>'+
@@ -580,7 +596,7 @@ async function commissionDetail(p,a){
 }
 function supportDetail(t){
  if(!t)return '';
- return '<div class="mt">'+panel('Support case '+t.id,'Written assistance, ownership and resolution history.',
+ return '<div class="mt"><div class="toolbar">'+b('← Back to support','close-case')+'</div>'+panel('Support case '+t.id,'Written assistance, ownership and resolution history.',
  '<div class="messages">'+(t.replies||[]).map(r=>'<div class="message"><small>'+e(r.role)+' · '+date(r.at)+'</small><p>'+e(r.message)+'</p></div>').join('')+'</div>'+
  (t.status==='open'?form('support-reply',
  '<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+textarea('Private reply','message','Write the next helpful response'), 'Send secure reply')+
