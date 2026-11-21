@@ -198,3 +198,16 @@ The following are automatic rejection grounds:
 **Build the company the owner specified: IPS ACADEMIC SERVICES. Make every public academic service, Student / Researcher interaction, qualified Specialist journey, administration responsibility, automatic process and secure business record function as one truthful, centralized academic-services company.**
   
 **New code is mandatory; a new company identity is forbidden.**
+
+
+## Owner amendment 01 — 21 November 2026: Password confirmation, academic imagery, Root integrated workspaces
+This binding amendment records additional direct owner instruction. It supplements, but never weakens, the preceding articles.
+
+1. Every Student / Researcher and Specialist registration must display **Password** and **Confirm password** fields, and both client-side and server-side validation must reject mismatches. Invitation acceptance and emailed password recovery must likewise require a matching confirmation before credentials change. A login page, by contrast, requires a password but not a confirmation.
+2. The academic website must use professionally curated **visualizations and images** across the public site and relevant workspaces. These images need not show people. Prefer relevant academic materials: books, scholarly manuscripts, research methods, statistical graphs, academic editing, universities, desks, diagrams and other permitted academic content. Maintain consistent navy/gold standards and avoid stock portraits, fake academic endorsements and decorative images that misrepresent services.
+3. Nyoro must have a **direct Root Administration address** (\`/root\`) leading to an authenticated Root-only entry. This must **not** bypass authentication, expose Root credentials or admit lower-privileged users.
+4. Nyoro's Root Administration must contain a **Student / Researcher workspace** and a **Specialist workspace**, with actual authenticated company records, quote and project states, communication, files, assigned work and appropriate controls. Root must navigate between these without logging out or using their passwords. Selecting one active account and switching to another must be possible inside the Root interface.
+5. All Root workspace assistance must be **visible and attributable to Nyoro as the operator**. The underlying account's role, identity, consent and private credentials remain protected. In synthetic evaluation, Root may exercise fictional Student/Specialist workflows as an explicitly labeled simulation; in production, Root must not forge real client consent, payment authorization, verification, or Specialist authorship. Root retains full legitimate company oversight and administrative powers through the original Root workspace.
+6. Admission requires evidence for both password confirmation and mismatch rejection, actual image loading, direct \`/root\` access controls, a complete Root → Student workspace → Root → Specialist workspace journey without swapping sign-ins, and a real persisted audit trail for Root-assisted actions. No screenshots-only qualification.
+
+**Interpretation:** “Root can actually be everything” requires one command centre with complete company authority and genuine operational views across user roles—not unsafe possession of other users' credentials or unrecorded impersonation.
