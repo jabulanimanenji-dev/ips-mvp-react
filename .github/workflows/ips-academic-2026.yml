@@ -5,6 +5,7 @@ on:
       - work/ips-academic-new-20261121
       - work/ips-academic-confidential-quote-notices-20261121
       - company/ips-academic-services-2026
+      - work/ips-academic-root-external-20261121
       - work/ips-academic-quote-revisions-20261121
       - work/ips-academic-quote-ownership-20261121
       - work/ips-academic-mail-state-20261121
