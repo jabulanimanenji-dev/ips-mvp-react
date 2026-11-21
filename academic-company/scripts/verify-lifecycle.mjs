@@ -495,7 +495,7 @@ try{
   const queue=db.collection('academic_notification_deliveries');
   let delivered;
   for(let i=0;i<35;i++){
-   delivered=await queue.findOne({accountId:student.id,kind:'direct_message',status:'delivered'});
+   delivered=await queue.findOne({accountId:student.id,kind:'direct_message',status:'synthetic_dispatched'});
    if(delivered)break;
    await sleep(300);
   }
@@ -537,7 +537,26 @@ try{
    if(status?.status==='delivered')break;
    await sleep(300);
   }
-  assert.equal(status?.status,'delivered','Retry worker must eventually deliver previously failed notice');
+  assert.equal(status?.status,'synthetic_dispatched','Sandbox retry must record synthetic dispatch, not external delivery');
+  assert.ok(status.providerMessageId&&status.provider==='sandbox');
+  assert.equal(await db.collection('academic_evaluation_mail').countDocuments({idempotencyKey:id}),1);
+  // A stale retry of the exact same delivery job must reuse the same provider
+  // identity instead of generating a second email or overstating receipt.
+  await db.collection('academic_notification_deliveries').updateOne({id},
+   {$set:{status:'failed',nextAttemptAt:new Date(Date.now()+3600000)}});
+  await call('/operations/delivery/'+id+'/retry',withAuth(rootCookie,{}));
+  let repeated;
+  for(let i=0;i<35;i++){
+   repeated=await db.collection('academic_notification_deliveries').findOne({id});
+   if(repeated?.status==='synthetic_dispatched')break;
+   await sleep(300);
+  }
+  assert.equal(repeated?.status,'synthetic_dispatched');
+  assert.equal(repeated.providerMessageId,status.providerMessageId);
+  assert.equal(await db.collection('academic_evaluation_mail').countDocuments({idempotencyKey:id}),1,
+   'Idempotent retry must not create a duplicate outbound email');
+  assert.equal(await db.collection('academic_notification_deliveries').countDocuments({
+   id,status:'delivered'}),0,'External delivery must not be falsely asserted in isolated testing');
   assert.ok(await db.collection('academic_audit_events').findOne({action:'academic_notification_retry_requested',ref:id}));
  });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
