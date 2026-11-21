@@ -496,6 +496,22 @@ async function go(){
   assert.equal(paidOrder.body.request.status_history.filter(v=>v.reason==='Verified payment received').length,1);
   pass('Provider-signed payment fixture marks correct persisted order paid exactly once');
 
+  const finance=await call('/api/admin/finance/operating-ledger',{session:admin.cookie});
+  assert.equal(finance.status,200,JSON.stringify(finance.body));
+  assert.equal(finance.body.success,true);
+  const financeItem=finance.body.financial_cases.find(x=>x.request_id===requestId);
+  assert.ok(financeItem,'Real accepted academic quote must appear in company finance');
+  assert.equal(financeItem.quote_accepted,true);
+  assert.equal(financeItem.payment_status,'paid');
+  assert.ok(finance.body.payments.some(x=>x.request_id===requestId&&x.status==='paid'));
+  assert.equal(typeof finance.body.counts.client_accepted_quotes,'number');
+  assert.ok(!JSON.stringify(financeItem).includes('client_email'),'Company finance API must not leak client correspondence');
+  const privateFinanceDenied=await call('/api/admin/finance/operating-ledger',{session:alice.cookie});
+  assert.equal(privateFinanceDenied.status,403);
+  const directPaymentsDenied=await call('/api/student-payments/admin',{session:alice.cookie});
+  assert.equal(directPaymentsDenied.status,403);
+  pass('Real finance register shows provider-confirmed records only and denies ordinary customer access');
+
   const staleEdit=await call('/api/services/'+requestId,{method:'PATCH',session:admin.cookie,json:{
     quote:{labor:1,service_fee:0,expenses:0,currency:'PLN'},status:'Quoted'}});
   assert.equal(staleEdit.status,409);
