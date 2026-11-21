@@ -426,57 +426,115 @@ function canRecover(a,p){return p.verified&&p.status==='active'&&
 function canApprove(a,p){return p.role==='specialist'&&p.status==='pending_review'&&p.verified&&
  (a.role==='root'||(a.role==='manager'&&a.department==='specialist_network'))}
 function canSuspend(a,p){return p.status==='active'&&(a.role==='root'||(a.role==='manager'&&p.role==='staff'&&p.managerId===a.id))}
-function quoteDetail(q,a){
+async function quoteDetail(q,a){
  if(!q)return '';
- const content='<p><strong>Academic service:</strong> '+e(q.serviceName)+'</p><p><strong>Level:</strong> '+e(q.academicLevel)+' · '+e(q.subject)+'</p>'+
- '<p>'+e(q.requirements)+'</p><p><strong>Institution instructions:</strong> '+e(q.institutionGuidance||'Not supplied')+'</p>'+
- '<p><strong>Deadline:</strong> '+e(q.deadline||'Discuss with IPS')+'</p>'+
- '<p><strong>Reviewed price:</strong> '+e(price(q.priceMinor))+'</p>'+
- (q.scopeNote?'<p><strong>Academic scope review:</strong> '+e(q.scopeNote)+'</p>':'')+
- (q.deliverables?'<p><strong>Agreed academic deliverables:</strong> '+e(q.deliverables)+'</p>':'')+
- (q.terms?'<p><strong>Quotation terms:</strong> '+e(q.terms)+'</p>':'');
- return '<div class="mt">'+panel('Academic quotation '+q.id,'Request and professional review history.',content)+'</div>';
+ const d=await api('/academic/quotes/'+encodeURIComponent(q.id)+'/messages');
+ const manager=['root','manager','staff'].includes(a.role);
+ const thread='<div class="messages">'+(d.messages.length?d.messages.map(m=>
+  '<article class="message"><small>'+e(m.actorRole==='root'?'Nyoro · IPS':m.actorRole==='student'?'Student / Researcher':'IPS team')+
+  ' · '+date(m.createdAt)+'</small><p>'+e(m.body)+'</p></article>').join(''):
+  empty('No messages yet. Your reply will appear here.'))+'</div>';
+ const chat=form('quote-message',
+  '<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
+  (manager?options('Recipient','audience',[['student','Student / Researcher'],['internal','Internal IPS note']]):'')+
+  textarea('Write a reply','body','Ask a question or reply in writing'),'Send message');
+ const summary='<div class="case-summary"><div class="kicker">ENQUIRY / '+e(q.id)+'</div><h3>'+
+   e(q.subject)+'</h3><p>'+e(q.requirements)+'</p><div class="separator"></div>'+
+   '<div class="case-flow"><span>'+e(q.academicLevel)+'</span><span>'+e(q.serviceName)+'</span>'+
+   stat(q.status)+'</div><p><strong>Deadline:</strong> '+e(q.deadline||'To be agreed')+'</p>'+
+   (q.scopeNote?'<p><strong>Reviewed scope:</strong> '+e(q.scopeNote)+'</p>':'')+
+   (q.deliverables?'<p><strong>Deliverables:</strong> '+e(q.deliverables)+'</p>':'')+
+   (Number.isInteger(q.priceMinor)?'<p><strong>Written quotation:</strong> '+price(q.priceMinor)+'</p>':'')+
+   (q.terms?'<p><strong>Terms:</strong> '+e(q.terms)+'</p>':'')+
+   '<div class="case-actions">'+b('Close enquiry','close-case')+'</div></div>';
+ return '<section class="mt"><div class="section-head"><h2>Enquiry & written conversation</h2></div>'+
+ '<div class="case-layout">'+summary+'<section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
 }
 async function commissionDetail(p,a){
  if(!p)return '';
- const msgs=await api('/academic/commissions/'+encodeURIComponent(p.id)+'/messages');
- const files=await api('/academic/commissions/'+encodeURIComponent(p.id)+'/files');
+ const [msgData,fileData]=await Promise.all([
+  api('/academic/commissions/'+encodeURIComponent(p.id)+'/messages'),
+  api('/operations/'+encodeURIComponent(p.id)+'/files')]);
+ const isRoot=state.account?.role==='root'&&!state.rootLens;
  const manager=a.role==='root'||a.role==='manager';
- const specialist=a.role==='specialist'&&p.specialistId===a.id,student=a.role==='student'&&p.studentId===a.id;
- let acts='';
- if(manager&&p.status==='ready_for_assignment')acts=form('assign',
-  '<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+field('Approved Specialist reference','specialistId','text','SPC-…'),
-  'Assign qualified academic Specialist');
- if(specialist&&(!state.rootLens||state.isEvaluation)&&['specialist_assigned','correction_requested','student_revision_requested'].includes(p.status))
-  acts=form('submit-academic','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
-   field('Academic deliverable for independent QA','upload','file','','true'),'Submit for IPS academic QA');
+ const specialist=a.role==='specialist'&&p.specialistId===a.id;
+ const student=a.role==='student'&&p.studentId===a.id;
+ const assisted=!!state.rootLens,canSimulate=!assisted||state.isEvaluation;
+ let actions='';
+ if(manager&&p.status==='ready_for_assignment'){
+  const avail=await api('/operations/available-specialists?service='+encodeURIComponent(p.serviceId));
+  actions+=panel('Assign an academic Specialist','',
+   avail.specialists.length?form('assign',
+    '<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+    options('Approved Specialist','specialistId',avail.specialists.map(s=>[s.id,s.name])),
+    'Assign Specialist'):empty('No approved Specialist is currently available for this service. Root can take responsibility directly.'))}
  if(manager&&p.status==='qa_pending')
-  acts=form('quality','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
-   options('Quality decision','decision',[['approve','Approve for secure client delivery'],['return_for_correction','Return to Specialist for corrections']])+
-   textarea('Specific academic quality assessment','note','Describe the evidence, strengths or corrections needed'),
-   'Record independent quality review');
- if(student&&(!state.rootLens||state.isEvaluation)&&p.status==='client_delivery')acts=form('student-decision',
-  '<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
-   options('Your decision','decision',[['accept','Accept completed academic support'],['request_revision','Request a revision within agreed scope']])+
-   textarea('Revision request (required only if requesting revision)','note','Describe the correction needed',false),
-   'Record my decision');
- const mil=Array.isArray(p.milestones)?p.milestones.map(m=>'<div class="record"><strong>'+e(m.name)+'</strong>'+stat(m.status)+'</div>').join(''):'';
- const thread='<div class="messages">'+(msgs.messages.length?msgs.messages.map(m=>
-  '<div class="message'+(m.actorId===a.id?' mine':'')+'"><small>'+e(m.actorRole)+' · '+e(m.audience)+' · '+date(m.createdAt)+'</small><p>'+e(m.body)+'</p></div>').join(''):empty('No written messages yet.'))+'</div>'+
- form('commission-message','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
- (['root','manager','staff'].includes(a.role)?options('Directed IPS recipient','audience',
- [['student','Student / Researcher'],['specialist','Assigned Specialist'],['shared','Both participants']]):'')+
- textarea('Private academic message','body','Send your message through the IPS company coordination desk'),
- state.rootLens?'Send official Root coordination message':'Send written message');
- return '<div class="mt cols">'+
- panel('Academic commission '+p.id,'Academic subject: '+p.subject+' · '+p.academicLevel,
- '<p>'+e(p.serviceName)+'</p><p>'+e(p.requirements)+'</p><p><strong>Company status:</strong> '+stat(p.status)+'</p>'+
- '<div class="separator"></div><h3>Managed milestones</h3><div class="small-list">'+mil+'</div><div class="separator"></div>'+
- '<h3>Confidential academic files</h3>'+
- (files.files.length?files.files.map(f=>'<p><a href="/api/academic/files/'+e(f.id)+'" download>'+e(f.filename)+' · SHA-256 verified</a></p>').join(''):empty('No released documents are available in your role.'))+
- '<div class="separator"></div>'+acts)+
- panel('Written IPS academic coordination','Messages are routed and retained by IPS; no direct uncontrolled Specialist–client contact.',
- thread)+'</div>';
+  actions+=panel('Academic quality review','Approve or request corrections before Student delivery.',
+   form('quality','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+    options('Decision','decision',[['approve','Approve for release'],['return_for_correction','Request corrections']])+
+    textarea('Review note','note','Specify the results of your academic review'),
+    'Record QA decision'));
+ if(student&&canSimulate&&p.status==='client_delivery')
+  actions+=panel('Review delivered work','The approved file is ready to download.',
+   form('student-decision','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+    options('Decision','decision',[['accept',assisted?'Simulate Student acceptance':'Accept completed support'],
+     ['request_revision',assisted?'Simulate revision request':'Request revision']])+
+    textarea('Revision details, if needed','note','What needs adjusting?',false),
+    assisted?'Record fictional Student simulation':'Send my decision'));
+ const fileRows=(fileData.files||[]).map(f=>'<article class="file-item"><div><strong>'+e(f.filename)+
+   '</strong><small>'+e((f.purpose||'academic file').replaceAll('_',' '))+' · Uploaded '+date(f.createdAt)+
+   ' · '+e(f.sha256?.slice(0,12)||'')+'</small></div>'+
+   '<a href="/api/academic/files/'+encodeURIComponent(f.id)+'" download>Download ↓</a></article>').join('');
+ const canDeliver=(isRoot||specialist&&canSimulate)&&['specialist_assigned','root_in_progress','correction_requested','student_revision_requested'].includes(p.status);
+ const canReference=isRoot||student||specialist;
+ const purposes=canDeliver&&canReference?[['reference','Supporting document'],['deliverable','Deliverable for QA']]:
+   canDeliver?[['deliverable','Deliverable for QA']]:[['reference','Supporting document']];
+ const upload=(canReference||canDeliver)?panel('Upload a document','PDF, DOCX or TXT · maximum 5 MB per file.',
+  form('case-upload','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+   options('File type','purpose',purposes)+
+   field('Choose file','upload','file','','true'),'Upload document')):'';
+ const timeline=['Academic scope and quotation','Commission/payment verification','Specialist assignment',
+  'Academic quality assurance','Secure final delivery'];
+ const current=(p.milestones||[]).findIndex(m=>m.status==='pending'||m.status==='blocked');
+ const flow='<div class="case-flow">'+timeline.map((name,i)=>
+  '<span class="'+(current===i?'current':'')+'">'+e(name.split(' ').slice(0,3).join(' '))+'</span>').join('')+'</div>';
+ const conversation='<div class="messages">'+(msgData.messages.length?msgData.messages.map(m=>
+  '<article class="message"><small>'+e(m.actorRole==='root'?'Nyoro · IPS':m.actorRole==='student'?'Student / Researcher':
+    m.actorRole==='specialist'?'Academic Specialist':'IPS team')+' · '+e(m.audience)+
+    ' · '+date(m.createdAt)+'</small><p>'+e(m.body)+'</p></article>').join(''):
+    empty('No correspondence yet. Start with a short message.'))+'</div>'+
+  form('commission-message','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+   ((manager||assisted)?options('Send to','audience',
+      [['student','Student / Researcher'],['specialist','Assigned Specialist'],['shared','Both']]):'')+
+   textarea('Message','body','Write a message about this job'),'Send message');
+ if(isRoot){
+  const takeover=['ready_for_assignment','specialist_assigned','root_in_progress','correction_requested','student_revision_requested'].includes(p.status);
+  if(takeover)actions+=panel('Root takeover','Manage the assignment directly if no Specialist is available.',
+   form('root-takeover','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+     textarea('Reason','reason','Why is Root taking responsibility?'),'Take responsibility'));
+  if(p.status==='root_in_progress')
+   actions+=panel('Private outsourcing','Nyoro-only sourcing details. Other IPS accounts cannot view the provider information.',
+    form('root-outsourcing','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+     field('External provider reference','provider','text','Private name or reference')+
+     textarea('Private brief','instructions','Outsourced work scope and instructions'),
+     'Record private outsourcing'));
+ }
+ const overview='<div class="case-summary"><span class="kicker">ACADEMIC JOB / '+e(p.id)+'</span>'+
+  '<h3>'+e(p.subject)+'</h3><p>'+e(p.requirements)+'</p>'+
+  '<div class="case-actions">'+stat(p.status)+
+   '<span class="pill">'+e(p.serviceName)+'</span></div>'+flow+
+  '<p><strong>Delivery:</strong> '+e(p.deadline||'As agreed in your quotation')+'</p>'+
+  '<p><strong>Company responsibility:</strong> '+e(p.managedBy?'Nyoro · IPS Root':
+    p.specialistId?'Assigned IPS Specialist':'IPS Academic Delivery')+'</p>'+
+  '<div class="case-actions">'+b('Close job','close-case')+
+   b('Open inbox','tab-inbox')+'</div></div>';
+ return '<section class="mt"><div class="section-head"><div><span class="kicker">SINGLE JOB WORKSPACE</span>'+
+  '<h2>Work, messages & delivery</h2></div></div>'+
+  '<div class="case-layout"><div>'+overview+
+   panel('Files & delivery','All permitted supporting files and released work are here.',
+    '<div class="file-tray">'+(fileRows||empty('No documents yet. Upload a file below.'))+'</div>')+
+   upload+actions+'</div><section class="case-chat"><h3>Job messages</h3>'+
+   '<p>Communication stays attached to the academic job.</p>'+conversation+'</section></div></section>';
 }
 function supportDetail(t){
  if(!t)return '';
