@@ -1,15 +1,14 @@
 // Student, Specialist and IPS staff identity: new academic-services implementation.
-import crypto from 'node:crypto';
 import {email,username,validEmail,validUsername,validPassword,hashPassword,checkPassword,publicAccount,publicDocument,strongToken,validToken} from './security.mjs';
 import {SERVICE_MAP,DEPARTMENTS} from './catalogue.mjs';
 
 export function registerIdentityRoutes(ctx){
  const {app,db,env,config,security,throttle,sendEmail,rootEmail,notify,audit,authorize,department,wrap,now,uid}=ctx;
  const requestedAt=()=>new Date(Date.now()+20*60000);
- const rootMatch=p=>{
-  const actual=security.digest('root-password:'+String(p||''));
-  const expected=security.digest('root-password:'+env.ROOT_PASSWORD);
-  return actual.length===expected.length&&crypto.timingSafeEqual(Buffer.from(actual),Buffer.from(expected));
+ const rootMatch=async p=>{
+  const root=await db.rootCredentials.findOne({id:rootEmail},
+   {projection:{passwordHash:1,sessionVersion:1}});
+  return root&&checkPassword(String(p||''),root.passwordHash)?root:null;
  };
  const readonlyUser=a=>publicDocument(publicAccount(a));
  async function mailChallenge(a,reason='verify'){
@@ -87,10 +86,12 @@ export function registerIdentityRoutes(ctx){
   if(throttle.limited(req,'academic-login',13))return res.status(429).json({error:'Too many login attempts.'});
   const mail=email(req.body?.email),password=String(req.body?.password||'');
   if(mail===rootEmail){
-   if(!rootMatch(password))return res.status(401).json({error:'Invalid credentials.'});
-   security.set(res,{id:rootEmail,role:'root',version:1});
+   const root=await rootMatch(password);
+   if(!root)return res.status(401).json({error:'Invalid credentials.'});
+   security.set(res,{id:rootEmail,role:'root',version:root.sessionVersion});
    await audit({id:rootEmail,role:'root'},'nyoro_root_signin');
-   return res.json({account:{id:rootEmail,email:rootEmail,name:'Nyoro',role:'root',status:'active',verified:true,approved:true}});
+   return res.json({account:{id:rootEmail,email:rootEmail,name:'Nyoro',
+    role:'root',status:'active',verified:true,approved:true}});
   }
   const a=await db.accounts.findOne({email:mail});
   if(!a||!checkPassword(password,a.passwordHash))return res.status(401).json({error:'Invalid credentials.'});
@@ -107,7 +108,23 @@ export function registerIdentityRoutes(ctx){
  app.post('/api/auth/recovery/request',wrap(async(req,res)=>{
   if(throttle.limited(req,'academic-recover',6))return res.status(429).json({error:'Please wait before requesting another link.'});
   const mail=email(req.body?.email);
-  if(validEmail(mail)&&mail!==rootEmail){
+  if(validEmail(mail)&&mail===rootEmail){
+   const token=strongToken(),digest=security.digest('root-recover:'+token);
+   await db.rootCredentials.updateOne({id:rootEmail},
+    {$set:{recoveryHash:digest,recoveryUntil:requestedAt()}});
+   try{
+    await sendEmail(rootEmail,'Nyoro IPS Root Admin password recovery',
+     'A one-use password recovery was requested for IPS Root Administration.\n'+
+     'Open this private link within 20 minutes: '+config.origin+
+     '/#recover='+token+'&email='+encodeURIComponent(rootEmail)+
+     '\n\nIf this was not you, ignore the message. IPS will never ask for your password.');
+   }catch{
+    await db.rootCredentials.updateOne({id:rootEmail,recoveryHash:digest},
+     {$unset:{recoveryHash:'',recoveryUntil:''}});
+    return res.status(503).json({error:'IPS could not send a secure account recovery email.'});
+   }
+   await audit({id:rootEmail,role:'root'},'nyoro_root_recovery_requested');
+  }else if(validEmail(mail)){
    const a=await db.accounts.findOne({email:mail,verified:true,status:{$in:['active','pending_review']}});
    if(a){try{await mailChallenge(a,'recover')}catch{return res.status(503).json({error:'Recovery email delivery is unavailable.'})}}
   }
@@ -116,7 +133,22 @@ export function registerIdentityRoutes(ctx){
  app.post('/api/auth/recovery/complete',wrap(async(req,res)=>{
   if(throttle.limited(req,'academic-complete',12))return res.status(429).json({error:'Too many attempts.'});
   const mail=email(req.body?.email),token=String(req.body?.token||''),password=String(req.body?.password||'');
-  if(!validEmail(mail)||!validToken(token)||!validPassword(password)||req.body?.confirmPassword!==password)return res.status(400).json({error:'Your password confirmation does not match or your recovery link is invalid.'});
+  if(!validEmail(mail)||!validToken(token)||!validPassword(password)||req.body?.confirmPassword!==password)
+   return res.status(400).json({error:'Your password confirmation does not match or your recovery link is invalid.'});
+  if(mail===rootEmail){
+   if(password.length<12)return res.status(400).json({error:'Root Administration requires a password of at least 12 characters.'});
+   const root=await db.rootCredentials.findOneAndUpdate({
+    id:rootEmail,recoveryHash:security.digest('root-recover:'+token),
+    recoveryUntil:{$gt:now()}
+   },{$set:{passwordHash:hashPassword(password),updatedAt:now()},
+     $inc:{sessionVersion:1},$unset:{recoveryHash:'',recoveryUntil:''}},
+    {returnDocument:'after'});
+   if(!root)return res.status(400).json({error:'This Root recovery link has expired or was used.'});
+   await audit({id:rootEmail,role:'root'},'nyoro_root_password_recovered');
+   security.set(res,{id:rootEmail,role:'root',version:root.sessionVersion});
+   return res.json({success:true,account:{id:rootEmail,email:rootEmail,name:'Nyoro',
+    role:'root',status:'active',verified:true,approved:true}});
+  }
   const a=await db.accounts.findOneAndUpdate({email:mail,verified:true,status:{$in:['active','pending_review']},
     recoveryHash:security.digest('recover:'+token),recoveryUntil:{$gt:now()}},
    {$set:{passwordHash:hashPassword(password)},$inc:{sessionVersion:1},
