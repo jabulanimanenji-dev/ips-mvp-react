@@ -37,6 +37,8 @@ app.use((req,res,next)=>{
 });
 await mongoose.connect(env.MONGODB_URI,{dbName:config.dbName,serverSelectionTimeoutMS:12000});
 const raw=mongoose.connection.db;
+// The native MongoDB GridFS bucket supports private academic files beyond the 16 MB document limit.
+const documentBucket=new mongoose.mongo.GridFSBucket(raw,{bucketName:'academic_document_blobs'});
 const db={
  accounts:raw.collection('academic_accounts'),
  rootCredentials:raw.collection('academic_root_credentials'),
@@ -197,7 +199,7 @@ function wrap(handler){return async(req,res)=>{try{await handler(req,res)}catch(
  console.error('IPS Academic Services operation failed',e?.name||'Error');
  if(!res.headersSent)res.status(500).json({error:'IPS could not complete the operation. Your previous state remains available.'});
 }}}
-const ctx={app,db,env,config,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
+const ctx={app,db,documentBucket,env,config,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
 app.get('/api/health',wrap(async(_req,res)=>res.json({
  ready:mongoose.connection.readyState===1,
  product:'IPS Academic Services',identity:'academic-services-only',release:'academic-company-2026-v1',
