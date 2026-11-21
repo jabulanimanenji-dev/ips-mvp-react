@@ -4,7 +4,7 @@ import {email,validEmail,validUsername,publicDocument,normalizeFilename,strongTo
 import {SERVICES,SERVICE_MAP,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
 
 export function registerAcademicRoutes(ctx){
- const {app,db,config,env,security,throttle,sendEmail,rootEmail,notify,audit,authorize,department,wrap,now,uid}=ctx;
+ const {app,db,config,env,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid}=ctx;
  const allowedChannels=['workspace','email','telegram'];
  const quoteView=q=>{
   const x=publicDocument(q);delete x.verifyHash;delete x.verifyUntil;delete x.internalEvaluation;
@@ -87,7 +87,7 @@ export function registerAcademicRoutes(ctx){
   if(!allowedChannels.includes(channel))return res.status(400).json({error:'Choose an available IPS written communication channel.'});
   if(channel==='telegram'&&!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(String(input.telegramUsername||'').replace(/^@/,'')))
    return res.status(400).json({error:'Enter a valid Telegram username.'});
-  const q=quoteBase(input,valid,req.actor);
+  const q=quoteBase({...input,contactChannel:channel},valid,req.actor);
   if(req.rootOperatorId){q.rootAssistedBy=req.rootOperatorId;q.synthetic=true}
   await db.quotes.insertOne(q);
   await audit(req.actor,'academic_quote_created',q.id,{serviceId:q.serviceId});
@@ -126,7 +126,7 @@ export function registerAcademicRoutes(ctx){
      scopeNote:note,reviewedBy:req.actor.id,updatedAt:now()}},{returnDocument:'after'});
   if(!q)return res.status(409).json({error:'This academic enquiry is not waiting for initial review.'});
   await audit(req.actor,'academic_scope_'+decision,q.id);
-  await notify(q.studentId,'IPS reviewed the academic scope of '+q.id);
+  await notifyQuotation(q,'IPS reviewed the academic scope of '+q.id,'quotation_scope');
   res.json({quote:quoteView(q)});
  }));
  app.post('/api/academic/quotes/:id/offer',wrap(async(req,res)=>{
