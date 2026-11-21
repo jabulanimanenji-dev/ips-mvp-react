@@ -2,6 +2,7 @@
 // Link only a private chat proven through a signed bot webhook and one-use token.
 import crypto from 'node:crypto';
 import {strongToken} from './security.mjs';
+import {registerTelegramConversationRoutes,receiveTelegramMessage} from './routes-telegram-conversations.mjs';
 
 export const telegramConfigured=env=>/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(String(env.IPS_TELEGRAM_BOT_USERNAME||''))&&
  !!String(env.TELEGRAM_BOT_TOKEN||'')&&
@@ -46,6 +47,8 @@ export function registerTelegramRoutes(ctx){
   await db.notificationDeliveries.updateMany({accountId:row.id,channel:'telegram',
    status:{$in:['pending','sending']}},{$set:{status:'cancelled',cancelledAt:now()},
     $unset:{lockedAt:''}});
+  await db.telegramMessages.updateMany({accountId:row.id,direction:'outbound',
+    status:'queued'},{$set:{status:'cancelled',cancelledAt:now()}});
   await audit(req.actor,'telegram_private_contact_revoked',row.id);
   res.json({success:true,linked:false,contactPreference:'workspace'});
  }));
@@ -61,6 +64,14 @@ export function registerTelegramRoutes(ctx){
   const chatId=Number(chat?.id);
   if(!match||chat?.type!=='private'||!Number.isSafeInteger(chatId)||chatId<=0||
    Number(from?.id)!==chatId)return res.json({ok:true,linked:false});
+  if(!match){
+   const result=await receiveTelegramMessage(ctx,req.body);
+   return res.json({ok:true,...result});
+  }
+  // Never silently associate a bot chat with more than one verified account.
+  if(await db.accounts.findOne({telegramChatId:chatId,
+    telegramConnectionStatus:'confirmed',verified:true,status:'active'}))
+   return res.json({ok:true,linked:false});
   const digest=security.digest('telegram-link:'+match[1]);
   const account=await db.accounts.findOneAndUpdate({
    telegramLinkHash:digest,telegramLinkUntil:{$gt:now()},
@@ -82,4 +93,5 @@ export function registerTelegramRoutes(ctx){
   }
   res.json({ok:true,linked:true});
  }));
+ registerTelegramConversationRoutes(ctx);
 }
