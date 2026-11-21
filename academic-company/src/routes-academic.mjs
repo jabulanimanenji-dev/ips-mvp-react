@@ -440,7 +440,7 @@ export function registerAcademicRoutes(ctx){
   try{inputName=decodeURIComponent(String(req.get('X-IPS-File-Name')||''))}
   catch{return res.status(400).json({error:'Academic filename encoding is invalid.'})}
   const filename=normalizeFilename(inputName),mime=String(req.get('X-IPS-File-Type')||'');
-  const ext=filename.toLowerCase().match(/\\.(pdf|docx|txt)$/)?.[1]||'';
+  const ext=filename.toLowerCase().match(/\.(pdf|docx|txt)$/)?.[1]||'';
   const formats={pdf:'application/pdf',
    docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
    txt:'text/plain'};
