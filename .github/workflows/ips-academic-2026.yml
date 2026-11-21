@@ -1,0 +1,51 @@
+name: IPS Academic Services — Constitution and Real Journey Qualification
+on:
+  push:
+    branches:
+      - work/ips-academic-new-20261121
+      - company/ips-academic-services-2026
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  academic-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    defaults:
+      run:
+        working-directory: academic-company
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Restore pinned academic company dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Confirm IPS is an academic services company and not rejected product
+        run: |
+          node --check src/app.mjs
+          node --check src/catalogue.mjs
+          node --check src/security.mjs
+          node --check src/routes-identity.mjs
+          node --check src/routes-academic.mjs
+          node --check src/routes-support.mjs
+          node --check public/app.js
+          node --check scripts/verify-lifecycle.mjs
+          node -e "import('./src/catalogue.mjs').then(x=>{if(x.SERVICES.length!==16||x.SERVICES.some(s=>!s.title||!s.questions.length))process.exit(1)})"
+          if grep -R -E 'International Project Services|generic project marketplace|company-next/server.mjs' src/ public/; then
+            echo "REJECT: wrong IPS company identity"
+            exit 1
+          fi
+      - name: Exercise actual isolated academic service workflows against MongoDB 7
+        run: node scripts/verify-lifecycle.mjs
+      - name: Verify academic constitution is preserved
+        working-directory: .
+        run: test -s GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md
