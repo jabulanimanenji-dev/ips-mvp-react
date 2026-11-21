@@ -371,7 +371,7 @@ async function loadTab(){
     b('Open workspace','root-lens-open',p.id,'small primary'):'')+
    (a.role==='root'?b('Message','person-message',p.id,'small'):'')+
    (!rootLensList&&canRecover(a,p)?b('Send reset link','person-recover',p.id,'small'):'')+
-   (!rootLensList&&canApprove(a,p)?b('Approve','person-approve',p.id,'small'):'')+
+   (!rootLensList&&canApprove(a,p)?b('Review credentials','person-review',p.id,'small'):'')+
    (!rootLensList&&canSuspend(a,p)?b('Suspend','person-suspend',p.id,'small danger'):'')+
    (!rootLensList&&p.status==='suspended'&&a.role==='root'?b('Reactivate','person-reactivate',p.id,'small'):'')+
    '</div></td></tr>').join('')+'</tbody></table></div>':empty('No accounts found.')))+
@@ -811,6 +811,14 @@ async function submit(name,formNode){
   return 'Private reply recorded.';
  }
  if(name==='claim-quote'){await api('/academic/quotes/claim',{method:'POST',body:data});return 'Your previously verified guest academic enquiry is now attached to your account.'}
+ if(name==='specialist-review'){
+  await api('/administration/people/'+encodeURIComponent(data.personId)+'/decision',
+   {method:'POST',operator:state.account?.role==='root',
+    body:{decision:'approve_specialist',reviewNote:data.reviewNote,
+     evidenceVerificationReference:data.evidenceVerificationReference,
+     credentialVerified:!!formNode.querySelector('[name=credentialVerified]:checked')}});
+  return 'Verified professional credential review and agreement acceptance recorded. Specialist access approved.';
+ }
  if(name==='staff-invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
  if(name==='quote-resubmit'){
   await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/resubmit',
@@ -903,6 +911,32 @@ document.addEventListener('click',async ev=>{
   render();return;
  }
  if(act==='person-message'){remember();state.opened='DMTO:'+id;render();return}
+ if(act==='person-review'){
+  try{
+   const data=(await api('/administration/specialists/'+encodeURIComponent(id)+'/review',
+    {operator:state.account?.role==='root'})).specialist;
+   const info='<p><strong>'+e(data.name)+' · '+e(data.qualification)+'</strong></p>'+
+    '<p><strong>Experience:</strong> '+e(data.experience||'Not provided')+
+    ' · <strong>Languages:</strong> '+e(data.professionalLanguages||'Not provided')+'</p>'+
+    '<p><strong>Submitted evidence reference:</strong> '+e(data.credentialEvidenceReference||'Missing')+'</p>'+
+    '<p><strong>Agreement:</strong> '+e(data.professionalAgreementVersion||'Not accepted')+
+    ' · Accepted '+date(data.professionalAgreementAcceptedAt)+'</p>'+
+    '<p><strong>Expertise:</strong> '+e((data.expertise||[]).join(', '))+'</p>';
+   const review=form('specialist-review',
+    '<input type="hidden" name="personId" value="'+e(id)+'">'+
+    textarea('Credential verification notes','reviewNote',
+     'Describe the documents, awarding institution and professional checks completed')+
+    field('Verified credential evidence reference','evidenceVerificationReference','text',
+     'Record a verifiable document, certificate or independent reference')+
+    '<label class="check"><input type="checkbox" name="credentialVerified" required> I have actually verified the professional credentials and reviewed the current confidentiality agreement.</label>',
+    'Approve verified Specialist');
+   const parent=action.closest('tr');
+   parent.insertAdjacentHTML('afterend','<tr class="specialist-review"><td colspan="4">'+
+    panel('Professional credential review',info,review)+'</td></tr>');
+  }catch(ex){state.error=ex.message;render()}
+  return;
+ }
+
 if(act==='service'){remember();state.service=id;state.page='service';serviceDetail();return}
  if(act==='request-service'){remember();state.service=id;state.page='quote';quote();return}
  if(['tab-commissions','tab-queues','tab-root-students','tab-root-specialists'].includes(act)){remember();state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
@@ -936,9 +970,9 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
     {method:'POST',operator:state.account?.role==='root',body:{}});
    state.message='You are now accountable for this academic enquiry.';
   }
-  else if(['person-recover','person-approve','person-suspend','person-reactivate'].includes(act)){
+  else if(['person-recover','person-suspend','person-reactivate'].includes(act)){
    if(act==='person-recover'){await api('/administration/people/'+encodeURIComponent(id)+'/send-recovery',{method:'POST'});state.message='IPS emailed a secure recovery link to the account owner.'}
-   else{const decision=act==='person-approve'?'approve_specialist':act==='person-reactivate'?'reactivate':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
+   else{const decision=act==='person-reactivate'?'reactivate':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
   }
   else if(act==='support-close'){await api('/support/'+encodeURIComponent(id)+'/resolve',{method:'POST'});state.message='Written support case resolved.'}
   else if(act==='notification-read'){await api('/notifications/'+encodeURIComponent(id)+'/read',{method:'POST'});state.message='Notification marked read.'}
