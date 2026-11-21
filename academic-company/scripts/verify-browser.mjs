@@ -128,6 +128,7 @@ try{
   await studentPage.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
   await studentPage.getByRole('button',{name:'Open enquiry & messages'}).first().click();
   await studentPage.getByRole('heading',{name:'Supporting documents'}).waitFor();
+  assert.equal(await studentPage.locator('.record').count(),0,'Opened academic enquiry must not keep the whole quotation list above the workroom');
   await studentPage.locator('form[data-form=quote-upload] input[name=upload]').setInputFiles({
    name:'student-scope-reference.txt',mimeType:'text/plain',
    buffer:Buffer.from('Academic research author-provided university guidance and literature review scope notes.')});
@@ -145,6 +146,7 @@ try{
  });
  await pass('Student has visible academic job inbox, supporting files, replies and functional Back navigation',async()=>{
   await studentPage.getByRole('heading',{name:'Work, messages & delivery'}).waitFor();
+  assert.equal(await studentPage.locator('.record').count(),0,'Opened academic job must be one focused workroom, not a stacked list');
   await studentPage.getByRole('heading',{name:'Files & delivery'}).waitFor();
   await studentPage.getByRole('heading',{name:'Job messages'}).waitFor();
   await studentPage.locator('form[data-form=case-upload] input[name=upload]').waitFor();
@@ -219,6 +221,7 @@ try{
   const m=studentPage.locator('.inbox-row',{hasText:'Secure academic document'}).first();
   await m.getByRole('button',{name:'Open'}).click();
   await studentPage.getByRole('heading',{name:'Private IPS conversation'}).waitFor();
+  assert.equal(await studentPage.locator('.inbox-row').count(),0,'Opened message should hide the full inbox list');
   await studentPage.locator('a[href*="/api/operations/direct-file/"]').first().waitFor();
   await studentPage.locator('form[data-form=direct-reply] textarea[name=body]').fill(
    'I received the private academic guidance document. Thank you for the update.');
