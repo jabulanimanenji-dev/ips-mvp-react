@@ -64,6 +64,7 @@ try{
     const hero=student.locator('.dashboard-zone-client-hero section');
     const gradient=await hero.evaluate(el=>getComputedStyle(el).backgroundImage);
     assert.ok(gradient.includes('rgb(16, 42, 67)'), 'Student hero must use readable deep-navy background: '+gradient);
+    await student.getByRole('heading',{name:/My private updates/}).waitFor({timeout:15000});
     await evidence(student,'student-overview');
   });
   await check('Signed-in student sees only their own quotation and can reply',async()=>{
@@ -134,6 +135,7 @@ try{
     },null,{timeout:15000});
     assert.ok(await specialist.locator('.dashboard-zone-writer-stats .card').first().getByText('1').count()>=1,
       'Specialist totals must reflect the assigned paid work.');
+    await specialist.getByRole('heading',{name:/My private updates/}).waitFor({timeout:15000});
     await evidence(specialist,'specialist-dashboard');
   });
   for(const [route,name] of [
