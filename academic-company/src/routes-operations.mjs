@@ -97,7 +97,7 @@ export function registerOperationsRoutes(ctx){
   const [counts,exceptions]=await Promise.all([
    Promise.all(statuses.map(async status=>[status,
     await db.notificationDeliveries.countDocuments({status})])),
-   db.notificationDeliveries.find({status:'failed'},
+   db.notificationDeliveries.find({status:{$in:['failed','bounced','complained','suppressed']}},
     {projection:{_id:0,id:1,kind:1,status:1,attempts:1,createdAt:1,lastError:1}})
     .sort({createdAt:-1}).limit(40).toArray()
   ]);
