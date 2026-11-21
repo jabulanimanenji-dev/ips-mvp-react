@@ -34,6 +34,27 @@ Authoritative qualified academic branch `company/ips-academic-services-2026` at 
 
 Unqualified additional branch `work/ips-academic-governed-people-20261121` contains draft people-management changes. Do not merge without complete current-commit GitHub and browser qualification.
 
+
+## November 21 post-qualification implementation and live data reconciliation
+
+Authoritative academic application advanced by exact-head fast-forward from 588de009bb177de8a62c0d6193c774b0926ca72f to **678b42224ed38f771b861bc985f212ab32c07703**. MongoDB lifecycle, Chrome journeys, review image, independent backup/restore and production-image admission checks passed in GitHub Actions run **44959332435**. Render academic review service srv-dc0qs16c6qcc73f6ieug automatically deployed matching commit (deployment dep-dc124fflk1mc7380sjbg, status live). The runtime logs remain explicit that this is a **fictional isolated evaluation**, not a real company production deployment. This implementation includes management sessions, staff offboarding/reassignment, documented Specialist review and real browser management screens.
+
+Read-only MongoDB Atlas grouped inventory on legacy `ips` (no customer values exported):
+
+| Historical collection | Verified state counts | Mandatory disposition |
+|---|---|---|
+| orders | 4 New | Investigate each order, ownership and customer expectation before moving/retiring |
+| servicerequests | 1 In Progress; 1 Assigned; 1 New Request | Preserve assignment, scope, history and fulfilment status |
+| invoices | 2 SENT, payment_status=PENDING_VERIFICATION | **Do not** mark paid, create receipts or discard financial evidence |
+| supporttickets | 1 Open | Carry forward with written history and ownership |
+| clients | 148 Active | Protect privacy; reconcile authentication without importing legacy passwords |
+| writers | 39 application_status=approved; 1 more_information | Revalidate professional verification and non-disclosure agreements before authorizing new specialist work |
+| admins | 34 Active, 1 Suspended | Do not import legacy roles/permissions as trusted; establish Root and new scoped management explicitly |
+| channelmessages | 3 inbound received, 1 outbound sent | A recorded 'sent' status is not a demonstrated delivered Telegram receipt; preserve conversation provenance |
+| platformfiles | 1 released with visibility=admin_writer | Preserve private file bytes, evidence and original visibility until audited migration |
+
+Legacy field names differ from the new academic schema (old `clients/client_id`, `writers/writer_id`, `orders/order_id`, `servicerequests/request_id`, `invoices/invoice_id`, `channelmessages/contact_id`, `platformfiles/order_id`). The legacy client, account, writer and admin documents all contain historical credential fields; **never export them to Git or copy them to new identities**. Build an explicit source-to-destination mapping and one-time verification before migration. The combined state is **not yet production reconciled**. No archive delete/unmount is authorized until verified escrow backup, independent restore and obligation-by-obligation reconciliation.
+
 ## Required non-payment go-live gate
 1. Single release source and protected deployment with independent hosting configuration, monitoring, meaningful health checks and costs.
 2. Dedicated backed-up production MongoDB and verified byte-level private file storage, properly isolated from legacy and staging.
