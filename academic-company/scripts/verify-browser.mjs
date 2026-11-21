@@ -80,7 +80,7 @@ try{
  });
  await pass('Student sees actual approved academic file through private authenticated download',async()=>{
   await studentPage.getByRole('button',{name:'Open academic commission'}).first().click();
-  await studentPage.locator('a[download]').waitFor();
+  await studentPage.locator('a[download]').first().waitFor();
   await studentPage.getByText('Centralized company relay prevents uncontrolled student–Specialist messaging').count().catch(()=>0);
   await screen(studentPage,'06-student-academic-delivery');
  });
