@@ -154,6 +154,7 @@ function rootLogin(){
  state.page='root-login';
  auth('Nyoro · Root Administration','Direct secure entry to IPS Academic Services company administration. Root authentication is required. Other accounts cannot use this address.',
  form('login',field('Root email address','email','email','Root account email')+field('Password','password','password','Root Admin password'),'Sign in as Nyoro Root Admin'),
+ '<div class="action-row">'+buttonRoute('Recover Root password by email','recover')+'</div>'+
  '<div class="notice mt">This URL provides a direct Root entry, not a login bypass. Root can open actual Student and Specialist workspaces after signing in.</div>');
 }
 function rootForbidden(){
@@ -701,9 +702,10 @@ function supportDetail(t){
 function render(){
  if(!state.catalogue){root.textContent='IPS Academic Services is loading…';return}
  if(state.rootEntry&&state.account&&state.account.role!=='root')return rootForbidden();
- if(state.rootEntry&&!state.account)return rootLogin();
+
  const params=new URLSearchParams(location.hash.slice(1));
  for(const k of ['verify','recover','invite','guestconfirm'])if(params.has(k)){tokenForm(k);return}
+ if(state.rootEntry&&!state.account&&!['recover','recovery'].includes(state.page))return rootLogin();
  if(state.account&&!['quote','services','service','how','privacy','recover','resend'].includes(state.page))return work();
  switch(state.page){case 'services':services();break;case 'service':serviceDetail();break;
  case 'how':how();break;case 'privacy':privacy();break;case 'quote':quote();break;
