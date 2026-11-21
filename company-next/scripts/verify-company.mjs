@@ -127,7 +127,10 @@ try{
  });
  await run('Admin can send recovery link but never see password, old client sessions are revoked',async()=>{
    const a=await clientDB.collection('company_accounts').findOne({email:cEmail});
-   await check('/people/'+a.id+'/send-reset',{method:'POST',cookie:rootCookie,body:{}},202);
+   await check('/people/'+a.id+'/send-reset',{method:'POST',cookie:sCookie,body:{}},202);
+   const specialist=await clientDB.collection('company_accounts').findOne({email:wEmail});
+   await check('/people/'+specialist.id+'/send-reset',{method:'POST',cookie:sCookie,body:{}},403);
+   await check('/people/'+specialist.id+'/send-reset',{method:'POST',cookie:mCookie,body:{}},403);
    const token=extract(await lastMail(cEmail,'Private IPS password assistance'),'reset');
    const r=await check('/auth/recovery/complete',{method:'POST',body:{email:cEmail,token,password:'RecoveredClient2027!'}});
    await check('/me',{cookie:cCookie},401);
