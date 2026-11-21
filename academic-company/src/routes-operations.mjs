@@ -107,6 +107,52 @@ export function registerOperationsRoutes(ctx){
   await audit(a,'academic_quote_message',q.id,{audience});
   res.status(201).json({message:publicDocument(msg)});
  }));
+ // Academic enquiry documents are available before commission/payment, subject to the same
+ // ownership boundary as quotations. Guest enquiries require a verified registered account.
+ app.post('/api/academic/quotes/:id/files',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','root','manager','staff']))return;
+  const q=await db.quotes.findOne({id:req.params.id});
+  if(!q||!quoteAccess(req.actor,q))return deny(res);
+  if(req.actor.role==='student'&&(!q.studentId||q.studentId!==req.actor.id))
+   return deny(res);
+  const checked=quickFile({...req.body,purpose:'reference'});
+  if(checked.error)return res.status(400).json({error:checked.error});
+  const a=req.actor;
+  const audience=a.role==='student'?'student':String(req.body?.audience||'student');
+  if(!['student','internal'].includes(audience))return res.status(400).json({error:'Choose a valid quotation document audience.'});
+  const {filename,mime,buffer}=checked;
+  const file={id:uid('QF'),quoteId:q.id,studentId:q.studentId,
+   filename,mime,purpose:'enquiry_reference',audience,
+   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,
+   uploadedBy:req.rootOperatorId||a.id,uploadedRole:req.rootOperatorId?'root':a.role,createdAt:now()};
+  await db.quoteFiles.insertOne(file);
+  await db.quotes.updateOne({id:q.id},{$set:{updatedAt:now()}});
+  await notify(a.role==='student'?rootEmail:q.studentId,
+   'Academic enquiry document uploaded for '+q.id,'quote_file');
+  await audit(a,'academic_enquiry_document_uploaded',q.id,{fileId:file.id,audience,sha256:file.sha256});
+  res.status(201).json({file:{id:file.id,filename:file.filename,mime:file.mime,
+   sha256:file.sha256,audience:file.audience,createdAt:file.createdAt}});
+ }));
+ app.get('/api/academic/quotes/:id/files',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','root','manager','staff']))return;
+  const q=await db.quotes.findOne({id:req.params.id});
+  if(!q||!quoteAccess(req.actor,q))return deny(res);
+  const a=req.actor,filter={quoteId:q.id,...(a.role==='student'?{audience:'student'}:{})};
+  const rows=await db.quoteFiles.find(filter).sort({createdAt:-1}).limit(100).toArray();
+  res.json({files:rows.map(x=>({id:x.id,filename:x.filename,mime:x.mime,
+    audience:x.audience,sha256:x.sha256,createdAt:x.createdAt,uploadedRole:x.uploadedRole}))});
+ }));
+ app.get('/api/academic/quote-files/:id',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','root','manager','staff']))return;
+  const file=await db.quoteFiles.findOne({id:req.params.id});
+  if(!file)return res.status(404).json({error:'Quotation document not found.'});
+  const q=await db.quotes.findOne({id:file.quoteId});
+  if(!q||!quoteAccess(req.actor,q)||req.actor.role==='student'&&file.audience!=='student')return deny(res);
+  res.set('Content-Type',file.mime).set('Content-Disposition','attachment; filename="'+file.filename+'"')
+   .set('Cache-Control','private,no-store').set('X-Content-Type-Options','nosniff')
+   .set('X-Content-SHA256',file.sha256);
+  res.send(Buffer.from(file.fileData?.buffer||file.fileData));
+ }));
  app.post('/api/operations/:id/upload',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','student','specialist','manager','staff']))return;
   const p=await db.projects.findOne({id:req.params.id});
