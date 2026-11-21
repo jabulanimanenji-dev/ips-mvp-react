@@ -17,6 +17,13 @@ jobs:
           MONGO_INITDB_ROOT_PASSWORD: ci_password_test_only
         ports:
           - 27017:27017
+      mongodb_restoration:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: ci_restore_admin
+          MONGO_INITDB_ROOT_PASSWORD: ci_restore_password_test_only
+        ports:
+          - 27018:27017
     env:
       NODE_ENV: development
       PORT: '8080'
@@ -25,6 +32,7 @@ jobs:
       ADMIN_PASSWORD: LocalOnlyAdminPassword123!
       SESSION_SECRET: ci-session-secret-nothing-production-1234567890-abcdefgh
       MONGODB_URI: mongodb://ci_admin:ci_password_test_only@127.0.0.1:27017/ips_ci?authSource=admin
+      MONGODB_RESTORE_URI: mongodb://ci_restore_admin:ci_restore_password_test_only@127.0.0.1:27018/ips_ci_recovery_target?authSource=admin
       TELEGRAM_WEBHOOK_SECRET: ci_telegram_secret_random_123
       WHATSAPP_APP_SECRET: ci_whatsapp_app_secret_123
     steps:
@@ -75,6 +83,23 @@ jobs:
         with:
           name: ips-genuine-mongodb-workspace-evidence
           path: workspace-evidence/
+          if-no-files-found: warn
+      - name: Freeze disposable API writers before independent full-backup recovery
+        if: success()
+        run: |
+          if [ -f /tmp/ips_ci_server.pid ]; then
+            kill "$(cat /tmp/ips_ci_server.pid)" || true
+            sleep 2
+          fi
+      - name: Restore completed client and specialist delivery into a separate MongoDB 7 process
+        if: success()
+        run: node scripts/verify-independent-database-recovery.mjs
+      - name: Publish safe independent database and delivered-file recovery manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ips-independent-mongodb-restore-acceptance
+          path: recovery-evidence/
           if-no-files-found: warn
       - name: Print server diagnostics on failure
         if: failure()
