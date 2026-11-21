@@ -149,7 +149,7 @@ function auth(title,subtitle,formContent,extras=''){
 }
 function login(){state.page='login';auth('Welcome back','Sign in to your Student / Researcher, Specialist or authorized IPS staff workspace.',
  form('login',field('Verified email address','email','email','you@example.com')+field('Password','password','password'),'Open my IPS workspace'),
- '<div class="action-row">'+buttonRoute('Get started','register')+buttonRoute('Forgot password?','recover')+'</div>')}
+ '<div class="action-row">'+buttonRoute('Get started','register')+buttonRoute('Forgot password?','recover')+buttonRoute('Resend email verification','resend')+'</div>')}
 function rootLogin(){
  state.page='root-login';
  auth('Nyoro · Root Administration','Direct secure entry to IPS Academic Services company administration. Root authentication is required. Other accounts cannot use this address.',
@@ -182,8 +182,10 @@ function register(role='student'){
  '<div class="action-row">'+buttonRoute('Already registered? Sign in','login')+'</div>');
  const select=root.querySelector('select[name=role]');if(select){select.value=role;select.addEventListener('change',ev=>register(ev.target.value))}
 }
-function recovery(){state.page='recover';auth('Recover your private account','A one-time link is automatically emailed to the verified account holder.',
+function recovery(){state.page='recover';auth('Reset your password','Enter the registered email. IPS automatically sends a one-use recovery link.',
  form('recovery',field('Registered email','email','email','you@example.com'),'Email recovery link'))}
+function resendVerification(){state.page='resend';auth('Resend your verification link','Use the same email address you registered with.',
+ form('resend-verification',field('Registered email','email','email','you@example.com'),'Resend verification email'))}
 function tokenForm(kind){
  const params=new URLSearchParams(location.hash.slice(1)),token=params.get(kind)||'',mail=params.get('email')||'';
  const headline=kind==='verify'?'Verify your IPS email':kind==='invite'?'Accept your IPS staff invitation':kind==='guestconfirm'?'Verify your academic enquiry':'Set a new password';
@@ -555,12 +557,13 @@ function render(){
  if(!state.catalogue){root.textContent='IPS Academic Services is loading…';return}
  if(state.rootEntry&&state.account&&state.account.role!=='root')return rootForbidden();
  if(state.rootEntry&&!state.account)return rootLogin();
- if(state.account&&!['quote','services','service','how','privacy','recover'].includes(state.page))return work();
  const params=new URLSearchParams(location.hash.slice(1));
  for(const k of ['verify','recover','invite','guestconfirm'])if(params.has(k)){tokenForm(k);return}
+ if(state.account&&!['quote','services','service','how','privacy','recover','resend'].includes(state.page))return work();
  switch(state.page){case 'services':services();break;case 'service':serviceDetail();break;
  case 'how':how();break;case 'privacy':privacy();break;case 'quote':quote();break;
- case 'login':login();break;case 'register':register(state.registerRole==='specialist'?'specialist':'student');break;
+ case 'login':login();break;case 'recover':case 'recovery':recovery();break;case 'resend':resendVerification();break;
+ case 'register':register(state.registerRole==='specialist'?'specialist':'student');break;
  case 'specialist':register('specialist');break;case 'recovery':recovery();break;
  default:home();}
 }
@@ -591,7 +594,8 @@ async function submit(name,formNode){
  if(name==='student-quote'){const r=await api('/academic/quotes',{method:'POST',body:data});state.page='workspace';state.tab='quotes';return 'IPS received your academic enquiry '+r.quote.id+'. A qualified team member will review its scope.'}
  if(name==='guestconfirm'){await api('/academic/guest-confirm',{method:'POST',body:data});location.hash='';state.page='login';return 'Your academic quotation enquiry is verified and awaiting written IPS review.'}
  if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
- if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page=state.account?'workspace':'login';if(state.account)state.tab='profile';return 'A private recovery link has been requested immediately. Check the registered mailbox.'}
+ if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page=state.account?'workspace':'login';if(state.account)state.tab='profile';return 'If this account is verified, a one-use recovery link is being emailed now.'}
+ if(name==='resend-verification'){await api('/auth/resend-verification',{method:'POST',body:data});state.page='login';return 'If verification is pending, IPS has emailed a new link.'}
  if(name==='recover'||name==='invite'){if(data.password!==data.confirmPassword)throw Error('Passwords do not match.');
   const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
  if(name==='quote-message'){
