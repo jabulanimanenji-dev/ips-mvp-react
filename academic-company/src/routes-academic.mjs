@@ -30,6 +30,22 @@ export function registerAcademicRoutes(ctx){
   if(input?.integrityAcknowledged!==true)return {error:'Confirm that your request complies with academic integrity requirements.'};
   return {service,serviceId,level,subject,brief,deadline,instructions};
  };
+ const utcDate=()=>new Date().toISOString().slice(0,10);
+ const reviewedOffer=input=>{
+  const total=Number(input?.priceMinor),terms=String(input?.terms||'').trim(),
+   deliverables=String(input?.deliverables||'').trim();
+  const requested=String(input?.expires||'').trim();
+  const expires=requested||new Date(Date.now()+14*86400000).toISOString().slice(0,10);
+  if(!Number.isSafeInteger(total)||total<=0||total>100000000||
+   terms.length<20||terms.length>2500||deliverables.length<15||deliverables.length>2000)
+   return {error:'Provide a positive PLN price, complete academic deliverables and written terms.'};
+  const expiryDate=new Date(expires+'T23:59:59.999Z');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(expires)||!Number.isFinite(expiryDate.getTime())||
+   expiryDate.toISOString().slice(0,10)!==expires||
+   expires<utcDate()||expiryDate.getTime()>Date.now()+366*86400000)
+   return {error:'Choose a real quotation expiry date from today up to one year ahead (UTC date).'};
+  return {priceMinor:total,currency:'PLN',terms,deliverables,expires};
+ };
  const quoteBase=(input,valid,owner)=>({
   id:uid('IPS-Q'),studentId:owner?.id||'',username:owner?.username||String(input?.username||''),
   contactEmail:owner?.email||email(input?.email),
@@ -40,6 +56,7 @@ export function registerAcademicRoutes(ctx){
   createdAt:now(),updatedAt:now(),priceMinor:null,currency:'PLN',
   assignedDepartment:'client_relations',assignedTo:'',assignedBy:'',ownerAssignedAt:null,
   ownershipHistory:[],reviewedBy:'',scopeDecision:'pending',
+  offerVersion:0,offerHistory:[],clarificationHistory:[],
   autoAcknowledged:!!owner
  });
  app.post('/api/academic/guest-quote',wrap(async(req,res)=>{
