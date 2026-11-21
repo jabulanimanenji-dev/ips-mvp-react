@@ -261,7 +261,7 @@ export function registerOperationsRoutes(ctx){
   res.set('Content-Type',file.mime).set('Content-Disposition','attachment; filename="'+file.filename+'"')
    .set('Cache-Control','private,no-store').set('X-Content-Type-Options','nosniff')
    .set('X-Content-SHA256',file.sha256);
-  res.send(Buffer.from(file.fileData?.buffer||file.fileData));
+  streamPrivateBlob(res,file);
  }));
  app.post('/api/operations/:id/upload',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','student','specialist','manager','staff']))return;
