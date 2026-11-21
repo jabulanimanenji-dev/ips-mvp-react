@@ -19,6 +19,7 @@ import PlatformFile from './models/PlatformFile.js';
 import Message from './models/Message.js';
 import AuditLog from './models/AuditLog.js';
 import Notification from './models/Notification.js';
+import {canReadNotificationInbox} from './shared/notificationAccess.js';
 import ServiceRequest from './models/ServiceRequest.js';
 import StudentPayment from './models/StudentPayment.js';
 import { getStudentOffer } from './shared/studentOffers.js';
@@ -2242,7 +2243,7 @@ app.get('/api/notifications/:role/:id', async (req, res) => {
     if(!session)return;
     if(!['client','writer','admin'].includes(req.params.role))
       return res.status(400).json({success:false,error:'Unknown notification audience.'});
-    if(session.role!=='admin'&&(session.role!==req.params.role||session.id!==req.params.id))
+    if(!canReadNotificationInbox(session,req.params.role,req.params.id,req.adminAccess))
       return res.status(403).json({success:false,error:'You may only read your own notifications.'});
     const notifications=await Notification.find({
       recipient_role:req.params.role,recipient_id:req.params.id
