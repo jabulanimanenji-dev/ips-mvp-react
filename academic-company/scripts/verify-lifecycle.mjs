@@ -239,11 +239,11 @@ try{
   await call('/profile',{method:'PATCH',cookie:rootCookie,rootTarget:student.id,body:{contactPreference:'telegram',telegram:'fakehandle'}},403);
   const rootQuote=await call('/academic/quotes',{method:'POST',cookie:rootCookie,rootTarget:student.id,body:brief('research-methods')},201);
   assert.equal(rootQuote.data.quote.studentId,student.id);
-  assert.equal(rootQuote.data.quote.rootAssistedBy,rootEmail);
+  assert.equal(rootQuote.data.quote.rootAssistedBy,vars.ROOT_EMAIL);
   const assistedMessage=await call('/academic/commissions/'+commissionId+'/messages',{method:'POST',
    cookie:rootCookie,rootTarget:specialist.id,body:{body:'IPS Root is coordinating the academic revision in this workspace.'}},201);
   assert.equal(assistedMessage.data.message.actorRole,'root');
-  assert.equal(assistedMessage.data.message.actorId,rootEmail);
+  assert.equal(assistedMessage.data.message.actorId,vars.ROOT_EMAIL);
   assert.equal(assistedMessage.data.message.assistedAccountId,specialist.id);
   const rootSession=await call('/session',{cookie:rootCookie});
   assert.equal(rootSession.data.account.role,'root');
