@@ -21,3 +21,14 @@ export function canAssignSupportTicket(actor,target,currentOwner=''){
   }
   return false;
 }
+
+export function canChangeSupportTicket(actor,assignedId='',assignedOwner=null,proposedId=''){
+  if(!actor)return false;
+  if(actor.isRoot===true)return true;
+  if(!actor.permissions?.includes('support.manage'))return false;
+  if(!assignedId)return Boolean(proposedId);
+  if(assignedId===actor.adminId)return ['manager','staff'].includes(actor.companyRole);
+  if(actor.companyRole==='manager'&&assignedOwner?.company_role==='staff')
+    return assignedOwner.department===actor.department&&assignedOwner.manager_id===actor.adminId;
+  return false;
+}
