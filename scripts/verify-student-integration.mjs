@@ -547,6 +547,29 @@ async function go(){
   assert.equal(restoredAssignment.status,200,JSON.stringify(restoredAssignment.body));
   pass('Manager can revoke and restore a not-yet-started paid specialist allocation');
 
+  // Decision notices must reach the authenticated specialist principal, never
+  // an accidental notification inbox named after the project ID.
+  const reviewDecision=await call('/api/work/'+requestId+'/decisions',{
+    method:'POST',session:admin.cookie,json:{
+      work_kind:'service',type:'clarification',subject:'Please verify the methodology assumption',
+      details:'Check whether this statistical analysis matches the approved research methodology.',
+      assigned_to_role:'provider',priority:'important'
+    }});
+  assert.equal(reviewDecision.status,201,JSON.stringify(reviewDecision.body));
+  const specialistNotices=await call('/api/notifications/writer/'+specialistId,{
+    session:specialist.cookie});
+  assert.equal(specialistNotices.status,200);
+  assert.ok(specialistNotices.body.notifications.some(n=>
+    n.order_id===requestId&&n.type==='work_decision'),
+    'Specialist must receive the private decision notification');
+  const wrongPrincipal=await Notification.countDocuments({
+    recipient_role:'writer',recipient_id:requestId,type:'work_decision'});
+  assert.equal(wrongPrincipal,0,'Work reference is not a writer account identity');
+  const unauthorizedDecisionInbox=await call('/api/notifications/writer/'+specialistId,{session:alice.cookie});
+  assert.equal(unauthorizedDecisionInbox.status,403);
+  pass('Actual specialist receives project decision alerts under own verified account only');
+
+
   const specialistJobs=await call('/api/services?provider_id='+specialistId,{session:specialist.cookie});
   assert.equal(specialistJobs.status,200);
   assert.equal(specialistJobs.body.requests.some(job=>job.request_id===requestId),true);
