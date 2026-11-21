@@ -402,6 +402,32 @@ try{
   assert.equal(await queue.countDocuments({accountId:student.id}),before,
    'Workspace-only recipients must not be forced onto email');
  });
+ await assertCheck('Root sees provider failures without private recipient disclosure and can retry without manual email drafting',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const id='OUT-EVAL-FAILED-'+random().toUpperCase();
+  await db.collection('academic_notification_deliveries').insertOne({
+   id,notificationId:'NT-EVAL-RETRY-'+random(),accountId:student.id,to:studentMail,
+   kind:'communications',subject:'IPS Academic Services — new private update',
+   text:'A private IPS update is ready. Sign in: '+url,
+   status:'failed',attempts:4,lastError:'Provider delivery failed',
+   createdAt:new Date(),nextAttemptAt:new Date(Date.now()+3600000)
+  });
+  const view=await call('/operations/delivery-status',{cookie:rootCookie});
+  assert.ok(view.data.exceptions.some(x=>x.id===id));
+  assert.ok(!JSON.stringify(view.data).includes(studentMail),'Root dashboard must not expose raw recipient addresses');
+  await call('/operations/delivery-status',{cookie:studentCookie},403);
+  await call('/operations/delivery/'+id+'/retry',withAuth(studentCookie,{}),403);
+  const retried=await call('/operations/delivery/'+id+'/retry',withAuth(rootCookie,{}));
+  assert.equal(retried.data.status,'pending');
+  let status;
+  for(let i=0;i<35;i++){
+   status=await db.collection('academic_notification_deliveries').findOne({id});
+   if(status?.status==='delivered')break;
+   await sleep(300);
+  }
+  assert.equal(status?.status,'delivered','Retry worker must eventually deliver previously failed notice');
+  assert.ok(await db.collection('academic_audit_events').findOne({action:'academic_notification_retry_requested',ref:id}));
+ });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
   const people=await call('/administration/people',{cookie:rootCookie});
   assert.ok(!people.data.people.some(x=>x.role==='root'));
