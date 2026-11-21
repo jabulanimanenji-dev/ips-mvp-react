@@ -64,13 +64,49 @@ export function createSecurity(env,{sandbox}){
  return {digest,issue,read,set,clear};
 }
 export class Throttle{
- constructor(){this.map=new Map()}
- limited(req,key,limit=8){
-  const time=Date.now(),id=(req.ip||'unknown')+'|'+key,existing=this.map.get(id);
+ constructor(){
+  this.map=new Map();
+  this.collection=null;
+  this.secret='';
+  this.production=false;
+ }
+ attach(collection,{production=false,secret=''}={}){
+  if(production&&(!collection||String(secret).length<40))
+   throw Error('IPS production requires a shared MongoDB abuse limiter.');
+  this.collection=collection;
+  this.secret=String(secret);
+  this.production=!!production;
+ }
+ async limited(req,key,limit=8){
+  const n=Number(limit),action=String(key||'').slice(0,100);
+  if(!Number.isSafeInteger(n)||n<1||!action)throw Error('Invalid IPS rate policy.');
+  // The shared production key holds only a one-way HMAC, never a raw IP address.
+  if(this.production){
+   const interval=15*60*1000,nowMs=Date.now(),bucket=Math.floor(nowMs/interval);
+   const hashed=crypto.createHmac('sha256',this.secret).update(
+    String(req.ip||'unknown')+'|'+action+'|'+bucket).digest('hex');
+   const expiresAt=new Date((bucket+1)*interval+60000);
+   let row;
+   try{
+    row=await this.collection.findOneAndUpdate({_id:hashed},{
+     $inc:{attempts:1},$setOnInsert:{createdAt:new Date(nowMs),expiresAt,
+      action,policy:'fixed_15m_window'}},{upsert:true,returnDocument:'after'});
+   }catch(err){
+    if(err?.code!==11000)throw err;
+    // Concurrent first-use upserts can collide; atomically record the retry.
+    await this.collection.updateOne({_id:hashed},{$inc:{attempts:1}});
+    row=await this.collection.findOne({_id:hashed});
+   }
+   if(!row||!Number.isSafeInteger(row.attempts))
+    throw Error('IPS shared abuse protection is unavailable.');
+   return row.attempts>n;
+  }
+  // Isolated fictional evaluations retain disposable local counters.
+  const time=Date.now(),id=(req.ip||'unknown')+'|'+action,existing=this.map.get(id);
   const current=existing?.until>time?existing:{n:0,until:time+15*60000};
   current.n++;this.map.set(id,current);
   if(this.map.size>5000)for(const [k,v] of this.map)if(v.until<=time)this.map.delete(k);
-  return current.n>limit;
+  return current.n>n;
  }
 }
 export const auditView=d=>({id:d.id,actorRole:d.actorRole,action:d.action,ref:d.ref,at:d.at});
