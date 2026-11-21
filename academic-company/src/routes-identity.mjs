@@ -254,8 +254,36 @@ export function registerIdentityRoutes(ctx){
    else if(a.department==='specialist_network')filter={role:'specialist'};
    else return res.status(403).json({error:'This department has no authority over the people directory.'});
   }
-  const rows=await db.accounts.find(filter).sort({createdAt:-1}).limit(300).toArray();
-  res.json({people:rows.map(readonlyUser)});
+  // Privilege filters are always composed with the search, never replaced by it.
+  // Stable server-side paging ensures Nyoro can manage accounts past the first
+  // 300 records without returning an unbounded confidential people directory.
+  const allowedRoles=['student','specialist','manager','staff'];
+  const allowedStatuses=['active','pending_review','suspended','disabled','rejected','invited'];
+  const requestedRole=String(req.query.role||'');
+  const requestedStatus=String(req.query.status||'');
+  const search=String(req.query.search||'').trim();
+  const page=Number(req.query.page||1);
+  const pageSize=Number(req.query.pageSize||100);
+  if((requestedRole&&!allowedRoles.includes(requestedRole))||
+    (requestedStatus&&requestedStatus!=='all'&&!allowedStatuses.includes(requestedStatus))||
+    search.length>80||!Number.isSafeInteger(page)||page<1||page>100000||
+    !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>300)
+   return res.status(400).json({error:'Choose a valid company directory search, status and page.'});
+  const conditions=[filter];
+  if(requestedRole)conditions.push({role:requestedRole});
+  if(requestedStatus&&requestedStatus!=='all')conditions.push({status:requestedStatus});
+  if(search){
+   const escaped=search.replace(/[.*+?^\x24{}()|[\]\\]/g,'\\\x24&');
+   const re=new RegExp(escaped,'i');
+   conditions.push({$or:[{name:re},{username:re},{email:re},{id:re}]});
+  }
+  const scoped={$and:conditions};
+  const [rows,total]=await Promise.all([
+   db.accounts.find(scoped).sort({createdAt:-1,id:1})
+    .skip((page-1)*pageSize).limit(pageSize).toArray(),
+   db.accounts.countDocuments(scoped)]);
+  res.json({people:rows.map(readonlyUser),page,pageSize,total,
+   hasNext:page*pageSize<total,hasPrevious:page>1});
  }));
  app.post('/api/administration/invite',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','manager']))return;
