@@ -13,6 +13,7 @@ on:
       - work/ips-academic-persistent-abuse-20261121
       - work/ips-academic-production-image-20261121
       - work/ips-academic-release-admission-20261121
+      - work/ips-academic-provider-staging-20261121
       - work/ips-academic-upload-malware-gate-20261121
       - work/ips-academic-client-gridfs-20261121
       - work/ips-academic-gridfs-documents-20261121
@@ -67,6 +68,7 @@ jobs:
           node --check src/routes-finance.mjs
           node --check src/release-admission.mjs
           node --check scripts/verify-production-admission.mjs
+          node --check scripts/verify-staging-boundary.mjs
           node --check src/routes-operations.mjs
           node --check public/app.js
           node --check scripts/verify-lifecycle.mjs
@@ -81,6 +83,8 @@ jobs:
           fi
       - name: Prove source-bound production release cannot be activated with missing proof
         run: node scripts/verify-production-admission.mjs
+      - name: Verify isolated provider-staging mode cannot admit public accounts or the legacy bot
+        run: node scripts/verify-staging-boundary.mjs
       - name: Confirm document-screening protocol and fail-closed operation
         run: node scripts/verify-document-scan.mjs
       - name: Exercise actual isolated academic service workflows against MongoDB 7
