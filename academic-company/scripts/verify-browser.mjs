@@ -151,7 +151,7 @@ try{
   await studentPage.getByRole('heading',{name:'Job messages'}).waitFor();
   await studentPage.locator('form[data-form=case-upload] input[name=upload]').waitFor();
   await studentPage.locator('form[data-form=commission-message]').waitFor();
-  await studentPage.locator('.workmain').getByRole('button',{name:'← Back'}).click();
+  await studentPage.locator('.workmain').getByRole('button',{name:'← Back',exact:true}).click();
   await studentPage.locator('.record').first().waitFor();
   await studentPage.getByRole('button',{name:'Inbox & messages'}).first().click();
   await studentPage.getByRole('heading',{name:'Inbox & conversations'}).waitFor();
@@ -198,7 +198,7 @@ try{
   await rootPage.getByRole('heading',{name:'Files & delivery'}).waitFor();
   await rootPage.getByRole('heading',{name:'Job messages'}).waitFor();
   await screen(rootPage,'17-root-single-job-workroom');
-  await rootPage.locator('.workmain').getByRole('button',{name:'← Back'}).click();
+  await rootPage.locator('.workmain').getByRole('button',{name:'← Back',exact:true}).click();
   await rootPage.locator('.record').first().waitFor();
  });
  await pass('Nyoro sends a live-workflow private message and document to a Student in one account directory',async()=>{
