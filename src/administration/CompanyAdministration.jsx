@@ -14,6 +14,20 @@ export default function CompanyAdministration(){
   const {admin,logout,hasAdminPermission}=useAuth();
   const navigate=useNavigate(),location=useLocation();
   const [drawer,setDrawer]=useState(false),[search,setSearch]=useState(false),[query,setQuery]=useState(''),[logoutError,setLogoutError]=useState('');
+  const [databaseState,setDatabaseState]=useState('checking');
+  useEffect(()=>{
+    let active=true;
+    const inspect=async()=>{
+      try{
+        const response=await fetch('/api/health',{credentials:'same-origin',cache:'no-store'});
+        const health=await response.json();
+        if(active)setDatabaseState(response.ok&&health?.database==='connected'?'connected':'unavailable');
+      }catch{if(active)setDatabaseState('unavailable');}
+    };
+    void inspect();
+    const poll=setInterval(inspect,60000);
+    return()=>{active=false;clearInterval(poll);};
+  },[]);
   const available=MODULES.filter(m=>hasAdminPermission(m.permission));
   const current=available.find(m=>m.path===location.pathname)||available[0]||MODULES[0];
   const results=useMemo(()=>available.filter(m=>(m.label+' '+m.sub+' '+m.group).toLowerCase().includes(query.toLowerCase())),[admin?.id,admin?.permissions?.join(','),query]);
@@ -40,7 +54,10 @@ export default function CompanyAdministration(){
           <strong>INTERNATIONAL<br/>PROJECT SERVICES</strong><span>ADMINISTRATION · OPERATIONS</span>
         </div>
       </div>
-      <div className="ips4-rail-state">GOVERNED COMPANY WORKSPACE</div>
+      <div className={'ips4-rail-state'+(databaseState==='connected'?'':' degraded')} role="status">
+        {databaseState==='connected'?'COMPANY DATABASE CONNECTED':
+          databaseState==='checking'?'CHECKING OPERATING SERVICES':'DATABASE / API NOT READY'}
+      </div>
       <nav className="ips4-rail-nav" aria-label="Company management responsibilities">
         {available.map(module=>{
           const first=module.group!==last;last=module.group;
