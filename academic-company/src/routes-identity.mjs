@@ -53,6 +53,8 @@ export function registerIdentityRoutes(ctx){
   if(await throttle.limited(req,'academic-register',7))return res.status(429).json({error:'Too many requests. Please retry later.'});
   const role=String(req.body?.role||''),mail=email(req.body?.email),password=String(req.body?.password||'');
   const uname=username(req.body?.username),fullName=String(req.body?.fullName||'').trim();
+  if(config.staging&&!config.allowedStagingEmails.includes(mail))
+   return res.status(403).json({error:'This isolated IPS provider-testing environment admits only approved testing identities.'});
   if(!['student','specialist'].includes(role)||!validEmail(mail)||!validPassword(password)||req.body?.confirmPassword!==password||req.body?.privacyConsent!==true)
    return res.status(400).json({error:'Choose a valid academic account, real email, strong password and privacy consent.'});
   if(role==='student'&&!validUsername(uname))return res.status(400).json({error:'Choose a private username with 3–32 permitted characters.'});
