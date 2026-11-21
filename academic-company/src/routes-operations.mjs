@@ -42,6 +42,15 @@ export function registerOperationsRoutes(ctx){
   return false;
  };
  const quoteMessageFilter=(a,q)=>a.role==='student'?{audience:{$in:['student','shared']}}:{};
+ app.get('/api/operations/available-specialists',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','manager','staff']))return;
+  if(req.actor.role!=='root'&&req.actor.department!=='academic_delivery')
+   return res.status(403).json({error:'Academic Delivery authority is required.'});
+  const service=String(req.query.service||'');
+  const rows=await db.accounts.find({role:'specialist',verified:true,approved:true,
+   status:'active',...(service?{expertise:service}:{})}).sort({name:1}).limit(100).toArray();
+  res.json({specialists:rows.map(a=>({id:a.id,name:a.name,expertise:a.expertise||[]}))});
+ }));
  app.get('/api/operations/inbox',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
   const a=req.actor;
@@ -197,6 +206,10 @@ export function registerOperationsRoutes(ctx){
    sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
    fileData:buffer,createdAt:now()};
   await db.directFiles.insertOne(f);
+  const note={id:uid('DM'),toId:target.id,fromId:rootEmail,fromRole:'root',recipientRole:target.role,
+   body:'IPS has shared a private academic document: '+filename,subject:'Secure academic document',
+   attachmentId:f.id,createdAt:now()};
+  await db.directMessages.insertOne(note);
   await notify(target.id,'IPS sent a private academic document '+filename,'direct_file');
   await audit(req.actor,'root_direct_file_sent',target.id,{fileId:f.id,sha256:f.sha256});
   res.status(201).json({file:{id:f.id,filename,mime,sha256:f.sha256,toId:f.toId,createdAt:f.createdAt}});
