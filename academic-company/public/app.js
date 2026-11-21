@@ -39,7 +39,8 @@ const header=()=>'<div class="masthead"><header class="top">'+brand()+'<nav aria
  [buttonRoute('Academic services','services'),buttonRoute('How IPS works','how'),buttonRoute('Privacy','privacy'),buttonRoute('Student / Researcher','register'),buttonRoute('Join our specialist network','specialist'),buttonRoute('Login','login','primary')].join(''))+
  '</nav></header></div>';
 const footer=()=>'<footer class="foot"><span>© IPS Academic Services · Academic & research support</span><span>'+buttonRoute('Privacy policy','privacy','quiet')+' · Written correspondence only</span></footer>';
-const banner=()=>state.isEvaluation?'<div class="banner" role="status">REVIEW ENVIRONMENT · Fictional accounts and academic records · No payments or external messages</div>':'';
+const banner=()=>state.isEvaluation?'<div class="banner" role="status">REVIEW ENVIRONMENT · Fictional accounts and academic records · No payments or external messages</div>':
+ state.isStaging?'<div class="banner" role="status">ISOLATED IPS PROVIDER TESTING · Approved test identities only · External written messages may be real · No payments</div>':'';
 const flash=()=>state.error?'<div class="notice error" role="alert">'+e(state.error)+'</div>':state.message?'<div class="notice success" role="status">'+e(state.message)+'</div>':'';
 const shell=content=>{root.innerHTML=header()+banner()+((state.page!=='home'&&state.page!=='workspace'&&state.page!=='root-login')?'<div class="toolbar global-toolbar">'+b('← Back','back','','back-btn')+'</div>':'')+content+footer();document.title='IPS Academic Services | '+(state.account?'Private workspace':state.page==='services'?'Academic services':'Academic & Research Support')};
 const intro=(tag,title,desc)=>'<div class="page-intro"><span class="kicker">'+e(tag)+'</span><h1>'+e(title)+'</h1><p>'+e(desc)+'</p></div>';
