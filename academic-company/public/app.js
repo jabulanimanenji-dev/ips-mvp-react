@@ -80,7 +80,7 @@ function home(){
  '<div class="strip"><section class="section"><div class="section-head"><div><span class="kicker">WHAT WE DO</span><h2>Academic services</h2></div>'+buttonRoute('All services','services')+'</div>'+
  '<div class="service-grid">'+featured.map(academicCard).join('')+'</div></section></div>'+
  '<section class="section photo-story"><div><span class="kicker">RESEARCH, WRITING & ANALYSIS</span><h2>Work with a team that understands academic standards.</h2><p>Support shaped around your subject and your institution’s requirements, coordinated by IPS.</p><div class="cta-row">'+buttonRoute('Get started','register','primary')+buttonRoute('Join as a Specialist','specialist')+'</div></div>'+
- '<img src="'+PHOTO_DESK+'" alt="Real photograph of a research desk with university books, handwritten notes and study materials" loading="lazy" referrerpolicy="no-referrer"></section>'+
+ '<img src="'+PHOTO_DESK+'" alt="Real photograph of a research desk with handwritten notes and study materials" loading="eager" decoding="async" referrerpolicy="no-referrer"></section>'+
  '</main>');
 }
 function services(){
