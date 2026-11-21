@@ -39,6 +39,9 @@ jobs:
           node --check src/routes-support.mjs
           node --check public/app.js
           node --check scripts/verify-lifecycle.mjs
+          node --check scripts/verify-browser.mjs
+          node --check scripts/seed-review.mjs
+          node --check scripts/verify-review-image.mjs
           node -e "import('./src/catalogue.mjs').then(x=>{if(x.SERVICES.length!==16||x.SERVICES.some(s=>!s.title||!s.questions.length))process.exit(1)})"
           if grep -R -E 'International Project Services|generic project marketplace|company-next/server.mjs' src/ public/; then
             echo "REJECT: wrong IPS company identity"
@@ -46,6 +49,54 @@ jobs:
           fi
       - name: Exercise actual isolated academic service workflows against MongoDB 7
         run: node scripts/verify-lifecycle.mjs
+      - name: Install real Chrome automation library
+        run: npm install --no-save --ignore-scripts playwright@1.56.1
+      - name: Verify real academic website and role-specific Chrome journeys
+        run: node scripts/verify-browser.mjs
+      - name: Preserve academic website and workspace visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ips-academic-services-real-chrome-evidence
+          path: academic-company/academic-browser-evidence/
+          if-no-files-found: warn
+      - name: Build the standalone IPS Academic Services evaluation image
+        working-directory: .
+        run: docker build --pull -f Dockerfile.ips-academic-review -t ips-academic-review:ci .
+      - name: Boot independent academic review image with private localhost database
+        working-directory: .
+        run: |
+          set -euo pipefail
+          docker run -d --name ips-academic-review-ci --memory=1800m \
+            -p 127.0.0.1:18123:8080 \
+            -e NODE_ENV=test -e IPS_ACADEMIC_MODE=evaluation -e PORT=8080 \
+            -e PUBLIC_APP_URL=http://127.0.0.1:18123 \
+            -e ROOT_EMAIL=nyoro.academic.review@example.org -e ROOT_PASSWORD='AcademicRootPreview2026!' \
+            -e IPS_REVIEW_STUDENT_PASSWORD='AcademicStudentPreview2026!' \
+            -e IPS_REVIEW_SPECIALIST_PASSWORD='AcademicSpecialistPreview2026!' \
+            -e IPS_REVIEW_MANAGER_PASSWORD='AcademicManagerPreview2026!' \
+            -e IPS_REVIEW_STAFF_PASSWORD='AcademicStaffPreview2026!' \
+            ips-academic-review:ci
+          ready=0
+          for i in $(seq 1 110); do
+            if curl -s -f http://127.0.0.1:18123/api/health | grep -q '"database":"connected"'; then ready=1; break; fi
+            if [ "$(docker inspect -f '{{.State.Running}}' ips-academic-review-ci 2>/dev/null)" != "true" ]; then
+              docker logs --tail 70 ips-academic-review-ci
+              exit 1
+            fi
+            sleep 2
+          done
+          test "$ready" -eq 1
+      - name: Verify exact academic image — five authenticated identities and private academic files
+        run: node scripts/verify-review-image.mjs
+      - name: Capture academic review failure diagnostics
+        if: failure()
+        working-directory: .
+        run: docker logs --tail 90 ips-academic-review-ci 2>/dev/null | sed -E 's/(mongodb:\/\/)[^@]+@/\1[REDACTED]@/g' || true
+      - name: Destroy disposable academic evaluation database and server
+        if: always()
+        working-directory: .
+        run: docker rm -f ips-academic-review-ci 2>/dev/null || true
       - name: Verify academic constitution is preserved
         working-directory: .
         run: test -s GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md
