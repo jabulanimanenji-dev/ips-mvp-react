@@ -114,7 +114,7 @@ export function registerStudentPaymentRoutes(app, { requireSession, StudentPayme
       if (!session) return;
       const order = await ServiceRequest.findOne({ request_id: req.params.requestId });
       if (!order || !isStudentSupportRequest(order)) return res.status(404).json({ success: false, error: 'Student request not found.' });
-      if (session.role !== 'admin' && !(session.role === 'client' && session.id === order.client_id)) return res.status(403).json({ success: false, error: 'Access denied.' });
+      if (!(session.role === 'admin' && hasAdminPermission(req.adminAccess,'payments.view')) && !(session.role === 'client' && session.id === order.client_id)) return res.status(403).json({ success: false, error: 'Payment records are available only to the customer or authorized finance staff.' });
       const payment = await StudentPayment.findOne({ request_id: order.request_id }).sort({ createdAt: -1 }).lean();
       res.json({ success: true, payment_status: order.payment_status || 'unpaid', payment: payment ? {
         status: payment.status, currency: payment.currency, amount_minor: payment.amount_minor, paid_at: payment.paid_at
