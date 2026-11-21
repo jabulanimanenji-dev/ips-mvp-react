@@ -274,6 +274,17 @@ try{
     await departmentManager.getByRole('heading',{name:'Invite a member of your staff'}).waitFor();
     assert.equal(await departmentManager.getByRole('heading',{name:'Appoint an actual department manager'}).count(),0);
     await evidence(departmentManager,'ips4-real-manager-team');
+    const staffRow=departmentManager.locator('.ips4-table tbody tr').filter({hasText:'Client Care Officer B'});
+    await staffRow.getByRole('button',{name:'Govern employee'}).click();
+    await departmentManager.getByRole('heading',{name:'Delegated access'}).waitFor();
+    await departmentManager.getByRole('button',{name:'Save delegated permissions'}).waitFor();
+    assert.equal(await departmentManager.getByLabel('Permission payments.manage').count(),0);
+    await departmentManager.getByRole('button',{name:'Close'}).click();
+    await departmentManager.goto(base+'/admin/departments',{waitUntil:'domcontentloaded'});
+    await departmentManager.getByRole('heading',{name:'Departments and responsible leadership'}).waitFor();
+    assert.equal(await departmentManager.locator('.ips4-grid.thirds .ips4-panel').count(),1,
+      'Department manager must never interpret other hidden departments as vacant');
+    await evidence(departmentManager,'ips4-manager-truthful-department-coverage');
   });
   for(const [path,heading] of [
     ['/admin/enquiries','Quotation intake and review'],
