@@ -274,7 +274,8 @@ export function registerOperationsRoutes(ctx){
    return res.status(400).json({error:'Enter a meaningful private provider reference and outsourcing brief.'});
   await db.rootOperations.updateOne({commissionId:p.id},
    {$set:{mode:'private_external',managedBy:rootEmail,providerReference:provider,
-     privateInstructions:instructions,updatedAt:now()}},{upsert:true});
+     privateInstructions:instructions,activationStatus:'draft',
+     agreementReference:'',clientDisclosureReference:'',updatedAt:now()}},{upsert:true});
   await db.projects.updateOne({id:p.id},{$set:{fulfilmentMode:'root',managedBy:rootEmail,updatedAt:now()}});
   await audit(req.actor,'root_private_external_fulfilment_recorded',p.id);
   res.json({success:true,rootOnly:true,message:'Root-only external sourcing record saved. IPS remains responsible for review, delivery and client correspondence.'});
@@ -283,6 +284,114 @@ export function registerOperationsRoutes(ctx){
   if(!authorize(req,res,['root']))return;
   const r=await db.rootOperations.findOne({commissionId:req.params.id});
   res.json({privateFulfilment:r?publicDocument(r):null});
+ }));
+ // Explicit Root-only authorization: nobody may represent a supplier as cleared
+ // until Nyoro attests to an agreement, privacy disclosure and academic integrity.
+ app.post('/api/operations/:id/outsourcing/authorize',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  const p=await db.projects.findOne({id:req.params.id});
+  if(!p)return res.status(404).json({error:'Academic job not found.'});
+  if(p.status!=='root_in_progress'||p.paymentStatus==='not_collected')
+   return res.status(409).json({error:'Root must own an actually commissioned case first.'});
+  const agreementReference=String(req.body?.agreementReference||'').trim(),
+   clientDisclosureReference=String(req.body?.clientDisclosureReference||'').trim();
+  if(agreementReference.length<12||agreementReference.length>350||
+   clientDisclosureReference.length<12||clientDisclosureReference.length>350||
+   req.body?.confidentialityChecked!==true||req.body?.academicIntegrityChecked!==true||
+   req.body?.minimumNecessaryDataOnly!==true)
+   return res.status(400).json({error:'Record agreement, lawful client disclosure and all privacy/integrity checks before supplier approval.'});
+  const existing=await db.rootOperations.findOne({commissionId:p.id,
+   mode:'private_external',providerReference:{$type:'string'}});
+  if(!existing)return res.status(409).json({error:'Record the private outsourcing agreement and supplier first.'});
+  await db.rootOperations.updateOne({commissionId:p.id,mode:'private_external'},{
+   $set:{activationStatus:'authorized',agreementReference,clientDisclosureReference,
+    confidentialityChecked:true,academicIntegrityChecked:true,minimumNecessaryDataOnly:true,
+    authorizedBy:rootEmail,authorizedAt:now(),updatedAt:now()}});
+  await audit(req.actor,'root_private_supplier_authorized',p.id,{
+   agreementRecorded:true,privacyDisclosureRecorded:true});
+  res.json({authorized:true,rootOnly:true});
+ }));
+ // The supplier workroom is separate from all Student, Specialist, manager and
+ // employee file trays. Even the file metadata is Root-only.
+ app.post('/api/operations/:id/external-files',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  const p=await db.projects.findOne({id:req.params.id});
+  if(!p)return res.status(404).json({error:'Academic job not found.'});
+  if(p.status!=='root_in_progress'||p.paymentStatus==='not_collected')
+   return res.status(409).json({error:'Only an active Root-managed commissioned job may have supplier documents.'});
+  const arrangement=await db.rootOperations.findOne({commissionId:p.id,mode:'private_external'});
+  if(!arrangement)return res.status(409).json({error:'A private supplier workroom must be registered first.'});
+  const kind=String(req.body?.kind||'');
+  if(!['agreement','instructions','supplier_return','qa_reference'].includes(kind))
+   return res.status(400).json({error:'Select a documented private supplier file type.'});
+  if(kind==='supplier_return'&&arrangement.activationStatus!=='authorized')
+   return res.status(409).json({error:'Supplier work cannot be accepted before confidentiality and agreement authorization.'});
+  const checked=quickFile({...req.body,purpose:'reference'});
+  if(checked.error)return res.status(400).json({error:checked.error});
+  const {filename,mime,buffer}=checked;
+  const source={id:uid('XF'),commissionId:p.id,kind,filename,mime,
+   providerReference:arrangement.providerReference,sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
+   fileData:buffer,uploadedBy:rootEmail,createdAt:now(),status:'private',
+   createdInMode:'private_external'};
+  await db.rootExternalFiles.insertOne(source);
+  await audit(req.actor,'root_private_supplier_file_received',p.id,{
+   fileId:source.id,kind,sha256:source.sha256});
+  res.status(201).json({file:{id:source.id,commissionId:p.id,kind,filename,mime,
+   sha256:source.sha256,createdAt:source.createdAt},rootOnly:true});
+ }));
+ app.get('/api/operations/:id/external-files',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  const rows=await db.rootExternalFiles.find({commissionId:req.params.id})
+   .sort({createdAt:-1}).limit(250).toArray();
+  res.json({files:rows.map(f=>({id:f.id,commissionId:f.commissionId,kind:f.kind,
+   filename:f.filename,mime:f.mime,sha256:f.sha256,status:f.status,
+   createdAt:f.createdAt,qaFileId:f.qaFileId||''})),rootOnly:true});
+ }));
+ app.get('/api/operations/external-files/:fileId',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  const f=await db.rootExternalFiles.findOne({id:req.params.fileId});
+  if(!f)return res.status(404).json({error:'Private supplier file not found.'});
+  await audit(req.actor,'root_private_supplier_file_downloaded',f.commissionId,{
+   fileId:f.id,sha256:f.sha256});
+  res.set('Content-Type',f.mime).set('Content-Disposition','attachment; filename="'+f.filename+'"')
+   .set('Cache-Control','private,no-store').set('X-Content-Type-Options','nosniff')
+   .set('X-Content-SHA256',f.sha256);
+  res.send(Buffer.from(f.fileData?.buffer||f.fileData));
+ }));
+ app.post('/api/operations/:id/external-files/:fileId/submit-qa',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  const p=await db.projects.findOne({id:req.params.id});
+  if(!p||p.status!=='root_in_progress'||p.fulfilmentMode!=='root'||
+   p.paymentStatus==='not_collected')
+   return res.status(409).json({error:'QA handoff requires an actual Root-managed paid commission.'});
+  const arrangement=await db.rootOperations.findOne({commissionId:p.id,
+   activationStatus:'authorized',mode:'private_external'});
+  const source=await db.rootExternalFiles.findOne({id:req.params.fileId,
+   commissionId:p.id,kind:'supplier_return',status:'private'});
+  if(!arrangement||!source||source.providerReference!==arrangement.providerReference)
+   return res.status(409).json({error:'Choose an authorized, unused supplier return from this same private arrangement.'});
+  const buffer=Buffer.from(source.fileData?.buffer||source.fileData);
+  const sha256=crypto.createHash('sha256').update(buffer).digest('hex');
+  if(sha256!==source.sha256)return res.status(409).json({error:'Supplier return checksum mismatch; QA release prohibited.'});
+  const file={id:uid('AF'),commissionId:p.id,studentId:p.studentId,specialistId:'',
+   filename:source.filename,mime:source.mime,purpose:'deliverable',kind:'academic_submission',
+   sha256,fileData:buffer,createdAt:now(),uploadedBy:rootEmail,
+   revision:p.revisionCount||0,rootSubmission:true,privateExternalSourceId:source.id};
+  await db.files.insertOne(file);
+  const updated=await db.projects.findOneAndUpdate({id:p.id,status:'root_in_progress',
+   fulfilmentMode:'root'},{$set:{pendingFileId:file.id,status:'qa_pending',updatedAt:now(),
+   qaMode:'root_supervised_exception'}},{returnDocument:'after'});
+  if(!updated){
+   await db.files.deleteOne({id:file.id});
+   return res.status(409).json({error:'The academic job changed while preparing the QA handoff.'});
+  }
+  await db.rootExternalFiles.updateOne({id:source.id,status:'private'},
+   {$set:{status:'sent_to_qa',qaFileId:file.id,qaSentAt:now()}});
+  await audit(req.actor,'root_supplier_return_accepted_for_qa',p.id,{
+   privateSourceId:source.id,qaFileId:file.id,sha256});
+  await notify(rootEmail,'Private Root-sourced academic material awaits governed QA on '+p.id,'quality');
+  res.json({success:true,qaPending:true,fileId:file.id,sha256,
+   releaseMode:'root_supervised_exception',rootOnly:true});
  }));
  app.post('/api/operations/direct-message/file',wrap(async(req,res)=>{
   if(!authorize(req,res,['root']))return;
