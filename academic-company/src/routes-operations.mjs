@@ -42,6 +42,29 @@ export function registerOperationsRoutes(ctx){
   return false;
  };
  const quoteMessageFilter=(a,q)=>a.role==='student'?{audience:{$in:['student','shared']}}:{};
+ app.get('/api/operations/delivery-status',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  const statuses=['pending','sending','delivered','failed'];
+  const [counts,exceptions]=await Promise.all([
+   Promise.all(statuses.map(async status=>[status,
+    await db.notificationDeliveries.countDocuments({status})])),
+   db.notificationDeliveries.find({status:'failed'},
+    {projection:{_id:0,id:1,kind:1,status:1,attempts:1,createdAt:1,lastError:1}})
+    .sort({createdAt:-1}).limit(40).toArray()
+  ]);
+  res.json({counts:Object.fromEntries(counts),exceptions});
+ }));
+ app.post('/api/operations/delivery/:id/retry',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  const job=await db.notificationDeliveries.findOneAndUpdate({
+   id:req.params.id,status:'failed'},{
+    $set:{status:'pending',attempts:0,nextAttemptAt:now()},
+    $unset:{lockedAt:'',lastError:''}
+   },{returnDocument:'after'});
+  if(!job)return res.status(409).json({error:'This delivery is not in the failed exception queue.'});
+  await audit(req.actor,'academic_notification_retry_requested',job.id,{kind:job.kind});
+  res.json({success:true,status:'pending'});
+ }));
  app.get('/api/operations/available-specialists',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','manager','staff']))return;
   if(req.actor.role!=='root'&&req.actor.department!=='academic_delivery')
@@ -58,11 +81,12 @@ export function registerOperationsRoutes(ctx){
    (a.role==='root'||intake(a))?{}:{id:'none'};
   const cFilter=a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:
    (a.role==='root'||delivery(a)||intake(a))?{}:{id:'none'};
-  const [quotes,commissions,cases,dm]=await Promise.all([
+  const [quotes,commissions,cases,dm,alerts]=await Promise.all([
    db.quotes.find(qFilter).sort({updatedAt:-1}).limit(60).toArray(),
    db.projects.find(cFilter).sort({updatedAt:-1}).limit(80).toArray(),
    db.support.find(a.role==='root'||intake(a)?{}:{ownerId:a.id}).sort({updatedAt:-1}).limit(40).toArray(),
-   db.directMessages.find(a.role==='root'?{}:{toId:a.id}).sort({createdAt:-1}).limit(40).toArray()]);
+   db.directMessages.find(a.role==='root'?{}:{toId:a.id}).sort({createdAt:-1}).limit(40).toArray(),
+   db.notifications.find({accountId:a.id,read:false}).sort({createdAt:-1}).limit(35).toArray()]);
   res.json({inbox:[
    ...quotes.map(q=>({type:'quote',id:q.id,subject:q.subject,service:q.serviceName,
     status:q.status,updatedAt:q.updatedAt})),
@@ -71,7 +95,9 @@ export function registerOperationsRoutes(ctx){
    ...cases.map(t=>({type:'support',id:t.id,subject:t.subject,service:'Support',
     status:t.status,updatedAt:t.updatedAt})),
    ...dm.map(m=>({type:'direct',id:m.id,subject:m.subject||'IPS message',
-    service:'Direct company message',status:'message',updatedAt:m.createdAt}))
+    service:'Direct company message',status:'message',updatedAt:m.createdAt})),
+   ...alerts.map(n=>({type:'alert',id:n.id,subject:n.message,
+    service:'Company update',status:'unread',updatedAt:n.createdAt}))
   ].sort((x,y)=>new Date(y.updatedAt)-new Date(x.updatedAt))});
  }));
  app.get('/api/academic/quotes/:id/messages',wrap(async(req,res)=>{
