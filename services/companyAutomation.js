@@ -45,7 +45,7 @@ export async function runCompanyAutomationTick({
       String(env.ADMIN_EMAIL).toLowerCase();
     const assignee=rootAssigned?null:await adminModel.findOne({
       id:task.assigned_to,status:'Active',company_role:{$in:['manager','staff']}
-    }).select('id email company_role manager_id status').lean();
+    }).select('id email department company_role manager_id status').lean();
     if(!rootAssigned&&!assignee)continue;
     if(assignee&&isIpsQaFixtureAdmin(assignee)&&env.NODE_ENV==='production')continue;
     await notify('overdue',task,rootAssigned?rootRecipient:{recipient_id:assignee.id,recipient_role:'admin'});
@@ -55,7 +55,7 @@ export async function runCompanyAutomationTick({
     if(assignee.company_role==='manager')recipient=rootRecipient;
     else if(assignee.company_role==='staff'){
       const manager=await adminModel.findOne({
-        id:assignee.manager_id,status:'Active',company_role:'manager',department:{$exists:true}
+        id:assignee.manager_id,status:'Active',company_role:'manager',department:assignee.department
       }).select('id department status company_role').lean();
       recipient=manager?{recipient_id:manager.id,recipient_role:'admin'}:rootRecipient;
     }
