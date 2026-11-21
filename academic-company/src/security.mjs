@@ -42,6 +42,10 @@ export const ensureRuntime=env=>{
  if(staging&&(!allowedStagingEmails.length||allowedStagingEmails.some(x=>!validEmail(x))||
   new Set(allowedStagingEmails).size!==allowedStagingEmails.length))
   throw Error('IPS academic staging requires unique, valid, explicit allowed test account email addresses.');
+ if(staging&&env.TELEGRAM_BOT_TOKEN&&
+  (String(env.IPS_TELEGRAM_BOT_USERNAME||'').replace(/^@/,'').toLowerCase()==='ipscontactbot'||
+   env.IPS_STAGING_DISTINCT_TELEGRAM_BOT_CONFIRMED!=='true'))
+  throw Error('IPS staging must use a separately verified Telegram bot, never the operational legacy IPS bot.');
  const origin=String(env.PUBLIC_APP_URL||'').replace(/\/$/,'');
  if(!env.MONGODB_URI)throw Error('IPS academic MongoDB must be explicitly configured');
  if(!env.SESSION_SECRET||env.SESSION_SECRET.length<40)throw Error('IPS academic session signing secret is missing or too short');
