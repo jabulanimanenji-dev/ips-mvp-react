@@ -68,6 +68,16 @@ try{
   const foreign=await login('support-other-'+unique+'@example.org');
   const patch=(ticket_id,cookie,body)=>call('/api/support-tickets/'+ticket_id,{method:'PATCH',cookie,body});
 
+  const foreignListing=await call('/api/support-tickets',{cookie:foreign});
+  assert.equal(foreignListing.status,403,'Academic managers cannot read confidential customer ticket conversations');
+  const noSupportListing=await call('/api/support-tickets');
+  assert.equal(noSupportListing.status,401,'Guests cannot list private support cases');
+  const managerListing=await call('/api/support-tickets',{cookie:manager});
+  assert.equal(managerListing.status,200,'Support department manager must have their actual case inbox');
+  assert.ok(managerListing.data.tickets.some(x=>x.ticket_id===tickets.main));
+  const staffListing=await call('/api/support-tickets',{cookie:staff});
+  assert.equal(staffListing.status,200,'Support employees can access their authorized support queue');
+  console.log('SUPPORT_PRIVATE_DIRECTORY_PASS finance/academic staff and guests cannot inspect private customer cases');
   const foreignEdit=await patch(tickets.main,foreign,{priority:'urgent'});
   assert.equal(foreignEdit.status,403);
   assert.equal((await call('/api/student-payments/admin',{cookie:manager})).status,403,
