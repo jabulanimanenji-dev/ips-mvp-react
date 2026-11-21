@@ -14,7 +14,9 @@ const vars={...process.env,NODE_ENV:'test',IPS_ACADEMIC_MODE:'evaluation',IPS_AC
  MONGODB_URI:'mongodb://127.0.0.1:27017/'+dbName,PORT:'18122',PUBLIC_APP_URL:url,
  ROOT_EMAIL:'nyoro.ips-academic-test@example.org',ROOT_PASSWORD:'AcademicRootTest2026!',
  SESSION_SECRET:'Academic-test-only-HMAC-secret-of-sufficient-length-2026-abcdefghijklmnopqrstuvwxyz',
- RESEND_API_KEY:'',FROM_EMAIL:'',IPS_TELEGRAM_BOT_USERNAME:'IPSAcademicReviewBot',
+ RESEND_API_KEY:'',FROM_EMAIL:'',
+ RESEND_WEBHOOK_SECRET:'whsec_'+Buffer.from('AcademicResendSignatureTestKey-2026').toString('base64'),
+ IPS_TELEGRAM_BOT_USERNAME:'IPSAcademicReviewBot',
  TELEGRAM_BOT_TOKEN:'synthetic-no-live-provider-token',
  IPS_TELEGRAM_WEBHOOK_SECRET:'Academic_2026_Synthetic_Webhook_Secret_Only',
  IPS_CLAMAV_HOST:'127.0.0.1',
@@ -359,6 +361,50 @@ try{
    withAuth(rootCookie,{body:'A reply after revocation must fail.',privacyConfirmed:true}),409);
   await call('/academic/quotes',withAuth(studentCookie,{
    ...brief(),contactChannel:'telegram'}),409);
+ });
+ await assertCheck('Signed Resend webhook tracks delivery, rejects forgeries/replays and escalates bounces',async()=>{
+  const emailId='re-ips-academic-'+random(),jobId='OUT-RESEND-'+random();
+  const queue=db.collection('academic_notification_deliveries');
+  await queue.insertOne({id:jobId,provider:'resend',providerMessageId:emailId,
+   status:'provider_accepted',kind:'academic_test_notification',
+   accountId:'',to:emailFor('provider-proof'),attempts:0,createdAt:new Date()});
+  const webhook=async(id,payload,opts={})=>{
+   const stamp=opts.timestamp??Math.floor(Date.now()/1000);
+   const raw=JSON.stringify(payload);
+   const signature=crypto.createHmac('sha256',
+    Buffer.from(vars.RESEND_WEBHOOK_SECRET.slice(6),'base64'))
+    .update(id+'.'+stamp+'.'+raw).digest('base64');
+   const response=await fetch(url+'/api/integrations/resend/webhook',{
+    method:'POST',headers:{'Content-Type':'application/json',
+     'svix-id':id,'svix-timestamp':String(stamp),
+     'svix-signature':'v1,'+(opts.invalidSignature?'not-a-signature':signature)},
+    body:raw});
+   return {status:response.status,data:await response.json()};
+  };
+  const delivered={type:'email.delivered',data:{email_id:emailId}};
+  assert.equal((await webhook('msg_bad-'+random(),delivered,{invalidSignature:true})).status,401);
+  assert.equal((await webhook('msg_stale-'+random(),delivered,
+   {timestamp:Math.floor(Date.now()/1000)-400})).status,401);
+  const deliveredId='msg_delivered-'+random();
+  const valid=await webhook(deliveredId,delivered);
+  assert.equal(valid.status,200);assert.equal(valid.data.duplicate,false);
+  assert.equal((await queue.findOne({id:jobId})).status,'delivered');
+  const duplicate=await webhook(deliveredId,delivered);
+  assert.equal(duplicate.status,200);assert.equal(duplicate.data.duplicate,true);
+  assert.equal(await db.collection('academic_provider_delivery_events').countDocuments({id:deliveredId}),1);
+  await webhook('msg_delayed-'+random(),{type:'email.delivery_delayed',data:{email_id:emailId}});
+  assert.equal((await queue.findOne({id:jobId})).status,'delivered',
+   'A delayed out-of-order event cannot erase provider delivery proof');
+  await webhook('msg_bounce-'+random(),{type:'email.bounced',data:{email_id:emailId}});
+  assert.equal((await queue.findOne({id:jobId})).status,'bounced');
+  const incident=await db.collection('academic_notifications').findOne({
+   kind:'communication_failure',ref:'resend:'+emailId});
+  assert.ok(incident,'Permanent email failure must reach company management');
+  const status=await call('/operations/delivery-status',{cookie:rootCookie});
+  assert.ok(status.data.exceptions.some(x=>x.id===jobId&&x.status==='bounced'));
+  await call('/operations/delivery/'+jobId+'/retry',withAuth(rootCookie,{}),409);
+  await webhook('msg_complaint-'+random(),{type:'email.complained',data:{email_id:emailId}});
+  assert.equal((await queue.findOne({id:jobId})).status,'complained');
  });
  await assertCheck('Verified guest receives queued generic offer notice without academic or financial content',async()=>{
   const guestEmail=emailFor('guest-quote');
