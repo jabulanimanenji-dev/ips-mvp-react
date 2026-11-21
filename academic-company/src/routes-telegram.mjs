@@ -25,7 +25,7 @@ export function registerTelegramRoutes(ctx){
  }));
  app.post('/api/contact/telegram/link',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist']))return;
-  if(throttle.limited(req,'telegram-link',5))return res.status(429).json({error:'Please retry Telegram linking later.'});
+  if(await throttle.limited(req,'telegram-link',5))return res.status(429).json({error:'Please retry Telegram linking later.'});
   if(!ready())return res.status(503).json({error:'IPS Telegram connection is not yet available. Use the secure workspace or email.'});
   const a=await db.accounts.findOne({id:req.actor.id,verified:true,status:'active'});
   if(!a)return res.status(403).json({error:'Verify your IPS account before linking Telegram.'});
