@@ -12,6 +12,7 @@ import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
 import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs';
 import {registerOperationsRoutes} from './routes-operations.mjs';
+import {inspectAcademicFile,scanConfiguration} from './document-scan.mjs';
 
 const env=process.env;
 const config=ensureRuntime(env);
@@ -199,12 +200,16 @@ function wrap(handler){return async(req,res)=>{try{await handler(req,res)}catch(
  console.error('IPS Academic Services operation failed',e?.name||'Error');
  if(!res.headersSent)res.status(500).json({error:'IPS could not complete the operation. Your previous state remains available.'});
 }}}
-const ctx={app,db,documentBucket,env,config,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
+const inspectAcademicUpload=buffer=>inspectAcademicFile(buffer,{env,sandbox:config.sandbox});
+const ctx={app,db,documentBucket,inspectAcademicUpload,env,config,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
 app.get('/api/health',wrap(async(_req,res)=>res.json({
  ready:mongoose.connection.readyState===1,
  product:'IPS Academic Services',identity:'academic-services-only',release:'academic-company-2026-v1',
  environment:config.sandbox?'ISOLATED_ACADEMIC_REVIEW':'PRODUCTION',
- payments:'integration-pending',database:mongoose.connection.readyState===1?'connected':'unavailable'
+ payments:'integration-pending',
+ documentScreening:scanConfiguration(env).host?'configured_not_proven':
+  (config.sandbox?'synthetic_not_scanned':'unavailable'),
+ database:mongoose.connection.readyState===1?'connected':'unavailable'
 })));
 app.get('/api/catalogue',(_req,res)=>res.json({
  company:'IPS Academic Services',categories:CATEGORIES,services:SERVICES,

@@ -4,15 +4,18 @@ import crypto from 'node:crypto';
 import {spawn} from 'node:child_process';
 import mongoose from 'mongoose';
 import {SPECIALIST_AGREEMENT} from '../src/specialist-agreement.mjs';
+import {startFakeClamd} from './scan-test-server.mjs';
 import {setTimeout as sleep} from 'node:timers/promises';
 
+const mockScanner=await startFakeClamd();
 const url='http://127.0.0.1:18122';
 const dbName='ips_academic_sandbox';
 const vars={...process.env,NODE_ENV:'test',IPS_ACADEMIC_MODE:'evaluation',IPS_ACADEMIC_TEST_SETTLEMENT:'true',
  MONGODB_URI:'mongodb://127.0.0.1:27017/'+dbName,PORT:'18122',PUBLIC_APP_URL:url,
  ROOT_EMAIL:'nyoro.ips-academic-test@example.org',ROOT_PASSWORD:'AcademicRootTest2026!',
  SESSION_SECRET:'Academic-test-only-HMAC-secret-of-sufficient-length-2026-abcdefghijklmnopqrstuvwxyz',
- RESEND_API_KEY:'',FROM_EMAIL:''};
+ RESEND_API_KEY:'',FROM_EMAIL:'',IPS_CLAMAV_HOST:'127.0.0.1',
+ IPS_CLAMAV_PORT:String(mockScanner.port)};
 const server=spawn(process.execPath,['src/app.mjs'],{env:vars,stdio:['ignore','pipe','pipe']});
 let stderr='';for(const stream of [server.stdout,server.stderr])stream.on('data',d=>{stderr=(stderr+String(d)).slice(-2700)});
 let client;let db;let checks=0;
@@ -860,6 +863,21 @@ try{
   const listing=await call('/operations/'+commissionId+'/files',{cookie:studentCookie});
   assert.ok(listing.data.files.some(f=>f.id===item.id));
  });
+ await assertCheck('ClamAV wire gate scans real academic routes and denies synthetic flagged documents',async()=>{
+  const flagged=Buffer.from('This harmless synthetic test carries IPS_SYNTHETIC_EICAR_TEST inside.');
+  const initial=await db.collection('academic_quote_files').countDocuments({quoteId});
+  await call('/academic/quotes/'+quoteId+'/files',withAuth(studentCookie,{
+   filename:'synthetic-flagged.txt',mime:'text/plain',data:flagged.toString('base64'),
+   audience:'student'}),422);
+  assert.equal(await db.collection('academic_quote_files').countDocuments({quoteId}),initial,
+   'Flagged academic document must not persist');
+  const safe=Buffer.from('IPS compliant student-owned reference material for legitimate editorial feedback.');
+  const accepted=await call('/academic/quotes/'+quoteId+'/files',withAuth(studentCookie,{
+   filename:'screened-reference.txt',mime:'text/plain',data:safe.toString('base64'),
+   audience:'student'}),201);
+  const file=await db.collection('academic_quote_files').findOne({id:accepted.data.file.id});
+  assert.equal(file.scanStatus,'clean','Real upload path must store scanner clean result');
+ });
  await assertCheck('Multi-megabyte Specialist document streams securely through GridFS, QA and client delivery',async()=>{
   const prefix=Buffer.from('IPS permitted academic editing and research-guidance notes.\\n');
   const bytes=Buffer.concat([prefix,Buffer.alloc(7*1024*1024-prefix.length,65)]);
@@ -957,4 +975,4 @@ try{
  });
  console.log('IPS_ACADEMIC_REAL_MONGODB_LIFECYCLE_GREEN '+checks+' verified business and security checks, full edited academic file, QA/revision loop');
 }catch(err){console.error('IPS_ACADEMIC_LIFECYCLE_FAIL',String(err),stderr);process.exitCode=1}
-finally{try{await client?.close()}catch{}server.kill('SIGTERM');await sleep(250)}
+finally{try{await client?.close()}catch{}server.kill('SIGTERM');await sleep(250);await mockScanner.close()}

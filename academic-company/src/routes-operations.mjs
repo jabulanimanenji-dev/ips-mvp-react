@@ -7,7 +7,7 @@ import {publicDocument,normalizeFilename,validEmail,email} from './security.mjs'
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerOperationsRoutes(ctx){
- const {app,db,documentBucket,rootEmail,notify,notifyQuotation,audit,authorize,throttle,wrap,now,uid}=ctx;
+ const {app,db,documentBucket,inspectAcademicUpload,config,rootEmail,notify,notifyQuotation,audit,authorize,throttle,wrap,now,uid}=ctx;
  const deny=res=>res.status(403).json({error:'You do not have access to this academic case.'});
  const staff=a=>a&&(['root','manager','staff'].includes(a.role));
  const intake=a=>a?.role==='root'||(staff(a)&&a.department==='client_relations');
@@ -74,8 +74,13 @@ export function registerOperationsRoutes(ctx){
    reader.pipe(res);
   }else res.send(Buffer.from(file.fileData?.buffer||file.fileData));
  };
+ const verifyScan=async(res,buffer)=>{
+  const result=await inspectAcademicUpload(buffer);
+  if(!result.allowed){res.status(result.http).json({error:result.error});return null}
+  return result.status;
+ };
  const metadata=x=>({id:x.id,commissionId:x.commissionId,filename:x.filename,mime:x.mime,
-  purpose:x.purpose||x.kind||'deliverable',sha256:x.sha256,createdAt:x.createdAt,
+  purpose:x.purpose||x.kind||'deliverable',sha256:x.sha256,scanStatus:x.scanStatus||'legacy_unverified',createdAt:x.createdAt,
   uploadedBy:x.uploadedBy||'',revision:x.revision??0,approved:!!x.approved});
  const visibleFile=(a,p,f)=>{
   if(a.role==='root'||delivery(a))return true;
@@ -204,9 +209,11 @@ export function registerOperationsRoutes(ctx){
   if(!['student','internal'].includes(audience))
    return res.status(400).json({error:'Choose the appropriate private enquiry audience.'});
   const id=uid('QF'),date=now();
+  const scanStatus=await verifyScan(res,checked.buffer);
+  if(!scanStatus)return;
   const blob=await storePrivateBlob({id,...checked,context:{kind:'enquiry_reference',quoteId:q.id}});
   const file={id,quoteId:q.id,studentId:q.studentId,filename:checked.filename,
-   mime:checked.mime,purpose:'enquiry_reference',audience,...blob,
+   mime:checked.mime,purpose:'enquiry_reference',audience,...blob,scanStatus,
    uploadedBy:req.rootOperatorId||a.id,
    uploadedRole:req.rootOperatorId?'root':a.role,createdAt:date};
   try{await db.quoteFiles.insertOne(file)}
@@ -231,9 +238,11 @@ export function registerOperationsRoutes(ctx){
   const audience=a.role==='student'?'student':String(req.body?.audience||'student');
   if(!['student','internal'].includes(audience))return res.status(400).json({error:'Choose a valid quotation document audience.'});
   const {filename,mime,buffer}=checked;
+  const scanStatus=await verifyScan(res,buffer);
+  if(!scanStatus)return;
   const file={id:uid('QF'),quoteId:q.id,studentId:q.studentId,
    filename,mime,purpose:'enquiry_reference',audience,
-   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,
+   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,scanStatus,
    uploadedBy:req.rootOperatorId||a.id,uploadedRole:req.rootOperatorId?'root':a.role,createdAt:now()};
   await db.quoteFiles.insertOne(file);
   await db.quotes.updateOne({id:q.id},{$set:{updatedAt:now()}});
@@ -277,11 +286,13 @@ export function registerOperationsRoutes(ctx){
   const checked=binaryDocument(req);
   if(checked.error)return res.status(400).json({error:checked.error});
   const id=uid('AF'),date=now();
+  const scanStatus=await verifyScan(res,checked.buffer);
+  if(!scanStatus)return;
   const blob=await storePrivateBlob({id,...checked,context:{
    kind:'client_reference',commissionId:p.id}});
   const file={id,commissionId:p.id,studentId:p.studentId,
    specialistId:p.specialistId,filename:checked.filename,mime:checked.mime,
-   purpose:'reference',kind:'client_reference',...blob,
+   purpose:'reference',kind:'client_reference',...blob,scanStatus,
    createdAt:date,revision:p.revisionCount||0,uploadedBy:req.rootOperatorId||a.id};
   try{await db.files.insertOne(file)}
   catch(err){await documentBucket.delete(blob.blobId).catch(()=>{});throw err}
@@ -309,9 +320,11 @@ export function registerOperationsRoutes(ctx){
    if(!['specialist_assigned','root_in_progress','correction_requested','student_revision_requested'].includes(p.status))
     return res.status(409).json({error:'This academic case is not ready for a new deliverable.'});
   }
+  const scanStatus=await verifyScan(res,buffer);
+  if(!scanStatus)return;
   const file={id:uid('AF'),commissionId:p.id,studentId:p.studentId,specialistId:p.specialistId,
    filename,mime,purpose,kind:purpose==='reference'?'client_reference':'academic_submission',
-   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,
+   sha256:crypto.createHash('sha256').update(buffer).digest('hex'),fileData:buffer,scanStatus,
    createdAt:now(),uploadedBy:req.rootOperatorId||a.id,revision:p.revisionCount||0,
    rootSubmission:a.role==='root'};
   await db.files.insertOne(file);
@@ -429,9 +442,11 @@ export function registerOperationsRoutes(ctx){
   const checked=quickFile({...req.body,purpose:'reference'});
   if(checked.error)return res.status(400).json({error:checked.error});
   const {filename,mime,buffer}=checked;
+  const scanStatus=await verifyScan(res,buffer);
+  if(!scanStatus)return;
   const source={id:uid('XF'),commissionId:p.id,kind,filename,mime,
    providerReference:arrangement.providerReference,sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
-   fileData:buffer,uploadedBy:rootEmail,createdAt:now(),status:'private',
+   fileData:buffer,scanStatus,uploadedBy:rootEmail,createdAt:now(),status:'private',
    createdInMode:'private_external'};
   await db.rootExternalFiles.insertOne(source);
   await audit(req.actor,'root_private_supplier_file_received',p.id,{
@@ -470,12 +485,14 @@ export function registerOperationsRoutes(ctx){
    commissionId:p.id,kind:'supplier_return',status:'private'});
   if(!arrangement||!source||source.providerReference!==arrangement.providerReference)
    return res.status(409).json({error:'Choose an authorized, unused supplier return from this same private arrangement.'});
+  if(!config.sandbox&&source.scanStatus!=='clean')
+   return res.status(409).json({error:'Supplier document requires security screening before academic release.'});
   const buffer=Buffer.from(source.fileData?.buffer||source.fileData);
   const sha256=crypto.createHash('sha256').update(buffer).digest('hex');
   if(sha256!==source.sha256)return res.status(409).json({error:'Supplier return checksum mismatch; QA release prohibited.'});
   const file={id:uid('AF'),commissionId:p.id,studentId:p.studentId,specialistId:'',
    filename:source.filename,mime:source.mime,purpose:'deliverable',kind:'academic_submission',
-   sha256,fileData:buffer,createdAt:now(),uploadedBy:rootEmail,
+   sha256,fileData:buffer,scanStatus:source.scanStatus||'legacy_unverified',createdAt:now(),uploadedBy:rootEmail,
    revision:p.revisionCount||0,rootSubmission:true,privateExternalSourceId:source.id};
   await db.files.insertOne(file);
   const updated=await db.projects.findOneAndUpdate({id:p.id,status:'root_in_progress',
@@ -501,9 +518,11 @@ export function registerOperationsRoutes(ctx){
   const checked=quickFile({...req.body,purpose:'reference'});
   if(checked.error)return res.status(400).json({error:checked.error});
   const {filename,mime,buffer}=checked;
+  const scanStatus=await verifyScan(res,buffer);
+  if(!scanStatus)return;
   const f={id:uid('DMF'),toId:target.id,fromId:rootEmail,filename,mime,
    sha256:crypto.createHash('sha256').update(buffer).digest('hex'),
-   fileData:buffer,createdAt:now()};
+   fileData:buffer,scanStatus,createdAt:now()};
   await db.directFiles.insertOne(f);
   const note={id:uid('DM'),toId:target.id,fromId:rootEmail,fromRole:'root',recipientRole:target.role,
    body:'IPS has shared a private academic document: '+filename,subject:'Secure academic document',

@@ -5,6 +5,7 @@ on:
       - work/ips-academic-new-20261121
       - work/ips-academic-confidential-quote-notices-20261121
       - company/ips-academic-services-2026
+      - work/ips-academic-upload-malware-gate-20261121
       - work/ips-academic-client-gridfs-20261121
       - work/ips-academic-gridfs-documents-20261121
       - work/ips-academic-specialist-agreement-20261121
@@ -47,6 +48,9 @@ jobs:
           node --check src/catalogue.mjs
           node --check src/specialist-agreement.mjs
           node --check src/security.mjs
+          node --check src/document-scan.mjs
+          node --check scripts/scan-test-server.mjs
+          node --check scripts/verify-document-scan.mjs
           node --check src/routes-identity.mjs
           node --check src/routes-academic.mjs
           node --check src/routes-support.mjs
@@ -62,6 +66,8 @@ jobs:
             echo "REJECT: wrong IPS company identity"
             exit 1
           fi
+      - name: Confirm document-screening protocol and fail-closed operation
+        run: node scripts/verify-document-scan.mjs
       - name: Exercise actual isolated academic service workflows against MongoDB 7
         run: node scripts/verify-lifecycle.mjs
       - name: Install real Chrome automation library
