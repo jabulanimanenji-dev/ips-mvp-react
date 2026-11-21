@@ -165,6 +165,18 @@ try{
  await pass('Student sees actual approved academic file through private authenticated download',async()=>{
   await studentPage.getByRole('button',{name:'Open job'}).first().click();
   await studentPage.locator('a[download]').first().waitFor();
+  const caseForm=studentPage.locator('form[data-form=case-upload]');
+  await caseForm.locator('input[name=upload]').setInputFiles({
+   name:'student-large-project-reference.txt',mimeType:'text/plain',
+   buffer:Buffer.alloc(6*1024*1024,66)});
+  await caseForm.getByRole('button',{name:'Upload document'}).click();
+  await studentPage.getByText('Your large academic reference is securely attached to this workroom.')
+   .waitFor({timeout:20000});
+  const reference=await mongo.db.collection('academic_private_files').findOne({
+   filename:'student-large-project-reference.txt',blobId:{$exists:true}});
+  assert.ok(reference?.blobId);
+  assert.equal(reference.byteLength,6*1024*1024);
+
   await studentPage.getByText('Centralized company relay prevents uncontrolled student–Specialist messaging').count().catch(()=>0);
   await screen(studentPage,'06-student-academic-delivery');
  });
