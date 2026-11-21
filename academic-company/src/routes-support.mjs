@@ -137,6 +137,8 @@ export function beginCompanyAutomation(ctx){
      await db.notificationDeliveries.updateOne({id:job.id,status:'sending'},{
       $set:{status,provider:receipt.provider,providerMessageId:receipt.id,
        acceptedAt:new Date()},$unset:{lockedAt:''}});
+     if(job.telegramMessageId)await db.telegramMessages.updateOne({id:job.telegramMessageId},
+      {$set:{status,provider:receipt.provider,providerMessageId:receipt.id,acceptedAt:new Date()}});
     }catch(e){
      const attempts=(job.attempts||0)+1,failed=attempts>=4;
      const delay=Math.min(180000,4000*(2**(attempts-1)));
@@ -144,6 +146,8 @@ export function beginCompanyAutomation(ctx){
       $set:{status:failed?'failed':'pending',attempts,
        nextAttemptAt:new Date(Date.now()+delay),lastError:'Provider delivery failed'},
       $unset:{lockedAt:''}});
+     if(job.telegramMessageId)await db.telegramMessages.updateOne({id:job.telegramMessageId},
+      {$set:{status:failed?'failed':'pending',attempts,lastError:'Provider delivery failed'}});
      if(failed)await db.notifications.insertOne({
       id:uid('NT'),accountId:rootEmail,kind:'communication_failure',
       message:'An opted-in IPS '+(job.channel==='telegram'?'Telegram':'email')+
