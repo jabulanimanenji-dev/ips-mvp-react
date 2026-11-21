@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import {publicDocument,normalizeFilename,validEmail,email} from './security.mjs';
 
 export function registerOperationsRoutes(ctx){
- const {app,db,rootEmail,notify,audit,authorize,wrap,now,uid,sendEmail,config}=ctx;
+ const {app,db,rootEmail,notify,notifyQuotation,audit,authorize,wrap,now,uid}=ctx;
  const deny=res=>res.status(403).json({error:'You do not have access to this academic case.'});
  const staff=a=>a&&(['root','manager','staff'].includes(a.role));
  const intake=a=>a?.role==='root'||(staff(a)&&a.department==='client_relations');
@@ -123,12 +123,7 @@ export function registerOperationsRoutes(ctx){
   await db.quotes.updateOne({id:q.id},{$set:{updatedAt:now()}});
   if(a.role==='student')await notify(rootEmail,'Student replied to academic enquiry '+q.id,'quote_message');
   else if(audience==='student'){
-   await notify(q.studentId,'IPS replied to your academic enquiry '+q.id,'quote_message');
-   if(q.contactEmail)try{
-    await sendEmail(q.contactEmail,'IPS Academic Services — response to '+q.id,
-     'A new response is available in your private IPS Academic Services enquiry '+q.id+
-      '. Sign in to review and reply: '+config.origin+'\n\nNo telephone call is required.');
-   }catch{await notify(rootEmail,'Email delivery needs attention for quote '+q.id,'communication_failure')}
+   await notifyQuotation(q,'IPS replied to your academic enquiry '+q.id,'quote_message');
   }
   await audit(a,'academic_quote_message',q.id,{audience});
   res.status(201).json({message:publicDocument(msg)});
