@@ -127,6 +127,36 @@ async function go(){
   assert.equal(unauthRevision.status,401);
   pass('Private notifications and legacy academic-order revisions fail closed against guests and unrelated clients');
 
+  // Real authenticated HTTP + MongoDB notification acknowledgement: recipient
+  // ownership, including Root, is independently checked on writes.
+  const {default:Notification}=await import('../models/Notification.js');
+  const aliceNotice=await Notification.create({
+    recipient_role:'client',recipient_id:aliceId,type:'ci_private_notice',
+    message:'Protected test notification owned by this client.'
+  });
+  const rootNotice=await Notification.create({
+    recipient_role:'admin',recipient_id:'admin',type:'company_task_overdue',
+    message:'Protected CI-only company deadline alert.'
+  });
+  const aliceAck=await call('/api/notifications/client/'+aliceId+'/'+aliceNotice.id+'/read',{
+    method:'PATCH',session:alice.cookie,json:{}});
+  assert.equal(aliceAck.status,200,JSON.stringify(aliceAck.body));
+  assert.equal(aliceAck.body.notification.read,true);
+  const bobAck=await call('/api/notifications/client/'+aliceId+'/'+aliceNotice.id+'/read',{
+    method:'PATCH',session:bob.cookie,json:{}});
+  assert.equal(bobAck.status,403,'Unrelated clients cannot acknowledge another inbox');
+  const rootCrossAck=await call('/api/notifications/client/'+aliceId+'/'+aliceNotice.id+'/read',{
+    method:'PATCH',session:admin.cookie,json:{}});
+  assert.equal(rootCrossAck.status,403,'Root company authority cannot override client notification privacy');
+  const rootAck=await call('/api/notifications/admin/admin/'+rootNotice.id+'/read',{
+    method:'PATCH',session:admin.cookie,json:{}});
+  assert.equal(rootAck.status,200,'Authenticated Root can acknowledge company alerts');
+  const aliceRootAck=await call('/api/notifications/admin/admin/'+rootNotice.id+'/read',{
+    method:'PATCH',session:alice.cookie,json:{}});
+  assert.equal(aliceRootAck.status,403,'Clients cannot acknowledge company alerts');
+  pass('Real MongoDB private notification acknowledgements enforce client and Root ownership');
+
+
   const privateQuote={
     username:'PrivateAlice',service:'statistics-support',subject:'R'.repeat(160),
     message:'I would like methodology and data analysis guidance for my academic research project.',
