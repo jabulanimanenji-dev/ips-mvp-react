@@ -52,6 +52,20 @@ try{
   assert.ok((await publicPage.locator('body').innerText()).includes('Students & Researchers'));
   await overflow(publicPage);await screen(publicPage,'01-academic-homepage');
  });
+ await pass('Academic website loads real non-person illustrations and signup confirms passwords',async()=>{
+  await publicPage.locator('img.hero-illustration').waitFor();
+  assert.ok(await publicPage.locator('img.hero-illustration').evaluate(img=>img.complete&&img.naturalWidth>0));
+  await publicPage.getByRole('button',{name:'Student / Researcher',exact:true}).click();
+  await publicPage.locator('input[name=confirmPassword]').waitFor();
+  await publicPage.locator('input[name=username]').fill('VisualScholar');
+  await publicPage.locator('input[name=email]').fill('visual.invalid.review@example.org');
+  await publicPage.locator('input[name=password]').fill('AcademicSecure2026!');
+  await publicPage.locator('input[name=confirmPassword]').fill('AcademicSecure2027!');
+  await publicPage.locator('input[name=privacyConsent]').check();
+  await publicPage.getByRole('button',{name:'Create private IPS account'}).click();
+  await publicPage.getByText('Confirm password must match').waitFor();
+  await publicPage.getByRole('button',{name:'Academic services',exact:true}).click();
+ });
  await pass('Academic catalogue contains 16 real disciplines and detailed subject-specific enquiries',async()=>{
   await publicPage.getByRole('button',{name:'Academic services',exact:true}).click();
   await publicPage.getByRole('button',{name:'All academic services'}).count().catch(()=>0);
@@ -106,6 +120,36 @@ try{
   await rootPage.getByRole('button',{name:'Finance & Billing'}).click();
   await rootPage.getByText('Payment processing is intentionally disabled').waitFor();
   await overflow(rootPage);
+ });
+ const rootDirect=await pageOpen(false);
+ await pass('Direct /root URL authenticates Nyoro and stays within Root Administrator identity',async()=>{
+  await rootDirect.goto(origin+'/root',{waitUntil:'domcontentloaded'});
+  await rootDirect.getByRole('heading',{name:'Nyoro · Root Administration'}).waitFor();
+  await rootDirect.locator('input[name=email]').fill(vars.ROOT_EMAIL);
+  await rootDirect.locator('input[name=password]').fill(vars.ROOT_PASSWORD);
+  await rootDirect.getByRole('button',{name:'Sign in as Nyoro Root Admin'}).click();
+  await rootDirect.getByText('Nyoro · Root Administration').first().waitFor();
+  const s=await rootDirect.evaluate(async()=>{const r=await fetch('/api/session');return (await r.json()).account.role});
+  assert.equal(s,'root');
+ });
+ await pass('Root opens real Student workspace and then Specialist workspace with no login switching',async()=>{
+  await rootDirect.locator('.sidebar').getByRole('button',{name:'Student workspace'}).click();
+  const row=rootDirect.locator('.record',{hasText:'PrivateScholar'}).first();
+  await row.getByRole('button',{name:'Open workspace as Root'}).click();
+  await rootDirect.getByText('NYORO ROOT ADMINISTRATION / ASSISTED WORKSPACE').waitFor();
+  await rootDirect.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
+  await rootDirect.getByText('Pediatric Nursing Research').first().waitFor();
+  await rootDirect.getByRole('button',{name:'Return to Nyoro Root'}).click();
+  await rootDirect.locator('.sidebar').getByRole('button',{name:'Specialist workspace'}).click();
+  const spec=rootDirect.locator('.record',{hasText:'Evaluation Academic Nursing Editor'}).first();
+  await spec.getByRole('button',{name:'Open workspace as Root'}).click();
+  await rootDirect.locator('.sidebar').getByRole('button',{name:'Assigned academic work'}).click();
+  await rootDirect.getByText('Academic Editing & Proofreading').first().waitFor();
+  const session=await rootDirect.evaluate(async()=>{const r=await fetch('/api/session');return (await r.json()).account.role});
+  assert.equal(session,'root','Root session must remain Root while assisted workspaces are open');
+  await screen(rootDirect,'14-root-assisted-specialist-workspace');
+  await rootDirect.getByRole('button',{name:'Return to Nyoro Root'}).click();
+  await screen(rootDirect,'15-nyoro-command-centre');
  });
  const managerPage=await pageOpen(false);
  await pass('Department manager sees only academic Client Relations responsibility',async()=>{
