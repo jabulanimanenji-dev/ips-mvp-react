@@ -270,8 +270,8 @@ app.get('/api/quotes',async(req,res)=>run(async()=>{
  res.json({quotes:(await quotes.find(filter,{projection:{_id:0}}).sort({created_at:-1}).limit(100).toArray())});
 },res));
 app.post('/api/quotes/:id/offer',async(req,res)=>run(async()=>{
- if(!requireAdmin(req,res))return;
- if(req.actor.role!=='root'&&req.actor.department!=='client_relations')return deny(res);
+ if(!requires(req,res,['root','manager']))return;
+ if(req.actor.role==='manager'&&req.actor.department!=='client_relations')return deny(res);
  const amount=Number(req.body?.amount_minor),notes=String(req.body?.notes||'').trim();
  if(!Number.isSafeInteger(amount)||amount<=0||amount>100000000||notes.length>2000)return res.status(400).json({error:'Enter a valid written quotation amount in minor PLN units.'});
  const q=await quotes.findOneAndUpdate({id:req.params.id,status:'new'},{$set:{status:'offered',amount_minor:amount,notes,reviewed_by:req.actor.id,updated_at:now()}},{returnDocument:'after'});
