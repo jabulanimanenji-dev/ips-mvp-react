@@ -457,8 +457,9 @@ async function commissionDetail(p,a){
  const [msgData,fileData]=await Promise.all([
   api('/academic/commissions/'+encodeURIComponent(p.id)+'/messages'),
   api('/operations/'+encodeURIComponent(p.id)+'/files')]);
- const isRoot=state.account?.role==='root'&&!state.rootLens;
- const manager=a.role==='root'||a.role==='manager';
+ const rootFileData=state.rootLens&&state.account?.role==='root'?await api('/operations/'+encodeURIComponent(p.id)+'/files',{operator:true}):null;
+ const isRoot=state.account?.role==='root';
+ const manager=isRoot||a.role==='manager';
  const specialist=a.role==='specialist'&&p.specialistId===a.id;
  const student=a.role==='student'&&p.studentId===a.id;
  const assisted=!!state.rootLens,canSimulate=!assisted||state.isEvaluation;
@@ -535,6 +536,9 @@ async function commissionDetail(p,a){
   '<div class="case-layout"><div>'+overview+
    panel('Files & delivery','All permitted supporting files and released work are here.',
     '<div class="file-tray">'+(fileRows||empty('No documents yet. Upload a file below.'))+'</div>')+
+   (rootFileData?panel('Root-only documents','Drafts, QA-rejected versions and internal files visible only to Nyoro.',
+    '<div class="file-tray">'+rootFileData.files.filter(f=>!fileData.files.some(x=>x.id===f.id)).map(f=>
+     '<article class="file-item"><strong>'+e(f.filename)+'</strong><a download href="/api/academic/files/'+e(f.id)+'">Download as Root ↓</a></article>').join('')+'</div>'):'')+
    upload+actions+'</div><section class="case-chat"><h3>Job messages</h3>'+
    '<p>Communication stays attached to the academic job.</p>'+conversation+'</section></div></section>';
 }
@@ -628,10 +632,10 @@ async function submit(name,formNode){
  }
  if(name==='claim-quote'){await api('/academic/quotes/claim',{method:'POST',body:data});return 'Your previously verified guest academic enquiry is now attached to your account.'}
  if(name==='staff-invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
- if(name==='scope'){await api('/academic/quotes/'+encodeURIComponent(id)+'/scope',{method:'POST',body:data});return 'Academic scope decision has been recorded.'}
+ if(name==='scope'){await api('/academic/quotes/'+encodeURIComponent(id)+'/scope',{method:'POST',operator:state.account?.role==='root',body:data});return 'Academic scope decision has been recorded.'}
  if(name==='offer'){data.priceMinor=Math.round(Number(data.pricePLN)*100);delete data.pricePLN;
-  await api('/academic/quotes/'+encodeURIComponent(id)+'/offer',{method:'POST',body:data});return 'Reviewed academic quotation issued in writing.'}
- if(name==='assign'){await api('/academic/commissions/'+encodeURIComponent(id)+'/assign',{method:'POST',body:{specialistId:data.specialistId}});return 'Approved academic Specialist assignment recorded.'}
+  await api('/academic/quotes/'+encodeURIComponent(id)+'/offer',{method:'POST',operator:state.account?.role==='root',body:data});return 'Reviewed academic quotation issued in writing.'}
+ if(name==='assign'){await api('/academic/commissions/'+encodeURIComponent(id)+'/assign',{method:'POST',operator:state.account?.role==='root',body:{specialistId:data.specialistId}});return 'Approved academic Specialist assignment recorded.'}
  if(name==='submit-academic'){
   const file=formNode.querySelector('input[name=upload]')?.files?.[0];
   if(!file)throw Error('Select a real academic deliverable.');
@@ -640,7 +644,7 @@ async function submit(name,formNode){
   await api('/academic/commissions/'+encodeURIComponent(id)+'/submission',{method:'POST',body:{filename:file.name,mime:file.type,data:encoded}});
   return 'Academic deliverable submitted to independent IPS QA.';
  }
- if(name==='quality'){await api('/academic/commissions/'+encodeURIComponent(id)+'/quality',{method:'POST',body:data});return 'Academic QA decision recorded and responsible parties notified.'}
+ if(name==='quality'){await api('/academic/commissions/'+encodeURIComponent(id)+'/quality',{method:'POST',operator:state.account?.role==='root',body:data});return 'Academic QA decision recorded and responsible parties notified.'}
  if(name==='student-decision'){await api('/academic/commissions/'+encodeURIComponent(id)+'/student-decision',{method:'POST',body:data});return 'Your academic delivery decision is saved.'}
  if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Message sent and attached to this academic job.'}
  if(name==='support'){await api('/support',{method:'POST',body:data});return 'Your written academic support case is in the IPS Client Relations queue.'}
