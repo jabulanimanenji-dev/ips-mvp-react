@@ -6,7 +6,7 @@ import helmet from 'helmet';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SERVICES,CATEGORIES,DEPARTMENTS,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
-import {email,validEmail,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid} from './security.mjs';
+import {email,validEmail,hashPassword,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid} from './security.mjs';
 import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
 import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs';
@@ -38,6 +38,7 @@ await mongoose.connect(env.MONGODB_URI,{dbName:config.dbName,serverSelectionTime
 const raw=mongoose.connection.db;
 const db={
  accounts:raw.collection('academic_accounts'),
+ rootCredentials:raw.collection('academic_root_credentials'),
  quotes:raw.collection('academic_quotations'),
  projects:raw.collection('academic_commissions'),
  files:raw.collection('academic_private_files'),
@@ -56,6 +57,7 @@ const db={
 };
 await Promise.all([
  db.accounts.createIndex({email:1},{unique:true}),
+ db.rootCredentials.createIndex({id:1},{unique:true}),
  db.accounts.createIndex({usernameKey:1},{unique:true,partialFilterExpression:{usernameKey:{$type:'string'}}}),
  db.quotes.createIndex({studentId:1,createdAt:-1}),
  db.quotes.createIndex({contactEmail:1}),
@@ -76,6 +78,12 @@ await Promise.all([
  db.rootExternalFiles.createIndex({commissionId:1,createdAt:-1})
 ]);
 const rootEmail=email(env.ROOT_EMAIL);
+// The immutable Root identity is intentionally not a user-directory account.
+// Its credential is durable so email recovery survives deployments and restores.
+await db.rootCredentials.updateOne({id:rootEmail},{$setOnInsert:{
+ id:rootEmail,passwordHash:hashPassword(env.ROOT_PASSWORD),sessionVersion:1,
+ createdAt:now(),updatedAt:now()
+}},{upsert:true});
 async function sendEmail(to,subject,text,deliveryKey=''){
  // Only queued notices use a stable provider idempotency key. Verification and
  // password-recovery challenges continue to carry their own single-use tokens.
@@ -162,7 +170,11 @@ async function resolveActor(req){
  const token=security.read(req);
  if(!token)return null;
  if(token.role==='root'){
-  return token.id===rootEmail?{id:rootEmail,email:rootEmail,name:'Nyoro',role:'root',status:'active',verified:true,department:'',approved:true}:null;
+  if(token.id!==rootEmail)return null;
+  const root=await db.rootCredentials.findOne({id:rootEmail,sessionVersion:token.version},
+   {projection:{id:1}});
+  return root?{id:rootEmail,email:rootEmail,name:'Nyoro',role:'root',status:'active',
+   verified:true,department:'',approved:true}:null;
  }
  const row=await db.accounts.findOne({id:token.id,status:'active',verified:true,sessionVersion:token.version});
  if(!row||!['student','specialist','manager','staff'].includes(row.role))return null;
