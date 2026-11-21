@@ -27,9 +27,21 @@ jobs:
           node --check company-next/server.mjs
           node --check company-next/public/app.js
           node --check company-next/scripts/verify-company.mjs
+          node --check company-next/scripts/verify-browser.mjs
           node -e "const fs=require('fs');const s=fs.readFileSync('company-next/server.mjs','utf8');if(/from ['\"]\.\.\/(?:models|services|src)/.test(s))process.exit(1)"
       - name: Run actual client, specialist, Root, manager, employee and QA lifecycle against independent MongoDB 7
         run: node company-next/scripts/verify-company.mjs
+      - name: Install isolated Chrome browser harness
+        run: npm install --no-save --ignore-scripts playwright@1.56.1
+      - name: Validate genuine five-role workspaces and mobile on running MongoDB
+        run: node company-next/scripts/verify-browser.mjs
+      - name: Publish new company desktop and mobile qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ips-new-company-chrome-five-role-evidence
+          path: company-next-browser-evidence/
+          if-no-files-found: warn
       - name: Confirm old IPS production models are not referenced by new company runtime
         run: |
           if grep -E "(from .*models/|from .*services/|phase-12|ips-mvp-react)" company-next/server.mjs; then
