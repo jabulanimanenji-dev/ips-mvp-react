@@ -90,7 +90,7 @@ jobs:
           test "$ready" -eq 1
       - name: Verify exact academic image — five authenticated identities and private academic files
         run: node scripts/verify-review-image.mjs
-      - name: Save independently restorable academic MongoDB and file records
+      - name: Save and checksum restorable academic MongoDB archive
         working-directory: .
         run: |
           mkdir -p academic-company/academic-recovery
@@ -99,17 +99,24 @@ jobs:
             mongodump --uri mongodb://127.0.0.1:27017/ips_academic_sandbox \
             --archive=/recovery/academic-backup.archive
           test -s academic-company/academic-recovery/academic-backup.archive
-      - name: Independently restore to a second MongoDB 7 instance
+          sha256sum academic-company/academic-recovery/academic-backup.archive
+      - name: Independently restore archive into another real MongoDB 7 server
         working-directory: .
         run: |
           set -euo pipefail
           docker run -d --name ips-academic-independent-restore \
             -p 127.0.0.1:27018:27017 \
-            -v "$PWD/academic-company/academic-recovery:/recovery:ro" \
-            mongo:7 --bind_ip_all
+            -v "$PWD/academic-company/academic-recovery:/recovery:ro" mongo:7 --bind_ip_all
           ready=0
           for i in $(seq 1 60); do
-            if docker exec ips-academic-independent-restore mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q '^1
+            if docker exec ips-academic-independent-restore mongosh --quiet --eval 'db.runCommand({ping:1}).ok' 2>/dev/null | grep -q '1'; then ready=1; break; fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          docker exec ips-academic-independent-restore mongorestore --archive=/recovery/academic-backup.archive
+      - name: Boot recovered academic application and authenticate against restored private file
+        run: node scripts/verify-restoration.mjs
+      - name: Capture academic review failure diagnostics
         if: failure()
         working-directory: .
         run: docker logs --tail 90 ips-academic-review-ci 2>/dev/null | sed -E 's/(mongodb:\/\/)[^@]+@/\1[REDACTED]@/g' || true
@@ -120,24 +127,6 @@ jobs:
           docker rm -f ips-academic-review-ci 2>/dev/null || true
           docker rm -f ips-academic-independent-restore 2>/dev/null || true
           rm -rf academic-company/academic-recovery
-      - name: Verify academic constitution is preserved
-        working-directory: .
-        run: test -s GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md
-; then ready=1; break; fi
-            sleep 1
-          done
-          test "$ready" -eq 1
-          docker exec ips-academic-independent-restore mongorestore --archive=/recovery/academic-backup.archive
-      - name: Boot restored application and verify academic file readback and signed sessions
-        run: node scripts/verify-restoration.mjs
-      - name: Capture academic review failure diagnostics
-        if: failure()
-        working-directory: .
-        run: docker logs --tail 90 ips-academic-review-ci 2>/dev/null | sed -E 's/(mongodb:\/\/)[^@]+@/\1[REDACTED]@/g' || true
-      - name: Destroy disposable academic evaluation database and server
-        if: always()
-        working-directory: .
-        run: docker rm -f ips-academic-review-ci 2>/dev/null || true
       - name: Verify academic constitution is preserved
         working-directory: .
         run: test -s GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md
