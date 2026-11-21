@@ -510,7 +510,7 @@ async function quoteDetail(q,a){
   '<div class="file-tray">'+(docRows||empty('No supporting documents yet.'))+'</div>'+
   form('quote-upload','<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
    (manager?options('Document audience','audience',[['student','Student / Researcher'],['internal','IPS internal']]):'')+
-   field('PDF, DOCX or TXT (up to 5 MB)','upload','file','','true'),
+   field('PDF, DOCX or TXT (up to 20 MB)','upload','file','','true'),
    'Upload document'));
  const authorizedQuoteManager=state.account?.role==='root'||['root','manager'].includes(a.role);
  const clarificationActions=a.role==='student'&&q.status==='clarify'&&(!state.rootLens||state.isEvaluation)?
@@ -626,7 +626,7 @@ async function commissionDetail(p,a){
  const purposes=canDeliver&&canReference?[['reference','Supporting document'],['deliverable','Deliverable for QA']]:
    canDeliver?[['deliverable','Deliverable for QA']]:[['reference','Supporting document']];
  const upload=(canReference||canDeliver)?panel('Upload a document',
-  specialist&&canDeliver?'Specialist deliverables up to 20 MB · reference documents up to 5 MB.':'PDF, DOCX or TXT · maximum 5 MB per file.',
+  'Private PDF, DOCX or TXT references and Specialist deliverables · up to 20 MB per document.',
   form('case-upload','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
    options('File type','purpose',purposes)+
    field('Choose file','upload','file','','true'),'Upload document')):'';
@@ -747,6 +747,26 @@ async function filePayload(formNode){
   reader.onerror=()=>reject(Error('Could not read the selected file.'));reader.readAsDataURL(file);
  });
  return {filename:file.name,mime,data:contents};
+}
+async function uploadAcademicReferenceBinary(endpoint,file,audience='student'){
+ if(!file||file.size<12||file.size>20*1024*1024)
+  throw Error('Choose a PDF, DOCX or TXT document no larger than 20 MB.');
+ const ext=file.name.split('.').pop()?.toLowerCase()||'';
+ const accepted={pdf:'application/pdf',
+  docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  txt:'text/plain'};
+ if(!accepted[ext])throw Error('Academic reference documents must be PDF, DOCX or TXT.');
+ const result=await fetch(endpoint,{method:'POST',credentials:'same-origin',cache:'no-store',
+  headers:{'Content-Type':'application/octet-stream',
+   'X-IPS-File-Name':encodeURIComponent(file.name),
+   'X-IPS-File-Type':accepted[ext],
+   'X-IPS-File-Audience':audience,
+   ...(state.rootLens&&state.isEvaluation?
+    {'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},
+  body:file});
+ const response=await result.json().catch(()=>({}));
+ if(!result.ok)throw Error(response.error||'IPS could not store the private reference.');
+ return response;
 }
 async function uploadAcademicBinary(commissionId,file){
  if(!file||file.size<12||file.size>20*1024*1024)
