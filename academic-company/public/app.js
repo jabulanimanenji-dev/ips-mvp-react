@@ -505,8 +505,14 @@ async function loadTab(){
       '<article class="record"><div><h3>'+e(log.minutes)+' minutes · '+e(log.commissionId)+'</h3>'+
        '<p>'+e(log.summary)+' · '+e(log.workDate)+'</p><small>'+e(log.id)+'</small></div><aside>'+
        stat(log.status)+(log.status==='submitted'&&a.role!=='staff'?
-        b('Approve','worklog-approve',log.id)+b('Reject','worklog-reject',log.id):'')+
-       '</aside></article>').join('')+'</div>':
+        b('Review','worklog-review',log.id):'')+
+       '</aside></article>'+
+       (state.opened===log.id&&log.status==='submitted'&&a.role!=='staff'?
+        form('worklog-decision',
+         '<input type="hidden" name="workLogId" value="'+e(log.id)+'">'+
+         options('Finance decision','decision',[['approve','Approve documented work'],['reject','Reject with reason']])+
+         textarea('Review reason','note','Document your assessment of this work record'),
+         'Save work review'):'')).join('')+'</div>':
      empty('No Specialist work records for review.'))+
    panel('Proposed Specialist compensation','Proposals require a documented, agreed fee; no payout is executed.',
     d.compensation.length?'<div class="small-list">'+d.compensation.map(c=>
@@ -524,8 +530,13 @@ async function loadTab(){
      '<article class="record"><div><h3>'+e(dispute.commissionId)+'</h3><p>'+
      e(dispute.reason)+'</p></div><aside>'+stat(dispute.status)+
      (a.role!=='staff'&&dispute.status!=='resolved_without_settlement'?
-      b('Begin review','finance-dispute-review',dispute.id)+b('Resolve','finance-dispute-resolve',dispute.id):'')+
-     '</aside></article>').join('')+'</div>':
+      b('Review','finance-dispute-open',dispute.id):'')+
+     '</aside></article>'+
+     (state.opened===dispute.id&&a.role!=='staff'&&dispute.status!=='resolved_without_settlement'?
+      form('billing-review','<input type="hidden" name="disputeId" value="'+e(dispute.id)+'">'+
+       options('Finance outcome','decision',[['reviewing','Continue investigation'],['resolved_without_settlement','Resolve without financial settlement']])+
+       textarea('Written decision','note','Record the facts, applicable terms, and resolution'),
+       'Save billing review'):'')).join('')+'</div>':
      empty('No billing concerns require attention.'));
  }else if(tab==='audit'){
   const d=await api('/administration/audit');
@@ -1004,6 +1015,18 @@ async function submit(name,formNode){
    method:'POST',body:{feeMinor:Math.round(Number(data.feePLN)*100),reason:data.reason}});
   return 'Specialist fee proposal recorded. The Specialist must acknowledge it; no payout has been issued.';
  }
+ if(name==='worklog-decision'){
+  await api('/finance/work-logs/'+encodeURIComponent(data.workLogId)+'/decision',
+   {method:'POST',body:{decision:data.decision,note:data.note}});
+  state.opened='';
+  return 'Specialist work record reviewed with an auditable Finance decision. No payout was issued.';
+ }
+ if(name==='billing-review'){
+  await api('/finance/disputes/'+encodeURIComponent(data.disputeId)+'/review',
+   {method:'POST',body:{decision:data.decision,note:data.note}});
+  state.opened='';
+  return 'Billing concern reviewed without creating a financial settlement.';
+ }
  if(name==='billing-dispute'){
   await api('/finance/disputes',{method:'POST',body:{commissionId:data.commissionId,reason:data.reason}});
   return 'Your private billing concern was sent to IPS Finance.';
@@ -1143,7 +1166,7 @@ document.addEventListener('click',async ev=>{
 if(act==='service'){remember();state.service=id;state.page='service';serviceDetail();return}
  if(act==='request-service'){remember();state.service=id;state.page='quote';quote();return}
  if(['tab-commissions','tab-queues','tab-root-students','tab-root-specialists'].includes(act)){remember();state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
- if(act==='quote-detail'||act==='commission-open'||act==='support-open'){remember();state.opened=state.opened===id?'':id;render();return}
+ if(['quote-detail','commission-open','support-open','worklog-review','finance-dispute-open'].includes(act)){remember();state.opened=state.opened===id?'':id;render();return}
  if(act==='scope-form'||act==='offer-form'){
   const anchor=action.closest('.record');const markup=act==='scope-form'?
    form('scope',options('Academic scope decision','decision',[['approved','Appropriate academic support'],['clarify','Request clarification'],['declined','Decline inappropriate request']])+
@@ -1184,27 +1207,11 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
     {method:'POST',body:{}});
    state.message='Telegram messages marked read for IPS Communications.';
   }
-  else if(['worklog-approve','worklog-reject'].includes(act)){
-   const decision=act==='worklog-approve'?'approve':'reject';
-   const note=window.prompt('Explain this IPS Finance work-record decision (at least 12 characters):');
-   if(note===null){state.busy=false;return}
-   await api('/finance/work-logs/'+encodeURIComponent(id)+'/decision',
-    {method:'POST',body:{decision,note}});
-   state.message='Work record '+decision+'d without any payment being issued.';
-  }
   else if(['compensation-accept','compensation-decline'].includes(act)){
    const decision=act==='compensation-accept'?'accept':'decline';
    await api('/finance/compensation/'+encodeURIComponent(id)+'/respond',
     {method:'POST',body:{decision}});
    state.message='Specialist compensation terms recorded. No payment has occurred.';
-  }
-  else if(['finance-dispute-review','finance-dispute-resolve'].includes(act)){
-   const decision=act==='finance-dispute-review'?'reviewing':'resolved_without_settlement';
-   const note=window.prompt('Record the documented IPS Finance decision (at least 15 characters):');
-   if(note===null){state.busy=false;return}
-   await api('/finance/disputes/'+encodeURIComponent(id)+'/review',
-    {method:'POST',body:{decision,note}});
-   state.message='Billing concern reviewed without any settlement being created.';
   }
   else if(act==='delivery-retry'){await api('/operations/delivery/'+encodeURIComponent(id)+'/retry',{method:'POST',operator:true});state.message='Failed notification queued for an automatic retry.'}
   else throw Error('This academic action needs an assigned workflow.');
