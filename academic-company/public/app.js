@@ -210,9 +210,9 @@ function tokenForm(kind){
 }
 function departmentsForRole(a){
  if(a.role==='student')return [['overview','Overview'],['inbox','Inbox & messages'],['notifications','Updates'],
-  ['quotes','My quotations'],['commissions','My academic work'],['support','Support'],['profile','Profile']];
+  ['quotes','My quotations'],['commissions','My academic work'],['billing','Billing'],['support','Support'],['profile','Profile']];
  if(a.role==='specialist')return [['overview','My work'],['inbox','Inbox & messages'],['notifications','Updates'],
-  ['commissions','Assignments & files'],['support','Support'],['profile','Profile']];
+  ['commissions','Assignments & files'],['worklogs','Work records'],['support','Support'],['profile','Profile']];
  if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],['notifications','Alerts & delivery'],
   ['quotes','Enquiries'],['students','Students'],['specialists','Specialists'],
   ['commissions','Academic jobs'],['root-students','Student workspace'],
@@ -443,12 +443,88 @@ async function loadTab(){
      field('Normal turnaround in days (1–60)','turnaroundDays','number','e.g. 7'),
      'Update my availability'));
   }
+ }else if(tab==='billing'){
+  const [result,disputes]=await Promise.all([api('/finance/my-billing'),api('/finance/disputes')]);
+  html=panel('Your academic billing','Your accepted academic quotations are recorded here. No payment, invoice or receipt has been issued.',
+   result.records.length?'<div class="small-list">'+result.records.map(bill=>
+    record('Accepted academic quotation · '+price(bill.amountMinor),
+     'Payment gateway not enabled · This is not an invoice or receipt',
+     bill.commissionId,bill.state)).join('')+'</div>':
+    empty('Accepted academic quotations will appear here. You have no issued invoices or receipts.'))+
+   panel('Written billing concerns','Contact IPS privately about a billing record.',
+    disputes.disputes.length?'<div class="small-list">'+disputes.disputes.map(d=>
+     record('Billing concern',d.reason,d.id,d.status)).join('')+'</div>':'')+
+   (result.records.length&&!rootAssisted?
+    panel('Open a billing concern','No payments are currently processed, so there are no refunds to initiate.',
+    form('billing-dispute',
+     options('Academic commission','commissionId',result.records.map(x=>[x.commissionId,x.commissionId]))+
+     textarea('Explain the issue','reason','Provide the relevant private academic billing concern'),
+     'Send to IPS Finance')):'');
+ }else if(tab==='worklogs'){
+  const [logs,jobs]=await Promise.all([api('/finance/work-logs'),api('/academic/commissions')]);
+  const active=jobs.commissions.filter(p=>p.specialistId===a.id&&p.paymentStatus!=='not_collected');
+  html=panel('Specialist work records','Record genuine work against an assigned academic commission. Finance will review it; no payout is available.',
+   logs.logs.length?'<div class="small-list">'+logs.logs.map(log=>
+    record('Time record · '+e(log.minutes)+' minutes',log.summary+' · '+log.workDate,
+     log.id,log.status)).join('')+'</div>':empty('No time records submitted.'))+
+    (!rootAssisted&&active.length?
+     panel('Submit work time','Submissions are auditable, and repeated requests are idempotent.',
+      form('work-log',
+       '<input type="hidden" name="requestId" value="'+e(crypto.randomUUID())+'">'+
+       options('Assigned academic job','commissionId',active.map(x=>[x.id,x.id]))+
+       field('Date of work','workDate','date')+
+       field('Minutes worked (5–960)','minutes','number','e.g. 90')+
+       textarea('Describe the actual work','summary','Describe the academic guidance, corrections or analysis completed'),
+       'Submit work record')):'')+
+    (active.length?panel('Specialist compensation terms','IPS must agree any proposed fee with you; no automatic payment occurs.',
+      (await Promise.all(active.map(async p=>{
+       try{const v=await api('/finance/compensation/'+encodeURIComponent(p.id));
+        return '<article class="record"><div><h3>'+e(p.id)+'</h3><p>Proposed amount: '+
+         price(v.proposal.proposedFeeMinor)+'</p></div><aside>'+stat(v.proposal.status)+
+         (v.proposal.status==='proposed'&&!rootAssisted?
+          b('Accept terms','compensation-accept',p.id)+b('Decline','compensation-decline',p.id):'')+
+         '</aside></article>'}catch{return ''}}))).join('')||
+        empty('No compensation proposal has been offered yet.')):'');
  }else if(tab==='finance'){
-  const d=await api('/administration/queues');
-  const q=d.queues.find(x=>x.department==='finance');
-  html=panel('Finance readiness','Payment provider integration is not enabled in this evaluation.',
-   q?'<p>'+e(q.count)+' accepted academic cases await the verified payment gate.</p>':
-   empty('No outstanding finance cases.'));
+  const d=await api('/finance/overview');
+  const t=d.totals;
+  html='<div class="metrics">'+kpi('Accepted quote value',price(t.acceptedQuoteValueMinor),'Not collected')+
+   kpi('Awaiting payment',t.awaitingPaymentIntegration,'Gateway disabled')+
+   kpi('Money collected',price(t.collectedAmountMinor),'Verified settlements only')+
+   kpi('Receipts',t.issuedReceipts,'Nothing issued')+'</div>'+
+   panel('Accepted quotation billing','Real accepted quotation values, not revenue, invoices or successful transactions.',
+    d.billing.length?'<div class="small-list">'+d.billing.map(bill=>
+      record('Billing preparation · '+price(bill.amountMinor),
+       'Student account '+bill.studentId+' · '+bill.commissionId,
+       bill.id,bill.state)).join('')+'</div>':
+     empty('No accepted academic billing records yet.'))+
+   panel('Specialist time & review','Every work entry must be approved by Root or authorized Finance management.',
+    d.workLogs.length?'<div class="small-list">'+d.workLogs.map(log=>
+      '<article class="record"><div><h3>'+e(log.minutes)+' minutes · '+e(log.commissionId)+'</h3>'+
+       '<p>'+e(log.summary)+' · '+e(log.workDate)+'</p><small>'+e(log.id)+'</small></div><aside>'+
+       stat(log.status)+(log.status==='submitted'&&a.role!=='staff'?
+        b('Approve','worklog-approve',log.id)+b('Reject','worklog-reject',log.id):'')+
+       '</aside></article>').join('')+'</div>':
+     empty('No Specialist work records for review.'))+
+   panel('Proposed Specialist compensation','Proposals require a documented, agreed fee; no payout is executed.',
+    d.compensation.length?'<div class="small-list">'+d.compensation.map(c=>
+      record('Specialist compensation · '+price(c.proposedFeeMinor),
+       c.commissionId+' · '+c.specialistId,c.commissionId,c.status)).join('')+'</div>':
+     empty('No compensation has been proposed yet.'))+
+   (a.role!=='staff'?panel('Offer Specialist compensation','Only assigned jobs are eligible for a written fee proposal.',
+    form('compensation-propose',
+     field('Assigned commission ID','commissionId','text','IPS-A-…')+
+     field('Proposed fee in PLN','feePLN','number','e.g. 200')+
+     textarea('Reason and fee terms','reason','Explain specialist compensation terms and scope'),
+     'Propose Specialist fee')):'')+
+   panel('Billing concerns','No refund can be processed while payments are not enabled.',
+    d.disputes.length?'<div class="small-list">'+d.disputes.map(dispute=>
+     '<article class="record"><div><h3>'+e(dispute.commissionId)+'</h3><p>'+
+     e(dispute.reason)+'</p></div><aside>'+stat(dispute.status)+
+     (a.role!=='staff'&&dispute.status!=='resolved_without_settlement'?
+      b('Begin review','finance-dispute-review',dispute.id)+b('Resolve','finance-dispute-resolve',dispute.id):'')+
+     '</aside></article>').join('')+'</div>':
+     empty('No billing concerns require attention.'));
  }else if(tab==='audit'){
   const d=await api('/administration/audit');
   html=panel('Audit trail','Every company action, including Root intervention, is attributable.',
@@ -916,6 +992,20 @@ async function submit(name,formNode){
     privacyConfirmed:!!formNode.querySelector('[name=privacyConfirmed]:checked')}});
   return 'Telegram reply queued. Provider delivery and recipient reading are not yet confirmed.';
  }
+ if(name==='work-log'){
+  await api('/finance/work-logs',{method:'POST',body:{commissionId:data.commissionId,
+   workDate:data.workDate,minutes:Number(data.minutes),summary:data.summary,requestId:data.requestId}});
+  return 'Your genuine academic time record is submitted for Finance review. No payout has been issued.';
+ }
+ if(name==='compensation-propose'){
+  await api('/finance/compensation/'+encodeURIComponent(data.commissionId)+'/propose',{
+   method:'POST',body:{feeMinor:Math.round(Number(data.feePLN)*100),reason:data.reason}});
+  return 'Specialist fee proposal recorded. The Specialist must acknowledge it; no payout has been issued.';
+ }
+ if(name==='billing-dispute'){
+  await api('/finance/disputes',{method:'POST',body:{commissionId:data.commissionId,reason:data.reason}});
+  return 'Your private billing concern was sent to IPS Finance.';
+ }
  if(name==='direct-message'){
   await api('/operations/direct-message',{method:'POST',operator:true,body:data});
   return 'Private message sent to this IPS account.';
@@ -1091,6 +1181,28 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
    await api('/communications/telegram/threads/'+encodeURIComponent(id)+'/read',
     {method:'POST',body:{}});
    state.message='Telegram messages marked read for IPS Communications.';
+  }
+  else if(['worklog-approve','worklog-reject'].includes(act)){
+   const decision=act==='worklog-approve'?'approve':'reject';
+   const note=window.prompt('Explain this IPS Finance work-record decision (at least 12 characters):');
+   if(note===null){state.busy=false;return}
+   await api('/finance/work-logs/'+encodeURIComponent(id)+'/decision',
+    {method:'POST',body:{decision,note}});
+   state.message='Work record '+decision+'d without any payment being issued.';
+  }
+  else if(['compensation-accept','compensation-decline'].includes(act)){
+   const decision=act==='compensation-accept'?'accept':'decline';
+   await api('/finance/compensation/'+encodeURIComponent(id)+'/respond',
+    {method:'POST',body:{decision}});
+   state.message='Specialist compensation terms recorded. No payment has occurred.';
+  }
+  else if(['finance-dispute-review','finance-dispute-resolve'].includes(act)){
+   const decision=act==='finance-dispute-review'?'reviewing':'resolved_without_settlement';
+   const note=window.prompt('Record the documented IPS Finance decision (at least 15 characters):');
+   if(note===null){state.busy=false;return}
+   await api('/finance/disputes/'+encodeURIComponent(id)+'/review',
+    {method:'POST',body:{decision,note}});
+   state.message='Billing concern reviewed without any settlement being created.';
   }
   else if(act==='delivery-retry'){await api('/operations/delivery/'+encodeURIComponent(id)+'/retry',{method:'POST',operator:true});state.message='Failed notification queued for an automatic retry.'}
   else throw Error('This academic action needs an assigned workflow.');
