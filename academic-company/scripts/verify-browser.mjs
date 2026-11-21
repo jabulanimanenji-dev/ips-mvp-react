@@ -196,6 +196,7 @@ try{
   await rootPage.getByText('Nyoro · Root Administration').first().waitFor();
   await rootPage.getByRole('button',{name:'Specialists',exact:true}).click();
   await rootPage.getByText('Evaluation Academic Nursing Editor').first().waitFor();
+  await rootPage.getByText('Agreement signed').first().waitFor();
   await screen(rootPage,'08-nyoro-academic-people-management');
   await rootPage.getByRole('button',{name:'Inbox & messages'}).click();
   await rootPage.getByText('Pediatric Nursing Research').first().waitFor();
