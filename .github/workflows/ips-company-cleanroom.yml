@@ -1,5 +1,7 @@
 name: IPS New Company — Clean-Room Acceptance
 on:
+  push:
+    branches: [company/ips-new-standalone-20261121]
   pull_request:
     branches: [main]
   workflow_dispatch:
