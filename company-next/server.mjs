@@ -97,7 +97,7 @@ const requireAdmin=(req,res)=>requires(req,res,['root','manager','staff']);
 const publicAccountFields={_id:0,pass_hash:0,verify_hash:0,reset_hash:0,verify_until:0,reset_until:0};
 const throttle=new Map();
 function limited(req,res,key,limit=12){const id=(req.ip||'remote')+'|'+key;const time=Date.now(),old=throttle.get(id),b=old&&old.until>time?old:{n:0,until:time+900000};b.n++;throttle.set(id,b);if(throttle.size>5000)for(const [k,v] of throttle)if(v.until<time)throttle.delete(k);if(b.n>limit){res.status(429).json({error:'Too many requests. Try again later.'});return true}return false;}
-app.get('/api/health',async(req,res)=>res.json({ready:mongoose.connection.readyState===1,product:'IPS COMPANY',release:'cleanroom-v1',payments:'disabled',database:mongoose.connection.readyState===1?'connected':'unavailable'}));
+app.get('/api/health',async(req,res)=>res.json({ready:mongoose.connection.readyState===1,product:'IPS COMPANY',release:'cleanroom-v1',environment:sandbox?'ISOLATED_EVALUATION':'PRODUCTION',payments:'disabled',database:mongoose.connection.readyState===1?'connected':'unavailable'}));
 app.post('/api/auth/signup',async(req,res)=>run(async()=>{
  if(limited(req,res,'signup',6))return;
  const role=String(req.body?.role||''),username=String(req.body?.username||'').trim(),name=String(req.body?.full_name||'').trim(),email=mail(req.body?.email),password=String(req.body?.password||'');
@@ -397,10 +397,12 @@ app.get('/api/notifications',async(req,res)=>run(async()=>{
 app.get('/api/dashboard',async(req,res)=>run(async()=>{
  if(!req.actor)return deny(res,401);
  const a=req.actor;
+ const canSeeAll=a.role==='root';
+ const quoteFilter=canSeeAll?{}:a.role==='client'?{owner_id:a.id}:a.department==='client_relations'?{}:{id:'none'};
+ const projectFilter=canSeeAll?{}:a.role==='client'?{client_id:a.id}:a.role==='specialist'?{specialist_id:a.id}:['delivery','quality'].includes(a.department)?{}:{id:'none'};
+ const ticketFilter=canSeeAll?{}:['client','specialist'].includes(a.role)?{owner_id:a.id}:a.department==='client_relations'?{}:{id:'none'};
  const [q,p,t,u]=await Promise.all([
-  quotes.countDocuments(a.role==='client'?{owner_id:a.id}:{}),
-  projects.countDocuments(a.role==='client'?{client_id:a.id}:a.role==='specialist'?{specialist_id:a.id}:{}),
-  tickets.countDocuments(['client','specialist'].includes(a.role)?{owner_id:a.id}:{}),
+  quotes.countDocuments(quoteFilter),projects.countDocuments(projectFilter),tickets.countDocuments(ticketFilter),
   notices.countDocuments({account_id:a.id,read:false})
  ]);
  res.json({account:a,stats:{quotes:q,projects:p,support:t,unread:u},payments_enabled:false,product:'International Project Services'});
