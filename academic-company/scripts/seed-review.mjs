@@ -113,6 +113,44 @@ try{
   {id:'AM-EVAL-SHARED',actorId:env.ROOT_EMAIL,actorRole:'root',audience:'shared',
    body:'EVALUATION ONLY: IPS approved the fictional academic consultation document for secure client delivery.'}
  ])await messages.updateOne({id:m.id},{$setOnInsert:{...m,commissionId:project.id,createdAt:now,channel:'ips_workspace',synthetic:true}},{upsert:true});
+ // Real persisted, fictional enquiry correspondence and attachments before commissioning.
+ // No real academic data is used; these are inspectable in the normal Student and Root workspaces.
+ const quoteMessages=db.collection('academic_quote_messages'),
+  quoteFiles=db.collection('academic_quote_files'),
+  directMessages=db.collection('academic_direct_messages'),
+  directFiles=db.collection('academic_direct_files');
+ for(const m of [
+  {id:'QM-EVAL-STUDENT',quoteId:newQ.id,actorId:stu.id,actorRole:'student',audience:'student',
+   body:'EVALUATION ONLY: I have uploaded my institution’s formatting instructions for the literature review.'},
+  {id:'QM-EVAL-IPS',quoteId:newQ.id,actorId:env.ROOT_EMAIL,actorRole:'root',audience:'student',
+   body:'EVALUATION ONLY: IPS received your guidance. We will confirm a permitted editing scope and send a written quotation.'}
+ ])await quoteMessages.updateOne({id:m.id},{$setOnInsert:{...m,createdAt:now,synthetic:true}},{upsert:true});
+ const briefBytes=Buffer.from('EVALUATION ONLY: fictional institution style guidance for a student-authored nursing literature review. This is not a real university document.');
+ const noteBytes=Buffer.from('EVALUATION ONLY: internal IPS quote-scope review note; should never appear in Student file lists.');
+ for(const [id,filename,data,audience,actor] of [
+  ['QF-EVAL-STUDENT','nursing-review-formatting-guidance.txt',briefBytes,'student',stu.id],
+  ['QF-EVAL-INTERNAL','ips-internal-scope-review.txt',noteBytes,'internal',env.ROOT_EMAIL]
+ ]){
+  await quoteFiles.updateOne({id},{$setOnInsert:{id,quoteId:newQ.id,studentId:stu.id,filename,mime:'text/plain',
+   purpose:'enquiry_reference',audience,sha256:crypto.createHash('sha256').update(data).digest('hex'),
+   fileData:data,uploadedBy:actor,uploadedRole:actor===stu.id?'student':'root',
+   createdAt:now,synthetic:true}},{upsert:true});
+ }
+ const directBytes=Buffer.from('EVALUATION ONLY: IPS academic scope coordination and a sample private guidance attachment. No real client content.');
+ const directId='DMF-EVAL-ROOT-GUIDANCE';
+ await directFiles.updateOne({id:directId},{$setOnInsert:{
+  id:directId,toId:stu.id,fromId:env.ROOT_EMAIL,filename:'ips-private-guidance-sample.txt',
+  mime:'text/plain',sha256:crypto.createHash('sha256').update(directBytes).digest('hex'),
+  fileData:directBytes,createdAt:now,synthetic:true}},{upsert:true});
+ for(const d of [
+  {id:'DM-EVAL-STUDENT',fromId:env.ROOT_EMAIL,fromRole:'root',toId:stu.id,
+   subject:'Message from IPS',body:'EVALUATION ONLY: here is your private academic coordination attachment.',
+   attachmentId:directId},
+  {id:'DM-EVAL-STUDENT-REPLY',threadId:'DM-EVAL-STUDENT',fromId:stu.id,fromRole:'student',
+   toId:env.ROOT_EMAIL,subject:'IPS private message',body:'EVALUATION ONLY: I have received the file and can reply here.'},
+  {id:'DM-EVAL-SPECIALIST',fromId:env.ROOT_EMAIL,fromRole:'root',toId:sp.id,
+   subject:'Message from IPS',body:'EVALUATION ONLY: please review the assigned academic editing brief and upload permitted feedback.'}
+ ])await directMessages.updateOne({id:d.id},{$setOnInsert:{...d,createdAt:now,synthetic:true}},{upsert:true});
  await support.updateOne({id:'IPS-S-EVAL'},{$setOnInsert:{
   id:'IPS-S-EVAL',ownerId:stu.id,ownerRole:'student',subject:'Academic editing and confidentiality inquiry',
   category:'academic_service',priority:'normal',status:'open',assignedTo:staff.id,
