@@ -239,6 +239,110 @@ try{
   assert.equal(items[0].accountId,'');
   assert.ok(!items[0].text.includes('540.00')&&!items[0].text.includes('research consultation'));
  });
+ await assertCheck('Clarification creates a complete Student-to-IPS review loop, not a dead-end',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  const clarification=await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'clarify',note:'We need the specific formatting style and the current student-authored draft.'}));
+  assert.equal(clarification.data.quote.status,'clarify');
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'No approval without Student clarification.'}),409);
+  await call('/academic/quotes/'+q.id+'/resubmit',withAuth(rootCookie,{
+   clarification:'Unauthorized approval of another Student account.'}),403);
+  const revisedBrief='I need permitted academic proofreading and reference guidance for my existing student-authored manuscript.';
+  const reply=await call('/academic/quotes/'+q.id+'/resubmit',withAuth(studentCookie,{
+   clarification:'My faculty requires APA format, and I have provided my original author-owned draft.',
+   requirements:revisedBrief}));
+  assert.equal(reply.data.quote.status,'received');
+  assert.equal(reply.data.quote.requirements,revisedBrief);
+  assert.equal(reply.data.quote.scopeRevision,1);
+  const messages=await call('/academic/quotes/'+q.id+'/messages',{cookie:studentCookie});
+  assert.ok(messages.data.messages.some(x=>x.body.includes('faculty requires APA')));
+  const approved=await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Student-authorized editing and citation checks are now clearly scoped.'}));
+  assert.equal(approved.data.quote.status,'scoped');
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'academic_quotation_clarification_submitted',ref:q.id}));
+ });
+ await assertCheck('Revised written offers retain prior prices, scope, expiry and reason history',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Legitimate editorial support on student-authored academic materials.'}));
+  const first=await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
+   priceMinor:14000,deliverables:'Permitted English language editing with written feedback.',
+   terms:'Student retains authorship. Initial editing service only; no fabricated references.'}));
+  assert.equal(first.data.quote.offerVersion,1);
+  assert.equal(first.data.quote.offerHistory.length,1);
+  assert.ok(first.data.quote.expires>new Date().toISOString().slice(0,10));
+  await call('/academic/quotes/'+q.id+'/revise-offer',withAuth(studentCookie,{
+   priceMinor:22000,deliverables:'Client cannot revise a manager-issued price.',
+   terms:'This access must be rejected and must not change the approved quotation.',
+   reason:'Student has no finance authority.'}),403);
+  const second=await call('/academic/quotes/'+q.id+'/revise-offer',withAuth(rootCookie,{
+   priceMinor:22000,deliverables:'Additional annotated reference-format guidance on existing academic writing.',
+   terms:'Author-owned editing and documented reference-format checks with two review rounds.',
+   reason:'The verified faculty guidance requires additional reference review.'}));
+  assert.equal(second.data.quote.offerVersion,2);
+  assert.equal(second.data.quote.priceMinor,22000);
+  assert.equal(second.data.quote.offerHistory.length,2);
+  assert.equal(second.data.quote.offerHistory[0].priceMinor,14000);
+  assert.equal(second.data.quote.offerHistory[1].priceMinor,22000);
+  assert.equal(second.data.quote.offerHistory[1].note,'The verified faculty guidance requires additional reference review.');
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'academic_written_offer_revised',ref:q.id}));
+ });
+ await assertCheck('Expired quote cannot be accepted; worker expires it and a fresh offer reopens acceptance',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Permitted editorial guidance and verifiable research-reference checks.'}));
+  await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
+   priceMinor:19500,deliverables:'Permitted editorial feedback on student-authored work.',
+   terms:'The recorded scope and fee expire on the stated UTC calendar date.'}));
+  const yesterday=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
+  await db.collection('academic_quotations').updateOne({id:q.id},{$set:{expires:yesterday}});
+  await call('/academic/quotes/'+q.id+'/decision',withAuth(studentCookie,{decision:'accept'}),409);
+  let expired;
+  for(let i=0;i<24;i++){
+   expired=await db.collection('academic_quotations').findOne({id:q.id});
+   if(expired?.status==='expired')break;
+   await sleep(400);
+  }
+  assert.equal(expired?.status,'expired','Automatic expiry worker must update the actual MongoDB quotation');
+  const reopened=await call('/academic/quotes/'+q.id+'/revise-offer',withAuth(rootCookie,{
+   priceMinor:20500,deliverables:'A refreshed and appropriately reviewed academic editing service.',
+   terms:'Updated expiry, unchanged student authorship and truthful consultant responsibilities.',
+   reason:'Original quotation expired before the Student gave a decision.'}));
+  assert.equal(reopened.data.quote.status,'offered');
+  assert.equal(reopened.data.quote.offerVersion,2);
+  const accepted=await call('/academic/quotes/'+q.id+'/decision',withAuth(studentCookie,{decision:'accept'}));
+  assert.equal(accepted.data.commission.paymentStatus,'not_collected');
+  const saved=await db.collection('academic_quotations').findOne({id:q.id});
+  assert.equal(saved.acceptedOfferVersion,2);
+ });
+ await assertCheck('Approaching quote expiry creates exactly one timely private reminder',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Legitimate academic methodology consultation is permitted.'}));
+  const soon=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
+   priceMinor:12000,deliverables:'Consultative written academic language feedback only.',
+   terms:'Appropriate student-owned support with no academic ghostwriting or invented findings.',
+   expires:soon}));
+  let marked;
+  for(let i=0;i<24;i++){
+   marked=await db.collection('academic_quotations').findOne({id:q.id});
+   if(marked?.reminderSentAt)break;
+   await sleep(400);
+  }
+  assert.ok(marked?.reminderSentAt,'Expiry reminder should be automatically scheduled');
+  assert.equal(await db.collection('academic_notifications').countDocuments({
+   accountId:marked.studentId,kind:'quotation_expiry_reminder',
+   message:{$regex:q.id}}),0,'Generic reminder message must not leak detailed quote identifier by email');
+  const one=await db.collection('academic_notifications').countDocuments({
+   accountId:marked.studentId,kind:'quotation_expiry_reminder'});
+  await sleep(1500);
+  assert.equal(await db.collection('academic_notifications').countDocuments({
+   accountId:marked.studentId,kind:'quotation_expiry_reminder'}),one);
+ });
  await assertCheck('Student accepts actual reviewed quotation; production payment remains blocked',async()=>{
   const r=await call('/academic/quotes/'+quoteId+'/decision',withAuth(studentCookie,{decision:'accept'}));
   commissionId=r.data.commission.id;assert.equal(r.data.commission.status,'awaiting_payment_integration');
