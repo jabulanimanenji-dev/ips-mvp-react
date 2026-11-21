@@ -4,6 +4,7 @@ import {sendBusinessEmail} from './businessEmailTransport.js';
 import {recoveryReady,recoveryOrigin} from './passwordRecovery.js';
 import {emailValid,normalizeEmail} from '../shared/privacyIdentity.js';
 import {companyStaffPasswordValid} from '../shared/companyGovernance.js';
+import {isIpsQaFixtureEmail} from '../shared/ipsCompanyScope.js';
 
 // Staff and department managers reset THEIR OWN credentials by verified mail.
 // Root is environment-owned and deliberately excluded. No employee, manager or
@@ -20,7 +21,9 @@ export async function requestAdminPasswordRecovery(email,{
 }={}){
   if(!recoveryReady(env))return {unavailable:true};
   const address=normalizeEmail(email);
-  if(!emailValid(address)||address===String(env.ADMIN_EMAIL||'').trim().toLowerCase())
+  if(!emailValid(address)||address===String(env.ADMIN_EMAIL||'').trim().toLowerCase()||
+      (env.NODE_ENV==='production'&&String(env.IPS_EVALUATION_MODE||'').toLowerCase()!=='true'&&
+        isIpsQaFixtureEmail(address)))
     return {accepted:true};
   const record=await model.findOne({...scope(env),email:address})
     .select('+password_reset_hash +password_reset_expires_at +password_reset_sent_at');
