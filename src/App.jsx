@@ -12,6 +12,7 @@ import SignupPage from './pages/SignupPage';
 import PasswordRecoveryPage from './pages/PasswordRecoveryPage.jsx';
 import EmailConfirmationPage from './pages/EmailConfirmationPage.jsx';
 import CompanyAdministration from './administration/CompanyAdministration.jsx';
+import FinanceDesk from './administration/FinanceDesk.jsx';
 import {Restricted} from './administration/core.jsx';
 import {CompanyBridge,DepartmentBridge,JourneyBridge,CompanyInsights} from './administration/CompanyControl.jsx';
 import OperationsBoard from './administration/OperationsBoard.jsx';
@@ -375,7 +376,7 @@ export default function App() {
         <Route path="external-chats" element={<Restricted permission="messages.view"><TelegramOperations/></Restricted>}/>
         <Route path="messages" element={<Restricted permission="messages.view"><PrivateConversations/></Restricted>}/>
         <Route path="reports" element={<Restricted permission="reports.view"><CompanyInsights/></Restricted>}/>
-        <Route path="payments" element={<Restricted permission="payments.view"><CompanyInsights kind="finance"/></Restricted>}/>
+        <Route path="payments" element={<Restricted permission="payments.view"><FinanceDesk/></Restricted>}/>
         <Route path="settings" element={<Restricted permission="settings.view"><CompanyInsights kind="security"/></Restricted>}/>
         <Route path="intake/reply" element={<Navigate to="/admin/enquiries" replace/>}/>
         <Route path="support/tickets" element={<Navigate to="/admin/support" replace/>}/>
