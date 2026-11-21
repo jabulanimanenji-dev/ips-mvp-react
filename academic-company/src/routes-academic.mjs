@@ -8,6 +8,7 @@ export function registerAcademicRoutes(ctx){
  const allowedChannels=['workspace','email','telegram'];
  const quoteView=q=>{
   const x=publicDocument(q);delete x.verifyHash;delete x.verifyUntil;delete x.internalEvaluation;
+  delete x.ownershipHistory;delete x.assignedBy;delete x.ownerAssignedAt;
   return x;
  };
  const commissionView=p=>publicDocument(p);
@@ -150,6 +151,16 @@ export function registerAcademicRoutes(ctx){
   if(previous&&previous!==target.id&&previous!==rootEmail)
    await notify(previous,'Academic enquiry '+before.id+' was reassigned','intake_assignment');
   res.json({quote:quoteView(updated)});
+ }));
+ app.get('/api/academic/quotes/:id/ownership',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','manager']))return;
+  if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
+   return res.status(403).json({error:'Client Relations management is required.'});
+  const q=await db.quotes.findOne({id:req.params.id},{projection:{
+   id:1,assignedTo:1,assignedBy:1,ownerAssignedAt:1,ownershipHistory:1}});
+  if(!q)return res.status(404).json({error:'Academic enquiry not found.'});
+  res.json({reference:q.id,assignedTo:q.assignedTo||'',assignedBy:q.assignedBy||'',
+   assignedAt:q.ownerAssignedAt||null,history:q.ownershipHistory||[]});
  }));
  app.get('/api/academic/quotes',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','root','manager','staff']))return;
