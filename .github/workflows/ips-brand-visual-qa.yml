@@ -12,6 +12,9 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.ref == 'audit/central-ips-privacy-queue-20261119'
     env:
       IPS_VISUAL_BASE_URL: https://ips-academic-evaluation-20261119.onrender.com
+      IPS_EVAL_CLIENT_PASSWORD: ${{ secrets.IPS_EVAL_CLIENT_PASSWORD }}
+      IPS_EVAL_SPECIALIST_PASSWORD: ${{ secrets.IPS_EVAL_SPECIALIST_PASSWORD }}
+      IPS_EVAL_ADMIN_PASSWORD: ${{ secrets.IPS_EVAL_ADMIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

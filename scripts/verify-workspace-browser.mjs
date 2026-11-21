@@ -64,6 +64,7 @@ try{
     const hero=student.locator('.dashboard-zone-client-hero section');
     const gradient=await hero.evaluate(el=>getComputedStyle(el).backgroundImage);
     assert.ok(gradient.includes('rgb(16, 42, 67)'), 'Student hero must use readable deep-navy background: '+gradient);
+    await student.getByRole('heading',{name:/My private updates/}).waitFor({timeout:15000});
     await evidence(student,'student-overview');
   });
   await check('Signed-in student sees only their own quotation and can reply',async()=>{
@@ -108,6 +109,18 @@ try{
     assert.equal(await student.locator('body').evaluate(el=>el.scrollWidth>window.innerWidth+4),false);
     await evidence(student,name);
   });
+  await check('Client dashboard never shows invented zero metrics when the real API fails',async()=>{
+    const offline='**/api/orders/client/**';
+    await student.route(offline,route=>route.fulfill({status:503,contentType:'application/json',
+      body:JSON.stringify({success:false,error:'CI-only unavailable order service'})}));
+    try{
+      await student.goto(base+'/client/overview',{waitUntil:'domcontentloaded'});
+      await student.getByText('Project records are temporarily unavailable',{exact:true}).waitFor({timeout:15000});
+    }finally{await student.unroute(offline);}
+    await student.getByRole('button',{name:'Retry project records'}).click();
+    await student.getByText('Project records are temporarily unavailable',{exact:true})
+      .waitFor({state:'hidden',timeout:15000});
+  });
   const specialist=await open();
   await check('Real approved Specialist login opens only the Specialist workspace',async()=>{
     await specialist.goto(base+'/writer/login',{waitUntil:'domcontentloaded'});
@@ -134,7 +147,21 @@ try{
     },null,{timeout:15000});
     assert.ok(await specialist.locator('.dashboard-zone-writer-stats .card').first().getByText('1').count()>=1,
       'Specialist totals must reflect the assigned paid work.');
+    await specialist.getByRole('heading',{name:/My private updates/}).waitFor({timeout:15000});
     await evidence(specialist,'specialist-dashboard');
+  });
+  await check('Specialist dashboard explains backend outages and recovers without re-login',async()=>{
+    const offline='**/api/orders/writer/**';
+    await specialist.route(offline,route=>route.fulfill({status:503,contentType:'application/json',
+      body:JSON.stringify({success:false,error:'CI-only unavailable assignment service'})}));
+    try{
+      await specialist.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
+      await specialist.getByText('Your assignment data is temporarily unavailable',{exact:true})
+        .waitFor({timeout:15000});
+    }finally{await specialist.unroute(offline);}
+    await specialist.getByRole('button',{name:'Retry assignments'}).click();
+    await specialist.getByText('Your assignment data is temporarily unavailable',{exact:true})
+      .waitFor({state:'hidden',timeout:15000});
   });
   for(const [route,name] of [
     ['/writer/orders','specialist-orders'],
@@ -181,6 +208,7 @@ try{
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
     await admin.locator('.ips4').waitFor({timeout:15000});
     await admin.getByRole('heading',{name:'Welcome back, Nyoro.'}).waitFor({timeout:15000});
+    await admin.getByRole('heading',{name:'Automatic overdue alerts'}).waitFor({timeout:15000});
     await admin.locator('.ips4-persona').getByText('Nyoro',{exact:true}).waitFor();
     await admin.locator('.ips4-persona').getByText(/Root Admin/).waitFor();
     assert.equal(await admin.locator('.ips-os').count(),0,'Rejected Company OS v3 must not be mounted');
@@ -190,6 +218,17 @@ try{
     });
     assert.equal(colors.background,'rgb(16, 27, 37)');
     await evidence(admin,'ips4-nyoro-company-bridge');
+    // Verify data isolation through the actual authenticated HTTP session.
+    const ownBroadcast=await admin.request.get(base+'/api/notifications/admin/admin');
+    assert.equal(ownBroadcast.status(),200,'Root retains the owned company broadcast inbox');
+    const clientInbox=await admin.request.get(base+'/api/notifications/client/CID-TEST-ALICE');
+    assert.equal(clientInbox.status(),403,'Root must not read private client notifications');
+    const writerInbox=await admin.request.get(base+'/api/notifications/writer/WID-CI-VERIFIED-01');
+    assert.equal(writerInbox.status(),403,'Root must not read specialist notifications');
+    const studentInbox=await student.request.get(base+'/api/notifications/client/CID-TEST-ALICE');
+    assert.equal(studentInbox.status(),200,'Client retains access to own private notifications');
+    const otherClientInbox=await student.request.get(base+'/api/notifications/client/CID-OTHER');
+    assert.equal(otherClientInbox.status(),403,'Client may never query a different private inbox');
   });
   await check('Fresh company leadership bridges seven actual departments and accountable decisions',async()=>{
     await admin.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
@@ -274,6 +313,17 @@ try{
     await departmentManager.getByRole('heading',{name:'Invite a member of your staff'}).waitFor();
     assert.equal(await departmentManager.getByRole('heading',{name:'Appoint an actual department manager'}).count(),0);
     await evidence(departmentManager,'ips4-real-manager-team');
+    const staffRow=departmentManager.locator('.ips4-table tbody tr').filter({hasText:'Client Care Officer B'});
+    await staffRow.getByRole('button',{name:'Govern employee'}).click();
+    await departmentManager.getByRole('heading',{name:'Delegated access'}).waitFor();
+    await departmentManager.getByRole('button',{name:'Save delegated permissions'}).waitFor();
+    assert.equal(await departmentManager.getByLabel('Permission payments.manage').count(),0);
+    await departmentManager.getByRole('button',{name:'Close'}).click();
+    await departmentManager.goto(base+'/admin/departments',{waitUntil:'domcontentloaded'});
+    await departmentManager.getByRole('heading',{name:'Departments and responsible leadership'}).waitFor();
+    assert.equal(await departmentManager.locator('.ips4-grid.thirds .ips4-panel').count(),1,
+      'Department manager must never interpret other hidden departments as vacant');
+    await evidence(departmentManager,'ips4-manager-truthful-department-coverage');
   });
   for(const [path,heading] of [
     ['/admin/enquiries','Quotation intake and review'],

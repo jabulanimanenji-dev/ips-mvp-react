@@ -40,9 +40,14 @@ export async function issueEmailChallenge(account,{env=process.env,send=sendBusi
         ['localhost','127.0.0.1'].includes(origin.hostname)))&&
         !origin.username&&!origin.password&&!origin.search&&!origin.hash&&
         ['','/'].includes(origin.pathname)){
-        const role=account.writer_id?'writer':'client';
+        const contactKind=account.enquiry_id&&['quote','general'].includes(account.request_type)?
+          (account.request_type==='quote'?'quote':'enquiry'):null;
+        const role=contactKind||(account.writer_id?'writer':'client');
         verificationLink=origin.origin+'/verify-email#'+new URLSearchParams({
-          role,email:normalizeEmail(account.email),code
+          role,
+          ...(role==='quote'?{quote_id:account.enquiry_id}:{}),
+          ...(role==='enquiry'?{enquiry_id:account.enquiry_id}:{}),
+          email:normalizeEmail(account.email),code
         }).toString();
       }
     }catch{}

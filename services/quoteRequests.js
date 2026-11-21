@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import ContactEnquiry from '../models/ContactEnquiry.js';
 import Client from '../models/Client.js';
-import {validatePrivateQuote} from '../shared/privacyIdentity.js';
+import {validatePrivateQuote,emailValid,normalizeEmail} from '../shared/privacyIdentity.js';
 import {issueEmailChallenge,confirmEmailChallenge,verificationAvailable} from './accountVerification.js';
 import {publicContactConfig} from './contactChannels.js';
 import {enqueueContactEmailJobs} from './contactEmailQueue.js';
@@ -80,26 +80,49 @@ export function registerPrivateQuoteRoutes(app,{readSession,requireSession}){
         messages:[{direction:'inbound',channel:'website',body:c.message,delivery_status:'received',created_at:now}],
         last_activity_at:now
       });
+      let emailDeliveryPending=false;
       if(c.preferred_channel==='email'){
         try{await issueEmailChallenge(lead);}
-        catch(error){return res.status(503).json({success:false,quote_id:lead.enquiry_id,verification_required:true,
-          error:'Your request was saved, but we could not send a verification code. Please contact IPS support using your quote reference.'});}
+        catch(error){emailDeliveryPending=true;console.error('IPS quote verification delivery deferred:',error?.name||'error');}
       }else if(c.contact_verified){
         try{await enqueueContactEmailJobs(lead);}catch(error){console.error('IPS quote notification queue unavailable:',error?.name||'error');}
       }
       res.set('Cache-Control','no-store');
       return res.status(c.contact_verified?201:202).json({
         success:true,...contactStatus(lead),verification_required:c.preferred_channel==='email',
+        email_delivery_pending:emailDeliveryPending,
         requires_chat_start:['telegram','whatsapp'].includes(c.preferred_channel),
-        message:c.contact_verified?
+        message:emailDeliveryPending?
+          'Your quotation request has been saved. Verification email delivery is temporarily unavailable. Request another link using your saved reference; do not submit the request again.':
+          c.contact_verified?
           'Request received. IPS will review it. No work or payment is authorized.':
           c.preferred_channel==='email'?
-            'Quote reference saved. Verify your email code to submit the request for review.':
+            'Quote reference saved. Open the verification link emailed to you; no employee needs to verify the address. An eight-digit code remains available as a fallback.':
             c.preferred_channel==='whatsapp'?
               'Quote saved. Open WhatsApp and send the reference. IPS staff must manually match your sender number and exact reference before reviewing or replying. WhatsApp is not synchronized with the IPS inbox.':
               'Quote saved. Open Telegram and send the reference to IPS to verify the conversation.'
       });
     }catch(error){console.error('Quote storage failed:',error?.name||'error');return res.status(503).json({success:false,error:'We could not securely save your request.'});}
+  });
+  // A saved guest request must remain recoverable without staff intervention or
+  // another enquiry submission. Reply consistently to avoid reference enumeration.
+  app.post('/api/quote-requests/resend-verification',async(req,res)=>{
+    if(!sameOrigin(req))return res.status(403).json({success:false,error:'Submit from the IPS website.'});
+    if(limited(req,'quote-reissue',6))return res.status(429).json({success:false,error:'Please wait before requesting another link.'});
+    const id=String(req.body?.quote_id||'');
+    const email=normalizeEmail(req.body?.email);
+    if(!/^IPS-Q-[A-F0-9]{18}$/.test(id)||!emailValid(email))
+      return res.status(400).json({success:false,error:'Enter your saved quotation reference and contact email.'});
+    if(!verificationAvailable())return res.status(503).json({success:false,error:'Email verification is temporarily unavailable.'});
+    try{
+      const lead=await ContactEnquiry.findOne({enquiry_id:id,email,request_type:'quote',
+        preferred_channel:'email',contact_verified:false})
+        .select('+verification_hash +verification_expires_at +verification_attempts +verification_sent_at');
+      if(lead)try{await issueEmailChallenge(lead);}
+      catch(error){if(error?.status!==429)return res.status(503).json({success:false,error:'IPS could not send the verification email. Your request remains saved; try again later.'});}
+      res.set('Cache-Control','no-store');
+      return res.status(202).json({success:true,message:'If the request is pending at this email, IPS has issued a verification link when permitted by the resend cooldown.'});
+    }catch{return res.status(503).json({success:false,error:'Verification delivery is temporarily unavailable.'});}
   });
   app.post('/api/quote-requests/verify-email',async(req,res)=>{
     if(limited(req,'verification',8))return res.status(429).json({success:false,error:'Please try again later.'});

@@ -19,6 +19,8 @@ import PlatformFile from './models/PlatformFile.js';
 import Message from './models/Message.js';
 import AuditLog from './models/AuditLog.js';
 import Notification from './models/Notification.js';
+import {canAssignSupportTicket,canChangeSupportTicket} from './shared/supportAuthority.js';
+import {canReadNotificationInbox} from './shared/notificationAccess.js';
 import ServiceRequest from './models/ServiceRequest.js';
 import StudentPayment from './models/StudentPayment.js';
 import { getStudentOffer } from './shared/studentOffers.js';
@@ -27,8 +29,10 @@ import { registerContactWebhooks, registerContactApi } from './services/contactC
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { registerCompanyCaseDesk } from './services/companyCaseDesk.js';
 import {registerCompanyOperatingSystem} from './services/companyOperatingSystem.js';
+import {registerCompanyFinanceRoutes} from './services/companyFinance.js';
 import {permittedCompanyPermissions} from './shared/companyGovernance.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
+import {startCompanyAutomationWorker} from './services/companyAutomation.js';
 import { qualifyCompanyTelegramWebhook } from './services/telegramLaunch.js';
 import { qualifyOwnerTelegramInbound } from './services/telegramInboundEvidence.js';
 import {isIpsQaFixtureAdmin,isIpsQaFixtureClient,isIpsQaFixtureEmail,scopeIpsMessagingDirectory} from './shared/ipsCompanyScope.js';
@@ -338,6 +342,7 @@ registerPasswordRecoveryRoutes(app,{hashPassword,grantSession:async(res,scope,ac
 registerEnquiryRoutes(app, { requireSession });
 registerCompanyCaseDesk(app,{requireSession});
 registerCompanyOperatingSystem(app,{requireSession,hashPassword,validAdminPassword});
+registerCompanyFinanceRoutes(app,{requireSession});
 registerPrivateQuoteRoutes(app, { readSession, requireSession });
 registerQuoteHandoffRoutes(app, {requireSession});
 registerSpecialistPayoutRoutes(app,{requireSession});
@@ -1776,6 +1781,12 @@ app.post('/api/support-tickets/:id/messages', async (req, res) => {
     if (session.role === 'client' && ticket.client_id !== session.id) {
       return res.status(403).json({ success: false, error: 'You cannot access this support ticket.' });
     }
+    if(session.role==='admin'){
+      const owner=ticket.assigned_admin?await Admin.findOne({id:ticket.assigned_admin})
+        .select('id department company_role manager_id status permissions').lean():null;
+      if(!canChangeSupportTicket(req.adminAccess,String(ticket.assigned_admin||''),owner,''))
+        return res.status(403).json({success:false,error:'Claim or receive assignment to this support case before replying.'});
+    }
     if (ticket.status === 'Closed') return res.status(409).json({ success: false, error: 'This ticket is closed.' });
     const body = String(req.body?.message || '').trim();
     if (body.length < 1 || body.length > 5000) return res.status(400).json({ success: false, error: 'Message must be between 1 and 5,000 characters.' });
@@ -1791,6 +1802,22 @@ app.post('/api/support-tickets/:id/messages', async (req, res) => {
       action: 'support_ticket_message_sent',
       details: { status: ticket.status }
     });
+    // Notify the other party without exposing the message body or leaking
+    // a client account to unrelated employees.
+    const message=ticket.messages.at(-1);
+    const recipient=session.role==='client'?
+      {recipient_role:'admin',recipient_id:ticket.assigned_admin||'admin'}:
+      {recipient_role:'client',recipient_id:ticket.client_id};
+    if(message?._id&&recipient.recipient_id){
+      const dedupe_key='ips-support-reply/'+ticket.ticket_id+'/'+String(message._id);
+      try{await Notification.updateOne({dedupe_key},{$setOnInsert:{
+        dedupe_key,...recipient,order_id:ticket.ticket_id,type:'support_reply',
+        message:session.role==='client'?'The customer replied to an IPS support case. Review the protected ticket.':
+          'IPS replied to your support request. Open your private workspace.',
+        read:false
+      }},{upsert:true});}
+      catch(error){console.error('IPS support reply alert pending:',error?.name||'error');}
+    }
     res.json({ success: true, ticket });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1803,13 +1830,37 @@ app.patch('/api/support-tickets/:id', async (req, res) => {
     if (!session) return;
     const allowed = ['status', 'priority', 'assigned_admin', 'resolution_note'];
     const updates = Object.fromEntries(Object.entries(req.body || {}).filter(([key]) => allowed.includes(key)));
+    if(Object.keys(updates).length===0)return res.status(400).json({success:false,error:'Specify a supported change to this support case.'});
+    const existing=await SupportTicket.findOne({ticket_id:req.params.id});
+    if(!existing)return res.status(404).json({success:false,error:'Support ticket not found.'});
+    const actor=req.adminAccess;
+    const assignedId=String(existing.assigned_admin||'');
+    const proposedId=updates.assigned_admin===undefined?'':String(updates.assigned_admin||'').trim();
+    const ownerRecord=assignedId?await Admin.findOne({id:assignedId})
+      .select('id department company_role manager_id status permissions').lean():null;
+    if(!canChangeSupportTicket(actor,assignedId,ownerRecord,proposedId))
+      return res.status(403).json({success:false,error:'This support case is outside your accountable management line. Assign an available case before changing it.'});
+    if(updates.assigned_admin!==undefined){
+      if(!proposedId)return res.status(400).json({success:false,error:'Choose an active accountable IPS employee.'});
+      const recipient=await Admin.findOne({id:proposedId}).select('id department company_role manager_id status permissions').lean();
+      if(!canAssignSupportTicket(actor,recipient,assignedId))
+        return res.status(403).json({success:false,error:'Support ownership can be assigned only within your authorized team.'});
+      updates.assigned_admin=proposedId;
+    }
     updates.last_activity_at = new Date();
-    const ticket = await SupportTicket.findOneAndUpdate(
-      { ticket_id: req.params.id },
-      updates,
-      { returnDocument: 'after', runValidators: true }
-    );
-    if (!ticket) return res.status(404).json({ success: false, error: 'Support ticket not found.' });
+    const filter={ticket_id:req.params.id,assigned_admin:assignedId};
+    const ticket = await SupportTicket.findOneAndUpdate(filter,updates,
+      { returnDocument: 'after', runValidators: true });
+    if(!ticket)return res.status(409).json({success:false,error:'Case ownership changed. Refresh the support desk before retrying.'});
+    if(proposedId&&proposedId!==assignedId){
+      const dedupe_key='ips-support-owner/'+ticket.ticket_id+'/'+proposedId+'/'+new Date(ticket.updatedAt).getTime();
+      try{await Notification.updateOne({dedupe_key},{$setOnInsert:{
+        dedupe_key,recipient_role:'admin',recipient_id:proposedId,order_id:ticket.ticket_id,
+        type:'support_assignment',read:false,
+        message:'An IPS customer support case is assigned to you. Open the protected support workspace.'
+      }},{upsert:true});}
+      catch(error){console.error('IPS support assignment alert pending:',error?.name||'error');}
+    }
     await AuditLog.create({
       order_id: ticket.ticket_id,
       actor_id: session.id,
@@ -2242,7 +2293,7 @@ app.get('/api/notifications/:role/:id', async (req, res) => {
     if(!session)return;
     if(!['client','writer','admin'].includes(req.params.role))
       return res.status(400).json({success:false,error:'Unknown notification audience.'});
-    if(session.role!=='admin'&&(session.role!==req.params.role||session.id!==req.params.id))
+    if(!canReadNotificationInbox(session,req.params.role,req.params.id,req.adminAccess))
       return res.status(403).json({success:false,error:'You may only read your own notifications.'});
     const notifications=await Notification.find({
       recipient_role:req.params.role,recipient_id:req.params.id
@@ -2252,6 +2303,26 @@ app.get('/api/notifications/:role/:id', async (req, res) => {
   }catch{
     res.status(503).json({success:false,error:'Private notifications could not be loaded.'});
   }
+});
+
+// Acknowledgement changes only the signed-in account's notification; it
+// cannot mutate another client's, specialist's, or employee's private inbox.
+app.patch('/api/notifications/:role/:id/:notificationId/read',async(req,res)=>{
+  try{
+    const session=requireSession(req,res);
+    if(!session)return;
+    const {role,id,notificationId}=req.params;
+    if(!canReadNotificationInbox(session,role,id,req.adminAccess))
+      return res.status(403).json({success:false,error:'You may only acknowledge your own notifications.'});
+    if(!mongoose.isValidObjectId(notificationId))
+      return res.status(400).json({success:false,error:'Invalid notification reference.'});
+    const record=await Notification.findOneAndUpdate({
+      _id:notificationId,recipient_role:role,recipient_id:id
+    },{$set:{read:true}},{new:true}).lean();
+    if(!record)return res.status(404).json({success:false,error:'Notification unavailable.'});
+    res.set('Cache-Control','private, no-store');
+    return res.json({success:true,notification:{id:String(record._id),read:record.read}});
+  }catch{return res.status(503).json({success:false,error:'Notification acknowledgement is temporarily unavailable.'});}
 });
 
 // ========== PROFESSIONAL SERVICES & ODD JOBS ==========
@@ -2361,6 +2432,13 @@ app.post('/api/work/:workId/decisions', async (req, res) => {
     const work = await findWork(req.params.workId);
     if (!work || !canAccessWork(session, work)) return res.status(403).json({ success: false, error: 'You do not have access to this job.' });
     const { work_kind, type, subject, details, requested_changes, priority, assigned_to_role, quote_snapshot } = req.body;
+    if(work_kind!==work.kind||!['admin','client','writer','provider'].includes(assigned_to_role))
+      return res.status(400).json({success:false,error:'Select an actual work category and permitted recipient role.'});
+    const assignedRecipient=assigned_to_role==='admin'?'admin':
+      assigned_to_role==='client'?String(work.record.client_id||''):
+      String(work.record.writer_id||work.record.provider_id||'');
+    if(!assignedRecipient)return res.status(409).json({success:false,
+      error:'An accountable recipient must be assigned before creating this decision.'});
     if (!work_kind || !type || !subject?.trim() || !details?.trim() || !assigned_to_role) {
       return res.status(400).json({ success: false, error: 'Type, subject, explanation, creator and recipient are required.' });
     }
@@ -2378,11 +2456,18 @@ app.post('/api/work/:workId/decisions', async (req, res) => {
       order_id: req.params.workId, actor_id: session.id, actor_role: sessionRole,
       action: `${type}_opened`, details: { decision_id: decision._id, subject: decision.subject }
     });
-    await Notification.create({
-      recipient_id: assigned_to_role === 'admin' ? 'admin' : req.params.workId,
-      recipient_role: assigned_to_role === 'provider' ? 'writer' : assigned_to_role,
-      order_id: req.params.workId, type, message: `${subject}: ${details.slice(0, 180)}`
-    }).catch(() => {});
+    // Route to the actual authenticated principal rather than the work ID.
+    // Keep confidential explanation details in the protected work decision.
+    const noticeKey='ips-decision/'+String(decision._id);
+    await Notification.updateOne({dedupe_key:noticeKey},{$setOnInsert:{
+      dedupe_key:noticeKey,recipient_id:assignedRecipient,
+      recipient_role:['provider','writer'].includes(assigned_to_role)?'writer':assigned_to_role,
+      order_id:req.params.workId,type:'work_decision',
+      message:'A new protected project decision requires your attention. Open your IPS workspace.',
+      read:false
+    }},{upsert:true}).catch(error=>{
+      console.error('IPS work decision notification delivery pending:',error?.name||'error');
+    });
     res.status(201).json({ success: true, decision });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -2679,6 +2764,33 @@ app.patch('/api/services/:id', async (req, res) => {
       action: 'service_request_updated',
       details: { status: request.status, progress: request.progress }
     });
+    // A real status transition informs the affected account holders. No
+    // unrelated staff can access these notifications; do not send academic
+    // contents or payment claims through this private status channel.
+    if(existing.status!==request.status){
+      const revision=request.status_history?.at(-1);
+      const transitionId=revision?String(revision._id||revision.changed_at||''):'';
+      const destinations=[];
+      if(request.client_id&&session.role!=='client')
+        destinations.push({recipient_role:'client',recipient_id:request.client_id});
+      const specialistId=request.writer_id||request.provider_id;
+      if(specialistId&&session.role!=='writer')
+        destinations.push({recipient_role:'writer',recipient_id:specialistId});
+      if(session.role!=='admin')
+        destinations.push({recipient_role:'admin',recipient_id:'admin'});
+      if(transitionId&&destinations.length){
+        await Promise.all(destinations.map(async recipient=>{
+          const dedupe_key='ips-service-state/'+request.request_id+'/'+transitionId+'/'+recipient.recipient_role+'/'+recipient.recipient_id;
+          try{
+            await Notification.updateOne({dedupe_key},{$setOnInsert:{
+              dedupe_key,...recipient,order_id:request.request_id,
+              type:'service_status',read:false,
+              message:'Your IPS project status is now '+request.status+'. Review the protected project file.'
+            }},{upsert:true});
+          }catch(error){console.error('IPS private project notification pending:',error?.name||'error');}
+        }));
+      }
+    }
     res.json({ success: true, request });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -3723,16 +3835,31 @@ app.get('*', (req, res) => {
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  // A source-bound, real HTTP witness runs only in the disposable evaluation
+  // container. Any failed login, reporting-line, private inbox or payment
+  // boundary fails its deployment rather than presenting a broken demo as live.
+  if(isProduction&&process.env.IPS_EVALUATION_MODE==='true'){
+    void import('./services/evaluationSelfcheck.js')
+      .then(({verifyIsolatedEvaluationRuntime})=>verifyIsolatedEvaluationRuntime({port:PORT}))
+      .then(report=>console.log('IPS_EVAL_RUNTIME_6_ROLES_GREEN '+JSON.stringify(report)))
+      .catch(error=>{
+        console.error('IPS_EVAL_RUNTIME_ROLE_CHECK_FAILED:',
+          String(error?.message||'Isolated verification unavailable').slice(0,200));
+        server.close(()=>process.exit(1));
+      });
+  }
 });
 
 // Operational delivery is opt-in and requires verified server-side IPS credentials.
 const stopEmailWorker=startContactEmailWorker();
+const stopCompanyAutomationWorker=startCompanyAutomationWorker();
 
 let shuttingDown = false;
 const shutDown = signal => {
   if (shuttingDown) return;
   shuttingDown = true;
   stopEmailWorker?.();
+  stopCompanyAutomationWorker?.();
   console.log(`${signal} received. Closing the HTTP server and database connection.`);
 
   const forcedExit = setTimeout(() => {

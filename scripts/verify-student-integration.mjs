@@ -127,6 +127,36 @@ async function go(){
   assert.equal(unauthRevision.status,401);
   pass('Private notifications and legacy academic-order revisions fail closed against guests and unrelated clients');
 
+  // Real authenticated HTTP + MongoDB notification acknowledgement: recipient
+  // ownership, including Root, is independently checked on writes.
+  const {default:Notification}=await import('../models/Notification.js');
+  const aliceNotice=await Notification.create({
+    recipient_role:'client',recipient_id:aliceId,type:'ci_private_notice',
+    message:'Protected test notification owned by this client.'
+  });
+  const rootNotice=await Notification.create({
+    recipient_role:'admin',recipient_id:'admin',type:'company_task_overdue',
+    message:'Protected CI-only company deadline alert.'
+  });
+  const aliceAck=await call('/api/notifications/client/'+aliceId+'/'+aliceNotice.id+'/read',{
+    method:'PATCH',session:alice.cookie,json:{}});
+  assert.equal(aliceAck.status,200,JSON.stringify(aliceAck.body));
+  assert.equal(aliceAck.body.notification.read,true);
+  const bobAck=await call('/api/notifications/client/'+aliceId+'/'+aliceNotice.id+'/read',{
+    method:'PATCH',session:bob.cookie,json:{}});
+  assert.equal(bobAck.status,403,'Unrelated clients cannot acknowledge another inbox');
+  const rootCrossAck=await call('/api/notifications/client/'+aliceId+'/'+aliceNotice.id+'/read',{
+    method:'PATCH',session:admin.cookie,json:{}});
+  assert.equal(rootCrossAck.status,403,'Root company authority cannot override client notification privacy');
+  const rootAck=await call('/api/notifications/admin/admin/'+rootNotice.id+'/read',{
+    method:'PATCH',session:admin.cookie,json:{}});
+  assert.equal(rootAck.status,200,'Authenticated Root can acknowledge company alerts');
+  const aliceRootAck=await call('/api/notifications/admin/admin/'+rootNotice.id+'/read',{
+    method:'PATCH',session:alice.cookie,json:{}});
+  assert.equal(aliceRootAck.status,403,'Clients cannot acknowledge company alerts');
+  pass('Real MongoDB private notification acknowledgements enforce client and Root ownership');
+
+
   const privateQuote={
     username:'PrivateAlice',service:'statistics-support',subject:'R'.repeat(160),
     message:'I would like methodology and data analysis guidance for my academic research project.',
@@ -466,6 +496,22 @@ async function go(){
   assert.equal(paidOrder.body.request.status_history.filter(v=>v.reason==='Verified payment received').length,1);
   pass('Provider-signed payment fixture marks correct persisted order paid exactly once');
 
+  const finance=await call('/api/admin/finance/operating-ledger',{session:admin.cookie});
+  assert.equal(finance.status,200,JSON.stringify(finance.body));
+  assert.equal(finance.body.success,true);
+  const financeItem=finance.body.financial_cases.find(x=>x.request_id===requestId);
+  assert.ok(financeItem,'Real accepted academic quote must appear in company finance');
+  assert.equal(financeItem.quote_accepted,true);
+  assert.equal(financeItem.payment_status,'paid');
+  assert.ok(finance.body.payments.some(x=>x.request_id===requestId&&x.status==='paid'));
+  assert.equal(typeof finance.body.counts.client_accepted_quotes,'number');
+  assert.ok(!JSON.stringify(financeItem).includes('client_email'),'Company finance API must not leak client correspondence');
+  const privateFinanceDenied=await call('/api/admin/finance/operating-ledger',{session:alice.cookie});
+  assert.equal(privateFinanceDenied.status,403);
+  const directPaymentsDenied=await call('/api/student-payments/admin',{session:alice.cookie});
+  assert.equal(directPaymentsDenied.status,403);
+  pass('Real finance register shows provider-confirmed records only and denies ordinary customer access');
+
   const staleEdit=await call('/api/services/'+requestId,{method:'PATCH',session:admin.cookie,json:{
     quote:{labor:1,service_fee:0,expenses:0,currency:'PLN'},status:'Quoted'}});
   assert.equal(staleEdit.status,409);
@@ -500,6 +546,28 @@ async function go(){
       reason:'Approved paid work allocated to vetted specialist'}});
   assert.equal(assignedSpecialist.status,200,JSON.stringify(assignedSpecialist.body));
   assert.equal(assignedSpecialist.body.request.provider_id,specialistId);
+
+  // The test runner intentionally disconnects its own Mongoose handle after
+  // provisioning fixtures; validate real persisted events through signed-in APIs.
+  const assignedClientInbox=await call('/api/notifications/client/'+aliceId,{
+    session:alice.cookie});
+  const assignedWriterInbox=await call('/api/notifications/writer/'+specialistId,{
+    session:specialist.cookie});
+  assert.equal(assignedClientInbox.status,200);
+  assert.equal(assignedWriterInbox.status,200);
+  assert.ok(assignedClientInbox.body.notifications.some(n=>
+    n.order_id===requestId&&n.type==='service_status'&&n.message.includes('Assigned')),
+    'Customer must receive the actual specialist-assignment status');
+  assert.ok(assignedWriterInbox.body.notifications.some(n=>
+    n.order_id===requestId&&n.type==='service_status'&&n.message.includes('Assigned')),
+    'Specialist must receive their assigned work status');
+  const specialistNotificationView=await call('/api/notifications/writer/'+specialistId,{
+    session:specialist.cookie});
+  assert.equal(specialistNotificationView.status,200);
+  assert.ok(specialistNotificationView.body.notifications.some(x=>x.type==='service_status'&&x.order_id===requestId));
+  assert.equal((await call('/api/notifications/writer/'+specialistId,{session:bob.cookie})).status,403);
+  pass('Real project assignment automatically notifies only its verified client and specialist');
+
   const unassignedBeforeWork=await call('/api/services/'+requestId,{
     method:'PATCH',session:admin.cookie,json:{
       provider_id:'',status:'Awaiting Assignment',
@@ -516,6 +584,29 @@ async function go(){
   });
   assert.equal(restoredAssignment.status,200,JSON.stringify(restoredAssignment.body));
   pass('Manager can revoke and restore a not-yet-started paid specialist allocation');
+
+  // Decision notices must reach the authenticated specialist principal, never
+  // an accidental notification inbox named after the project ID.
+  const reviewDecision=await call('/api/work/'+requestId+'/decisions',{
+    method:'POST',session:admin.cookie,json:{
+      work_kind:'service',type:'clarification',subject:'Please verify the methodology assumption',
+      details:'Check whether this statistical analysis matches the approved research methodology.',
+      assigned_to_role:'provider',priority:'important'
+    }});
+  assert.equal(reviewDecision.status,201,JSON.stringify(reviewDecision.body));
+  const specialistNotices=await call('/api/notifications/writer/'+specialistId,{
+    session:specialist.cookie});
+  assert.equal(specialistNotices.status,200);
+  assert.ok(specialistNotices.body.notifications.some(n=>
+    n.order_id===requestId&&n.type==='work_decision'),
+    'Specialist must receive the private decision notification');
+  assert.ok(!specialistNotices.body.notifications.some(n=>
+    n.type==='work_decision'&&n.recipient_id===requestId),
+    'Work reference must never become the specialist notification identity');
+  const unauthorizedDecisionInbox=await call('/api/notifications/writer/'+specialistId,{session:alice.cookie});
+  assert.equal(unauthorizedDecisionInbox.status,403);
+  pass('Actual specialist receives project decision alerts under own verified account only');
+
 
   const specialistJobs=await call('/api/services?provider_id='+specialistId,{session:specialist.cookie});
   assert.equal(specialistJobs.status,200);

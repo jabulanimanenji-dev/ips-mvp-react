@@ -1,7 +1,8 @@
 import React,{useMemo} from 'react';
+import CompanyAlerts from './CompanyAlerts.jsx';
 import {Link} from 'react-router-dom';
 import {useAuth} from '../context/AuthContext.jsx';
-import {COMPANY_DEPARTMENTS} from '../../shared/companyGovernance.js';
+import {COMPANY_DEPARTMENTS,managementDepartments} from '../../shared/companyGovernance.js';
 import {isOpenCompanyCase,isOverdueCompanyCase,needsCompanyCaseOwner,requiresManagementAttention,summarizeCompanyCases} from '../../shared/companyPulse.js';
 import {useFeed,Title,Panel,LinkButton,Button,Notice,Empty,Tag,GroupTotals,dateTime} from './core.jsx';
 
@@ -33,7 +34,7 @@ export function CompanyBridge(){
   const leaders=people.records;
   const decisions=cases.filter(c=>requiresManagementAttention(c))
     .sort((a,b)=>Number(isOverdueCompanyCase(b))-Number(isOverdueCompanyCase(a))||Number(needsCompanyCaseOwner(b))-Number(needsCompanyCaseOwner(a))).slice(0,8);
-  const vacant=leaders?Object.entries(COMPANY_DEPARTMENTS).filter(([key])=>!coverage(leaders,key).length):null;
+  const vacant=admin?.isRoot&&leaders?Object.entries(COMPANY_DEPARTMENTS).filter(([key])=>!coverage(leaders,key).length):null;
   return <>
     <Title kicker="IPS / COMPANY BRIDGE" title={admin?.isRoot?'Welcome back, Nyoro.':'Your accountable company work.'}
       description="A leadership workspace driven by real company records: what needs a decision, who owns it, which teams can act and what has not been verified."
@@ -45,6 +46,7 @@ export function CompanyBridge(){
       {label:'Unassigned verified enquiries',value:summary?.unowned,hint:'Claim or delegate to an authorized reviewer',tone:'gold'},
       {label:'Overdue promises / tasks',value:summary?.overdue,hint:'Real deadlines, not estimates',tone:'attention'}
     ]}/>
+    <CompanyAlerts/>
     <div className="ips4-grid split">
       <Panel title="Decisions on your desk" description="An actionable case or deadline—not a decorative status count." aside={<LinkButton to="/admin/case-desk">Open action centre →</LinkButton>}>
         {!work.available?<Empty>{work.busy?'Loading accountable company work…':'Company case evidence unavailable.'}</Empty>:
@@ -55,10 +57,14 @@ export function CompanyBridge(){
           </Link>)}
       </Panel>
       <div className="ips4-stack">
-        <Panel title="Leadership coverage" description="The company owner is outside every reporting line. Vacancies remain visible until a real manager is appointed."
+        <Panel title={admin?.isRoot?"Leadership coverage":"Your department team"} description={admin?.isRoot?"The company owner is outside every reporting line. Vacancies remain visible until a real manager is appointed.":"Only your actual delegated department and direct reports are shown."}
           aside={hasAdminPermission('team.manage')?<LinkButton to="/admin/access">Manage team →</LinkButton>:null}>
           {!people.available&&!people.error?<Empty>{people.busy?'Reading the reporting structure…':'Leadership records restricted to authorized management.'}</Empty>:
             people.error?<Notice kind="danger">{people.error}</Notice>:
+            !admin?.isRoot?<div className="ips4-stack">
+              <div className="ips4-row"><div><strong>Accountable manager</strong><small>{admin?.name||'You'} · {COMPANY_DEPARTMENTS[admin?.department]?.label||'Assigned department'}</small></div><Tag tone="good">You</Tag></div>
+              <div className="ips4-row"><div><strong>Your active direct reports</strong><small>Restricted to staff assigned to your management line</small></div><strong>{people.records.filter(m=>m.company_role==='staff'&&m.status==='Active').length}</strong></div>
+            </div>:
             vacant?.length===0?<Notice>Every company department has a currently active manager.</Notice>:
             vacant?.map(([id,info])=><div className="ips4-row" key={id}><div className="ips4-row-text"><strong>{info.label}</strong><small>Manager not appointed</small></div><Tag tone="warn">Vacant</Tag></div>)}
         </Panel>
@@ -77,14 +83,16 @@ export function DepartmentBridge(){
   const team=useFeed('/api/admin/company-team/roster','members',hasAdminPermission('team.manage'));
   const work=useFeed('/api/admin/company-cases','cases');
   const canManage=hasAdminPermission('team.manage');
+  const visibleDepartments=managementDepartments(admin);
   return <>
     <Title kicker="COMPANY STRUCTURE / ACCOUNTABILITY" title="Departments and responsible leadership"
       description="Operate the company through actual management mandates and reporting lines—not arbitrary menus or root-owned employee tasks."
       actions={<Button onClick={()=>{team.refresh();work.refresh();}}>Refresh organization</Button>}/>
     {team.error&&<Notice kind="danger">{team.error}</Notice>}
     <div className="ips4-grid thirds">
-      {Object.entries(COMPANY_DEPARTMENTS).map(([id,info])=>{
-        const managers=coverage(team.records,id),members=(team.records||[]).filter(x=>x.department===id&&x.company_role==='staff'&&x.status==='Active');
+      {visibleDepartments.map(([id,info])=>{
+        const managers=admin?.isRoot?coverage(team.records,id):team.available&&admin?.companyRole==='manager'?[{name:admin?.name||'You'}]:[];
+        const members=(team.records||[]).filter(x=>x.department===id&&x.company_role==='staff'&&x.status==='Active');
         const permitted=admin?.isRoot||!admin?.department||admin.department===id;
         return <Panel key={id} title={info.label} description={responsibilities[id]||'Authorized company responsibility'}>
           <div className="ips4-row"><div className="ips4-row-text"><strong>Accountable leadership</strong><small>{canManage?managers.map(m=>m.name).join(', ')||'Not appointed':'Scoped personnel access'}</small></div>

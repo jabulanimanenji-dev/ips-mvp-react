@@ -30,6 +30,8 @@
 .ips4 .ips4-brand span{font-size:9px;display:block;color:var(--gold);letter-spacing:.13em;margin-top:5px}
 .ips4 .ips4-rail-state{display:flex;gap:8px;align-items:center;margin:0 16px 7px;padding:11px 12px;border:1px solid #3c584f;border-radius:9px;background:#152c2c;color:#c9e8d7;font-size:10px;font-weight:800;letter-spacing:.07em}
 .ips4 .ips4-rail-state:before{content:'';width:8px;height:8px;border-radius:100%;background:#88dcb2;box-shadow:0 0 0 4px #23463b}
+.ips4 .ips4-rail-state.degraded{background:#342a24;border-color:#806548;color:#f2d2aa}
+.ips4 .ips4-rail-state.degraded:before{background:#e7b672;box-shadow:0 0 0 4px #5a4330}
 .ips4 .ips4-rail-nav{flex:1;min-height:0;overflow-y:auto;padding:0 12px 22px;scrollbar-color:#39525f transparent;scrollbar-width:thin}
 .ips4 .ips4-nav-section{margin:21px 10px 9px;font-size:9px;font-weight:850;letter-spacing:.17em;color:#899daa}
 .ips4 .ips4-nav-link{display:flex;align-items:center;gap:12px;margin:2px 0;min-height:38px;border-radius:9px;padding:9px 12px;color:#c4d5d8!important;font-weight:600;font-size:12px;border:1px solid transparent}

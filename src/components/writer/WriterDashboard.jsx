@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import DashboardZone from '../common/DashboardZone';
 import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
+import PrivateNotificationInbox from '../common/PrivateNotificationInbox.jsx';
 
 const done = ['Completed', 'Cancelled'];
 
@@ -13,18 +14,28 @@ export default function WriterDashboard() {
   const [filter, setFilter] = useState('attention');
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError,setLoadError]=useState('');
+  const [reload,setReload]=useState(0);
 
-  const load = () => {
-    if (!writer?.writer_id) return setLoading(false);
+  useEffect(()=>{
+    if(!writer?.writer_id){setOrders([]);setServices([]);setLoading(false);return;}
+    const controller=new AbortController();
+    const read=async url=>{
+      const response=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+      if(!response.ok)throw Error('Your authorized assignments are temporarily unavailable.');
+      return response.json();
+    };
+    setOrders([]);setServices([]);setLoading(true);setLoadError('');
     Promise.all([
-      fetch(`/api/orders/writer/${writer.writer_id}`).then(r => r.json()),
-      fetch(`/api/services?provider_id=${writer.writer_id}`).then(r => r.json())
-    ]).then(([a, b]) => {
-      setOrders(a.orders || []);
-      setServices(b.requests || []);
-    }).finally(() => setLoading(false));
-  };
-  useEffect(load, [writer]);
+      read('/api/orders/writer/'+encodeURIComponent(writer.writer_id)),
+      read('/api/services?provider_id='+encodeURIComponent(writer.writer_id))
+    ]).then(([ordersData,servicesData])=>{
+      if(!controller.signal.aborted){setOrders(ordersData.orders||[]);setServices(servicesData.requests||[]);}
+    }).catch(error=>{
+      if(!controller.signal.aborted)setLoadError(error.message||'Could not retrieve assignments.');
+    }).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
+    return()=>controller.abort();
+  },[writer?.writer_id,reload]);
 
   const jobs = useMemo(() => [
     ...services.map(job => ({
@@ -66,6 +77,13 @@ export default function WriterDashboard() {
       </section>
       </DashboardZone>
 
+      {loadError&&<section className="card" role="alert" style={{marginBottom:'1.5rem',borderLeft:'4px solid var(--danger)'}}>
+        <strong>Your assignment data is temporarily unavailable</strong>
+        <p>{loadError}</p>
+        <button type="button" className="btn btn-sm" onClick={()=>setReload(n=>n+1)}>Retry assignments</button>
+      </section>}
+      <PrivateNotificationInbox role="writer" recipientId={writer?.writer_id}/>
+
       <DashboardZone portal="writer" id="attention">
       {attention.length > 0 && <section className="card" style={{ marginBottom: '1.5rem', borderLeft: '5px solid #ee7b54' }}>
         <strong style={{ color: '#b54627' }}>{attention.length} item{attention.length === 1 ? '' : 's'} need your attention</strong>
@@ -75,7 +93,7 @@ export default function WriterDashboard() {
 
       <DashboardZone portal="writer" id="stats">
       <div data-studio-protected="true" data-studio-protected-reason="Live assignment statistics are controlled by authenticated API data, not the page editor." className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
-        {[['All jobs', jobs.length], ['Active', active.length], ['Due soon', dueSoon.length], ['Completed jobs', completedCount]].map(([label, value]) =>
+        {[['All jobs', loading||loadError?'—':jobs.length], ['Active', loading||loadError?'—':active.length], ['Due soon', loading||loadError?'—':dueSoon.length], ['Completed jobs', loading||loadError?'—':completedCount]].map(([label, value]) =>
           <div className="card" key={label}><strong style={{ fontSize: '1.9rem', color: 'var(--primary)' }}>{value}</strong><div>{label}</div></div>
         )}
       </div>
@@ -93,8 +111,8 @@ export default function WriterDashboard() {
           )}
         </div>
         {loading && <p>Loading your work queue...</p>}
-        {!loading && !shown.length && <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nothing in this view.</div>}
-        {shown.map(job => (
+        {!loading && !loadError && !shown.length && <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nothing in this view.</div>}
+        {!loadError && shown.map(job => (
           <Link key={`${job.kind}-${job.id}`} to={job.href} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '1rem 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
             <div><small style={{ color: 'var(--primary)', fontWeight: 800 }}>{job.kind.toUpperCase()} · {job.id}</small><h3 style={{ margin: '.25rem 0' }}>{job.title}</h3><small style={{ color: 'var(--text-muted)' }}>{job.due ? `Due ${new Date(job.due).toLocaleDateString()}` : 'Deadline to be confirmed'}</small></div>
             <div style={{ textAlign: 'right' }}><strong>{job.status}</strong><div>{job.progress || 0}% complete</div></div>

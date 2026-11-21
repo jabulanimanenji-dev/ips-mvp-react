@@ -30,6 +30,14 @@ export function delegatedPermissions(actor,targetLevel,requested){
 export const mayManageTeamMember=(actor,target)=>Boolean(actor&&target&&!target.isRoot&&
   (actor.isRoot?['manager',undefined].includes(target.company_role):actor.companyRole==='manager'&&target.company_role==='staff'&&
     target.department===actor.department&&target.manager_id===actor.adminId));
+// Limit management-facing company structure to the reporting authority held by the viewer.
+// A department manager's private roster is NOT a company-wide leadership register.
+export function managementDepartments(actor){
+  if(actor?.isRoot)return Object.entries(COMPANY_DEPARTMENTS);
+  if(['manager','staff'].includes(actor?.companyRole)&&isCompanyDepartment(actor.department))
+    return [[actor.department,COMPANY_DEPARTMENTS[actor.department]]];
+  return [];
+}
 export const managerTeamTitle=department=>isCompanyDepartment(department)?COMPANY_DEPARTMENTS[department].label:'Unassigned';
 
 export const companyStaffPasswordValid=password=>typeof password==='string'&&password.length>=10&&password.length<=128&&/[A-Z]/.test(password)&&/[0-9]/.test(password)&&/[^A-Za-z0-9]/.test(password);

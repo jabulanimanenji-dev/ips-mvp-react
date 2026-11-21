@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { isStudentSupportRequest } from '../shared/studentOffers.js';
 import {processStudentRefundEvent} from './studentRefunds.js';
 import {paymentLaunchState} from '../shared/paymentLaunch.js';
+import {hasAdminPermission} from '../shared/adminPermissions.js';
 
 const allowedCurrencies = new Set(['usd', 'eur', 'pln']);
 const safeError = error => error instanceof Error ? error.message : 'Unexpected payment error';
@@ -98,7 +99,7 @@ export function registerStudentPaymentRoutes(app, { requireSession, StudentPayme
     try {
       const session = requireSession(req, res);
       if (!session) return;
-      if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+      if (session.role !== 'admin'||!hasAdminPermission(req.adminAccess,'payments.view')) return res.status(403).json({ success: false, error: 'Financial viewing permission required.' });
       const payments = await StudentPayment.find().sort({ createdAt: -1 }).limit(100).select('request_id client_id status currency amount_minor refunded_minor createdAt paid_at provider_payment_intent').lean();
       res.json({ success: true, payments });
     } catch (error) {
@@ -113,7 +114,7 @@ export function registerStudentPaymentRoutes(app, { requireSession, StudentPayme
       if (!session) return;
       const order = await ServiceRequest.findOne({ request_id: req.params.requestId });
       if (!order || !isStudentSupportRequest(order)) return res.status(404).json({ success: false, error: 'Student request not found.' });
-      if (session.role !== 'admin' && !(session.role === 'client' && session.id === order.client_id)) return res.status(403).json({ success: false, error: 'Access denied.' });
+      if (!(session.role === 'admin' && hasAdminPermission(req.adminAccess,'payments.view')) && !(session.role === 'client' && session.id === order.client_id)) return res.status(403).json({ success: false, error: 'Payment records are available only to the customer or authorized finance staff.' });
       const payment = await StudentPayment.findOne({ request_id: order.request_id }).sort({ createdAt: -1 }).lean();
       res.json({ success: true, payment_status: order.payment_status || 'unpaid', payment: payment ? {
         status: payment.status, currency: payment.currency, amount_minor: payment.amount_minor, paid_at: payment.paid_at

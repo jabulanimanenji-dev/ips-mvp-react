@@ -6,6 +6,13 @@ import ContactEnquiry from '../models/ContactEnquiry.js';
 import ServiceRequest from '../models/ServiceRequest.js';
 import StudentPayment from '../models/StudentPayment.js';
 import SpecialistPayout from '../models/SpecialistPayout.js';
+import Admin from '../models/Admin.js';
+import SupportTicket from '../models/SupportTicket.js';
+import CompanyCaseAction from '../models/CompanyCaseAction.js';
+import ChannelContact from '../models/ChannelContact.js';
+import ChannelMessage from '../models/ChannelMessage.js';
+import Notification from '../models/Notification.js';
+import {COMPANY_DEPARTMENTS,permittedCompanyPermissions} from '../shared/companyGovernance.js';
 
 if(process.env.IPS_EVALUATION_MODE!=='true'||process.env.NODE_ENV!=='production')
   throw Error('The isolated evaluation seed must never run outside the production-mode dedicated sandbox.');
@@ -32,8 +39,10 @@ const assignedId='SRV-AABBCCDDEEFF001122';
 const doneId='SRV-112233445566778899';
 const clientPassword=String(process.env.IPS_EVAL_CLIENT_PASSWORD||'');
 const writerPassword=String(process.env.IPS_EVAL_SPECIALIST_PASSWORD||'');
-if(clientPassword.length<12||writerPassword.length<12)
-  throw Error('Both isolated evaluation role passwords must be explicitly configured.');
+const managerPassword=String(process.env.IPS_EVAL_MANAGER_PASSWORD||'');
+const staffPassword=String(process.env.IPS_EVAL_STAFF_PASSWORD||'');
+if([clientPassword,writerPassword,managerPassword,staffPassword].some(password=>password.length<12))
+  throw Error('All four isolated client, specialist, manager and staff passwords must be explicitly configured.');
 await mongoose.connect(uri,{serverSelectionTimeoutMS:10000});
 try{
   await Promise.all([
@@ -129,6 +138,72 @@ try{
       approved_by:'EVALUATION-SYSTEM',approved_at:now
     }},{upsert:true})
   ]);
+  // The company demonstration includes a complete seven-department hierarchy
+  // with one accountable manager per department and actual direct-report staff.
+  // No synthetic account is ever seeded in a persistent or real production DB.
+  const managerId=department=>'ADM-EVAL-MANAGER-'+department.toUpperCase();
+  const staffId=department=>'ADM-EVAL-STAFF-'+department.toUpperCase();
+  await Admin.insertMany(Object.entries(COMPANY_DEPARTMENTS).flatMap(([department,def])=>[
+    {id:managerId(department),name:'Evaluation '+def.label+' Manager',
+      email:'manager.'+department+'@example.org',password:hashPassword(managerPassword),
+      role:'admin',company_role:'manager',department,manager_id:'',
+      email_verified_at:now,status:'Active',must_change_password:false,
+      permissions:permittedCompanyPermissions(department,'manager'),
+      created_by:String(process.env.ADMIN_EMAIL||'')},
+    {id:staffId(department),name:'Evaluation '+def.label+' Employee',
+      email:'staff.'+department+'@example.org',password:hashPassword(staffPassword),
+      role:'admin',company_role:'staff',department,manager_id:managerId(department),
+      email_verified_at:now,status:'Active',must_change_password:false,
+      permissions:permittedCompanyPermissions(department,'staff'),
+      created_by:managerId(department)}
+  ]),{ordered:true});
+  const supportId='SUP-EVAL-SUPPORT-001';
+  await SupportTicket.updateOne({ticket_id:supportId},{$setOnInsert:{
+    ticket_id:supportId,client_id:clientId,client_name:'QuietResearcher',
+    client_email:'client.evaluation@example.org',
+    subject:'Demo: clarification on project feedback',category:'service',
+    priority:'urgent',status:'In Progress',assigned_admin:staffId('client_relations'),
+    messages:[
+      {sender_id:clientId,sender_role:'client',body:'EVALUATION ONLY: I need help understanding the feedback delivery timeline.'},
+      {sender_id:staffId('client_relations'),sender_role:'admin',
+        body:'EVALUATION ONLY: Your request was received and assigned to the Client Relations team.'}
+    ],last_activity_at:now
+  }},{upsert:true});
+  await CompanyCaseAction.updateOne({
+    case_kind:'support',case_ref:supportId,entry_kind:'task',assigned_to:staffId('client_relations')
+  },{$setOnInsert:{
+    case_kind:'support',case_ref:supportId,entry_kind:'task',
+    body:'EVALUATION ONLY: follow up on this test support case and document the resolution.',
+    created_by:managerId('client_relations'),assigned_to:staffId('client_relations'),
+    priority:'urgent',task_status:'open',
+    due_at:new Date(now.getTime()-2*86400000)
+  }},{upsert:true});
+  const chat=await ChannelContact.findOneAndUpdate(
+    {channel:'telegram',external_id:'eval-telegram-contact-1'},
+    {$setOnInsert:{channel:'telegram',external_id:'eval-telegram-contact-1',
+      display_name:'Demo Telegram Contact',verified_at:now,client_id:clientId,
+      last_inbound_at:now,last_message_at:now,status:'open',unread_count:1}},
+    {upsert:true,returnDocument:'after'}
+  );
+  for(const [external_message_id,direction,body] of [
+    ['eval-inbound-1','inbound','EVALUATION ONLY: I would like a private written quotation for research methods coaching.'],
+    ['eval-outbound-1','outbound','EVALUATION ONLY: IPS has received your message. No real Telegram message was sent.']
+  ]){
+    await ChannelMessage.updateOne({channel:'telegram',external_message_id},{$setOnInsert:{
+      contact_id:chat._id,channel:'telegram',external_message_id,direction,body,
+      status:direction==='inbound'?'received':'sent',
+      sent_by:direction==='outbound'?'EVALUATION-SYSTEM':'',provider_at:now
+    }},{upsert:true});
+  }
+  await Notification.insertMany([
+    {recipient_role:'client',recipient_id:clientId,type:'evaluation_notice',
+      message:'EVALUATION ONLY: Your private quotation and project workspace is ready to inspect.'},
+    {recipient_role:'writer',recipient_id:writerId,type:'evaluation_notice',
+      message:'EVALUATION ONLY: Review your synthetic assignment and the governed specialist workspace.'},
+    {recipient_role:'admin',recipient_id:'admin',type:'evaluation_notice',
+      message:'EVALUATION ONLY: Review all seven departments, real cases and task escalation evidence.'}
+  ]);
+  console.log('IPS EVALUATION ONLY: seven demo managers, seven employees, one support case, overdue task and protected Telegram/history are seeded.');
   console.log('IPS EVALUATION ONLY: disposable sample client, approved specialist, written enquiries and managed projects seeded.');
   console.log('IPS EVALUATION ONLY: all settled project and payout records are synthetic; no actual customer payment or delivery occurred.');
 }finally{

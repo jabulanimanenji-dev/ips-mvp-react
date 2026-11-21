@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import DashboardZone from '../common/DashboardZone';
 import ConfigurableActionGroup from '../common/ConfigurableActionGroup';
 import PrivateQuoteInbox from './PrivateQuoteInbox.jsx';
+import PrivateNotificationInbox from '../common/PrivateNotificationInbox.jsx';
 
 const closed = ['Completed', 'Cancelled'];
 const academicLaunch=import.meta.env.VITE_STUDENT_LAUNCH==='true';
@@ -13,17 +14,28 @@ export default function ClientOverviewMongo() {
   const [orders, setOrders] = useState([]);
   const [services, setServices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError,setLoadError]=useState('');
+  const [reload,setReload]=useState(0);
 
-  useEffect(() => {
-    if (!user?.client_id) return setLoading(false);
+  useEffect(()=>{
+    if(!user?.client_id){setOrders([]);setServices([]);setLoading(false);return;}
+    const controller=new AbortController();
+    const read=async url=>{
+      const response=await fetch(url,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+      if(!response.ok)throw Error('Your private project data is temporarily unavailable.');
+      return response.json();
+    };
+    setOrders([]);setServices([]);setLoading(true);setLoadError('');
     Promise.all([
-      fetch(`/api/orders/client/${user.client_id}`).then(r => r.json()),
-      fetch(`/api/services?client_id=${user.client_id}`).then(r => r.json())
-    ]).then(([orderData, serviceData]) => {
-      setOrders(orderData.orders || []);
-      setServices(serviceData.requests || []);
-    }).finally(() => setLoading(false));
-  }, [user]);
+      read('/api/orders/client/'+encodeURIComponent(user.client_id)),
+      read('/api/services?client_id='+encodeURIComponent(user.client_id))
+    ]).then(([orderData,serviceData])=>{
+      if(!controller.signal.aborted){setOrders(orderData.orders||[]);setServices(serviceData.requests||[]);}
+    }).catch(error=>{
+      if(!controller.signal.aborted)setLoadError(error.message||'Could not retrieve your project data.');
+    }).finally(()=>{if(!controller.signal.aborted)setLoading(false);});
+    return()=>controller.abort();
+  },[user?.client_id,reload]);
 
   const activity = useMemo(() => [
     ...services.map(item => ({
@@ -76,15 +88,21 @@ export default function ClientOverviewMongo() {
       </section>
       </DashboardZone>
 
+      {loadError&&<div className="card" role="alert" style={{marginBottom:'1.5rem',borderLeft:'4px solid var(--danger)'}}>
+        <strong>Project records are temporarily unavailable</strong>
+        <p>{loadError}</p>
+        <button type="button" className="btn btn-sm" onClick={()=>setReload(n=>n+1)}>Retry project records</button>
+      </div>}
       <PrivateQuoteInbox />
+      <PrivateNotificationInbox role="client" recipientId={user?.client_id}/>
 
       <DashboardZone portal="client" id="stats">
       <div data-studio-protected="true" data-studio-protected-reason="Private customer metrics are calculated from live account data." className="grid grid-4 gap-4" style={{ marginBottom: '1.5rem' }}>
         {[
-          [academicLaunch?'My projects':'All jobs', activity.length, academicLaunch?'Academic support work and requests':'Across every IPS service'],
-          ['Active', active.length, 'Currently being handled'],
-          ['Quotes waiting', quotes.length, 'Ready for your decision'],
-          ['Completed', completed.length, 'Delivered successfully']
+          [academicLaunch?'My projects':'All jobs', loading||loadError?'—':activity.length, academicLaunch?'Academic support work and requests':'Across every IPS service'],
+          ['Active', loading||loadError?'—':active.length, 'Currently being handled'],
+          ['Quotes waiting', loading||loadError?'—':quotes.length, 'Ready for your decision'],
+          ['Completed', loading||loadError?'—':completed.length, 'Delivered successfully']
         ].map(([label, value, detail]) => (
           <div className="card" key={label}>
             <div style={{ fontSize: '2rem', fontWeight: 850, color: 'var(--primary)' }}>{value}</div>
@@ -142,8 +160,8 @@ export default function ClientOverviewMongo() {
           <ConfigurableActionGroup portal="client" area="activity" actionClassName="btn-sm" />
         </div>
         {loading && <p>Loading your workspace...</p>}
-        {!loading && !activity.length && <p style={{ color: 'var(--text-muted)', padding: '1.5rem 0' }}>No activity yet. Choose a service above to begin.</p>}
-        {activity.slice(0, 7).map(item => (
+        {!loading && !loadError && !activity.length && <p style={{ color: 'var(--text-muted)', padding: '1.5rem 0' }}>No activity yet. Choose a service above to begin.</p>}
+        {!loadError && activity.slice(0, 7).map(item => (
           <Link key={`${item.kind}-${item.id}`} to={item.href} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 16, padding: '1rem 0', borderBottom: '1px solid var(--border)', textDecoration: 'none', color: 'inherit' }}>
             <span><small style={{ color: 'var(--primary)', fontWeight: 800 }}>{academicLaunch&&item.kind==='Professional service'?'ACADEMIC SUPPORT':item.kind.toUpperCase()}</small><br /><strong>{item.title}</strong><br /><small style={{ color: 'var(--text-muted)' }}>{item.id}</small></span>
             <span style={{ textAlign: 'right' }}><strong>{item.status}</strong><br /><small>{item.progress}% complete</small></span>

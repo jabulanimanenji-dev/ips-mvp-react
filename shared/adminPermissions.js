@@ -173,6 +173,9 @@ export const permissionForAdminRequest = (method, path) => {
   }
   if (path.includes('/files')) return mutationPermission(method, 'files.view', 'files.manage');
   if (path.includes('/decisions') || path.includes('/expenses')) return mutationPermission(method, 'actions.view', 'actions.manage');
-  if (path.startsWith('/api/notifications')) return mutationPermission(method, 'messages.view', 'messages.manage');
+  // The notification route separately enforces the exact recipient principal.
+  // Every authenticated company role needs its own dashboard alerts, even if it
+  // has no permission to read or send customer communications.
+  if (path.startsWith('/api/notifications')) return 'dashboard.view';
   return 'platform.access';
 };

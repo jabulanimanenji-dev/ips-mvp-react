@@ -3,14 +3,20 @@ import {Link} from 'react-router-dom';
 
 const accounts=[
   {id:'01',name:'Client / Researcher',role:'CLIENT',route:'/login',
-   email:'client.evaluation@example.org',password:'EvalClient2026!',
-   steps:'Review confidential quotations, request written support, follow managed projects, documents, revisions and transaction history.'},
+   email:'client.evaluation@example.org',
+   steps:'Review private quotations, send written support requests, follow managed projects, files and financial records.'},
   {id:'02',name:'Approved IPS Specialist',role:'SPECIALIST',route:'/writer/login',
-   email:'specialist.evaluation@example.org',password:'EvalSpecialist2026!',
-   steps:'Inspect assigned professional work, management communication, private deliverables, deadlines and payout records.'},
-  {id:'03',name:'IPS Administration',role:'OPERATIONS',route:'/ips-evaluation-ops',
-   email:'admin.evaluation@example.org',password:'EvalAdmin2026!',
-   steps:'Inspect Mission Control, claim enquiries, supervise quotations, approve work, monitor service quality and reconcile finances.'}
+   email:'specialist.evaluation@example.org',
+   steps:'Inspect assigned work, secure work communication, deliverables, service deadlines and settlement history.'},
+  {id:'03',name:'Nyoro · Root Admin',role:'ROOT ADMIN',route:'/ips-evaluation-ops',
+   email:'nyoro.evaluation@example.org',
+   steps:'Inspect all departments, appoint managers, manage company authority, support cases, operations and finance.'},
+  {id:'04',name:'Client Relations Manager',role:'DEPARTMENT MANAGER',route:'/ips-evaluation-ops',
+   email:'manager.client_relations@example.org',
+   steps:'Supervise direct reports, delegate customer cases, manage contact permissions and inspect departmental escalations.'},
+  {id:'05',name:'Client Relations Employee',role:'COMPANY STAFF',route:'/ips-evaluation-ops',
+   email:'staff.client_relations@example.org',
+   steps:'Work within delegated staff authority, manage owned support tickets, and acknowledge personal company alerts.'}
 ];
 export default function EvaluationGateway(){
   if(import.meta.env.VITE_IPS_EVALUATION!=='true')return null;
@@ -26,7 +32,7 @@ export default function EvaluationGateway(){
       <header className="ips-eval-hero">
         <p className="ips-eval-overline">IPS SECURE PLATFORM / LIVE TEST ENVIRONMENT</p>
         <h1>Evaluate the complete working interface.</h1>
-        <p>Explore the three IPS workspaces using independent demonstration accounts. Each role has its own permissions, but every workspace operates through the same managed business application.</p>
+        <p>Explore client, specialist, Root Admin, department manager and employee access. All roles use the same operating backend with distinct permissions. This page intentionally does not reveal account passwords.</p>
       </header>
       <div className="ips-eval-role-grid">
         {accounts.map(account=><section key={account.id} className="ips-eval-role">
@@ -35,7 +41,7 @@ export default function EvaluationGateway(){
           <p>{account.steps}</p>
           <dl className="ips-eval-credentials">
             <dt>Evaluation email</dt><dd>{account.email}</dd>
-            <dt>Test password</dt><dd><code>{account.password}</code></dd>
+            <dt>Access</dt><dd>Use the private evaluation credential pack supplied to the company owner. Credentials are never published here.</dd>
           </dl>
           <Link className="ips-eval-open-link" to={account.route}>Open {account.name} Login <span aria-hidden="true">↗</span></Link>
         </section>)}
@@ -43,12 +49,13 @@ export default function EvaluationGateway(){
       <div className="ips-eval-bottom">
         <section className="ips-eval-instructions">
           <p className="ips-eval-overline">TEST THE REAL WORKFLOW</p>
-          <h2>One company. Three roles.</h2>
+          <h2>One company. Five governance views.</h2>
           <ol>
             <li>Sign in as the client. Read the sample private quotation, associated project and financial history.</li>
             <li>Open IPS Mission Control in a separate private browser session. Inspect the human review queue and supervised service operations.</li>
             <li>Sign in as the specialist in another session. View assignments, private work communication and payment records.</li>
-            <li>Compare the consistent navigation, forms, access boundaries and mobile layouts across each role.</li>
+            <li>Sign in as the department manager, then staff employee, to review assignment, permission and escalation boundaries.</li>
+            <li>Compare navigation, forms, access boundaries, responsiveness and actual data across all five roles.</li>
           </ol>
         </section>
         <aside className="ips-eval-disclosure-small">
