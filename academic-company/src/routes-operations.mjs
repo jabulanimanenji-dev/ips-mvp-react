@@ -35,9 +35,9 @@ export function registerOperationsRoutes(ctx){
   uploadedBy:x.uploadedBy||'',revision:x.revision??0,approved:!!x.approved});
  const visibleFile=(a,p,f)=>{
   if(a.role==='root'||delivery(a))return true;
-  if(a.role==='student'&&a.id===p.studentId)return
+  if(a.role==='student'&&a.id===p.studentId)return (
    f.purpose==='reference'||f.kind==='client_reference'||
-   (f.id===p.releasedFileId&&['client_delivery','completed'].includes(p.status));
+   (f.id===p.releasedFileId&&['client_delivery','completed'].includes(p.status)));
   if(a.role==='specialist'&&a.id===p.specialistId)return true;
   return false;
  };
