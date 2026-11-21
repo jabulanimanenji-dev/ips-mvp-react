@@ -234,7 +234,7 @@ function work(){
  const title=a.role==='root'?'Nyoro · Root Administration':a.role==='student'?
  (state.firstLogin?'Welcome to IPS':'Welcome back')+', '+(a.username||'Student / Researcher'):
  a.role==='specialist'?a.name+' · Academic Specialist':a.name+' · '+(state.catalogue.departments.find(x=>x.id===a.department)?.name||'IPS Team');
- const oversight=state.rootLens?'<div class="root-assist"><div><span class="kicker">NYORO ROOT ADMINISTRATION / ASSISTED WORKSPACE</span><strong>Currently viewing '+e(a.role==='student'?'Student / Researcher':'Academic Specialist')+' · '+e(a.username||a.name)+'</strong><p>Root remains signed in. Every assisted action is attributed to Nyoro. Review-only simulation is allowed for fictional accounts; live client agreements and specialist authorship cannot be forged.</p></div><div class="root-assist-controls"><label class="field">Switch '+e(a.role==='student'?'Student':'Specialist')+' without another login<select data-root-target>'+state.rootLens.directory.map(p=>'<option value="'+e(p.id)+'"'+(p.id===a.id?' selected':'')+'>'+e(p.username||p.name)+' · '+e(p.id)+'</option>').join('')+'</select></label>'+b('Return to Nyoro Root','root-lens-exit','','primary')+'</div></div>':'';
+ const oversight=state.rootLens?'<div class="root-assist"><div><span class="kicker">NYORO ROOT ADMINISTRATION / ASSISTED WORKSPACE</span><strong>Currently viewing '+e(a.role==='student'?'Student / Researcher':'Academic Specialist')+' · '+e(a.username||a.name)+'</strong><p>Operating under Nyoro Root authority. Every assisted action is audited.</p></div><div class="root-assist-controls"><label class="field">Switch '+e(a.role==='student'?'Student':'Specialist')+' without another login<select data-root-target>'+state.rootLens.directory.map(p=>'<option value="'+e(p.id)+'"'+(p.id===a.id?' selected':'')+'>'+e(p.username||p.name)+' · '+e(p.id)+'</option>').join('')+'</select></label>'+b('Return to Nyoro Root','root-lens-exit','','primary')+'</div></div>':'';
  shell('<div class="workspace"><aside class="sidebar"><div class="nav-label">IPS ACADEMIC COMPANY</div>'+tabs.map(t=>navData(t[0],t[1],state.tab)).join('')+
  '<div class="nav-label">YOUR RESPONSIBILITY</div><div class="notice" style="font-size:11px">'+e(a.role==='root'?'The Root Admin has no manager and cannot be deleted by staff.':a.role==='student'?'Your academic enquiries, projects and documents remain private to you and authorized IPS personnel.':a.role==='specialist'?'Only assigned academic work and approved communication are visible to Specialists.':'Your company authority is limited to your assigned department.')+'</div></aside>'+
  '<main class="workmain">'+oversight+'<div class="toolbar">'+b('← Back','back','','back-btn')+'<span class="subtle">'+e(a.role==='root'?'ROOT ADMIN':a.role==='student'?'STUDENT WORKSPACE':a.role==='specialist'?'SPECIALIST WORKSPACE':'IPS TEAM')+' / '+e(state.tab.replaceAll('-',' '))+'</span></div><div class="work-title"><span class="kicker">IPS ACADEMIC SERVICES / '+e(state.tab.toUpperCase())+'</span><h1>'+e(title)+'</h1><p>'+e(a.role==='root'?'Lead academic service operations, qualified Specialists, communications, quality assurance and responsible departments.':
@@ -550,7 +550,7 @@ function render(){
  if(!state.catalogue){root.textContent='IPS Academic Services is loading…';return}
  if(state.rootEntry&&state.account&&state.account.role!=='root')return rootForbidden();
  if(state.rootEntry&&!state.account)return rootLogin();
- if(state.account&&!['quote','services','service','how','privacy'].includes(state.page))return work();
+ if(state.account&&!['quote','services','service','how','privacy','recover'].includes(state.page))return work();
  const params=new URLSearchParams(location.hash.slice(1));
  for(const k of ['verify','recover','invite','guestconfirm'])if(params.has(k)){tokenForm(k);return}
  switch(state.page){case 'services':services();break;case 'service':serviceDetail();break;
@@ -657,7 +657,17 @@ document.addEventListener('submit',async ev=>{
  finally{state.busy=false}
  if(state.account){render()}else{const msg=state.message,err=state.error;render();const container=root.querySelector('.page-intro')||root.querySelector('.hero')||root.querySelector('.auth .page-intro');if(container&&!root.querySelector('.notice.error, .notice.success'))container.insertAdjacentHTML('afterend',err?'<div class="notice error" role="alert">'+e(err)+'</div>':'<div class="notice success" role="status">'+e(msg)+'</div>')}
 });
+function filterDirectory(){
+ const find=(root.querySelector('[data-directory-search]')?.value||'').trim().toLowerCase();
+ const status=root.querySelector('[data-directory-status]')?.value||'all';
+ for(const item of root.querySelectorAll('[data-directory-row]')){
+  item.hidden=!((item.dataset.search||'').toLowerCase().includes(find)&&
+   (status==='all'||item.dataset.status===status));
+ }
+}
+document.addEventListener('input',ev=>{if(ev.target.matches('[data-directory-search]'))filterDirectory()});
 document.addEventListener('change',async ev=>{
+ if(ev.target.matches('[data-directory-status]')){filterDirectory();return}
  const select=ev.target.closest('select[data-root-target]');
  if(!select||!state.rootLens||state.account?.role!=='root')return;
  try{await openRootLens(select.value)}catch(err){state.error=err.message;render()}
