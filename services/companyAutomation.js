@@ -2,7 +2,9 @@ import mongoose from 'mongoose';
 import Admin from '../models/Admin.js';
 import CompanyCaseAction from '../models/CompanyCaseAction.js';
 import Notification from '../models/Notification.js';
-import {isIpsQaFixtureAdmin} from '../shared/ipsCompanyScope.js';
+import ContactEnquiry from '../models/ContactEnquiry.js';
+import SupportTicket from '../models/SupportTicket.js';
+import {isIpsQaFixtureAdmin,isIpsQaFixtureEmail} from '../shared/ipsCompanyScope.js';
 
 // Server-owned, idempotent work escalation. No customer messages or external
 // notifications are sent from this worker without customer-channel consent.
@@ -74,12 +76,68 @@ export async function runCompanyAutomationTick({
   return {scanned:tasks.length,created,escalated,nextCursor};
 }
 
+
+// The Root Admin is alerted when a genuine customer request has no accountable
+// owner. Contact verification and consent are mandatory; we never message an
+// unverified guest or copy private message bodies into an alert.
+export async function runUnownedCaseTick({
+  env=process.env,now=()=>new Date(),limit=MAX_TASKS,cursor=null,
+  enquiryModel=ContactEnquiry,supportModel=SupportTicket,notificationModel=Notification
+}={}){
+  const at=safeDate(now());
+  if(!Number.isFinite(at.getTime()))throw Error('Invalid intake automation clock');
+  if(mongoose.connection.readyState!==1)return {scanned:0,created:0,nextCursor:null,databaseUnavailable:true};
+  const threshold=new Date(at.getTime()-10*60000);
+  const pageLimit=Math.min(MAX_TASKS,Math.max(1,Math.floor(limit)));
+  const after=cursor?.createdAt?new Date(cursor.createdAt):null;
+  const page=cursor&&Number.isFinite(after?.getTime())&&mongoose.isValidObjectId(cursor.id)?
+    {$or:[{createdAt:{$gt:after}},{createdAt:after,_id:{$gt:new mongoose.Types.ObjectId(cursor.id)}}]}:{};
+  // Match only genuinely verified, consented requests and authenticated tickets.
+  const [enquiries,tickets]=await Promise.all([
+    enquiryModel.find({
+      request_type:{$in:['quote','general']},contact_verified:true,contact_consent:true,
+      assigned_admin_id:{$in:['',null]},status:{$in:['new','in_progress']},
+      createdAt:{$lte:threshold},...page
+    }).sort({createdAt:1,_id:1}).limit(pageLimit).lean(),
+    supportModel.find({assigned_admin:{$in:['',null]},status:{$in:['Open','In Progress']},
+      createdAt:{$lte:threshold},...page})
+      .sort({createdAt:1,_id:1}).limit(pageLimit).lean()
+  ]);
+  const items=[...enquiries.map(record=>({kind:'enquiry',record,ref:record.enquiry_id,email:record.email})),
+    ...tickets.map(record=>({kind:'support',record,ref:record.ticket_id,email:record.client_email}))]
+    .sort((a,b)=>new Date(a.record.createdAt)-new Date(b.record.createdAt)||
+      String(a.record._id).localeCompare(String(b.record._id))).slice(0,pageLimit);
+  let created=0;
+  for(const item of items){
+    if(!item.ref||env.NODE_ENV==='production'&&isIpsQaFixtureEmail(item.email))continue;
+    const dedupe_key='ips-unowned/'+item.kind+'/'+String(item.record._id);
+    const result=await notificationModel.updateOne({dedupe_key},{$setOnInsert:{
+      dedupe_key,...rootRecipient,order_id:item.ref,type:'company_case_unowned',
+      message:item.kind==='support'?
+        'An IPS support request is awaiting an accountable employee. Review the protected support desk.':
+        'A verified IPS enquiry is awaiting an accountable reviewer. Open the protected intake desk.',
+      read:false
+    }},{upsert:true});
+    if(result.upsertedCount)created++;
+  }
+  const last=items[items.length-1]?.record;
+  // Keyset cursor advances even if a record was excluded after fixture filtering.
+  const nextCursor=items.length===pageLimit&&last?
+    {createdAt:new Date(last.createdAt).toISOString(),id:String(last._id)}:null;
+  return {scanned:items.length,created,nextCursor};
+}
+
 export function startCompanyAutomationWorker({env=process.env,intervalMs=60000}={}){
   if(!companyAutomationEnabled(env))return null;
-  let busy=false,cursor=null;
+  let busy=false,cursor=null,intakeCursor=null;
   const tick=async()=>{
     if(busy)return;busy=true;
-    try{const result=await runCompanyAutomationTick({env,cursor});cursor=result.nextCursor;}
+    try{
+      const task=await runCompanyAutomationTick({env,cursor});
+      cursor=task.nextCursor;
+      const intake=await runUnownedCaseTick({env,cursor:intakeCursor});
+      intakeCursor=intake.nextCursor;
+    }
     catch(error){console.error('IPS company task automation failed:',error?.name||'error');}
     finally{busy=false;}
   };
