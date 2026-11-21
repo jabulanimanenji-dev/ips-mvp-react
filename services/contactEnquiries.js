@@ -70,9 +70,9 @@ export function validatePublicEnquiry(data){
 const windowMs=15*60*1000;
 const counts=new Map();
 const maxKeys=5000;
-function requestLimited(req){
+function requestLimited(req,scope='general-enquiry'){
   const now=Date.now();
-  const key=crypto.createHash('sha256').update(String(req.ip||req.socket?.remoteAddress||'unknown')).digest('hex');
+  const key=crypto.createHash('sha256').update(scope+'|'+String(req.ip||req.socket?.remoteAddress||'unknown')).digest('hex');
   if(counts.size>=maxKeys){
     for(const [k,record] of counts){if(record.until<=now)counts.delete(k);}
     if(counts.size>=maxKeys)counts.clear(); // never retain IP information long-term
@@ -119,17 +119,36 @@ export function registerEnquiryRoutes(app,{requireSession}){
         messages:[{direction:'inbound',channel:'website',body:c.message,delivery_status:'received',created_at:now}],
         last_activity_at:now
       });
+      let emailDeliveryPending=false;
       if(c.preferred_channel==='email'){
         try{await issueEmailChallenge(lead);}
-        catch(error){return res.status(503).json({success:false,enquiry_id:id,verification_required:true,
-          error:'Enquiry saved, but the verification email failed. Contact IPS with this reference.'});}
+        catch(error){emailDeliveryPending=true;console.error('IPS enquiry verification delivery deferred:',error?.name||'error');}
       }
       res.set('Cache-Control','no-store');
       return res.status(202).json({success:true,enquiry_id:id,
-        verification_required:c.preferred_channel==='email',
+        verification_required:c.preferred_channel==='email',email_delivery_pending:emailDeliveryPending,
         requires_chat_start:c.preferred_channel!=='email',
-        message:'Enquiry saved, but IPS needs to verify your selected written contact channel before responding.'});
+        message:emailDeliveryPending?
+          'Your enquiry was saved. Email delivery is temporarily unavailable; request a new verification link using this reference rather than submitting again.':
+          'Enquiry saved. Open the emailed verification link to complete contact proof automatically before IPS responds.'});
     }catch(error){console.error('Public enquiry storage failed:',error?.name||'error');return res.status(503).json({success:false,error:'Your enquiry was not saved. Please use WhatsApp instead.'});}
+  });
+  app.post('/api/contact-enquiries/resend-verification',async(req,res)=>{
+    if(!matchesOrigin(req))return res.status(403).json({success:false,error:'Submit from the IPS website.'});
+    if(requestLimited(req,'enquiry-reissue'))return res.status(429).json({success:false,error:'Please wait before requesting another link.'});
+    const id=String(req.body?.enquiry_id||''),email=normalizeEmail(req.body?.email);
+    if(!/^ENQ-[A-F0-9]{18}$/.test(id)||!validEmail(email))
+      return res.status(400).json({success:false,error:'Enter your saved enquiry reference and contact email.'});
+    if(!verificationAvailable())return res.status(503).json({success:false,error:'Verification email is temporarily unavailable.'});
+    try{
+      const lead=await ContactEnquiry.findOne({enquiry_id:id,email,request_type:'general',
+        preferred_channel:'email',contact_verified:false})
+        .select('+verification_hash +verification_expires_at +verification_attempts +verification_sent_at');
+      if(lead)try{await issueEmailChallenge(lead);}
+      catch(error){if(error?.status!==429)return res.status(503).json({success:false,error:'IPS could not send the verification email. Your saved request remains available.'});}
+      res.set('Cache-Control','no-store');
+      return res.status(202).json({success:true,message:'If the pending enquiry matches this mailbox, IPS will send another private verification link when permitted by the cooldown.'});
+    }catch{return res.status(503).json({success:false,error:'Verification delivery is temporarily unavailable.'});}
   });
   app.post('/api/contact-enquiries/verify-email',async(req,res)=>{
     const id=String(req.body?.enquiry_id||''),code=String(req.body?.code||'');
