@@ -288,13 +288,14 @@ async function loadTab(){
      b('Manage Specialists','tab-specialists')+b('Team','tab-workforce')+'</div>'):'')+'</div>';
  }else if(tab==='inbox'){
   const d=await api('/operations/inbox');
-  html=panel('Inbox & conversations','Academic enquiries, job messages, support and direct company correspondence.',
+  if(state.opened?.startsWith('DM-'))html=await dmDetail(state.opened,a);
+  else html=panel('Inbox & conversations','Academic enquiries, job messages, support and direct company correspondence.',
    d.inbox.length?'<div class="small-list">'+d.inbox.slice(0,120).map(x=>
     '<article class="inbox-row"><div><span class="kicker">'+e(x.type)+' · '+e(x.service||'IPS')+'</span>'+
     '<h3>'+e(x.subject||'Academic case')+'</h3><p>'+e(x.id)+' · '+date(x.updatedAt)+'</p></div>'+
     '<div class="case-actions">'+stat(x.status)+b('Open','inbox-open',x.type+'::'+x.id,'primary')+'</div></article>').join('')+'</div>':
    empty('Nothing waiting in your IPS inbox. New written correspondence will appear here.'))+
-   (state.opened?.startsWith('DM-')?await dmDetail(state.opened,a):'');
+   '';
  }else if(tab==='queues'){
   const d=await api('/administration/queues');
   html=panel('Department queue','Only tasks needing an IPS response appear here.',
@@ -304,7 +305,8 @@ async function loadTab(){
       b('Open work','queue-open',x.id))).join(''):empty('Nothing waiting in this queue.'))+'</section>').join('')+'</div>':empty('No pending tasks for this department.'));
  }else if(tab==='quotes'){
   const d=await api('/academic/quotes');
-  html=(a.role==='student'?panel('New academic request','',
+  if(state.opened)html=await quoteDetail(d.quotes.find(q=>q.id===state.opened),a);
+  else html=(a.role==='student'?panel('New academic request','',
    '<div class="case-actions">'+(canSimulate?buttonRoute('Request a quotation','quote','primary'):'')+
    (!rootAssisted?form('claim-quote',field('Existing enquiry reference','reference','text','IPS-Q-…'),'Link existing enquiry'):'')+
    '</div>'):'')+
@@ -318,18 +320,19 @@ async function loadTab(){
        b('Send quotation','offer-form',q.id):'')+
       b('Open enquiry & messages','quote-detail',q.id))).join('')+'</div>':
      empty('No academic enquiries yet.'))+
-    (state.opened?await quoteDetail(d.quotes.find(q=>q.id===state.opened),a):'');
+    '';
  }else if(tab==='commissions'||tab==='quality'){
   const d=await api('/academic/commissions');
   const items=tab==='quality'?d.commissions.filter(x=>['qa_pending','correction_requested','client_delivery'].includes(x.status)):d.commissions;
-  html=panel(tab==='quality'?'Quality review':'Academic jobs',
+  if(state.opened)html=await commissionDetail(items.find(p=>p.id===state.opened),a);
+  else html=panel(tab==='quality'?'Quality review':'Academic jobs',
    'Open any job to manage its messages, instructions, assigned work and files.',
    items.length?'<div class="small-list">'+items.map(p=>record(
      p.subject+' · '+p.serviceName,
      'Updated '+date(p.updatedAt),p.id,p.status,
      b('Open job','commission-open',p.id,'primary'))).join('')+'</div>':
      empty('No academic jobs in this view.'))+
-   (state.opened?await commissionDetail(items.find(p=>p.id===state.opened),a):'');
+   '';
  }else if(['students','specialists','root-students','root-specialists','workforce'].includes(tab)){
   const d=await api('/administration/people');
   const role=tab==='root-students'||tab==='students'?'student':
@@ -362,16 +365,18 @@ async function loadTab(){
    (!rootLensList&&canSuspend(a,p)?b('Suspend','person-suspend',p.id,'small danger'):'')+
    (!rootLensList&&p.status==='suspended'&&a.role==='root'?b('Reactivate','person-reactivate',p.id,'small'):'')+
    '</div></td></tr>').join('')+'</tbody></table></div>':empty('No accounts found.')))+
-   (a.role==='root'&&state.opened?.startsWith('DMTO:')?directCompose(state.opened.slice(5),people):'');
+   '';
+  if(a.role==='root'&&state.opened?.startsWith('DMTO:'))html=directCompose(state.opened.slice(5),people);
  }else if(tab==='support'){
   const d=await api('/support');
-  html=(['student','specialist'].includes(a.role)&&canSimulate?
+  if(state.opened)html=supportDetail(d.tickets.find(t=>t.id===state.opened));
+  else html=(['student','specialist'].includes(a.role)&&canSimulate?
    panel('Ask IPS for help','',
    form('support',field('Subject','subject')+textarea('Message','message','What do you need help with?'),'Send message')):'')+
    panel('Support conversations','',d.tickets.length?'<div class="small-list">'+d.tickets.map(t=>
     record(t.subject,t.replies?.at(-1)?.message,t.id,t.status,b('Open conversation','support-open',t.id))).join('')+'</div>':
     empty('No support cases yet.'))+
-   (state.opened?supportDetail(d.tickets.find(t=>t.id===state.opened)):'');
+   '';
  }else if(tab==='profile'){
   html=panel('Account & preferences','',
    '<p><strong>'+e(a.username||a.name)+'</strong> · '+e(a.email)+'</p>'+
