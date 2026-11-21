@@ -432,8 +432,10 @@ function canApprove(a,p){return p.role==='specialist'&&p.status==='pending_revie
 function canSuspend(a,p){return p.status==='active'&&(a.role==='root'||(a.role==='manager'&&p.role==='staff'&&p.managerId===a.id))}
 async function quoteDetail(q,a){
  if(!q)return '';
- const d=await api('/academic/quotes/'+encodeURIComponent(q.id)+'/messages');
- const manager=['root','manager','staff'].includes(a.role);
+ const [d,docs]=await Promise.all([
+  api('/academic/quotes/'+encodeURIComponent(q.id)+'/messages'),
+  api('/academic/quotes/'+encodeURIComponent(q.id)+'/files')]);
+ const manager=state.account?.role==='root'||['root','manager','staff'].includes(a.role);
  const thread='<div class="messages">'+(d.messages.length?d.messages.map(m=>
   '<article class="message"><small>'+e(m.actorRole==='root'?'Nyoro · IPS':m.actorRole==='student'?'Student / Researcher':'IPS team')+
   ' · '+date(m.createdAt)+'</small><p>'+e(m.body)+'</p></article>').join(''):
@@ -442,6 +444,16 @@ async function quoteDetail(q,a){
   '<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
   (manager?options('Recipient','audience',[['student','Student / Researcher'],['internal','Internal IPS note']]):'')+
   textarea('Write a reply','body','Ask a question or reply in writing'),'Send message');
+ const docRows=(docs.files||[]).map(f=>'<article class="file-item"><div><strong>'+
+  e(f.filename)+'</strong><small>'+e(f.audience==='internal'?'Internal IPS document':'Academic enquiry document')+
+  ' · '+date(f.createdAt)+'</small></div><a href="/api/academic/quote-files/'+
+  encodeURIComponent(f.id)+'" download>Download ↓</a></article>').join('');
+ const docsPanel=panel('Supporting documents','Attach your instructions, institution guidelines or reference drafts before the quotation is agreed.',
+  '<div class="file-tray">'+(docRows||empty('No supporting documents yet.'))+'</div>'+
+  form('quote-upload','<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
+   (manager?options('Document audience','audience',[['student','Student / Researcher'],['internal','IPS internal']]):'')+
+   field('PDF, DOCX or TXT (up to 5 MB)','upload','file','','true'),
+   'Upload document'));
  const summary='<div class="case-summary"><div class="kicker">ENQUIRY / '+e(q.id)+'</div><h3>'+
    e(q.subject)+'</h3><p>'+e(q.requirements)+'</p><div class="separator"></div>'+
    '<div class="case-flow"><span>'+e(q.academicLevel)+'</span><span>'+e(q.serviceName)+'</span>'+
@@ -452,7 +464,7 @@ async function quoteDetail(q,a){
    (q.terms?'<p><strong>Terms:</strong> '+e(q.terms)+'</p>':'')+
    '<div class="case-actions">'+b('Close enquiry','close-case')+'</div></div>';
  return '<section class="mt"><div class="section-head"><h2>Enquiry & written conversation</h2></div>'+
- '<div class="case-layout">'+summary+'<section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
+ '<div class="case-layout"><div>'+summary+docsPanel+'</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
 }
 async function commissionDetail(p,a){
  if(!p)return '';
@@ -598,9 +610,15 @@ async function submit(name,formNode){
  if(name==='resend-verification'){await api('/auth/resend-verification',{method:'POST',body:data});state.page='login';return 'If verification is pending, IPS has emailed a new link.'}
  if(name==='recover'||name==='invite'){if(data.password!==data.confirmPassword)throw Error('Passwords do not match.');
   const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
+ if(name==='quote-upload'){
+  const payload=await filePayload(formNode);
+  await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/files',
+   {method:'POST',operator:state.account?.role==='root',body:{...payload,audience:data.audience||'student'}});
+  return 'Supporting academic document attached to this enquiry.';
+ }
  if(name==='quote-message'){
   await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/messages',
-   {method:'POST',body:{body:data.body,audience:data.audience||'student'}});
+   {method:'POST',operator:state.account?.role==='root',body:{body:data.body,audience:data.audience||'student'}});
   return 'Message added to the academic enquiry.';
  }
  if(name==='case-upload'){
