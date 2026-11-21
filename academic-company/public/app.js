@@ -318,6 +318,8 @@ async function loadTab(){
        ['root','manager'].includes(a.role)&&q.status==='received'?
        b('Review','scope-form',q.id):['root','manager'].includes(a.role)&&q.status==='scoped'?
        b('Send quotation','offer-form',q.id):'')+
+      (!q.assignedTo&&['received','clarify','scoped'].includes(q.status)&&
+       a.role==='staff'&&a.department==='client_relations'?b('Claim enquiry','quote-claim',q.id):'')+
       b('Open enquiry & messages','quote-detail',q.id))).join('')+'</div>':
      empty('No academic enquiries yet.'))+
     '';
@@ -506,6 +508,25 @@ async function quoteDetail(q,a){
     textarea('Quotation terms','terms','Scope, deadlines and revisions')+
     field('Offer valid until','expires','date','',false),
     'Send quotation',' data-id="'+e(q.id)+'"')):'';
+ const authorizedIntake=!state.rootLens&&(a.role==='root'||a.role==='manager'&&a.department==='client_relations');
+ let ownershipPanel='';
+ if(!state.rootLens&&['root','manager','staff'].includes(a.role)&&
+  (a.role==='root'||a.department==='client_relations')){
+  const claimable=!q.assignedTo&&['received','clarify','scoped'].includes(q.status);
+  const current='<p><strong>Accountable employee:</strong> '+e(q.assignedTo||'Unassigned')+'</p>';
+  if(authorizedIntake){
+   const people=(await api('/administration/people',{operator:true})).people.filter(p=>
+    ['manager','staff'].includes(p.role)&&p.department==='client_relations'&&p.status==='active');
+   ownershipPanel=panel('Academic enquiry ownership','Every request has a responsible Client Relations employee. Reassignment is audited.',
+    current+(claimable?b('Claim this enquiry','quote-claim',q.id,'small'):'')+
+    (people.length?form('quote-assign',
+     '<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
+     options('Assign to Client Relations','assigneeId',people.map(p=>[p.id,p.name||p.email]))+
+     textarea('Reason for assignment or handoff','reason','Document who is responsible and why'),
+     'Assign accountable employee'):empty('Invite a verified Client Relations employee before allocating this enquiry.')));
+  }else ownershipPanel=panel('Academic enquiry ownership','',current+
+    (claimable?b('Claim this enquiry','quote-claim',q.id,'small primary'):''));
+ }
  const summary='<div class="case-summary"><div class="kicker">ENQUIRY / '+e(q.id)+'</div><h3>'+
    e(q.subject)+'</h3><p>'+e(q.requirements)+'</p><div class="separator"></div>'+
    '<div class="case-flow"><span>'+e(q.academicLevel)+'</span><span>'+e(q.serviceName)+'</span>'+
@@ -516,7 +537,7 @@ async function quoteDetail(q,a){
    (q.terms?'<p><strong>Terms:</strong> '+e(q.terms)+'</p>':'')+
    decisionActions+'<div class="case-actions">'+b('← Back to quotations','close-case')+'</div></div>';
  return '<section class="mt"><div class="section-head"><h2>Enquiry & written conversation</h2></div>'+
- '<div class="case-layout"><div>'+summary+adminActions+docsPanel+'</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
+ '<div class="case-layout"><div>'+summary+ownershipPanel+adminActions+docsPanel+'</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
 }
 async function commissionDetail(p,a){
  if(!p)return '';
@@ -709,6 +730,12 @@ async function submit(name,formNode){
  }
  if(name==='claim-quote'){await api('/academic/quotes/claim',{method:'POST',body:data});return 'Your previously verified guest academic enquiry is now attached to your account.'}
  if(name==='staff-invite'){await api('/administration/invite',{method:'POST',body:data});return 'IPS sent a secure department invitation.'}
+ if(name==='quote-assign'){
+  await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/assign',
+   {method:'POST',operator:state.account?.role==='root',
+    body:{assigneeId:data.assigneeId,reason:data.reason}});
+  return 'Client Relations ownership handoff recorded and responsible employee notified.';
+ }
  if(name==='scope'){await api('/academic/quotes/'+encodeURIComponent(id)+'/scope',{method:'POST',operator:state.account?.role==='root',body:data});return 'Academic scope decision has been recorded.'}
  if(name==='offer'){data.priceMinor=Math.round(Number(data.pricePLN)*100);delete data.pricePLN;
   await api('/academic/quotes/'+encodeURIComponent(id)+'/offer',{method:'POST',operator:state.account?.role==='root',body:data});return 'Reviewed academic quotation issued in writing.'}
@@ -802,6 +829,11 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
    const decision=act==='quote-accept'?'accept':'decline';
    const r=await api('/academic/quotes/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});
    state.message=decision==='accept'?'Your quotation is accepted. IPS will tell you when verified payment commissioning becomes available.':'Your quotation has been declined.';}
+  else if(act==='quote-claim'){
+   await api('/academic/quotes/'+encodeURIComponent(id)+'/claim',
+    {method:'POST',operator:state.account?.role==='root',body:{}});
+   state.message='You are now accountable for this academic enquiry.';
+  }
   else if(['person-recover','person-approve','person-suspend','person-reactivate'].includes(act)){
    if(act==='person-recover'){await api('/administration/people/'+encodeURIComponent(id)+'/send-recovery',{method:'POST'});state.message='IPS emailed a secure recovery link to the account owner.'}
    else{const decision=act==='person-approve'?'approve_specialist':act==='person-reactivate'?'reactivate':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
