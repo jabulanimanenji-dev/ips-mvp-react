@@ -59,7 +59,7 @@ async function api(endpoint,{method='GET',body,operator=false}={}){
  return data;
 }
 const PHOTO_LIBRARY='https://images.unsplash.com/photo-1629050290461-283e7bd7805f?auto=format&fit=crop&w=1400&q=82';
-const PHOTO_DESK='https://images.unsplash.com/photo-1769794371055-54436b54577e?auto=format&fit=crop&w=1100&q=80';
+const PHOTO_DESK='https://images.unsplash.com/photo-1769794370964-78412732f1cd?auto=format&fit=crop&w=1100&q=80';
 function academicCard(s,i){
  return '<article class="service-card"><span class="service-code">ACADEMIC SERVICE / '+String(i+1).padStart(2,'0')+'</span>'+
  '<h3>'+e(s.title)+'</h3><p>'+e(s.subtitle)+'</p><div class="card-footer">'+b('View service','service',s.id,'small quiet')+'</div></article>';
