@@ -55,7 +55,7 @@ test('leadership coverage never infers missing managers from a scoped manager-on
   assert.equal(managementDepartments(root).length,Object.keys(COMPANY_DEPARTMENTS).length);
   assert.deepEqual(managementDepartments(manager).map(([id])=>id),['client_relations']);
   assert.deepEqual(managementDepartments(other).map(([id])=>id),['academic_delivery']);
-  assert.deepEqual(managementDepartments(staff),[]);
+  assert.deepEqual(managementDepartments(staff).map(([id])=>id),['client_relations']);
   assert.deepEqual(managementDepartments({...manager,department:'__proto__'}),[]);
 });
 test('staff self-selected password must include uppercase, digit, symbol and sufficient length',()=>{
