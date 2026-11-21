@@ -145,7 +145,7 @@ function quote(){
 }
 function auth(title,subtitle,formContent,extras=''){
  shell('<main class="auth">'+intro('SECURE IPS ACADEMIC ACCESS',title,subtitle)+flash()+
- panel('Private account','IPS never asks you to share a password with its staff.',formContent+extras)+'</main>');
+ panel('Secure sign-in','',formContent+extras)+'</main>');
 }
 function login(){state.page='login';auth('Welcome back','Sign in to your Student / Researcher, Specialist or authorized IPS staff workspace.',
  form('login',field('Verified email address','email','email','you@example.com')+field('Password','password','password'),'Open my IPS workspace'),
@@ -236,7 +236,7 @@ function work(){
  a.role==='specialist'?a.name+' · Academic Specialist':a.name+' · '+(state.catalogue.departments.find(x=>x.id===a.department)?.name||'IPS Team');
  const oversight=state.rootLens?'<div class="root-assist"><div><span class="kicker">NYORO ROOT ADMINISTRATION / ASSISTED WORKSPACE</span><strong>Currently viewing '+e(a.role==='student'?'Student / Researcher':'Academic Specialist')+' · '+e(a.username||a.name)+'</strong><p>Operating under Nyoro Root authority. Every assisted action is audited.</p></div><div class="root-assist-controls"><label class="field">Switch '+e(a.role==='student'?'Student':'Specialist')+' without another login<select data-root-target>'+state.rootLens.directory.map(p=>'<option value="'+e(p.id)+'"'+(p.id===a.id?' selected':'')+'>'+e(p.username||p.name)+' · '+e(p.id)+'</option>').join('')+'</select></label>'+b('Return to Nyoro Root','root-lens-exit','','primary')+'</div></div>':'';
  shell('<div class="workspace"><aside class="sidebar"><div class="nav-label">IPS ACADEMIC COMPANY</div>'+tabs.map(t=>navData(t[0],t[1],state.tab)).join('')+
- '<div class="nav-label">YOUR RESPONSIBILITY</div><div class="notice" style="font-size:11px">'+e(a.role==='root'?'The Root Admin has no manager and cannot be deleted by staff.':a.role==='student'?'Your academic enquiries, projects and documents remain private to you and authorized IPS personnel.':a.role==='specialist'?'Only assigned academic work and approved communication are visible to Specialists.':'Your company authority is limited to your assigned department.')+'</div></aside>'+
+ '</aside>'+
  '<main class="workmain">'+oversight+'<div class="toolbar">'+b('← Back','back','','back-btn')+'<span class="subtle">'+e(a.role==='root'?'ROOT ADMIN':a.role==='student'?'STUDENT WORKSPACE':a.role==='specialist'?'SPECIALIST WORKSPACE':'IPS TEAM')+' / '+e(state.tab.replaceAll('-',' '))+'</span></div><div class="work-title"><span class="kicker">IPS ACADEMIC SERVICES / '+e(state.tab.toUpperCase())+'</span><h1>'+e(title)+'</h1><p>'+e(a.role==='root'?'Lead academic service operations, qualified Specialists, communications, quality assurance and responsible departments.':
  a.role==='student'?'Your confidential academic support, reviewed quotations and secure work history.':
  a.role==='specialist'?'Your professional academic assignments, approvals, submissions and IPS coordination.':
