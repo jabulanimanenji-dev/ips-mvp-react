@@ -320,7 +320,8 @@ export function registerAcademicRoutes(ctx){
   if(!file)return res.status(404).json({error:'No such academic document.'});
   const p=await db.projects.findOne({id:file.commissionId});
   if(!p||!canSee(req.actor,p))return denial(res);
-  if(studentOwner(req.actor,p)&&(!['client_delivery','completed'].includes(p.status)||file.id!==p.releasedFileId))return denial(res);
+  if(studentOwner(req.actor,p)&&!(file.purpose==='reference'||file.kind==='client_reference')&&
+   (!['client_delivery','completed'].includes(p.status)||file.id!==p.releasedFileId))return denial(res);
   res.setHeader('Cache-Control','private,no-store');
   res.setHeader('Content-Type',file.mime);
   res.setHeader('Content-Disposition','attachment; filename="'+file.filename+'"');
@@ -345,7 +346,11 @@ export function registerAcademicRoutes(ctx){
   const body=String(req.body?.body||'').trim(),a=req.actor;
   if(body.length<2||body.length>3500)return res.status(400).json({error:'Write a clear confidential message, no more than 3,500 characters.'});
   let audience;
-  if(a.role==='student')audience='student';
+  if(req.rootOperatorId){
+   audience=String(req.body?.audience||'');
+   if(!['student','specialist','shared'].includes(audience))
+    return res.status(400).json({error:'Nyoro must choose an explicit recipient when assisting another workspace.'});
+  }else if(a.role==='student')audience='student';
   else if(a.role==='specialist')audience='specialist';
   else{
    audience=String(req.body?.audience||'');
@@ -358,7 +363,7 @@ export function registerAcademicRoutes(ctx){
    ...(req.rootOperatorId?{assistedAccountId:a.id,rootAssisted:true}:{}),
    audience,body,createdAt:now(),channel:'ips_workspace'};
   await db.messages.insertOne(item);
-  if(['student','specialist'].includes(a.role))await notify(rootEmail,'Written academic coordination message for '+p.id,'communications');
+  if(['student','specialist'].includes(a.role)&&!req.rootOperatorId)await notify(rootEmail,'Written academic coordination message for '+p.id,'communications');
   else if(audience==='student')await notify(p.studentId,'IPS replied to your academic commission '+p.id,'communications');
   else if(audience==='specialist')await notify(p.specialistId,'IPS replied about your assignment '+p.id,'communications');
   else{await notify(p.studentId,'IPS updated your academic case '+p.id,'communications');
