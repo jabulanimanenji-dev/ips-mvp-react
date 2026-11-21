@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,backStack:[],isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],telegramLinkUrl:''};
+ message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],telegramLinkUrl:''};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
@@ -279,6 +279,36 @@ const realActivityChart=metrics=>{
  '<text x="'+(x+30)+'" y="202" text-anchor="middle" fill="#d7e4e7" font-size="12">'+label+'</text>'}).join('')+'</svg></section>';
 };
 const kpi=(name,count,sub)=>'<div class="metric"><span>'+e(name)+'</span><strong>'+e(count)+'</strong><small>'+e(sub)+'</small></div>';
+// Busy company inboxes remain searchable and paginated without lost keyboard focus.
+const workListTools=(items)=>'<div class="worklist-tools"><label class="field">Search this worklist'+
+ '<input type="search" data-work-search placeholder="Search case, person, service or department" autocomplete="off"></label>'+
+ '<label class="field">Filter status<select data-work-status><option value="all">All statuses</option>'+
+ [...new Set(items.map(x=>String(x.status||'pending')))].sort().map(x=>
+ '<option value="'+e(x)+'">'+e(x.replaceAll('_',' '))+'</option>').join('')+
+ '</select></label><span class="worklist-count" data-work-count aria-live="polite"></span></div>';
+const workListPager=()=>'<div class="worklist-pager"><span class="worklist-count" data-work-page></span>'+
+ b('Previous page','work-prev','','quiet')+b('Next page','work-next','','quiet')+'</div>';
+function filterWorklist(reset=false){
+ const box=root.querySelector('[data-work-search]');if(!box)return;
+ if(reset)state.workPage=0;
+ const term=box.value.trim().toLowerCase();
+ const status=root.querySelector('[data-work-status]')?.value||'all';
+ const rows=[...root.querySelectorAll('[data-work-row]')],per=14;
+ const matches=rows.filter(x=>(!term||(x.dataset.workSearch||'').toLowerCase().includes(term))&&
+  (status==='all'||x.dataset.workStatus===status));
+ const pages=Math.max(1,Math.ceil(matches.length/per));
+ state.workPage=Math.min(state.workPage,pages-1);
+ const visible=new Set(matches.slice(state.workPage*per,(state.workPage+1)*per));
+ for(const row of rows)row.hidden=!visible.has(row);
+ const first=matches.length?state.workPage*per+1:0,last=Math.min(matches.length,(state.workPage+1)*per);
+ const count=root.querySelector('[data-work-count]');
+ if(count)count.textContent='Showing '+first+'–'+last+' of '+matches.length+' matching · '+rows.length+' total';
+ const page=root.querySelector('[data-work-page]');
+ if(page)page.textContent='Page '+(state.workPage+1)+' of '+pages;
+ const prev=root.querySelector('[data-action=work-prev]'),next=root.querySelector('[data-action=work-next]');
+ if(prev)prev.disabled=state.workPage===0;
+ if(next)next.disabled=state.workPage>=pages-1;
+}
 const record=(heading,desc,id,stage,buttons='')=>'<article class="record"><div><h3>'+e(heading)+'</h3><p>'+e(short(desc))+'</p><small class="subtle">'+e(id)+'</small></div><aside>'+stat(stage)+buttons+'</aside></article>';
 async function loadTab(){
  const a=state.rootLens?.account||state.account,tab=state.tab;
@@ -318,20 +348,30 @@ async function loadTab(){
   }
   if(state.opened?.startsWith('TG:'))html=await telegramDetail(state.opened.slice(3));
   else if(state.opened?.startsWith('DM-'))html=await dmDetail(state.opened,a);
-  else html=panel('Inbox & conversations','Academic enquiries, job messages, support and direct company correspondence.',
-   d.inbox.length?'<div class="small-list">'+d.inbox.slice(0,120).map(x=>
-    '<article class="inbox-row"><div><span class="kicker">'+e(x.type)+' · '+e(x.service||'IPS')+'</span>'+
+  else html=panel('Inbox & conversations','Search and handle private academic enquiries, support, job conversations and verified written channels.',
+   d.inbox.length?workListTools(d.inbox)+
+   '<div class="small-list worklist-rows">'+d.inbox.map(x=>
+    '<article class="inbox-row" data-work-row data-work-status="'+e(x.status||'pending')+
+    '" data-work-search="'+e([x.type,x.id,x.service,x.subject,x.status].filter(Boolean).join(' '))+'">'+
+    '<div><span class="kicker">'+e(x.type)+' · '+e(x.service||'IPS')+'</span>'+
     '<h3>'+e(x.subject||'Academic case')+'</h3><p>'+e(x.id)+' · '+date(x.updatedAt)+'</p></div>'+
-    '<div class="case-actions">'+stat(x.status)+b('Open','inbox-open',x.type+'::'+x.id,'primary')+'</div></article>').join('')+'</div>':
-   empty('Nothing waiting in your IPS inbox. New written correspondence will appear here.'))+
-   '';
+    '<div class="case-actions">'+stat(x.status)+b('Open','inbox-open',x.type+'::'+x.id,'primary')+
+    '</div></article>').join('')+'</div>'+workListPager():
+   empty('Nothing waiting in your IPS inbox. New written correspondence will appear here.'));
  }else if(tab==='queues'){
   const d=await api('/administration/queues');
-  html=panel('Department queue','Only tasks needing an IPS response appear here.',
-   d.queues.length?'<div class="small-list">'+d.queues.map(q=>
-    '<section class="panel"><h3>'+e(q.name)+' · '+q.count+'</h3>'+
-    (q.items.length?q.items.map(x=>record(x.service+' · '+x.subject,'',x.id,x.stage,
-      b('Open work','queue-open',x.id))).join(''):empty('Nothing waiting in this queue.'))+'</section>').join('')+'</div>':empty('No pending tasks for this department.'));
+  const rows=d.queues.flatMap(q=>q.items.map(x=>({...x,departmentName:q.name,
+   status:x.stage||'pending'})));
+  html=panel('Department queues','A searchable company-wide responsibility queue with actual ownership and case status.',
+   rows.length?workListTools(rows)+
+   '<div class="small-list worklist-rows">'+rows.map(x=>
+    '<article class="inbox-row" data-work-row data-work-status="'+e(x.status)+
+    '" data-work-search="'+e([x.departmentName,x.service,x.subject,x.id,x.stage].filter(Boolean).join(' '))+'">'+
+    '<div><span class="kicker">'+e(x.departmentName)+'</span>'+
+    '<h3>'+e((x.service||'Academic case')+' · '+(x.subject||'Case needing attention'))+'</h3><p>'+e(x.id)+'</p></div>'+
+    '<div class="case-actions">'+stat(x.status)+b('Open work','queue-open',x.id,'primary')+
+    '</div></article>').join('')+'</div>'+workListPager():
+   empty('No pending tasks for this department.'));
  }else if(tab==='quotes'){
   const d=await api('/academic/quotes');
   if(state.opened)html=await quoteDetail(d.quotes.find(q=>q.id===state.opened),a);
@@ -577,7 +617,7 @@ async function loadTab(){
      '<p>No permanently failed email notifications.</p>'));
   }
  }
- const current=root.querySelector('#workbody');if(current)current.innerHTML=html;
+ const current=root.querySelector('#workbody');if(current){current.innerHTML=html;filterWorklist();}
  }catch(err){const current=root.querySelector('#workbody');if(current)current.innerHTML='<div class="notice error" role="alert">'+e(err.message)+'</div>'}
 }
 function directCompose(id,people){
@@ -1116,9 +1156,10 @@ function filterDirectory(){
    (status==='all'||item.dataset.status===status));
  }
 }
-document.addEventListener('input',ev=>{if(ev.target.matches('[data-directory-search]'))filterDirectory()});
+document.addEventListener('input',ev=>{if(ev.target.matches('[data-directory-search]'))filterDirectory();if(ev.target.matches('[data-work-search]'))filterWorklist(true)});
 document.addEventListener('change',async ev=>{
  if(ev.target.matches('[data-directory-status]')){filterDirectory();return}
+ if(ev.target.matches('[data-work-status]')){filterWorklist(true);return}
  const select=ev.target.closest('select[data-root-target]');
  if(!select||!state.rootLens||state.account?.role!=='root')return;
  try{await openRootLens(select.value)}catch(err){state.error=err.message;render()}
@@ -1131,8 +1172,13 @@ document.addEventListener('click',async ev=>{
   remember();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
   if(state.account&&['home','services','quote','how','privacy'].includes(dest)){if(state.rootLens&&dest==='quote'&&!state.isEvaluation){state.error='Real client quote authorization must come from the account holder.';render();return}state.page=dest==='home'?'services':dest;render();return}
   state.page=dest;state.registerRole=dest==='specialist'?'specialist':dest==='register'?'student':state.registerRole;render();return}
- if(tab){remember();state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
- if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;state.error='';state.message='';
+ if(tab){remember();state.workPage=0;state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
+ if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;
+ if(act==='work-prev'||act==='work-next'){
+  state.workPage=Math.max(0,state.workPage+(act==='work-next'?1:-1));
+  filterWorklist();return;
+ }
+ state.error='';state.message='';
  if(act==='back'){if(state.backStack.length)history.back();else goBack();return}
  if(act==='root-lens-exit'){remember();state.rootLens=null;state.rootDirectory=[];state.page='workspace';state.tab='overview';state.opened='';history.replaceState(null,'','/root');render();return}
  if(act==='root-lens-open'){remember();try{await openRootLens(id)}catch(err){state.error=err.message;render()}return}
