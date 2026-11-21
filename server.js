@@ -1779,6 +1779,12 @@ app.post('/api/support-tickets/:id/messages', async (req, res) => {
     if (session.role === 'client' && ticket.client_id !== session.id) {
       return res.status(403).json({ success: false, error: 'You cannot access this support ticket.' });
     }
+    if(session.role==='admin'){
+      const owner=ticket.assigned_admin?await Admin.findOne({id:ticket.assigned_admin})
+        .select('id department company_role manager_id status permissions').lean():null;
+      if(!canChangeSupportTicket(req.adminAccess,String(ticket.assigned_admin||''),owner,''))
+        return res.status(403).json({success:false,error:'Claim or receive assignment to this support case before replying.'});
+    }
     if (ticket.status === 'Closed') return res.status(409).json({ success: false, error: 'This ticket is closed.' });
     const body = String(req.body?.message || '').trim();
     if (body.length < 1 || body.length > 5000) return res.status(400).json({ success: false, error: 'Message must be between 1 and 5,000 characters.' });
@@ -1794,6 +1800,22 @@ app.post('/api/support-tickets/:id/messages', async (req, res) => {
       action: 'support_ticket_message_sent',
       details: { status: ticket.status }
     });
+    // Notify the other party without exposing the message body or leaking
+    // a client account to unrelated employees.
+    const message=ticket.messages.at(-1);
+    const recipient=session.role==='client'?
+      {recipient_role:'admin',recipient_id:ticket.assigned_admin||'admin'}:
+      {recipient_role:'client',recipient_id:ticket.client_id};
+    if(message?._id&&recipient.recipient_id){
+      const dedupe_key='ips-support-reply/'+ticket.ticket_id+'/'+String(message._id);
+      try{await Notification.updateOne({dedupe_key},{$setOnInsert:{
+        dedupe_key,...recipient,order_id:ticket.ticket_id,type:'support_reply',
+        message:session.role==='client'?'The customer replied to an IPS support case. Review the protected ticket.':
+          'IPS replied to your support request. Open your private workspace.',
+        read:false
+      }},{upsert:true});}
+      catch(error){console.error('IPS support reply alert pending:',error?.name||'error');}
+    }
     res.json({ success: true, ticket });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
