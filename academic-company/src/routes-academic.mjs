@@ -211,16 +211,75 @@ export function registerAcademicRoutes(ctx){
   if(!authorize(req,res,['root','manager']))return;
   if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
    return res.status(403).json({error:'Only Client Relations management may issue a binding written quotation.'});
-  const total=Number(req.body?.priceMinor),terms=String(req.body?.terms||'').trim(),
-   scope=String(req.body?.deliverables||'').trim(),expires=String(req.body?.expires||'').trim();
-  if(!Number.isSafeInteger(total)||total<=0||total>100000000||terms.length<20||terms.length>2500||scope.length<15||scope.length>2000)
-   return res.status(400).json({error:'Provide a real, positive PLN price and complete academic scope and quotation terms.'});
-  const q=await db.quotes.findOneAndUpdate({id:req.params.id,status:'scoped',scopeDecision:'approved'},
-   {$set:{status:'offered',priceMinor:total,currency:'PLN',terms,deliverables:scope,expires,
-     offeredBy:req.actor.id,updatedAt:now()}},{returnDocument:'after'});
+  const offer=reviewedOffer(req.body);
+  if(offer.error)return res.status(400).json({error:offer.error});
+  const at=now();
+  const q=await db.quotes.findOneAndUpdate({id:req.params.id,status:'scoped',scopeDecision:'approved'},{
+   $set:{status:'offered',...offer,offeredBy:req.actor.id,offeredAt:at,updatedAt:at},
+   $inc:{offerVersion:1},
+   $push:{offerHistory:{version:1,...offer,issuedAt:at,issuedBy:req.actor.id,
+     note:'Initial reviewed academic quotation'}}
+  },{returnDocument:'after'});
   if(!q)return res.status(409).json({error:'Academic scope approval is required before a final quotation.'});
   await audit(req.actor,'academic_written_offer_issued',q.id,{currency:'PLN'});
   await notifyQuotation(q,'Your reviewed academic quotation '+q.id+' is ready','quotation');
+  res.json({quote:quoteView(q)});
+ }));
+ // When IPS requests clarification the Student has a direct, tracked route back
+ // to human scope review; the quotation must not remain indefinitely stuck.
+ app.post('/api/academic/quotes/:id/resubmit',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student']))return;
+  const note=String(req.body?.clarification||'').trim();
+  const requirements=String(req.body?.requirements||'').trim();
+  if(note.length<20||note.length>3500||(requirements&&
+   (requirements.length<25||requirements.length>6000)))
+   return res.status(400).json({error:'Provide an academic clarification of 20–3,500 characters and a valid revised brief.'});
+  const at=now();
+  const q=await db.quotes.findOneAndUpdate({
+   id:req.params.id,studentId:req.actor.id,status:'clarify'},{
+   $set:{status:'received',scopeDecision:'pending',scopeNote:'',
+    reviewedBy:'',updatedAt:at,...(requirements?{requirements}:{})},
+   $inc:{scopeRevision:1},
+   $push:{clarificationHistory:{message:note,at,by:req.actor.id}}
+  },{returnDocument:'after'});
+  if(!q)return res.status(409).json({error:'This academic enquiry is not awaiting your clarification.'});
+  await db.quoteMessages.insertOne({id:uid('QM'),quoteId:q.id,actorId:req.actor.id,
+   actorRole:'student',audience:'student',body:note,createdAt:at});
+  await audit(req.actor,'academic_quotation_clarification_submitted',q.id);
+  await notify(q.assignedTo||rootEmail,'Student supplied requested academic clarification for '+q.id,'intake');
+  res.json({quote:quoteView(q)});
+ }));
+ // A revised offer retains every earlier written price, scope and set of terms.
+ // Optimistic version checks ensure simultaneous managers cannot overwrite a quote.
+ app.post('/api/academic/quotes/:id/revise-offer',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','manager']))return;
+  if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
+   return res.status(403).json({error:'Only Client Relations management may revise a written quotation.'});
+  const reason=String(req.body?.reason||'').trim();
+  const offer=reviewedOffer(req.body);
+  if(offer.error)return res.status(400).json({error:offer.error});
+  if(reason.length<15||reason.length>1400)
+   return res.status(400).json({error:'Document why the academic price, scope or terms must change.'});
+  const current=await db.quotes.findOne({id:req.params.id,
+   status:{$in:['offered','expired']},scopeDecision:'approved'});
+  if(!current)return res.status(409).json({error:'Only a previously approved academic quotation can be revised.'});
+  const version=current.offerVersion||1,next=version+1,at=now();
+  const initial=current.offerHistory?.length?[]:[{version:1,priceMinor:current.priceMinor,
+   currency:current.currency||'PLN',terms:current.terms||'',deliverables:current.deliverables||'',
+   expires:current.expires||'',issuedAt:current.offeredAt||current.updatedAt,
+   issuedBy:current.offeredBy||'',note:'Previous preserved academic offer'}];
+  const q=await db.quotes.findOneAndUpdate({id:current.id,status:current.status,
+   ...(current.offerVersion?{offerVersion:current.offerVersion}:{offerVersion:{$exists:false}})
+  },{
+   $set:{status:'offered',...offer,offerVersion:next,offeredBy:req.actor.id,
+    offeredAt:at,updatedAt:at},
+   $unset:{reminderSentAt:''},
+   $push:{offerHistory:{$each:[...initial,{version:next,...offer,issuedAt:at,
+    issuedBy:req.actor.id,note:reason}]}}
+  },{returnDocument:'after'});
+  if(!q)return res.status(409).json({error:'Another manager changed this quotation. Reload before revising.'});
+  await audit(req.actor,'academic_written_offer_revised',q.id,{from:version,to:next,reason});
+  await notifyQuotation(q,'A revised academic quotation '+q.id+' is ready for review','quotation');
   res.json({quote:quoteView(q)});
  }));
  app.post('/api/academic/quotes/:id/decision',wrap(async(req,res)=>{
