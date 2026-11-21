@@ -51,7 +51,8 @@ const db={
  quoteFiles:raw.collection('academic_quote_files'),
  directMessages:raw.collection('academic_direct_messages'),
  directFiles:raw.collection('academic_direct_files'),
- rootOperations:raw.collection('academic_root_operations')
+ rootOperations:raw.collection('academic_root_operations'),
+ rootExternalFiles:raw.collection('academic_root_external_files')
 };
 await Promise.all([
  db.accounts.createIndex({email:1},{unique:true}),
@@ -71,7 +72,8 @@ await Promise.all([
  db.quoteMessages.createIndex({quoteId:1,createdAt:1}),
  db.quoteFiles.createIndex({quoteId:1,createdAt:-1}),
  db.directMessages.createIndex({toId:1,createdAt:-1}),
- db.rootOperations.createIndex({commissionId:1},{unique:true})
+ db.rootOperations.createIndex({commissionId:1},{unique:true}),
+ db.rootExternalFiles.createIndex({commissionId:1,createdAt:-1})
 ]);
 const rootEmail=email(env.ROOT_EMAIL);
 async function sendEmail(to,subject,text,deliveryKey=''){
