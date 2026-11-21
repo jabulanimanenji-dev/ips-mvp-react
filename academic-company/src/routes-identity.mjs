@@ -123,7 +123,7 @@ export function registerIdentityRoutes(ctx){
      {$unset:{recoveryHash:'',recoveryUntil:''}});
     return res.status(503).json({error:'IPS could not send a secure account recovery email.'});
    }
-   await audit({id:rootEmail,role:'root'},'nyoro_root_recovery_requested');
+   await audit({id:'anonymous',role:'system'},'nyoro_root_recovery_requested');
   }else if(validEmail(mail)){
    const a=await db.accounts.findOne({email:mail,verified:true,status:{$in:['active','pending_review']}});
    if(a){try{await mailChallenge(a,'recover')}catch{return res.status(503).json({error:'Recovery email delivery is unavailable.'})}}
