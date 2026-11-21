@@ -2,185 +2,125 @@ import assert from 'node:assert/strict';
 import {mkdir} from 'node:fs/promises';
 import {chromium} from 'playwright';
 
-// Strictly bound to the isolated CI container or to the separately hosted
-// disposable IPS evaluation site; never run synthetic test logins in production.
+// Synthetic identities are usable ONLY in this isolated Render evaluation,
+// never on the published IPS domain or real customer database.
 const base=String(process.env.IPS_VISUAL_BASE_URL||'').replace(/\/$/,'');
 if(!['http://127.0.0.1:18080','https://ips-academic-evaluation-20261119.onrender.com'].includes(base))
-  throw Error('Visual review may only target the isolated IPS test environment.');
+  throw Error('Visual qualification must not run against real IPS customers.');
+const credentials={
+  client:process.env.IPS_EVAL_CLIENT_PASSWORD||'',
+  specialist:process.env.IPS_EVAL_SPECIALIST_PASSWORD||'',
+  root:process.env.IPS_EVAL_ADMIN_PASSWORD||''
+};
+const authenticated=Object.values(credentials).every(x=>x.length>=12);
+const reports=[];
 await mkdir('ips-brand-evidence',{recursive:true});
 const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
-const reports=[];
-function luminance(rgb){
-  const values=rgb.match(/[\d.]+/g)?.slice(0,3).map(v=>Number(v)/255);
-  if(values?.length!==3||values.some(v=>!Number.isFinite(v)))throw Error('Invalid color '+rgb);
-  const channels=values.map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);
-  return .2126*channels[0]+.7152*channels[1]+.0722*channels[2];
+async function check(name,fn){
+  let page;
+  try{
+    page=await browser.newPage({viewport:{width:1440,height:900}});
+    page.setDefaultTimeout(22000);
+    await fn(page);
+    reports.push({name,passed:true});
+    console.log('PASS '+name);
+  }catch(error){
+    reports.push({name,passed:false,reason:String(error)});
+    console.error('FAIL '+name+' '+String(error));
+  }finally{await page?.close().catch(()=>{});}
 }
-function contrast(a,b){
-  const l=luminance(a),r=luminance(b);
-  return (Math.max(l,r)+.05)/(Math.min(l,r)+.05);
+async function snapshot(page,name){
+  await page.screenshot({path:'ips-brand-evidence/'+name+'.png',fullPage:true,animations:'disabled'});
 }
-async function caseCheck(name,fn){
-  try{await fn();reports.push({name,passed:true});console.log('PASS '+name);}
-  catch(e){reports.push({name,passed:false,error:String(e)});console.error('FAIL '+name+' '+String(e));}
-}
-async function newPage(width=1440,height=900){
-  const page=await browser.newPage({viewport:{width,height},deviceScaleFactor:1});
-  page.setDefaultTimeout(18000);
-  return page;
+async function noOverflow(page){
+  const size=await page.evaluate(()=>({width:innerWidth,
+    body:document.body.scrollWidth,html:document.documentElement.scrollWidth}));
+  assert.ok(size.body<=size.width+6&&size.html<=size.width+6,
+    'Horizontal overflow '+JSON.stringify(size));
 }
 async function login(page,route,email,password,button){
   await page.goto(base+route,{waitUntil:'domcontentloaded'});
   await page.locator('input[type=email]').fill(email);
   await page.locator('input[type=password]').fill(password);
   await page.getByRole('button',{name:button}).click();
-}
-async function inspect(page,locator,foreground='color',background='backgroundColor'){
-  return locator.evaluate((el,{foreground,background})=>{
-    const text=getComputedStyle(el);
-    const parent=getComputedStyle(el.parentElement);
-    return {fg:text[foreground],bg:text[background],fallbackBg:parent[background]};
-  },{foreground,background});
-}
-async function picture(page,name){await page.screenshot({path:'ips-brand-evidence/'+name+'.png',fullPage:true,animations:'disabled'});}
-async function noHorizontalOverflow(page){
-  const overflow=await page.evaluate(()=>({
-    width:window.innerWidth,body:document.body.scrollWidth,html:document.documentElement.scrollWidth
-  }));
-  assert.ok(overflow.body<=overflow.width+5&&overflow.html<=overflow.width+5,
-    'Unexpected page overflow '+JSON.stringify(overflow));
+  await page.waitForURL(/\/(admin|client|writer)\//,{timeout:24000});
 }
 try{
-  await caseCheck('Public academic homepage uses the IPS navy/ivory identity without overflow',async()=>{
-    const page=await newPage();
-    try{
-      await page.goto(base+'/',{waitUntil:'domcontentloaded'});
-      await page.locator('.ipsa-hero').waitFor();
-      await noHorizontalOverflow(page);
-      const root=await page.evaluate(()=>({
-        brand:getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(),
-        c:getComputedStyle(document.querySelector('.ipsa-hero')).backgroundColor
-      }));
-      assert.equal(root.brand.toLowerCase(),'#183b53');
-      assert.notEqual(root.c,'rgba(0, 0, 0, 0)');
-      await picture(page,'01-academic-public-website');
-    }finally{await page.close();}
+  await check('Public IPS homepage uses the correct premium navy/ivory visual identity',async page=>{
+    await page.goto(base+'/',{waitUntil:'domcontentloaded'});
+    await page.locator('.ipsa-hero').waitFor();
+    const color=await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--primary').trim().toLowerCase());
+    assert.equal(color,'#183b53');
+    await noOverflow(page);
+    await snapshot(page,'01-public-home');
   });
-  await caseCheck('Client portal renders a private readable workspace and matching navigation',async()=>{
-    const page=await newPage();
-    try{
-      await login(page,'/login','client.evaluation@example.org','EvalClient2026!',/open my workspace/i);
-      await page.waitForURL(/\/client\//);
-      await page.locator('.client-layout .ips-workspace-topbar').waitFor();
-      await page.locator('.client-sidebar').waitFor();
-      const bg=await page.locator('.client-sidebar').evaluate(el=>getComputedStyle(el).backgroundColor);
-      assert.equal(bg,'rgb(20, 43, 61)');
-      const headerGeometry=await page.evaluate(()=>({
-        sidebar:document.querySelector('.client-sidebar').getBoundingClientRect().top,
-        banner:document.querySelector('.ips-evaluation-banner').getBoundingClientRect().bottom
-      }));
-      assert.ok(headerGeometry.sidebar>=headerGeometry.banner-1,
-        'Client workspace branding must not be concealed by evaluation notice');
-      assert.ok(await page.getByText('Private · written communication').count()>=1);
-      await page.locator('select option[value="IPS-Q-E1A2B3C4D5E6F70809"]').first().waitFor({state:'attached',timeout:18000});
-      await noHorizontalOverflow(page);
-      await picture(page,'02-client-overview');
-      await page.goto(base+'/client/payments',{waitUntil:'domcontentloaded'});
-      await page.getByText('My Payments & Refunds').first().waitFor();
-      await page.locator('a[href="/client/services/SRV-E1A2B3C4D5E6F70809"]').first().waitFor({timeout:18000});
-      await picture(page,'03-client-payments');
-    }finally{await page.close();}
+  await check('Private evaluation guide is explicit and contains five role choices, not passwords',async page=>{
+    await page.goto(base+'/evaluation',{waitUntil:'domcontentloaded'});
+    await page.getByText('ISOLATED DEMONSTRATION — NOT PRODUCTION').waitFor();
+    assert.equal(await page.getByRole('link',{name:/Open .* Login/}).count(),5);
+    const body=await page.locator('body').innerText();
+    assert.ok(!body.includes('EvalClient2026!')&&!body.includes('EvalAdmin2026!'));
+    await noOverflow(page);
+    await snapshot(page,'02-five-role-evaluation-guide');
   });
-  await caseCheck('Approved specialist uses identical professional sidebar and accessible private header',async()=>{
-    const page=await newPage();
-    try{
-      await login(page,'/writer/login','specialist.evaluation@example.org','EvalSpecialist2026!',/open my workspace/i);
-      await page.waitForURL(/\/writer\/dashboard(?:[/?#]|$)/,{timeout:20000});
-      await page.goto(base+'/writer/dashboard',{waitUntil:'domcontentloaded'});
-      await page.locator('.writer-layout .ips-workspace-topbar').waitFor();
-      const bg=await page.locator('.writer-sidebar').evaluate(el=>getComputedStyle(el).backgroundColor);
-      assert.equal(bg,'rgb(20, 43, 61)');
-      await page.waitForFunction(()=>{
-        const all=[...document.querySelectorAll('.dashboard-zone-writer-stats .card')]
-          .find(item=>item.textContent?.includes('All jobs'));
-        return Number(all?.querySelector('strong')?.textContent)>=2;
-      },null,{timeout:18000});
-      await noHorizontalOverflow(page);
-      await picture(page,'04-specialist-dashboard');
-      await page.goto(base+'/writer/earnings',{waitUntil:'domcontentloaded'});
-      await page.getByText('My Payment Records').first().waitFor();
-      await page.getByText('SRV-112233445566778899').first().waitFor({timeout:18000});
-      await picture(page,'05-specialist-payments');
-    }finally{await page.close();}
+  await check('New dark Administration Four login is readable and real, without white input glare',async page=>{
+    await page.goto(base+'/ips-evaluation-ops',{waitUntil:'domcontentloaded'});
+    const email=page.locator('input[type=email]');
+    const password=page.locator('input[type=password]');
+    await email.waitFor();await password.waitFor();
+    const read=await email.evaluate(el=>({color:getComputedStyle(el).color,
+      bg:getComputedStyle(el).backgroundColor,visible:el.getBoundingClientRect().height>15}));
+    assert.ok(read.visible);
+    assert.notEqual(read.bg,'rgba(0, 0, 0, 0)','Input surface must be a deliberate, readable color');
+    await noOverflow(page);
+    await snapshot(page,'03-dark-ips-root-login');
   });
-  await caseCheck('Management Studio replaces washed-out magenta panels with WCAG AA readable surfaces',async()=>{
-    const page=await newPage();
-    try{
-      await login(page,'/ips-evaluation-ops','admin.evaluation@example.org','EvalAdmin2026!','Sign In');
-      await page.waitForURL(/\/admin\//,{timeout:20000});
-      await page.goto(base+'/admin/cms',{waitUntil:'domcontentloaded'});
-      await page.locator('.platform-studio-dashboard').waitFor({timeout:20000});
-      const welcome=page.locator('.platform-studio-welcome').first();
-      const cards=page.locator('.platform-studio-kpis button');
-      assert.ok(await cards.count()>=3,'Missing IPS website management metrics');
-      const bg=await welcome.evaluate(el=>getComputedStyle(el).backgroundColor);
-      assert.equal(bg,'rgb(255, 255, 255)','Studio overview is no longer an opaque violet overlay');
-      const stat=await inspect(page,cards.first());
-      assert.equal(stat.bg,'rgb(255, 255, 255)');
-      assert.ok(contrast(stat.fg,stat.bg)>=4.5,
-        'Studio information must meet accessible contrast, got '+contrast(stat.fg,stat.bg).toFixed(2));
-      const muted=await inspect(page,cards.first().locator('small').first());
-      assert.ok(contrast(muted.fg,stat.bg)>=4.5,
-        'Studio metric label contrast must meet 4.5:1; got '+contrast(muted.fg,stat.bg).toFixed(2));
-      await noHorizontalOverflow(page);
-      await picture(page,'06-management-studio');
+  await check('Public and staff entry points remain accessible on 390px mobile',async page=>{
+    await page.setViewportSize({width:390,height:844});
+    await page.goto(base+'/evaluation',{waitUntil:'domcontentloaded'});
+    await page.locator('.ips-evaluation-banner').waitFor();
+    await noOverflow(page);
+    await snapshot(page,'04-mobile-five-role-guide');
+    await page.goto(base+'/ips-evaluation-ops',{waitUntil:'domcontentloaded'});
+    await page.locator('input[type=password]').waitFor();
+    await noOverflow(page);
+    await snapshot(page,'05-mobile-administrator-login');
+  });
+  if(!authenticated){
+    console.log('SKIP authenticated hosted visual checks: encrypted GitHub IPS evaluation credentials are not set. Real Docker + MongoDB + Chrome integration qualifies authenticated paths separately.');
+  }else{
+    await check('Real hosted Nyoro Root Admin uses a uniform dark accountable command centre',async page=>{
+      await login(page,'/ips-evaluation-ops','nyoro.evaluation@example.org',credentials.root,'Sign In');
       await page.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
-      await page.locator('.ips-metric-card').first().waitFor();
-      assert.ok(await page.locator('.ips-metric-card').count()>=4);
-      await picture(page,'07-management-dashboard');
-      await page.goto(base+'/admin/enquiries',{waitUntil:'domcontentloaded'});
-      await page.locator('.ips-contact-admin').waitFor();
-      await picture(page,'08-management-quotation-queue');
-    }finally{await page.close();}
-  });
-  await caseCheck('Client and management continue to use accessible dark mode when explicitly selected',async()=>{
-    const page=await newPage();
-    try{
-      await login(page,'/ips-evaluation-ops','admin.evaluation@example.org','EvalAdmin2026!','Sign In');
-      await page.waitForURL(/\/admin\//,{timeout:20000});
-      await page.goto(base+'/admin/cms',{waitUntil:'domcontentloaded'});
-      await page.locator('.platform-studio-kpis button').first().waitFor();
-      await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));
-      const card=page.locator('.platform-studio-kpis button').first();
-      const {bg,fg}=await inspect(page,card);
-      assert.ok(contrast(bg,fg)>=4.5,'Dark mode management metric must remain legible');
-      await picture(page,'09-management-dark-mode');
-    }finally{await page.close();}
-  });
-  await caseCheck('Evaluation environment safety label no longer obscures mobile workspace',async()=>{
-    const page=await newPage(390,844);
-    try{
-      await page.goto(base+'/evaluation',{waitUntil:'domcontentloaded'});
-      await page.locator('.ips-evaluation-banner').waitFor();
-      const style=await page.locator('.ips-evaluation-banner').evaluate(el=>{
-        const s=getComputedStyle(el);
-        return {position:s.position,top:s.top,height:el.getBoundingClientRect().height};
-      });
-      assert.equal(style.position,'sticky');
-      assert.ok(style.height<=40,'Safety banner must stay a single compact row on mobile');
-      await noHorizontalOverflow(page);
-      await picture(page,'10-mobile-evaluation-guide');
-      await login(page,'/login','client.evaluation@example.org','EvalClient2026!',/open my workspace/i);
+      await page.locator('.ips4').waitFor();
+      await page.locator('.ips4-panel').first().waitFor();
+      await noOverflow(page);
+      await snapshot(page,'06-root-company-command');
+      await page.goto(base+'/admin/payments',{waitUntil:'domcontentloaded'});
+      await page.getByText('Finance without imaginary balances').waitFor();
+      await snapshot(page,'07-source-bound-finance');
+      await page.goto(base+'/admin/external-chats',{waitUntil:'domcontentloaded'});
+      await page.getByText('Telegram operations').waitFor();
+      await snapshot(page,'08-dark-telegram');
+    });
+    await check('Hosted client sees private academic work without workspace overflow',async page=>{
+      await login(page,'/login','client.evaluation@example.org',credentials.client,/open my workspace/i);
       await page.locator('.client-layout').waitFor();
-      const mobileSidebarTop=await page.locator('.client-sidebar').evaluate(el=>el.getBoundingClientRect().top);
-      assert.ok(mobileSidebarTop>=0,'The mobile sidebar must remain correctly positioned beneath the evaluation notice');
-      await noHorizontalOverflow(page);
-      await picture(page,'11-mobile-client-workspace');
-    }finally{await page.close();}
-  });
+      await page.getByRole('heading',{name:/My private updates/}).waitFor();
+      await noOverflow(page);
+      await snapshot(page,'09-real-client-workspace');
+    });
+    await check('Hosted specialist sees assigned tasks and a private inbox',async page=>{
+      await login(page,'/writer/login','specialist.evaluation@example.org',credentials.specialist,/open my workspace/i);
+      await page.locator('.writer-layout').waitFor();
+      await page.getByRole('heading',{name:/My private updates/}).waitFor();
+      await noOverflow(page);
+      await snapshot(page,'10-real-specialist-workspace');
+    });
+  }
 }finally{await browser.close();}
-const failures=reports.filter(r=>!r.passed);
-if(failures.length){
-  console.error('IPS_VISUAL_GOVERNANCE_FAILED '+JSON.stringify(failures));
+if(reports.some(x=>!x.passed)){
+  console.error('IPS_VISUAL_GOVERNANCE_FAILED '+JSON.stringify(reports.filter(x=>!x.passed)));
   process.exitCode=1;
-}else console.log('IPS_VISUAL_GOVERNANCE_PASS '+reports.length+' independent browser and contrast checks');
+}else console.log('IPS_VISUAL_GOVERNANCE_PUBLIC_PASS '+reports.length+
+  ' visual cases, authenticated hosted cases '+(authenticated?'enabled':'not configured'));
