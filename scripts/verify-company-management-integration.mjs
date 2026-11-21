@@ -137,6 +137,35 @@ try{
   assert.equal(staffDenied.status,403);
   pass('Manager rosters are isolated to direct reports; root sees the full structure; staff cannot manage people');
 
+  // A management role alone is insufficient when team.manage was explicitly revoked.
+  const managerRecord=await Admin.findOne({id:ids['manager-client']});
+  const originalManagerPermissions=[...managerRecord.permissions];
+  managerRecord.permissions=originalManagerPermissions.filter(p=>p!=='team.manage');
+  await managerRecord.save();
+  const revokedRoster=await call('/api/admin/company-team/roster',{actor:'manager-client'});
+  assert.equal(revokedRoster.status,403,'Revoking team.manage must block roster access');
+  const revokedInvite=await call('/api/admin/company-team/invite',{actor:'manager-client',method:'POST',
+    json:{name:'Should Not Be Invited',email:'revoked-ci@example.org',department:'client_relations'}});
+  assert.equal(revokedInvite.status,403,'Revoking team.manage must block staff invitations');
+  await Admin.updateOne({id:ids['manager-client']},{$set:{permissions:originalManagerPermissions}});
+  pass('Manager team authority is revalidated from current MongoDB permissions on every request');
+
+  const staffBefore=await Admin.findOne({id:ids['staff-b']});
+  const oldStaffPermissions=[...staffBefore.permissions];
+  const narrowed=await call('/api/admin/company-team/members/'+ids['staff-b'],{
+    actor:'manager-client',method:'PATCH',json:{permissions:['platform.access','dashboard.view','clients.view']}});
+  assert.equal(narrowed.status,200,JSON.stringify(narrowed.data));
+  const afterNarrow=await Admin.findOne({id:ids['staff-b']});
+  assert.deepEqual(afterNarrow.permissions,['platform.access','dashboard.view','clients.view']);
+  assert.ok(afterNarrow.session_version>staffBefore.session_version,'An authority change revokes old sessions');
+  const invalidElevation=await call('/api/admin/company-team/members/'+ids['staff-b'],{
+    actor:'manager-client',method:'PATCH',json:{permissions:['platform.access','dashboard.view','payments.manage']}});
+  assert.equal(invalidElevation.status,403);
+  const restorePermissions=await call('/api/admin/company-team/members/'+ids['staff-b'],{
+    actor:'manager-client',method:'PATCH',json:{permissions:oldStaffPermissions}});
+  assert.equal(restorePermissions.status,200);
+  pass('Managers can narrow and restore direct-report permissions but never grant out-of-department authority');
+
   const crossStaff=await call('/api/admin/company-team/members/'+ids['staff-academic'],{
     actor:'manager-client',method:'PATCH',json:{status:'Suspended'}});
   assert.equal(crossStaff.status,403);
