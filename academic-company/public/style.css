@@ -179,3 +179,25 @@ input::placeholder,textarea::placeholder{color:#a9b8c1}
 .worklist-pager .worklist-count{margin-right:auto}.worklist-pager button:disabled{opacity:.42}
 @media(max-width:850px){.worklist-tools{grid-template-columns:minmax(0,1fr) minmax(150px,.7fr)}.worklist-tools>[data-work-count]{grid-column:1/-1}}
 @media(max-width:590px){.worklist-tools{grid-template-columns:1fr}.worklist-tools>[data-work-count]{grid-column:auto}.worklist-pager{justify-content:space-between}.worklist-pager .worklist-count{width:100%}}
+
+
+/* IPS company people management: readable, properly scaled and keyboard accessible. */
+.directory-toolbar{
+ display:grid;grid-template-columns:minmax(270px,560px) minmax(190px,270px);
+ gap:18px;align-items:end;margin:20px 0 17px;
+}
+.directory-toolbar .field{min-width:0;width:100%;font-size:13px}
+.directory-toolbar input,.directory-toolbar select{
+ width:100%;max-width:none;min-width:0;font-size:14px;min-height:47px
+}
+.directory-table th{font-size:11px;letter-spacing:.07em;padding:15px 12px}
+.directory-table td{font-size:14px;line-height:1.5;padding:18px 12px;vertical-align:middle}
+.directory-table td small{font-size:12px;overflow-wrap:anywhere;line-height:1.5}
+.directory-table td .actions{gap:9px}
+.directory-table td .actions .small{font-size:12px;min-height:36px}
+.directory-table tr:hover td{background:#1b3547}
+@media(max-width:760px){
+ .directory-toolbar{grid-template-columns:minmax(0,1fr);gap:12px}
+ .directory-table{min-width:610px}
+ .directory-table td .actions{gap:6px}
+}
