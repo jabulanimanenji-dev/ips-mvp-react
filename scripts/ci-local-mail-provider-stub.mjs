@@ -5,7 +5,7 @@ import {appendFileSync} from 'node:fs';
 import crypto from 'node:crypto';
 const out=String(process.env.IPS_CI_MAIL_JOURNAL||'');
 if(process.env.NODE_ENV!=='development'||
-   !/\/ips-ci-mail-[a-f0-9]+\/messages\.jsonl$/.test(out)||
+   !/\/ips-ci-mail-[A-Za-z0-9_-]+\/messages\.jsonl$/.test(out)||
    !String(process.env.MONGODB_URI||'').includes('/ips_ci_mail?')||
    String(process.env.CONTACT_RESEND_API_KEY||'')!=='ci-only-mail-provider-stub')
   throw Error('Local mail interception may run only in explicitly isolated CI.');
