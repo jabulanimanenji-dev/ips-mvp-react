@@ -45,3 +45,19 @@ test('evaluation payment and persistent storage safety limits remain enforced',a
   assert.match(entry,/STORAGE_PROVIDER=local/);
   assert.match(docker,/STORAGE_PROVIDER=local/);
 });
+
+test('isolated runtime makes genuine signed HTTP calls and blocks every private cross-role read',async()=>{
+  const [selfcheck,server]=await Promise.all([
+    file('services/evaluationSelfcheck.js'),file('server.js')
+  ]);
+  assert.match(selfcheck,/IPS_EVALUATION_MODE!=='true'/);
+  assert.match(selfcheck,/http:\/\/127\.0\.0\.1:/);
+  assert.match(selfcheck,/\/api\/client\/login/);
+  assert.match(selfcheck,/\/api\/writer\/login/);
+  assert.match(selfcheck,/\/api\/admin\/login/);
+  assert.match(selfcheck,/\/api\/admin\/finance\/operating-ledger/);
+  assert.match(selfcheck,/\/api\/notifications\/client\//);
+  assert.match(selfcheck,/payment\.data\.enabled,false/);
+  assert.match(server,/isProduction&&process\.env\.IPS_EVALUATION_MODE==='true'/);
+  assert.match(server,/IPS_EVAL_RUNTIME_6_ROLES_GREEN/);
+});
