@@ -29,6 +29,8 @@ jobs:
           node-version: '24'
       - name: Restore pinned academic company dependencies
         run: npm ci --no-audit --no-fund
+      - name: Audit actual production academic dependencies (high or critical gate)
+        run: npm audit --omit=dev --audit-level=high --no-fund
       - name: Confirm IPS is an academic services company and not rejected product
         run: |
           node --check src/app.mjs
