@@ -1,11 +1,12 @@
 // IPS Academic Services: genuine scoped academic enquiries, cases, commissions and QA.
 import crypto from 'node:crypto';
+import express from 'express';
 import {email,validEmail,validUsername,publicDocument,normalizeFilename,strongToken,validToken} from './security.mjs';
 import {SERVICES,SERVICE_MAP,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 
 export function registerAcademicRoutes(ctx){
- const {app,db,config,env,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid}=ctx;
+ const {app,db,documentBucket,config,env,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid}=ctx;
  const allowedChannels=['workspace','email','telegram'];
  const quoteView=q=>{
   const x=publicDocument(q);delete x.verifyHash;delete x.verifyUntil;delete x.internalEvaluation;
@@ -424,6 +425,65 @@ export function registerAcademicRoutes(ctx){
   await notify(rootEmail,'Academic QA review needed for '+p.id,'quality');
   res.status(201).json({success:true,submissionId:file.id,checksum:file.sha256});
  }));
+ // New binary transport for real academic documents; legacy <=1 MB JSON
+ // submissions remain readable for existing cases. File bytes are in GridFS,
+ // not BSON documents, and never exposed before authorized QA release.
+ app.post('/api/academic/commissions/:id/submission-binary',
+  express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
+  if(!authorize(req,res,['specialist']))return;
+  if(throttle.limited(req,'academic-binary-upload',20))
+   return res.status(429).json({error:'Too many academic document uploads. Retry later.'});
+  const p=await db.projects.findOne({id:req.params.id,specialistId:req.actor.id,
+   status:{$in:['specialist_assigned','correction_requested','student_revision_requested']}});
+  if(!p)return res.status(409).json({error:'No assigned academic work is ready for a document submission.'});
+  let inputName='';
+  try{inputName=decodeURIComponent(String(req.get('X-IPS-File-Name')||''))}
+  catch{return res.status(400).json({error:'Academic filename encoding is invalid.'})}
+  const filename=normalizeFilename(inputName),mime=String(req.get('X-IPS-File-Type')||'');
+  const ext=filename.toLowerCase().match(/\.(pdf|docx|txt)$/)?.[1]||'';
+  const formats={pdf:'application/pdf',
+   docx:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+   txt:'text/plain'};
+  const buffer=req.body;
+  if(formats[ext]!==mime||!/^[A-Za-z0-9_.-]{1,100}$/.test(filename)||
+   !Buffer.isBuffer(buffer)||buffer.length<12||buffer.length>20*1024*1024)
+   return res.status(400).json({error:'Select a genuine PDF, DOCX or TXT academic document, maximum 20 MB.'});
+  if(mime==='application/pdf'&&buffer.subarray(0,5).toString()!=='%PDF-'||
+   mime.includes('wordprocessingml')&&buffer.subarray(0,2).toString()!=='PK')
+   return res.status(400).json({error:'Academic document type does not match its contents.'});
+  const sha256=crypto.createHash('sha256').update(buffer).digest('hex'),
+   id=uid('AF'),date=now();
+  const blobId=await new Promise((resolve,reject)=>{
+   const upload=documentBucket.openUploadStream(filename,{metadata:{
+    academicFileId:id,commissionId:p.id,sha256,mime,uploadedAt:date}});
+   upload.once('error',reject);
+   upload.once('finish',()=>resolve(upload.id));
+   upload.end(buffer);
+  });
+  const file={id,commissionId:p.id,studentId:p.studentId,specialistId:p.specialistId,
+   filename,mime,sha256,blobId,byteLength:buffer.length,createdAt:date,
+   kind:'specialist_submission',revision:p.revisionCount,uploadedBy:req.rootOperatorId||req.actor.id,
+   ...(req.rootOperatorId?{rootAssisted:true}:{})};
+  try{
+   await db.files.insertOne(file);
+   const changed=await db.projects.findOneAndUpdate({id:p.id,status:p.status},
+    {$set:{status:'qa_pending',pendingFileId:id,updatedAt:now()}},{returnDocument:'after'});
+   if(!changed){
+    await db.files.deleteOne({id});
+    await documentBucket.delete(blobId);
+    return res.status(409).json({error:'The commission changed while the academic document was uploading.'});
+   }
+  }catch(err){
+   await db.files.deleteOne({id}).catch(()=>{});
+   await documentBucket.delete(blobId).catch(()=>{});
+   throw err;
+  }
+  await audit(req.actor,'academic_gridfs_deliverable_submitted',p.id,
+   {fileId:id,sha256,byteLength:buffer.length});
+  await notify(rootEmail,'Academic QA review needed for '+p.id,'quality');
+  res.status(201).json({success:true,submissionId:id,checksum:sha256,
+   byteLength:buffer.length,storage:'private_gridfs'});
+ }));
  app.post('/api/academic/commissions/:id/quality',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','manager']))return;
   if(req.actor.role==='manager'&&req.actor.department!=='quality_assurance')
@@ -498,6 +558,16 @@ export function registerAcademicRoutes(ctx){
   res.setHeader('Content-Disposition','attachment; filename="'+file.filename+'"');
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('X-Content-SHA256',file.sha256);
+  if(file.blobId){
+   if(Number.isSafeInteger(file.byteLength))res.setHeader('Content-Length',file.byteLength);
+   const stream=documentBucket.openDownloadStream(file.blobId);
+   stream.on('error',()=>{
+    if(!res.headersSent)res.status(503).json({error:'Private academic document storage is unavailable.'});
+    else res.destroy();
+   });
+   stream.pipe(res);
+   return;
+  }
   res.send(Buffer.from(file.fileData?.buffer||file.fileData));
  }));
  // Written central relay: clients and specialists send to IPS; the company forwards deliberately.
