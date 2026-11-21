@@ -10,9 +10,13 @@ if(!['http://127.0.0.1:18080','https://ips-academic-evaluation-20261119.onrender
 const credentials={
   client:process.env.IPS_EVAL_CLIENT_PASSWORD||'',
   specialist:process.env.IPS_EVAL_SPECIALIST_PASSWORD||'',
-  root:process.env.IPS_EVAL_ADMIN_PASSWORD||''
+  root:process.env.IPS_EVAL_ADMIN_PASSWORD||'',
+  manager:process.env.IPS_EVAL_MANAGER_PASSWORD||'',
+  staff:process.env.IPS_EVAL_STAFF_PASSWORD||''
 };
 const authenticated=Object.values(credentials).every(x=>x.length>=12);
+if(base==='http://127.0.0.1:18080'&&!authenticated)
+  throw Error('Current-source qualification requires all five authenticated isolated roles; no silent skip.');
 const reports=[];
 await mkdir('ips-brand-evidence',{recursive:true});
 const browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
@@ -116,6 +120,33 @@ try{
       await page.getByRole('heading',{name:/My private updates/}).waitFor();
       await noOverflow(page);
       await snapshot(page,'10-real-specialist-workspace');
+    });
+    await check('Department manager has actual staff management but no Root control',async page=>{
+      await login(page,'/ips-evaluation-ops','manager.client_relations@example.org',credentials.manager,'Sign In');
+      await page.goto(base+'/admin/access',{waitUntil:'domcontentloaded'});
+      await page.locator('.ips4').waitFor();
+      await page.getByRole('heading',{name:'Invite a member of your staff'}).waitFor();
+      await noOverflow(page);
+      await snapshot(page,'11-manager-delegated-staff');
+      await page.goto(base+'/admin/payments',{waitUntil:'domcontentloaded'});
+      await page.getByRole('heading',{name:'Outside your authority'}).waitFor();
+    });
+    await check('Scoped staff can work support but cannot enter service production',async page=>{
+      await login(page,'/ips-evaluation-ops','staff.client_relations@example.org',credentials.staff,'Sign In');
+      await page.goto(base+'/admin/support',{waitUntil:'domcontentloaded'});
+      await page.locator('.ips4-panel').first().waitFor();
+      await noOverflow(page);
+      await snapshot(page,'12-employee-authorized-support');
+      await page.goto(base+'/admin/services',{waitUntil:'domcontentloaded'});
+      await page.getByRole('heading',{name:'Outside your authority'}).waitFor();
+    });
+    await check('Nyoro Root Admin remains usable on 390px mobile',async page=>{
+      await page.setViewportSize({width:390,height:844});
+      await login(page,'/ips-evaluation-ops','nyoro.evaluation@example.org',credentials.root,'Sign In');
+      await page.goto(base+'/admin/dashboard',{waitUntil:'domcontentloaded'});
+      await page.locator('.ips4').waitFor();
+      await noOverflow(page);
+      await snapshot(page,'13-root-mobile-command-centre');
     });
   }
 }finally{await browser.close();}
