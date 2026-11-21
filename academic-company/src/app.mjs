@@ -235,7 +235,7 @@ app.use('/api',async(req,res,next)=>{
    (/^\/academic\/quotes$/.test(req.path)||/^\/support$/.test(req.path)||
     /^\/support\/[^/]+\/reply$/.test(req.path)||
     /^\/academic\/quotes\/[^/]+\/decision$/.test(req.path)||
-    /^\/academic\/commissions\/[^/]+\/(?:submission|student-decision)$/.test(req.path)||
+    /^\/academic\/commissions\/[^/]+\/(?:submission|submission-binary|student-decision)$/.test(req.path)||
     /^\/operations\/[^/]+\/upload$/.test(req.path));
   if(!permittedRead&&!rootOfficialMessage&&!evaluationAction)
    return res.status(403).json({error:'Root can inspect and coordinate here. Identity, consent, personal settings and client acceptance cannot be forged.'});
