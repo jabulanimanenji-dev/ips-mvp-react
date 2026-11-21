@@ -44,6 +44,7 @@ const db={
  messages:raw.collection('academic_case_messages'),
  support:raw.collection('academic_support_cases'),
  notifications:raw.collection('academic_notifications'),
+ notificationDeliveries:raw.collection('academic_notification_deliveries'),
  audit:raw.collection('academic_audit_events'),
  outbox:raw.collection('academic_evaluation_mail'),
  quoteMessages:raw.collection('academic_quote_messages'),
@@ -65,6 +66,7 @@ await Promise.all([
  db.support.createIndex({ownerId:1,updatedAt:-1}),
  db.audit.createIndex({at:-1}),
  db.notifications.createIndex({accountId:1,createdAt:-1}),
+ db.notificationDeliveries.createIndex({status:1,nextAttemptAt:1,createdAt:1}),
  db.quoteMessages.createIndex({quoteId:1,createdAt:1}),
  db.quoteFiles.createIndex({quoteId:1,createdAt:-1}),
  db.directMessages.createIndex({toId:1,createdAt:-1}),
@@ -92,8 +94,21 @@ async function audit(actor,action,ref='',details={}){
   action,ref:String(ref),details:assisted?{...details,rootAssisted:true,selectedAccountId:actor.id,selectedRole:actor.role}:details});
 }
 async function notify(accountId,message,kind='academic_work'){
- if(accountId)await db.notifications.insertOne({id:uid('NT'),accountId,
-  message,kind,read:false,createdAt:now()});
+ if(!accountId)return;
+ const item={id:uid('NT'),accountId,message,kind,read:false,createdAt:now()};
+ await db.notifications.insertOne(item);
+ // User-selected email updates are dispatched by an independent retryable queue.
+ // Never send case text, private document names, academic topics or identities by email.
+ // Workspace-only and Telegram-preferring recipients continue to use their private inbox.
+ const owner=await db.accounts.findOne({id:accountId,verified:true,status:'active',
+   contactPreference:'email'},{projection:{email:1}});
+ if(owner?.email)await db.notificationDeliveries.insertOne({
+  id:uid('OUT'),notificationId:item.id,accountId,to:owner.email,
+  subject:'IPS Academic Services — new private update',
+  text:'A private IPS Academic Services update is ready in your secure workspace.\n'+
+       'Sign in: '+config.origin+'\n\nFor security, this email contains no academic case details.',
+  kind,status:'pending',attempts:0,nextAttemptAt:now(),createdAt:now()
+ });
 }
 async function resolveActor(req){
  const token=security.read(req);
