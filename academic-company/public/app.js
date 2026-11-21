@@ -196,16 +196,16 @@ function tokenForm(kind){
  kind==='guestconfirm'?'Confirm my academic enquiry':kind==='verify'?'Verify my email':'Secure my account'));
 }
 function departmentsForRole(a){
- if(a.role==='student')return [['overview','Overview'],['inbox','Inbox & messages'],
+ if(a.role==='student')return [['overview','Overview'],['inbox','Inbox & messages'],['notifications','Updates'],
   ['quotes','My quotations'],['commissions','My academic work'],['support','Support'],['profile','Account']];
- if(a.role==='specialist')return [['overview','My work'],['inbox','Inbox & messages'],
+ if(a.role==='specialist')return [['overview','My work'],['inbox','Inbox & messages'],['notifications','Updates'],
   ['commissions','Assignments & files'],['support','Support'],['profile','Profile']];
- if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],
+ if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],['notifications','Alerts & delivery'],
   ['quotes','Enquiries'],['students','Students'],['specialists','Specialists'],
   ['commissions','Academic jobs'],['root-students','Student workspace'],
   ['root-specialists','Specialist workspace'],['workforce','Team & managers'],
   ['finance','Finance'],['audit','Audit']];
- const t=[['overview','Overview'],['inbox','Inbox & messages'],['queues','My queue']];
+ const t=[['overview','Overview'],['inbox','Inbox & messages'],['notifications','Updates'],['queues','My queue']];
  if(a.department==='client_relations')t.push(['quotes','Enquiries'],['students','Students'],['support','Support']);
  if(a.department==='academic_delivery')t.push(['commissions','Academic jobs']);
  if(a.department==='specialist_network')t.push(['specialists','Specialists']);
@@ -394,9 +394,23 @@ async function loadTab(){
    empty('No events recorded.'));
  }else if(tab==='notifications'){
   const d=await api('/notifications');
-  html=panel('Updates','',d.notifications.length?'<div class="small-list">'+d.notifications.map(n=>
+  html=panel(a.role==='root'?'Company alerts':'Updates','',
+   d.notifications.length?'<div class="small-list">'+d.notifications.map(n=>
    record(n.message,date(n.createdAt),n.id,n.kind,n.read||rootAssisted?'':b('Mark read','notification-read',n.id))).join('')+'</div>':
    empty('No updates.'));
+  if(a.role==='root'){
+   const delivery=await api('/operations/delivery-status',{operator:true});
+   const totals=delivery.counts;
+   html+=panel('Email delivery operations','Non-sensitive delivery status. Email notices are sent only when users have selected email updates.',
+    '<div class="metrics">'+kpi('Pending',totals.pending||0,'Waiting to send')+
+    kpi('Sending',totals.sending||0,'In progress')+
+    kpi('Delivered',totals.delivered||0,'Completed')+
+    kpi('Failed',totals.failed||0,'Action needed')+'</div>'+
+    (delivery.exceptions.length?'<div class="small-list">'+delivery.exceptions.map(x=>
+     record('Undelivered IPS notification',x.kind+' · attempted '+x.attempts+' times',x.id,'failed',
+      b('Retry delivery','delivery-retry',x.id,'small'))).join('')+'</div>':
+     '<p>No permanently failed email notifications.</p>'));
+  }
  }
  const current=root.querySelector('#workbody');if(current)current.innerHTML=html;
  }catch(err){const current=root.querySelector('#workbody');if(current)current.innerHTML='<div class="notice error" role="alert">'+e(err.message)+'</div>'}
@@ -719,7 +733,7 @@ document.addEventListener('click',async ev=>{
   remember();
   const parts=act==='inbox-open'?id.split('::'): [id.startsWith('IPS-Q')?'quote':id.startsWith('IPS-S')?'support':'commission',id];
   const kind=parts[0];state.opened=parts.slice(1).join('::');
-  state.tab=kind==='quote'?'quotes':kind==='support'?'support':kind==='direct'?'inbox':'commissions';
+  state.tab=kind==='quote'?'quotes':kind==='support'?'support':kind==='direct'?'inbox':kind==='alert'?'notifications':'commissions';
   render();return;
  }
  if(act==='person-message'){remember();state.opened='DMTO:'+id;render();return}
@@ -750,6 +764,7 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
   }
   else if(act==='support-close'){await api('/support/'+encodeURIComponent(id)+'/resolve',{method:'POST'});state.message='Written support case resolved.'}
   else if(act==='notification-read'){await api('/notifications/'+encodeURIComponent(id)+'/read',{method:'POST'});state.message='Notification marked read.'}
+  else if(act==='delivery-retry'){await api('/operations/delivery/'+encodeURIComponent(id)+'/retry',{method:'POST',operator:true});state.message='Failed notification queued for an automatic retry.'}
   else throw Error('This academic action needs an assigned workflow.');
  }catch(ex){state.error=ex.message}
  finally{state.busy=false}
