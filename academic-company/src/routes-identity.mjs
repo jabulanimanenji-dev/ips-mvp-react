@@ -45,6 +45,8 @@ export function registerIdentityRoutes(ctx){
    ...(role==='student'?{usernameKey:uname.toLowerCase()}:{}),name:role==='specialist'?fullName:'',
    expertise,passwordHash:hashPassword(password),verified:false,approved:false,status:'pending_verification',
    sessionVersion:1,department:'',managerId:'',contactPreference:'workspace',
+   ...(role==='specialist'?{availabilityStatus:'unavailable',maxConcurrentCases:0,
+     activeAssignments:0,turnaroundDays:0}:{}),
    privacyConsentAt:now(),createdAt:now(),lastLoginAt:null,
    ...(role==='specialist'?{qualification:String(req.body.qualification||'').slice(0,300),
      experience:String(req.body.experience||'').slice(0,200)}:{})};
@@ -139,6 +141,40 @@ export function registerIdentityRoutes(ctx){
   await db.accounts.updateOne({id:req.actor.id},{$set:updates});
   await audit(req.actor,'written_contact_preference_changed',req.actor.id,{channel});
   res.json({success:true,contactPreference:channel,telegram:updates.telegram||''});
+ }));
+ // A Specialist declares actual capacity before the company may assign paid work.
+ app.get('/api/specialist/availability',wrap(async(req,res)=>{
+  if(!authorize(req,res,['specialist']))return;
+  const a=await db.accounts.findOne({id:req.actor.id,role:'specialist',verified:true,approved:true,status:'active'});
+  if(!a)return res.status(403).json({error:'Approved Specialist access is required.'});
+  res.json({availabilityStatus:a.availabilityStatus||'unavailable',
+   maxConcurrentCases:a.maxConcurrentCases||0,activeAssignments:a.activeAssignments||0,
+   turnaroundDays:a.turnaroundDays||0,updatedAt:a.availabilityUpdatedAt||null});
+ }));
+ app.patch('/api/specialist/availability',wrap(async(req,res)=>{
+  if(!authorize(req,res,['specialist']))return;
+  const status=String(req.body?.availabilityStatus||'');
+  const max=Number(req.body?.maxConcurrentCases),days=Number(req.body?.turnaroundDays);
+  if(!['available','limited','unavailable'].includes(status)||
+   !Number.isSafeInteger(max)||max<0||max>8||
+   !Number.isSafeInteger(days)||days<0||days>60||
+   (status!=='unavailable'&&(max<1||days<1)))
+   return res.status(400).json({error:'Set availability, a maximum of 1–8 concurrent jobs, and a realistic 1–60 day turnaround.'});
+  const a=await db.accounts.findOne({id:req.actor.id,role:'specialist',verified:true,approved:true,status:'active'});
+  if(!a)return res.status(403).json({error:'Only an approved, active Specialist can declare capacity.'});
+  const active=await db.projects.countDocuments({specialistId:a.id,
+   status:{$nin:['completed','cancelled','closed']}});
+  const reserved=Math.max(active,a.activeAssignments||0);
+  if(status!=='unavailable'&&max<reserved)
+   return res.status(409).json({error:'Capacity cannot be reduced below currently assigned academic work.'});
+  await db.accounts.updateOne({id:a.id,status:'active'},{
+   $set:{availabilityStatus:status,maxConcurrentCases:status==='unavailable'?0:max,
+    turnaroundDays:status==='unavailable'?0:days,availabilityUpdatedAt:now()},
+   $max:{activeAssignments:reserved}});
+  await audit(req.actor,'academic_specialist_availability_updated',a.id,{
+   status,capacity:status==='unavailable'?0:max,turnaroundDays:status==='unavailable'?0:days});
+  res.json({success:true,availabilityStatus:status,maxConcurrentCases:status==='unavailable'?0:max,
+   activeAssignments:reserved,turnaroundDays:status==='unavailable'?0:days});
  }));
  app.get('/api/administration/people',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','manager','staff']))return;
