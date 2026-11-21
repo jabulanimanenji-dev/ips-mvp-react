@@ -48,6 +48,7 @@ const db={
  outbox:raw.collection('academic_evaluation_mail'),
  quoteMessages:raw.collection('academic_quote_messages'),
  directMessages:raw.collection('academic_direct_messages'),
+ directFiles:raw.collection('academic_direct_files'),
  rootOperations:raw.collection('academic_root_operations')
 };
 await Promise.all([
