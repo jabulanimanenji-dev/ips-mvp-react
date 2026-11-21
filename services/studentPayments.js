@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { isStudentSupportRequest } from '../shared/studentOffers.js';
 import {processStudentRefundEvent} from './studentRefunds.js';
 import {paymentLaunchState} from '../shared/paymentLaunch.js';
+import {hasAdminPermission} from '../shared/adminPermissions.js';
 
 const allowedCurrencies = new Set(['usd', 'eur', 'pln']);
 const safeError = error => error instanceof Error ? error.message : 'Unexpected payment error';
@@ -98,7 +99,7 @@ export function registerStudentPaymentRoutes(app, { requireSession, StudentPayme
     try {
       const session = requireSession(req, res);
       if (!session) return;
-      if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Admin access required.' });
+      if (session.role !== 'admin'||!hasAdminPermission(req.adminAccess,'payments.view')) return res.status(403).json({ success: false, error: 'Financial viewing permission required.' });
       const payments = await StudentPayment.find().sort({ createdAt: -1 }).limit(100).select('request_id client_id status currency amount_minor refunded_minor createdAt paid_at provider_payment_intent').lean();
       res.json({ success: true, payments });
     } catch (error) {
