@@ -1,0 +1,15 @@
+# Isolated review of IPS Academic Services — no generic-project product code.
+FROM node:24-bookworm-slim AS node_runtime
+FROM mongo:7.0
+COPY --from=node_runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node_runtime /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
+WORKDIR /app
+COPY academic-company/package.json academic-company/package-lock.json ./
+RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts
+COPY academic-company/src ./src
+COPY academic-company/public ./public
+COPY academic-company/scripts/seed-review.mjs ./scripts/seed-review.mjs
+COPY academic-company/scripts/review-entrypoint.sh ./review-entrypoint.sh
+EXPOSE 8080
+ENTRYPOINT ["/bin/bash","/app/review-entrypoint.sh"]

@@ -1,0 +1,32 @@
+{
+  "name": "ips-academic-services-company",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "IPS Academic Services — confidential academic support, governed Specialists and company administration",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/app.mjs",
+    "test:lifecycle": "node scripts/verify-lifecycle.mjs",
+    "test:browser": "node scripts/verify-browser.mjs",
+    "test:review": "node scripts/verify-review-image.mjs",
+    "check": "node --check src/app.mjs && node --check public/app.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "4.22.3",
+    "helmet": "^8.3.0",
+    "mongoose": "^9.7.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.3.4"
+  }
+}

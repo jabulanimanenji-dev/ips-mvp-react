@@ -1,107 +1,39 @@
-# IPS Service Platform
+# IPS ACADEMIC SERVICES — THE NEW COMPANY
 
-IPS is a full-stack service operations platform for academic work, professional services, and odd jobs. It includes client, provider, and hidden administrator portals with governed messaging, file/evidence workflows, action queues, support tickets, analytics, and a versioned visual builder.
+**Product identity:** IPS Academic Services, professional academic and research support for Students / Researchers with approved academic Specialists and centrally governed company administration.
 
-## Stack
+**Governed by:** [IPS Academic Services Constitution](GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md), 21 articles.
 
-- React 18 and Vite
-- Express
-- MongoDB with Mongoose
-- Private Cloudflare R2 object storage
-- Server-signed session cookies
-- Render Starter deployment
+**This is not** International Project Services or any rebranded version of the rejected generic-project preview.
 
-## Local setup on Windows CMD
+## Genuine service catalogue
 
-```bat
-cd /d "C:\Users\pea\ips-mvp-react-git"
-copy .env.example .env
-npm install
-```
+16 subject-specific offerings: assignments/coursework guidance, theses/dissertations, research/capstones, proposals, literature reviews, research methods, statistics/SPSS/R/Python, data cleaning/visualization, qualitative research, academic editing/proofreading, referencing/formatting, presentations/posters, viva/defense preparation, study planning, technical academic mentoring, and translation/language support.
 
-Fill in the real values in `.env`. Never commit `.env`.
-Local development uses `STORAGE_PROVIDER=local` and does not require Cloudflare
-credentials.
+## Business operating system
 
-Start the backend in one CMD window:
+- Public academic site and service-specific guest/student written quote intake.
+- Privacy-first Student / Researcher identity, verified email ownership and single-use recovery.
+- Professional Specialist onboarding, verified qualifications, governance approval and scoped assignments.
+- Nyoro Root Admin (no manager, never a deletable staff record), scoped managers and employees.
+- Seven academic company departments, accountable task queues, case assignment and SLA escalation.
+- Scope review before real written quotations; client acceptance and an honest pending-payment commissioning gate.
+- Centralized academic project messaging, independent QA, corrections, revisions, final client acceptance and secure academic file readback.
+- Academic integrity safeguards: permitted professional coaching, editing and support; no fabricated research or deceptive authorship.
+- Production payment settlement deliberately **not enabled**.
 
-```bat
-npm run dev:server
-```
+## Source and environment boundary
 
-Start the frontend in a second CMD window:
+The active application source is exclusively in `academic-company/`. It imports no historical application models or generic-project preview code.
 
-```bat
-cd /d "C:\Users\pea\ips-mvp-react-git"
-npm run dev
-```
+- New production database: `ips_academic_services_2026`; no automatic copy of historical `ips` or `ips_database` records.
+- Synthetic local and Docker evaluation database: `ips_academic_sandbox`; every account/file/payment illustration is explicitly fictitious.
+- Browser and MongoDB tests run with real signed sessions and isolated MongoDB 7.
+- `Dockerfile.ips-academic-review` boots an isolated preview and rejects live email, payment and messenger credentials.
+- Previous production IPS is preserved for user-data integrity and safe rollback. Incorrect project-services source remains archived only for audit.
 
-Open `http://127.0.0.1:3000`.
+## Release acceptance
 
-## Required environment
+This branch is a review/qualification candidate, not permission to replace `ipsglobalservice.com`. The actual company requires real email provider verification, live identity/authorization checks against the newly scoped Atlas account, durable document storage with independent restore, Telegram receipt confirmation and full browser/safety qualification. The owner must accept the **correct academic-services product** before publication. Payment provider integration remains the last external milestone.
 
-- `MONGODB_URI`
-- `SESSION_SECRET`
-- `ADMIN_EMAIL`
-- `ADMIN_PASSWORD`
-- `VITE_ADMIN_ENTRY_PATH`
-
-Production also requires:
-
-- `NODE_ENV=production`
-- `STORAGE_PROVIDER=r2`
-- `R2_ENDPOINT`
-- `R2_BUCKET_NAME`
-- `R2_ACCESS_KEY_ID`
-- `R2_SECRET_ACCESS_KEY`
-
-`R2_PREFIX=production` keeps production objects under a dedicated prefix. The
-R2 bucket must remain private. The production token must have Object Read &
-Write access to that bucket only. R2 values are server-only and must never use
-a `VITE_` prefix.
-
-## Data architecture
-
-MongoDB is the source of truth for clients, providers, admins, academic orders,
-service requests, workspaces, file metadata, messages, actions, support
-tickets, reports, finance tracking, audits, and published platform
-configuration. File content is stored in the private R2 bucket.
-
-Browser storage is only used to remember theme and cached signed-in identity. Protected operations require a valid server-signed session.
-
-## Commands
-
-```bat
-npm run dev
-npm run dev:server
-npm run build
-npm run check
-npm start
-```
-
-`npm run check` builds the app, validates the server, verifies Phase 11 Visual Builder 2.0 and administrator hierarchy, verifies the earlier builder and Phase 9 data consolidation, validates the Phase 13 production configuration, and tests unauthorized access to protected routes.
-
-## Current phase status
-
-- Phases 1–7: core workflows, governed communication, files/evidence, and action centre.
-- Phase 9: MongoDB data consolidation and support/reporting/settings upgrade.
-- Phase 11: Visual Builder 2.0, governed page media, responsive free positioning, server-enforced administrator hierarchy, custom roles, session revocation, and security audit.
-- Phase 12 foundation: versioned visual configuration with preview, publish, and rollback.
-- Phase 13 deployment preparation: Render Blueprint validation, pinned Node runtime, production configuration checks, MongoDB-aware health checks, private R2 uploads, zero-downtime-compatible storage, and graceful shutdown.
-- Phase 8 remains intentionally deferred until a verified payment provider is selected.
-- Phase 10 remains for production email/SMS/push delivery and notification reliability.
-
-See `ULTIMATE_MVP_PHASE9.md`, `ULTIMATE_MVP_PHASE11.md`, `PHASE12_VISUAL_BUILDER.md`, and the existing phase verification documents for details.
-
-## Security
-
-Do not commit `.env`, private keys, database credentials, production passwords,
-R2 credentials, or user-uploaded files. Put production secrets directly into
-the Render service environment, not source code, chat, screenshots, tickets,
-or build logs. The JSON export excludes password hashes and file storage names.
-Database restoration, credential rotation, and destructive bulk changes
-require a controlled maintenance process.
-
-## License
-
-Proprietary — IPS internal use.
+**New implementations. Unchanged academic-services mission.**
