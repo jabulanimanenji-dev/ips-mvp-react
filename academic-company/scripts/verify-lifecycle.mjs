@@ -299,6 +299,45 @@ try{
   assert.equal(sent?.status,'synthetic_dispatched',
    'Sandbox Telegram should be recorded as synthetic, never as a human receipt');
   assert.equal(sent?.provider,'telegram-sandbox');
+  // Account-linked inbound Telegram text must be visible and replyable to authorized personnel.
+  const incoming={update_id:21002,message:{message_id:773,chat:{id:487654321,type:'private'},
+   from:{id:487654321,username:'PrivateAcademicTester'},
+   text:'Hello IPS, I have a question about how to contact your team.'}};
+  const incomingResult=await webhook(vars.IPS_TELEGRAM_WEBHOOK_SECRET,incoming);
+  assert.equal(incomingResult.status,200);
+  assert.equal((await incomingResult.json()).accepted,true);
+  const repeated=await webhook(vars.IPS_TELEGRAM_WEBHOOK_SECRET,incoming);
+  assert.equal((await repeated.json()).duplicate,true);
+  assert.equal(await db.collection('academic_telegram_messages').countDocuments({
+   accountId:student.id,direction:'inbound'}),1,'Telegram replay must not duplicate the message');
+  await call('/communications/telegram/threads',{cookie:studentCookie},403);
+  await call('/communications/telegram/threads',{cookie:managerCookie},403);
+  const threads=await call('/communications/telegram/threads',{cookie:rootCookie});
+  assert.ok(threads.data.threads.some(x=>x.accountId===student.id&&x.unread===1));
+  const conversation=await call('/communications/telegram/threads/'+student.id,{cookie:rootCookie});
+  assert.equal(conversation.data.messages.length,1);
+  assert.ok(conversation.data.messages[0].body.includes('contact your team'));
+  await call('/communications/telegram/threads/'+student.id+'/reply',
+   withAuth(rootCookie,{body:'Confidential details belong inside your secure IPS workspace.'}),400);
+  const reply=await call('/communications/telegram/threads/'+student.id+'/reply',
+   withAuth(rootCookie,{body:'Please sign in to IPS to share the details securely.',
+    privacyConfirmed:true}),202);
+  assert.equal(reply.data.queued,true);
+  const job=await db.collection('academic_notification_deliveries').findOne({
+   telegramMessageId:reply.data.messageId});
+  assert.equal(job.channel,'telegram');
+  for(let i=0;i<35;i++){
+   const status=await db.collection('academic_telegram_messages').findOne({id:reply.data.messageId});
+   if(status?.status==='synthetic_dispatched')break;
+   await sleep(300);
+  }
+  const sentReply=await db.collection('academic_telegram_messages').findOne({
+   id:reply.data.messageId});
+  assert.equal(sentReply.status,'synthetic_dispatched');
+  await call('/communications/telegram/threads/'+student.id+'/read',withAuth(rootCookie,{}));
+  const read=await db.collection('academic_telegram_messages').findOne({
+   accountId:student.id,direction:'inbound'});
+  assert.equal(read.read,true);
   const pendingId='IPS-TELEGRAM-REVOKE-'+random();
   await queue.insertOne({id:pendingId,accountId:student.id,chatId:487654321,
    channel:'telegram',kind:'telegram_revocation',
@@ -312,6 +351,12 @@ try{
   const after=await db.collection('academic_accounts').findOne({id:student.id});
   assert.equal(after.contactPreference,'workspace');
   assert.equal(after.telegramChatId,undefined);
+  const afterRevocation=await webhook(vars.IPS_TELEGRAM_WEBHOOK_SECRET,{
+   update_id:21003,message:{message_id:774,chat:{id:487654321,type:'private'},
+    from:{id:487654321},text:'This unlinked chat must not be accepted.'}});
+  assert.equal((await afterRevocation.json()).accepted,false);
+  await call('/communications/telegram/threads/'+student.id+'/reply',
+   withAuth(rootCookie,{body:'A reply after revocation must fail.',privacyConfirmed:true}),409);
   await call('/academic/quotes',withAuth(studentCookie,{
    ...brief(),contactChannel:'telegram'}),409);
  });
