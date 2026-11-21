@@ -132,13 +132,19 @@ export function registerFinanceRoutes(ctx){
   if(!Number.isSafeInteger(amount)||amount<1||amount>p.priceMinor||
    reason.length<15||reason.length>700)
    return res.status(400).json({error:'Propose a documented positive Specialist fee that does not exceed the quoted client amount.'});
+  const existing=await db.compensation.findOne({commissionId:p.id});
+  if(existing&&['accepted','declined'].includes(existing.status))
+   return res.status(409).json({error:'Previously agreed or declined Specialist terms cannot be silently replaced.'});
   const at=now();
-  const item=await db.compensation.findOneAndUpdate({commissionId:p.id,
+  let item;
+  try{item=await db.compensation.findOneAndUpdate({commissionId:p.id,
    status:{$nin:['accepted','declined']}},{$set:{
    specialistId:p.specialistId,proposedFeeMinor:amount,currency:p.currency,
    status:'proposed',reason,proposedBy:req.actor.id,updatedAt:at},
    $setOnInsert:{id:uid('IPS-COMP'),commissionId:p.id,createdAt:at}},
-   {upsert:true,returnDocument:'after'});
+   {upsert:true,returnDocument:'after'});}
+  catch(err){if(err?.code===11000)return res.status(409).json({
+    error:'Another IPS Finance manager changed these compensation terms. Reload before deciding.'});throw err}
   await audit(req.actor,'specialist_compensation_proposed',p.id,{feeMinor:amount});
   await notify(p.specialistId,'An IPS Specialist compensation proposal awaits your acknowledgement for '+p.id,'finance');
   res.json({proposal:summary(item),payoutExecuted:false});
