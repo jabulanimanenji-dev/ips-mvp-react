@@ -144,8 +144,8 @@ function ProtectedAdminRoute({ children }) {
           {passwordState.error && <div className="toast error" style={{ position: 'static', marginBottom: '1rem' }}>{passwordState.error}</div>}
           <div className="flex flex-col gap-3">
             <input className="form-input" type="password" placeholder="Current temporary password" value={passwords.current} onChange={event => setPasswords({ ...passwords, current: event.target.value })} required />
-            <input className="form-input" type="password" minLength={10} pattern="(?=.*[A-Za-z])(?=.*\d).{10,}" placeholder="New password (10+ characters, letter + number)" value={passwords.next} onChange={event => setPasswords({ ...passwords, next: event.target.value })} required />
-            <input className="form-input" type="password" minLength={10} pattern="(?=.*[A-Za-z])(?=.*\d).{10,}" placeholder="Confirm new password" value={passwords.confirm} onChange={event => setPasswords({ ...passwords, confirm: event.target.value })} required />
+            <input className="form-input" type="password" minLength={10} pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{10,}" placeholder="New password (10+ characters, uppercase, number and symbol)" value={passwords.next} onChange={event => setPasswords({ ...passwords, next: event.target.value })} required />
+            <input className="form-input" type="password" minLength={10} pattern="(?=.*[A-Z])(?=.*[0-9])(?=.*[^A-Za-z0-9]).{10,}" placeholder="Confirm new password" value={passwords.confirm} onChange={event => setPasswords({ ...passwords, confirm: event.target.value })} required />
             <button className="btn btn-primary" disabled={passwordState.working}>{passwordState.working ? 'Securing account…' : 'Change password and continue'}</button>
             <button type="button" className="btn btn-secondary" onClick={logout}>Sign out</button>
           </div>
