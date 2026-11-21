@@ -536,6 +536,40 @@ try{
   const specialist=(await db.collection('academic_accounts').findOne({email:specialistMail}));
   await call('/academic/commissions/'+commissionId+'/assign',withAuth(rootCookie,{specialistId:specialist.id}),409);
  });
+ await assertCheck('Accepted academic quotation produces truthful non-payable billing and private access',async()=>{
+  const student=await call('/finance/my-billing',{cookie:studentCookie});
+  const bill=student.data.records.find(x=>x.commissionId===commissionId);
+  assert.ok(bill,'A quotation was accepted but no billing preparation was recorded');
+  assert.equal(bill.state,'payment_provider_pending');
+  assert.equal(bill.paymentStatus,'not_collected');
+  assert.equal(bill.receiptIssued,false);
+  assert.equal(bill.invoiceNumber,null);
+  assert.equal(student.data.paymentsEnabled,false);
+  await call('/finance/my-billing',{cookie:rootCookie},403);
+  await call('/finance/overview',{cookie:studentCookie},403);
+  await call('/finance/overview',{cookie:managerCookie},403);
+  const summary=await call('/finance/overview',{cookie:rootCookie});
+  assert.ok(summary.data.billing.some(x=>x.commissionId===commissionId));
+  assert.equal(summary.data.totals.issuedReceipts,0);
+  assert.equal(summary.data.totals.collectedAmountMinor,0);
+  assert.equal(await db.collection('academic_billing_records').countDocuments({
+   commissionId}),1,'Each accepted commission must have one billing preparation');
+ });
+ await assertCheck('Student billing concerns are governed without fictitious refunds',async()=>{
+  await call('/finance/disputes',withAuth(rootCookie,{commissionId,reason:'Not the student'}),403);
+  const created=await call('/finance/disputes',withAuth(studentCookie,{
+   commissionId,reason:'Please clarify whether the accepted quote can be revised before payments become available.'}),201);
+  const disputeId=created.data.dispute.id;
+  const studentDisputes=await call('/finance/disputes',{cookie:studentCookie});
+  assert.ok(studentDisputes.data.disputes.some(d=>d.id===disputeId));
+  await call('/finance/disputes/'+disputeId+'/review',withAuth(studentCookie,{
+   decision:'resolved_without_settlement',note:'Student should not approve own finance resolution.'}),403);
+  const reviewed=await call('/finance/disputes/'+disputeId+'/review',withAuth(rootCookie,{
+   decision:'resolved_without_settlement',
+   note:'IPS has clarified the quote in writing. No payment or refund has occurred.'}));
+  assert.equal(reviewed.data.refundsEnabled,false);
+  assert.equal(reviewed.data.dispute.status,'resolved_without_settlement');
+ });
  await assertCheck('Only isolated test mode permits a declared synthetic financial witness',async()=>{
   const r=await call('/evaluation/confirm-synthetic-payment/'+commissionId,withAuth(rootCookie,{}));
   assert.equal(r.data.synthetic,true);assert.equal(r.data.commission.paymentStatus,'synthetic_test_only');
@@ -549,6 +583,50 @@ try{
   const a=await call('/academic/commissions/'+commissionId+'/assign',withAuth(rootCookie,{specialistId:specialist.id}));
   assert.equal(a.data.commission.status,'specialist_assigned');
   await call('/academic/commissions/'+commissionId+'/assign',withAuth(staffCookie,{specialistId:specialist.id}),403);
+ });
+ await assertCheck('Specialist work logs, fee consent and Finance authority are end-to-end but unpaid',async()=>{
+  const payload={commissionId,minutes:85,workDate:'2026-11-20',
+   summary:'Academic nursing manuscript corrections and literature source verification as agreed in the approved editorial brief.',
+   requestId:'IPS-FIN-'+random()};
+  await call('/finance/work-logs',{method:'POST',cookie:studentCookie,body:payload},403);
+  const created=await call('/finance/work-logs',withAuth(specialistCookie,payload),201);
+  const logId=created.data.log.id;
+  const repeated=await call('/finance/work-logs',withAuth(specialistCookie,payload));
+  assert.equal(repeated.data.duplicate,true);
+  assert.equal(await db.collection('academic_specialist_work_logs').countDocuments({
+   specialistId:(await db.collection('academic_accounts').findOne({email:specialistMail})).id,
+   requestId:payload.requestId}),1);
+  const own=await call('/finance/work-logs',{cookie:specialistCookie});
+  assert.ok(own.data.logs.some(w=>w.id===logId));
+  await call('/finance/work-logs',{cookie:studentCookie},403);
+  await call('/finance/work-logs/'+logId+'/decision',withAuth(managerCookie,{
+   decision:'approve',note:'A Client Relations manager cannot approve Finance time records.'}),403);
+  const reviewed=await call('/finance/work-logs/'+logId+'/decision',withAuth(rootCookie,{
+   decision:'approve',note:'Confirmed the assigned academic editing and actual time stated.'}));
+  assert.equal(reviewed.data.log.status,'approved');
+  assert.equal(reviewed.data.payoutExecuted,false);
+  await call('/finance/work-logs/'+logId+'/decision',withAuth(rootCookie,{
+   decision:'approve',note:'This decision cannot be repeated.'}),409);
+  const p=await db.collection('academic_commissions').findOne({id:commissionId});
+  await call('/finance/compensation/'+commissionId+'/propose',withAuth(rootCookie,{
+   feeMinor:p.priceMinor+1,reason:'Over-pricing must be rejected.'}),400);
+  const proposed=await call('/finance/compensation/'+commissionId+'/propose',
+   withAuth(rootCookie,{feeMinor:Math.max(1,Math.floor(p.priceMinor/2)),
+    reason:'Proposed agreed specialist fee for the documented approved academic editing work.'}));
+  assert.equal(proposed.data.proposal.status,'proposed');
+  const visible=await call('/finance/compensation/'+commissionId,{cookie:specialistCookie});
+  assert.equal(visible.data.proposal.status,'proposed');
+  await call('/finance/compensation/'+commissionId+'/respond',withAuth(studentCookie,{
+   decision:'accept'}),403);
+  const responded=await call('/finance/compensation/'+commissionId+'/respond',
+   withAuth(specialistCookie,{decision:'accept'}));
+  assert.equal(responded.data.proposal.status,'accepted');
+  assert.equal(responded.data.payoutExecuted,false);
+  await call('/finance/compensation/'+commissionId+'/propose',
+   withAuth(rootCookie,{feeMinor:100,reason:'Attempt to overwrite agreed specialist terms.'}),409);
+  const overview=await call('/finance/overview',{cookie:rootCookie});
+  assert.equal(overview.data.totals.executedPayoutMinor,0);
+  assert.ok(overview.data.workLogs.some(x=>x.id===logId&&x.status==='approved'));
  });
  let secondCommissionId;
  await assertCheck('A fully booked Specialist cannot be assigned a second academic case',async()=>{
