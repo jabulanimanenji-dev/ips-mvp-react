@@ -263,6 +263,35 @@ export function registerOperationsRoutes(ctx){
    .set('X-Content-SHA256',file.sha256);
   streamPrivateBlob(res,file);
  }));
+ app.post('/api/operations/:id/upload-reference-binary',
+  express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','specialist','root']))return;
+  if(throttle.limited(req,'academic-case-reference',20))
+   return res.status(429).json({error:'Please retry the academic document upload later.'});
+  const p=await db.projects.findOne({id:req.params.id});
+  if(!p||!caseAccess(req.actor,p))return deny(res);
+  const a=req.actor;
+  if(!(a.role==='root'||a.role==='student'&&p.studentId===a.id||
+    a.role==='specialist'&&p.specialistId===a.id))
+   return res.status(403).json({error:'Only the Client, assigned Specialist or Root may upload private case references.'});
+  const checked=binaryDocument(req);
+  if(checked.error)return res.status(400).json({error:checked.error});
+  const id=uid('AF'),date=now();
+  const blob=await storePrivateBlob({id,...checked,context:{
+   kind:'client_reference',commissionId:p.id}});
+  const file={id,commissionId:p.id,studentId:p.studentId,
+   specialistId:p.specialistId,filename:checked.filename,mime:checked.mime,
+   purpose:'reference',kind:'client_reference',...blob,
+   createdAt:date,revision:p.revisionCount||0,uploadedBy:req.rootOperatorId||a.id};
+  try{await db.files.insertOne(file)}
+  catch(err){await documentBucket.delete(blob.blobId).catch(()=>{});throw err}
+  await db.projects.updateOne({id:p.id},{$set:{updatedAt:now()}});
+  await audit(a,'academic_reference_uploaded',p.id,
+   {fileId:id,sha256:blob.sha256,byteLength:blob.byteLength});
+  await notify(rootEmail,'New academic reference uploaded for '+p.id,'file');
+  res.status(201).json({file:metadata(file),storage:'private_gridfs',
+   byteLength:blob.byteLength});
+ }));
  app.post('/api/operations/:id/upload',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','student','specialist','manager','staff']))return;
   const p=await db.projects.findOne({id:req.params.id});
