@@ -34,6 +34,8 @@ services:
         sync: false
       - key: RESEND_WEBHOOK_SECRET
         sync: false
+      - key: IPS_STAGING_DISTINCT_TELEGRAM_BOT_CONFIRMED
+        sync: false
       - key: IPS_TELEGRAM_BOT_USERNAME
         sync: false
       - key: TELEGRAM_BOT_TOKEN
