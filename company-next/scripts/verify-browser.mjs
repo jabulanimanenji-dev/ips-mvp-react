@@ -19,8 +19,14 @@ const signIn=async(page,email,password)=>{
  await page.locator('input[name=email]').fill(email);
  await page.locator('input[name=password]').fill(password);
  await page.getByRole('button',{name:'Open secure workspace'}).click();
- await page.locator('.shell').waitFor({timeout:15000});
- await page.locator('.metric').first().waitFor({timeout:15000});
+ try{
+   await page.locator('.shell').waitFor({timeout:15000});
+   await page.locator('.metric').first().waitFor({timeout:15000});
+ }catch(error){
+   console.error('IPS_SIGNIN_SCREEN',String(await page.locator('body').innerText()).slice(0,1600));
+   console.error('IPS_SIGNIN_LOCATION',new URL(page.url()).pathname);
+   throw error;
+ }
 };
 try{
  app=spawn(process.execPath,['company-next/server.mjs'],{env,stdio:['ignore','pipe','pipe']});
