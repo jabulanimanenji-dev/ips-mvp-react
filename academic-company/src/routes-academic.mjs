@@ -70,8 +70,8 @@ export function registerAcademicRoutes(ctx){
   const channel=String(input.contactChannel||'email');
   if(!allowedChannels.includes(channel)||channel==='workspace')
    return res.status(400).json({error:'Guest quotations require an email or verified Telegram reply destination.'});
-  if(channel==='telegram'&&!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(String(input.telegramUsername||'').replace(/^@/,'')))
-   return res.status(400).json({error:'A valid Telegram username is required.'});
+  if(channel==='telegram')
+   return res.status(409).json({error:'A Telegram username alone is not a verified reply destination. Create and verify your private IPS account to connect your Telegram bot chat.'});
   const item=quoteBase(input,valid,null),token=strongToken();
   item.verifyHash=security.digest('academic-quote:'+token);
   item.verifyUntil=new Date(Date.now()+20*60000);
@@ -106,8 +106,8 @@ export function registerAcademicRoutes(ctx){
   const input={...req.body,username:req.actor.username,email:req.actor.email};
   const channel=String(input.contactChannel||'workspace');
   if(!allowedChannels.includes(channel))return res.status(400).json({error:'Choose an available IPS written communication channel.'});
-  if(channel==='telegram'&&!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(String(input.telegramUsername||'').replace(/^@/,'')))
-   return res.status(400).json({error:'Enter a valid Telegram username.'});
+  if(channel==='telegram'&&!req.actor.telegramLinked)
+   return res.status(409).json({error:'Your Telegram chat must be verified through the IPS bot before this private reply option can be used.'});
   const q=quoteBase({...input,contactChannel:channel},valid,req.actor);
   if(req.rootOperatorId){q.rootAssistedBy=req.rootOperatorId;q.synthetic=true}
   await db.quotes.insertOne(q);
