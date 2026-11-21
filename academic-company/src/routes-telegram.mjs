@@ -19,7 +19,7 @@ export function registerTelegramRoutes(ctx){
   if(!authorize(req,res,['student','specialist']))return;
   const a=await db.accounts.findOne({id:req.actor.id,verified:true,status:'active'});
   if(!a)return res.status(403).json({error:'Active verified account required.'});
-  res.json({available:ready(),linked:!!(a.telegramChatId&&a.telegramVerifiedAt),
+  res.json({available:ready(),linked:!!(a.telegramChatId&&a.telegramVerifiedAt&&a.telegramConnectionStatus==='confirmed'),
    botUsername:ready()?env.IPS_TELEGRAM_BOT_USERNAME:''});
  }));
  app.post('/api/contact/telegram/link',wrap(async(req,res)=>{
