@@ -592,12 +592,12 @@ async function submit(name,formNode){
  }
  if(name==='guest-quote'){const r=await api('/academic/guest-quote',{method:'POST',body:data});state.page='login';return 'Your private academic enquiry '+r.reference+' needs email confirmation. IPS has sent a one-use link.'}
  if(name==='student-quote'){const r=await api('/academic/quotes',{method:'POST',body:data});state.page='workspace';state.tab='quotes';return 'IPS received your academic enquiry '+r.quote.id+'. A qualified team member will review its scope.'}
- if(name==='guestconfirm'){await api('/academic/guest-confirm',{method:'POST',body:data});location.hash='';state.page='login';return 'Your academic quotation enquiry is verified and awaiting written IPS review.'}
- if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
+ if(name==='guestconfirm'){await api('/academic/guest-confirm',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);state.page='login';return 'Your academic quotation enquiry is verified and awaiting written IPS review.'}
+ if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
  if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page=state.account?'workspace':'login';if(state.account)state.tab='profile';return 'If this account is verified, a one-use recovery link is being emailed now.'}
  if(name==='resend-verification'){await api('/auth/resend-verification',{method:'POST',body:data});state.page='login';return 'If verification is pending, IPS has emailed a new link.'}
  if(name==='recover'||name==='invite'){if(data.password!==data.confirmPassword)throw Error('Passwords do not match.');
-  const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});location.hash='';if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
+  const r=await api(name==='recover'?'/auth/recovery/complete':'/auth/invitation/accept',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);if(r.account){state.account=r.account;state.page='workspace';state.tab='overview'}else state.page='login';return 'Your private IPS account credentials were updated successfully.'}
  if(name==='quote-message'){
   await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/messages',
    {method:'POST',body:{body:data.body,audience:data.audience||'student'}});
@@ -684,7 +684,9 @@ document.addEventListener('change',async ev=>{
 document.addEventListener('click',async ev=>{
  const route=ev.target.closest('[data-nav]'),tab=ev.target.closest('[data-tab]'),action=ev.target.closest('[data-action]'),category=ev.target.closest('[data-category]');
  if(category){remember();state.category=category.dataset.category;services();return}
- if(route){ev.preventDefault();remember();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
+ if(route){ev.preventDefault();const tokenParams=new URLSearchParams(location.hash.slice(1));
+  if(['recover','verify','invite','guestconfirm'].some(k=>tokenParams.has(k)))history.replaceState(null,'',location.pathname+location.search);
+  remember();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
   if(state.account&&['home','services','quote','how','privacy'].includes(dest)){if(state.rootLens&&dest==='quote'&&!state.isEvaluation){state.error='Real client quote authorization must come from the account holder.';render();return}state.page=dest==='home'?'services':dest;render();return}
   state.page=dest;state.registerRole=dest==='specialist'?'specialist':dest==='register'?'student':state.registerRole;render();return}
  if(tab){remember();state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
