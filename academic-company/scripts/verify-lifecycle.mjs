@@ -794,22 +794,7 @@ try{
   const newSession=await signIn(rootMail,'RootPasswordChanged2027!');
   const record=await db.collection('academic_root_credentials').findOne({id:rootMail});
   assert.equal(record.sessionVersion,2);
-  assert.ok(record.passwordHash?.startsWith('scrypt
-  const people=await call('/administration/people',{cookie:rootCookie});
-  assert.ok(!people.data.people.some(x=>x.role==='root'));
-  await call('/administration/people',{cookie:studentCookie},403);
-  const queue=await call('/administration/queues',{cookie:rootCookie});
-  assert.ok(queue.data.queues.some(x=>x.department==='quality_assurance'));
-  const saved=await db.collection('academic_audit_events').countDocuments({});
-  assert.ok(saved>14,'Academic business audit events missing');
-  const coll=(await db.listCollections().toArray()).map(x=>x.name);
-  assert.ok(coll.includes('academic_commissions'));
-  assert.ok(!coll.includes('orders')&&!coll.includes('writers')&&!coll.includes('clients'));
- });
- console.log('IPS_ACADEMIC_REAL_MONGODB_LIFECYCLE_GREEN '+checks+' verified business and security checks, full edited academic file, QA/revision loop');
-}catch(err){console.error('IPS_ACADEMIC_LIFECYCLE_FAIL',String(err),stderr);process.exitCode=1}
-finally{try{await client?.close()}catch{}server.kill('SIGTERM');await sleep(250)}
-));
+  assert.ok(record.passwordHash?.startsWith('scrypt'+String.fromCharCode(36)));
   assert.equal(await db.collection('academic_accounts').countDocuments({role:'root'}),0);
   await call('/auth/recovery/complete',{method:'POST',body:{
    email:rootMail,token:first,password:'AttackerReplay2027!',
