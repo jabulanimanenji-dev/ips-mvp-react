@@ -802,6 +802,46 @@ try{
    id,status:'delivered'}),0,'External delivery must not be falsely asserted in isolated testing');
   assert.ok(await db.collection('academic_audit_events').findOne({action:'academic_notification_retry_requested',ref:id}));
  });
+ await assertCheck('Multi-megabyte Specialist document streams securely through GridFS, QA and client delivery',async()=>{
+  const prefix=Buffer.from('IPS permitted academic editing and research-guidance notes.\\n');
+  const bytes=Buffer.concat([prefix,Buffer.alloc(7*1024*1024-prefix.length,65)]);
+  const checksum=crypto.createHash('sha256').update(bytes).digest('hex');
+  const bad=await fetch(url+'/api/academic/commissions/'+secondCommissionId+'/submission-binary',{
+   method:'POST',headers:{Cookie:specialistCookie,'Origin':url,
+    'Content-Type':'application/octet-stream','X-IPS-File-Name':'wrong-extension.pdf',
+    'X-IPS-File-Type':'text/plain'},body:Buffer.from('This is invalid as a PDF document.')});
+  assert.equal(bad.status,400,'Mismatched binary media types must be rejected');
+  const saved=await fetch(url+'/api/academic/commissions/'+secondCommissionId+'/submission-binary',{
+   method:'POST',headers:{Cookie:specialistCookie,'Origin':url,
+    'Content-Type':'application/octet-stream','X-IPS-File-Name':'research-editing-notes.txt',
+    'X-IPS-File-Type':'text/plain'},body:bytes});
+  assert.equal(saved.status,201,'Large Specialist upload failed: '+(await saved.clone().text()).slice(0,220));
+  const response=await saved.json();
+  assert.equal(response.checksum,checksum);
+  assert.equal(response.storage,'private_gridfs');
+  assert.equal(response.byteLength,bytes.length);
+  const record=await db.collection('academic_private_files').findOne({id:response.submissionId});
+  assert.ok(record.blobId,'GridFS document reference not persisted');
+  assert.equal(record.fileData,undefined,'Large academic bytes must not be embedded in BSON');
+  const denied=await fetch(url+'/api/academic/files/'+record.id,{headers:{Cookie:studentCookie}});
+  assert.equal(denied.status,403,'Student cannot read a pending QA document');
+  const rootDoc=await fetch(url+'/api/academic/files/'+record.id,{headers:{Cookie:rootCookie}});
+  assert.equal(rootDoc.status,200);
+  assert.equal(crypto.createHash('sha256').update(Buffer.from(await rootDoc.arrayBuffer())).digest('hex'),checksum);
+  const qa=await call('/academic/commissions/'+secondCommissionId+'/quality',
+   withAuth(rootCookie,{decision:'approve',
+    note:'Verified confidential academic guidance content and reviewed the full uploaded file.'}));
+  assert.equal(qa.data.commission.status,'client_delivery');
+  const studentDoc=await fetch(url+'/api/academic/files/'+record.id,{headers:{Cookie:studentCookie}});
+  assert.equal(studentDoc.status,200);
+  const downloaded=Buffer.from(await studentDoc.arrayBuffer());
+  assert.equal(downloaded.length,bytes.length);
+  assert.equal(crypto.createHash('sha256').update(downloaded).digest('hex'),checksum);
+  const outsider=await fetch(url+'/api/academic/files/'+record.id,{headers:{Cookie:otherCookie}});
+  assert.equal(outsider.status,403);
+  const chunks=await db.collection('academic_document_blobs.chunks').countDocuments({files_id:record.blobId});
+  assert.ok(chunks>2,'Multi-megabyte academic document did not use multiple GridFS chunks');
+ });
  await assertCheck('Nyoro Root receives one-use recovery email, revokes old sessions and remains non-deletable',async()=>{
   const rootMail=vars.ROOT_EMAIL,firstSession=rootCookie;
   const neutral=await call('/auth/recovery/request',{method:'POST',body:{
