@@ -89,6 +89,32 @@ try{
   await publicPage.locator('input[name=username]').waitFor();
   await screen(publicPage,'04-subject-specific-private-quotation');
  });
+ await pass('Self-service password recovery and email-verification resend work in the real browser',async()=>{
+  const p=await pageOpen(false);
+  await p.goto(origin+'/',{waitUntil:'domcontentloaded'});
+  await p.getByRole('button',{name:'Login',exact:true}).click();
+  await p.getByRole('button',{name:'Forgot password?'}).click();
+  await p.getByRole('heading',{name:'Reset your password'}).waitFor();
+  await p.locator('input[name=email]').fill(student.email);
+  await p.getByRole('button',{name:'Email recovery link'}).click();
+  await p.getByText('If this account is verified, a one-use recovery link is being emailed now.').waitFor();
+  const mail=await mongo.db.collection('academic_evaluation_mail').findOne({to:student.email,
+   subject:'Your private IPS password recovery'},{sort:{createdAt:-1}});
+  assert.ok(mail&&mail.text.includes('#recover='),'Actual automatic recovery mail must be persisted');
+  const extract=mail.text.match(/(http:\/\/127\.0\.0\.1:18122\/#recover=[^\s]+)/);
+  assert.ok(extract,'Recovery URL must be actionable');
+  await p.goto(extract[1],{waitUntil:'domcontentloaded'});
+  await p.getByRole('heading',{name:'Set a new password'}).waitFor();
+  await p.locator('input[name=confirmPassword]').waitFor();
+  await p.getByRole('button',{name:'Login',exact:true}).click();
+  await p.getByRole('button',{name:'Resend email verification'}).click();
+  await p.getByRole('heading',{name:'Resend your verification link'}).waitFor();
+  await p.locator('input[name=email]').fill(student.email);
+  await p.getByRole('button',{name:'Resend verification email'}).click();
+  await p.getByText('If verification is pending, IPS has emailed a new link.').waitFor();
+  await overflow(p);
+  await p.close();
+ });
  const studentPage=await pageOpen(false);
  await pass('Authenticated private student academic quotes and completed thesis commission',async()=>{
   await signIn(studentPage,student.email,'RecoveredAcademic2027!');
