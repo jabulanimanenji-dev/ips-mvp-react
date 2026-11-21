@@ -247,6 +247,26 @@ try{
   await overflow(rootPage);
   await screen(rootPage,'22-nyoro-private-delivery-monitor');
  });
+ const rootRecovery=await pageOpen(false);
+ await pass('Nyoro Root login offers one-use email recovery and secure reset view',async()=>{
+  await rootRecovery.goto(origin+'/root',{waitUntil:'domcontentloaded'});
+  await rootRecovery.getByRole('button',{name:'Recover Root password by email'}).click();
+  await rootRecovery.getByRole('heading',{name:'Reset your password'}).waitFor();
+  await rootRecovery.locator('input[name=email]').fill(vars.ROOT_EMAIL);
+  await rootRecovery.getByRole('button',{name:'Email recovery link'}).click();
+  const receipt=await mongo.db.collection('academic_evaluation_mail').findOne({
+   to:vars.ROOT_EMAIL,subject:'Nyoro IPS Root Admin password recovery'},
+   {sort:{createdAt:-1}});
+  assert.ok(receipt?.text,'Root recovery did not produce a synthetic email receipt');
+  const match=receipt.text.match(/#recover=([A-Za-z0-9_-]{43})/);
+  assert.ok(match,'Root reset link missing from email');
+  await rootRecovery.goto(origin+'/root#recover='+match[1]+
+   '&email='+encodeURIComponent(vars.ROOT_EMAIL),{waitUntil:'domcontentloaded'});
+  await rootRecovery.getByRole('heading',{name:'Reset your password'}).waitFor();
+  await rootRecovery.locator('input[name=confirmPassword]').waitFor();
+  await overflow(rootRecovery);
+  await screen(rootRecovery,'24-nyoro-root-email-recovery');
+ });
  const rootDirect=await pageOpen(false);
  await pass('Direct /root URL authenticates Nyoro and stays within Root Administrator identity',async()=>{
   await rootDirect.goto(origin+'/root',{waitUntil:'domcontentloaded'});
