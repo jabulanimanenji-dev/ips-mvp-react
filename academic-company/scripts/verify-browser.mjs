@@ -49,6 +49,10 @@ try{
   await publicPage.goto(origin+'/',{waitUntil:'domcontentloaded'});
   await publicPage.getByRole('heading',{name:/Expert guidance for your academic journey/i}).waitFor();
   await publicPage.getByText('Thesis & Dissertation Guidance',{exact:true}).first().waitFor();
+  const photo=publicPage.locator('.photo-story img');
+  await photo.scrollIntoViewIfNeeded();
+  await publicPage.waitForFunction(()=>{const p=document.querySelector('.photo-story img');return p&&p.complete&&p.naturalWidth>0},null,{timeout:18000});
+
   assert.ok((await publicPage.locator('body').innerText()).includes('Students & Researchers'));
   await overflow(publicPage);await screen(publicPage,'01-academic-homepage');
  });
