@@ -100,6 +100,22 @@ try{
  assert.equal(largeDenied.status,200,'Assigned Specialist must retain access to their own stored document');
  const outsiderLarge=await request('/academic/files/'+largeFile.id);
  assert.equal(outsiderLarge.status,403,'An anonymous user must never download a restored academic file');
+ const clientEnquiryBlob=await db.collection('academic_quote_files').findOne({
+  blobId:{$exists:true},byteLength:{$gt:5*1024*1024}});
+ assert.ok(clientEnquiryBlob?.blobId);
+ const enquiryCopy=await fetch(base+'/api/academic/quote-files/'+clientEnquiryBlob.id,{
+  headers:{Cookie:studentCookie}});
+ assert.equal(enquiryCopy.status,200);
+ assert.equal(crypto.createHash('sha256')
+  .update(Buffer.from(await enquiryCopy.arrayBuffer())).digest('hex'),clientEnquiryBlob.sha256);
+ const caseReference=await db.collection('academic_private_files').findOne({
+  blobId:{$exists:true},purpose:'reference',byteLength:{$gt:5*1024*1024}});
+ assert.ok(caseReference?.blobId);
+ const caseCopy=await fetch(base+'/api/academic/files/'+caseReference.id,{
+  headers:{Cookie:studentCookie}});
+ assert.equal(caseCopy.status,200);
+ assert.equal(crypto.createHash('sha256')
+  .update(Buffer.from(await caseCopy.arrayBuffer())).digest('hex'),caseReference.sha256);
  const rootAudit=await request('/administration/audit',{cookie:rootCookie});
  assert.equal(rootAudit.status,200);assert.ok(rootAudit.json.events.length>10);
  const index=await db.collection('academic_accounts').indexes();assert.ok(index.some(i=>i.name==='email_1'));
