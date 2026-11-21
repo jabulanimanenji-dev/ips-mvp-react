@@ -180,6 +180,22 @@ try{
   await specialistPage.getByText('Job messages').waitFor();
   await overflow(specialistPage);await screen(specialistPage,'07-approved-specialist-academic-work');
  });
+ await pass('Real Specialist browser submits a 6 MB document through GridFS',async()=>{
+  const form=specialistPage.locator('form[data-form=case-upload]');
+  await form.locator('select[name=purpose]').selectOption('deliverable');
+  await form.locator('input[name=upload]').setInputFiles({
+   name:'large-academic-feedback.txt',mimeType:'text/plain',
+   buffer:Buffer.alloc(6*1024*1024,65)});
+  await form.getByRole('button',{name:'Upload document'}).click();
+  await specialistPage.getByText('Document securely submitted for independent IPS quality review.')
+   .waitFor({timeout:20000});
+  const stored=await mongo.db.collection('academic_private_files').findOne({
+   filename:'large-academic-feedback.txt',blobId:{$exists:true}});
+  assert.ok(stored?.blobId);
+  assert.equal(stored.byteLength,6*1024*1024);
+  await overflow(specialistPage);
+  await screen(specialistPage,'26-specialist-private-large-document');
+ });
  await pass('Specialist updates availability, capacity and turnaround from the real workspace',async()=>{
   await specialistPage.locator('.sidebar').getByRole('button',{name:'Profile',exact:true}).click();
   await specialistPage.getByRole('heading',{name:'Availability & assignments'}).waitFor();
