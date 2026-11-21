@@ -1738,7 +1738,18 @@ app.get('/api/support-tickets', async (req, res) => {
     // customer conversations. Root retains authority; staff require support.view.
     if(session.role==='admin'&&!hasAdminPermission(req.adminAccess,'support.view'))
       return res.status(403).json({success:false,error:'Customer support viewing authority is required.'});
-    const scope = session.role === 'admin' ? {} : { client_id: session.id };
+    let scope;
+    if(session.role==='client')scope={client_id:session.id};
+    else if(req.adminAccess?.isRoot)scope={};
+    else if(req.adminAccess?.companyRole==='staff')
+      scope={assigned_admin:{$in:['',null,req.adminAccess.adminId]}};
+    else if(req.adminAccess?.companyRole==='manager'){
+      // A department head sees their own assignments, genuinely unassigned
+      // support requests and direct-report cases, not other teams' clients.
+      const reports=await Admin.find({company_role:'staff',department:req.adminAccess.department,
+        manager_id:req.adminAccess.adminId,status:'Active'}).select('id').lean();
+      scope={assigned_admin:{$in:['',null,req.adminAccess.adminId,...reports.map(item=>item.id)]}};
+    }else return res.status(403).json({success:false,error:'Only governed IPS support teams can inspect customer cases.'});
     if (req.query.status) scope.status = req.query.status;
     const tickets = await SupportTicket.find(scope).sort({ last_activity_at: -1 });
     res.json({ success: true, tickets });
