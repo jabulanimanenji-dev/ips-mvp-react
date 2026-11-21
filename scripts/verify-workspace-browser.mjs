@@ -413,8 +413,15 @@ try{
     assert.equal(await employeeRecovery.locator('input[autocomplete=new-password]').first().evaluate(el=>el.checkValidity()),false);
     await employeeRecovery.locator('input[autocomplete=new-password]').first().fill('SecureCompanyPassword37!');
     await employeeRecovery.locator('input[autocomplete=new-password]').last().fill('MismatchCompanyPassword38!');
+    const formValidity=await employeeRecovery.locator('form').evaluate(form=>({
+      valid:form.checkValidity(),inputs:[...form.querySelectorAll('input')].map(x=>({valid:x.checkValidity(),
+      length:x.value.length,validation:x.validationMessage}))
+    }));
+    assert.equal(formValidity.valid,true,'Employee reset mismatch test inputs must pass native validation: '+JSON.stringify(formValidity));
     await employeeRecovery.getByRole('button',{name:/Save password and enter workspace/}).click();
-    await employeeRecovery.getByRole('alert').getByText(/confirmation does not match/).waitFor();
+    const actualErrors=await employeeRecovery.locator('[role=alert]').allTextContents();
+    assert.ok(actualErrors.some(x=>/confirmation does not match/i.test(x)),
+      'Employee recovery must reject mismatched passwords; actual safe notices: '+JSON.stringify(actualErrors));
     await evidence(employeeRecovery,'ips4-employee-new-password');
   });
   const mobile=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});pages.push(mobile);
