@@ -26,6 +26,8 @@ try{
   name:role==='specialist'?'Evaluation Academic Research Editor':role==='manager'?'Evaluation Client Relations Manager':role==='staff'?'Evaluation Student Services Associate':'',
   verified:true,approved:role==='specialist',status:'active',sessionVersion:1,
   expertise:role==='specialist'?['thesis-dissertation','academic-editing','research-methods','references-formatting']:[],
+  ...(role==='specialist'?{availabilityStatus:'available',maxConcurrentCases:3,
+    activeAssignments:1,turnaroundDays:7}:{}),
   department:role==='manager'||role==='staff'?'client_relations':'',
   managerId:role==='staff'?'EMP-MANAGER-2026':'',
   passwordHash:saltHash(env[envName]),createdAt:now,lastLoginAt:now,
