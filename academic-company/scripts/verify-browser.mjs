@@ -137,6 +137,14 @@ try{
   await studentPage.getByText('Academic Editing & Proofreading').first().waitFor();
   await overflow(studentPage);await screen(studentPage,'05-student-academic-workspace');
  });
+ await pass('Student browser shows genuine accepted quote billing without invented invoices or receipts',async()=>{
+  await studentPage.locator('.sidebar').getByRole('button',{name:'Billing'}).click();
+  await studentPage.getByRole('heading',{name:'Your academic billing'}).waitFor();
+  await studentPage.getByText('Payment gateway not enabled').first().waitFor();
+  await studentPage.getByRole('heading',{name:'Written billing concerns'}).waitFor();
+  await overflow(studentPage);
+  await screen(studentPage,'29-student-private-billing-no-receipts');
+ });
  await pass('Student uploads and downloads an academic brief directly inside a pre-commission quotation',async()=>{
   await studentPage.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
   await studentPage.getByRole('button',{name:'Open enquiry & messages'}).first().click();
@@ -221,6 +229,13 @@ try{
   await specialistPage.getByText('limited',{exact:true}).first().waitFor();
   await overflow(specialistPage);await screen(specialistPage,'21-specialist-availability');
  });
+ await pass('Specialist browser shows governed work records without invented payouts',async()=>{
+  await specialistPage.locator('.sidebar').getByRole('button',{name:'Work records'}).click();
+  await specialistPage.getByRole('heading',{name:'Specialist work records'}).waitFor();
+  await specialistPage.getByText('No payout is available',{exact:false}).first().waitFor();
+  await overflow(specialistPage);
+  await screen(specialistPage,'30-specialist-work-records');
+ });
  await pass('Real Specialist browser submits a 6 MB document through GridFS',async()=>{
   const now=new Date(),id='IPS-A-CHROME-BINARY-'+Date.now().toString(36).toUpperCase();
   await mongo.db.collection('academic_commissions').insertOne({
@@ -263,8 +278,11 @@ try{
   await rootPage.getByText('Pediatric Nursing Research').first().waitFor();
   await screen(rootPage,'09-academic-department-queues');
   await rootPage.getByRole('button',{name:'Finance',exact:true}).click();
-  await rootPage.getByText('Payment provider integration is not enabled').waitFor();
-  await overflow(rootPage);
+  await rootPage.getByRole('heading',{name:'Accepted quotation billing'}).waitFor();
+  await rootPage.getByRole('heading',{name:'Specialist time & review'}).waitFor();
+  await rootPage.getByRole('heading',{name:'Billing concerns'}).waitFor();
+  assert.equal(await rootPage.locator('form[data-form=compensation-propose]').count(),1);
+  await overflow(rootPage);await screen(rootPage,'31-root-real-finance-workspace');
  });
  await pass('Root has separate searchable Student and Specialist directories and one academic job workroom',async()=>{
   await rootPage.locator('.sidebar').getByRole('button',{name:'Students',exact:true}).click();
