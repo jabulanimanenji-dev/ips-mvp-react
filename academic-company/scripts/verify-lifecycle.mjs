@@ -18,8 +18,8 @@ let client;let db;let checks=0;
 const random=()=>crypto.randomBytes(5).toString('hex');
 const emailFor=p=>p+'-'+random()+'@example.org';
 const assertCheck=async(title,fn)=>{await fn();checks++;console.log('PASS ACADEMIC '+title)};
-async function request(endpoint,{method='GET',body,cookie,origin=url}={}){
- const res=await fetch(url+'/api'+endpoint,{method,headers:{...(body?{'Content-Type':'application/json','Origin':origin}:{}),...(cookie?{Cookie:cookie}:{})},
+async function request(endpoint,{method='GET',body,cookie,origin=url,rootTarget}={}){
+ const res=await fetch(url+'/api'+endpoint,{method,headers:{...(body?{'Content-Type':'application/json','Origin':origin}:{}),...(cookie?{Cookie:cookie}:{}),...(rootTarget?{'X-IPS-Root-Workspace-Target':rootTarget}:{})},
   body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(14000)});
  const raw=await res.text();let data;try{data=JSON.parse(raw)}catch{data={raw}};
  return {status:res.status,data,cookie:(res.headers.get('set-cookie')||'').split(';')[0],headers:res.headers};
@@ -61,7 +61,7 @@ try{
  await assertCheck('Student / Researcher signs up anonymously and MUST verify real email',async()=>{
   studentMail=emailFor('private-student');const user='PrivateScholar'+random();
   await call('/auth/register',{method:'POST',body:{role:'student',email:studentMail,username:user,
-   password:'StudentAcademic2026!',privacyConsent:true}},202);
+   password:'StudentAcademic2026!',confirmPassword:'StudentAcademic2026!',privacyConsent:true}},202);
   await call('/auth/login',{method:'POST',body:{email:studentMail,password:'StudentAcademic2026!'}},403);
   const m=await inbox(studentMail,'Confirm your IPS Academic Services email');
   const verified=await call('/auth/verify',{method:'POST',body:{email:studentMail,token:token(m,'verify')}});
@@ -69,9 +69,15 @@ try{
   const row=await db.collection('academic_accounts').findOne({email:studentMail});
   assert.equal(row.name,'');assert.equal(row.verified,true);assert.ok(row.username.startsWith('PrivateScholar'));
  });
+ await assertCheck('Sign-up rejects mismatched password confirmation',async()=>{
+  await call('/auth/register',{method:'POST',body:{role:'student',email:emailFor('mismatch'),
+   username:'MismatchedStudent'+random(),password:'StudentAcademic2026!',confirmPassword:'DifferentAcademic2026!',
+   privacyConsent:true}},400);
+  assert.equal(await db.collection('academic_accounts').countDocuments({usernameKey:{$regex:'^mismatchedstudent'}}),0);
+ });
  await assertCheck('Qualified Specialist verifies email and cannot work until approved',async()=>{
   specialistMail=emailFor('academic-specialist');
-  await call('/auth/register',{method:'POST',body:{role:'specialist',email:specialistMail,password:'SpecialistAcademic2026!',
+  await call('/auth/register',{method:'POST',body:{role:'specialist',email:specialistMail,password:'SpecialistAcademic2026!',confirmPassword:'SpecialistAcademic2026!',
    fullName:'Evaluation Academic Nursing Editor',qualification:'MSc Nursing Research',experience:'Editorial and methodology consultation',
    expertise:['academic-editing','thesis-dissertation'],privacyConsent:true}},202);
   const m=await inbox(specialistMail,'Confirm your IPS Academic Services email');
@@ -88,12 +94,12 @@ try{
    email:managerMail,department:'client_relations'}),201);
   assert.equal(m.data.employee.role,'manager');
   const mt=token(await inbox(managerMail,'Your IPS Academic Services department invitation'),'invite');
-  managerCookie=(await call('/auth/invitation/accept',{method:'POST',body:{email:managerMail,token:mt,password:'ManagerAcademic2026!'}})).cookie;
+  managerCookie=(await call('/auth/invitation/accept',{method:'POST',body:{email:managerMail,token:mt,password:'ManagerAcademic2026!',confirmPassword:'ManagerAcademic2026!'}})).cookie;
   staffMail=emailFor('clientrelations-staff');
   const s=await call('/administration/invite',withAuth(managerCookie,{name:'Academic Client Relations Associate',email:staffMail}),201);
   assert.equal(s.data.employee.role,'staff');assert.equal(s.data.employee.department,'client_relations');
   const st=token(await inbox(staffMail,'Your IPS Academic Services department invitation'),'invite');
-  staffCookie=(await call('/auth/invitation/accept',{method:'POST',body:{email:staffMail,token:st,password:'StaffAcademic2026!'}})).cookie;
+  staffCookie=(await call('/auth/invitation/accept',{method:'POST',body:{email:staffMail,token:st,password:'StaffAcademic2026!',confirmPassword:'StaffAcademic2026!'}})).cookie;
   await call('/administration/invite',withAuth(staffCookie,{name:'Unauthorized Manager',email:emailFor('unauthorized'),department:'governance'}),403);
  });
  await assertCheck('Guest sends real subject-specific academic quote without supplying legal name',async()=>{
@@ -195,7 +201,7 @@ try{
  await assertCheck('Separate client identities cannot inspect each other’s academic files and correspondence',async()=>{
   const otherMail=emailFor('other-student');
   await call('/auth/register',{method:'POST',body:{role:'student',email:otherMail,
-   username:'SecondScholar'+random(),password:'OtherAcademic2026!',privacyConsent:true}},202);
+   username:'SecondScholar'+random(),password:'OtherAcademic2026!',confirmPassword:'OtherAcademic2026!',privacyConsent:true}},202);
   const vt=token(await inbox(otherMail,'Confirm your IPS Academic Services email'),'verify');
   otherCookie=(await call('/auth/verify',{method:'POST',body:{email:otherMail,token:vt}})).cookie;
   await call('/academic/commissions/'+commissionId,{cookie:otherCookie},403);
@@ -216,10 +222,34 @@ try{
   const user=await db.collection('academic_accounts').findOne({email:studentMail});
   await call('/administration/people/'+user.id+'/send-recovery',withAuth(staffCookie,{}),202);
   const link=token(await inbox(studentMail,'Your private IPS password recovery'),'recover');
-  const r=await call('/auth/recovery/complete',{method:'POST',body:{email:studentMail,token:link,password:'RecoveredAcademic2027!'}});
+  const r=await call('/auth/recovery/complete',{method:'POST',body:{email:studentMail,token:link,password:'RecoveredAcademic2027!',confirmPassword:'RecoveredAcademic2027!'}});
   await call('/session',{cookie:studentCookie},401);
-  await call('/auth/recovery/complete',{method:'POST',body:{email:studentMail,token:link,password:'AnotherAcademic2027!'}},400);
+  await call('/auth/recovery/complete',{method:'POST',body:{email:studentMail,token:link,password:'AnotherAcademic2027!',confirmPassword:'AnotherAcademic2027!'}},400);
   studentCookie=r.cookie;
+ });
+ await assertCheck('Root opens working Student and Specialist workspaces without swapping accounts or forging identity',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
+  await db.collection('academic_accounts').updateMany({id:{$in:[student.id,specialist.id]}},{$set:{synthetic:true}});
+  const studentLens=await call('/academic/dashboard',{cookie:rootCookie,rootTarget:student.id});
+  assert.equal(studentLens.data.account.role,'student');assert.equal(studentLens.data.account.id,student.id);
+  const specialistLens=await call('/academic/commissions',{cookie:rootCookie,rootTarget:specialist.id});
+  assert.ok(specialistLens.data.commissions.some(p=>p.id===commissionId));
+  await call('/academic/dashboard',{cookie:otherCookie,rootTarget:student.id},403);
+  await call('/profile',{method:'PATCH',cookie:rootCookie,rootTarget:student.id,body:{contactPreference:'telegram',telegram:'fakehandle'}},403);
+  const rootQuote=await call('/academic/quotes',{method:'POST',cookie:rootCookie,rootTarget:student.id,body:brief('research-methods')},201);
+  assert.equal(rootQuote.data.quote.studentId,student.id);
+  assert.equal(rootQuote.data.quote.rootAssistedBy,rootEmail);
+  const assistedMessage=await call('/academic/commissions/'+commissionId+'/messages',{method:'POST',
+   cookie:rootCookie,rootTarget:specialist.id,body:{body:'IPS Root is coordinating the academic revision in this workspace.'}},201);
+  assert.equal(assistedMessage.data.message.actorRole,'root');
+  assert.equal(assistedMessage.data.message.actorId,rootEmail);
+  assert.equal(assistedMessage.data.message.assistedAccountId,specialist.id);
+  const rootSession=await call('/session',{cookie:rootCookie});
+  assert.equal(rootSession.data.account.role,'root');
+  const auditEvent=await db.collection('academic_audit_events').findOne({action:'academic_quote_created',ref:rootQuote.data.quote.id});
+  assert.equal(auditEvent.actorRole,'root');
+  assert.equal(auditEvent.details.selectedRole,'student');
  });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
   const people=await call('/administration/people',{cookie:rootCookie});
