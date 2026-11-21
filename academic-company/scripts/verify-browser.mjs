@@ -274,7 +274,10 @@ try{
   await rootDirect.locator('input[name=email]').fill(vars.ROOT_EMAIL);
   await rootDirect.locator('input[name=password]').fill(vars.ROOT_PASSWORD);
   await rootDirect.getByRole('button',{name:'Sign in as Nyoro Root Admin'}).click();
-  await rootDirect.getByText('Nyoro · Root Administration').first().waitFor();
+  // The login heading is visible before authentication; wait for the actual
+  // authenticated workspace before probing the session.
+  await rootDirect.locator('.workspace').waitFor({timeout:15000});
+  await rootDirect.locator('.metric').first().waitFor({timeout:15000});
   const s=await rootDirect.evaluate(async()=>{const r=await fetch('/api/session');return (await r.json()).account.role});
   assert.equal(s,'root');
  });
