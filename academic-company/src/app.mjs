@@ -14,6 +14,7 @@ import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs
 import {registerOperationsRoutes} from './routes-operations.mjs';
 import {registerTelegramRoutes,telegramConfigured} from './routes-telegram.mjs';
 import {registerFinanceRoutes} from './routes-finance.mjs';
+import {registerPeopleGovernanceRoutes} from './routes-people-governance.mjs';
 import {assertProductionAdmission} from './release-admission.mjs';
 import {inspectAcademicFile,scanConfiguration} from './document-scan.mjs';
 import {verifyResendSignature,recordResendEvent} from './routes-resend-webhook.mjs';
@@ -363,6 +364,7 @@ registerSupportRoutes(ctx);
 registerOperationsRoutes(ctx);
 registerTelegramRoutes(ctx);
 registerFinanceRoutes(ctx);
+registerPeopleGovernanceRoutes(ctx);
 beginCompanyAutomation(ctx);
 const dist=path.join(path.dirname(fileURLToPath(import.meta.url)),'../public');
 app.use(express.static(dist,{index:false,maxAge:0}));
