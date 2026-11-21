@@ -100,6 +100,19 @@ try{
   await studentPage.getByText('Centralized company relay prevents uncontrolled student–Specialist messaging').count().catch(()=>0);
   await screen(studentPage,'06-student-academic-delivery');
  });
+ await pass('Student has visible academic job inbox, supporting files, replies and functional Back navigation',async()=>{
+  await studentPage.getByRole('heading',{name:'Work, messages & delivery'}).waitFor();
+  await studentPage.getByRole('heading',{name:'Files & delivery'}).waitFor();
+  await studentPage.getByRole('heading',{name:'Job messages'}).waitFor();
+  await studentPage.locator('form[data-form=case-upload] input[name=upload]').waitFor();
+  await studentPage.locator('form[data-form=commission-message]').waitFor();
+  await studentPage.locator('.workmain').getByRole('button',{name:'← Back'}).click();
+  await studentPage.locator('.record').first().waitFor();
+  await studentPage.getByRole('button',{name:'Inbox & messages'}).first().click();
+  await studentPage.getByRole('heading',{name:'Inbox & conversations'}).waitFor();
+  await overflow(studentPage);
+  await screen(studentPage,'16-student-inbox-navigation');
+ });
  const specialistPage=await pageOpen(false);
  await pass('Approved academic Specialist sees only assigned nursing work and IPS coordination',async()=>{
   await signIn(specialistPage,specialist.email,'SpecialistAcademic2026!');
@@ -122,6 +135,26 @@ try{
   await rootPage.getByRole('button',{name:'Finance',exact:true}).click();
   await rootPage.getByText('Payment provider integration is not enabled').waitFor();
   await overflow(rootPage);
+ });
+ await pass('Root has separate searchable Student and Specialist directories and one academic job workroom',async()=>{
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Students',exact:true}).click();
+  await rootPage.getByText('PrivateScholar',{exact:false}).first().waitFor();
+  assert.equal(await rootPage.getByText('Evaluation Academic Nursing Editor').count(),0);
+  await rootPage.locator('input[data-directory-search]').fill('nobody matches');
+  assert.equal(await rootPage.locator('tr[data-directory-row]:not([hidden])').count(),0);
+  await rootPage.locator('input[data-directory-search]').fill('PrivateScholar');
+  assert.ok(await rootPage.locator('tr[data-directory-row]:not([hidden])').count()>0);
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Specialists',exact:true}).click();
+  await rootPage.getByText('Evaluation Academic Nursing Editor').first().waitFor();
+  assert.equal(await rootPage.getByText('PrivateScholar',{exact:false}).count(),0);
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Academic jobs',exact:true}).click();
+  await rootPage.locator('.record').first().getByRole('button',{name:'Open job'}).click();
+  await rootPage.getByRole('heading',{name:'Work, messages & delivery'}).waitFor();
+  await rootPage.getByRole('heading',{name:'Files & delivery'}).waitFor();
+  await rootPage.getByRole('heading',{name:'Job messages'}).waitFor();
+  await screen(rootPage,'17-root-single-job-workroom');
+  await rootPage.locator('.workmain').getByRole('button',{name:'← Back'}).click();
+  await rootPage.locator('.record').first().waitFor();
  });
  const rootDirect=await pageOpen(false);
  await pass('Direct /root URL authenticates Nyoro and stays within Root Administrator identity',async()=>{
@@ -180,6 +213,17 @@ try{
   await signIn(mobile,vars.ROOT_EMAIL,vars.ROOT_PASSWORD);
   await mobile.locator('.workspace').waitFor();
   await overflow(mobile);await screen(mobile,'13-mobile-nyoro-root');
+ });
+ await pass('Responsive academic workspaces also fit tablet and laptop viewports',async()=>{
+  for(const width of [768,1024,1280]){
+   const page=await browser.newPage({viewport:{width,height:850}});
+   await signIn(page,vars.ROOT_EMAIL,vars.ROOT_PASSWORD);
+   await overflow(page);
+   const y=await page.locator('.metric').first().evaluate(x=>x.getBoundingClientRect().top);
+   assert.ok(y<650,'Academic dashboard controls must appear above fold, not hidden in blank space '+width+' '+y);
+   if(width===768)await screen(page,'18-tablet-root-workspace');
+   await page.close();
+  }
  });
  console.log('IPS_ACADEMIC_CHROME_QUALIFICATION_GREEN '+count+' desktop/mobile role journeys and visual evidence');
 }catch(err){console.error('IPS_ACADEMIC_CHROME_FAIL',String(err),log.slice(-1600));process.exitCode=1}
