@@ -192,15 +192,17 @@ export function registerIdentityRoutes(ctx){
   const allowed=['workspace','email','telegram','whatsapp'];
   const channel=String(req.body?.contactPreference||'');
   if(!allowed.includes(channel))return res.status(400).json({error:'Choose an available written channel.'});
-  if(channel==='telegram'&&!/^[A-Za-z][A-Za-z0-9_]{4,31}$/.test(String(req.body?.telegram||'').replace(/^@/,'')))
-   return res.status(400).json({error:'Enter a valid Telegram username.'});
+  if(channel==='telegram'){
+   const linked=await db.accounts.findOne({id:req.actor.id,verified:true,status:'active',
+    telegramChatId:{$exists:true},telegramVerifiedAt:{$exists:true},
+    telegramConnectionStatus:'confirmed'});
+   if(!linked)return res.status(409).json({error:'Connect your private Telegram chat to IPS first. A username alone cannot receive verified bot updates.'});
+  }
   if(channel==='whatsapp'&&!env.IPS_WHATSAPP_ENABLED)return res.status(409).json({error:'WhatsApp is not yet a verified available IPS channel.'});
-  const updates={contactPreference:channel,
-   ...(channel==='telegram'?{telegram:String(req.body.telegram).replace(/^@/,'')}:{}),
-   updatedAt:now()};
+  const updates={contactPreference:channel,updatedAt:now()};
   await db.accounts.updateOne({id:req.actor.id},{$set:updates});
   await audit(req.actor,'written_contact_preference_changed',req.actor.id,{channel});
-  res.json({success:true,contactPreference:channel,telegram:updates.telegram||''});
+  res.json({success:true,contactPreference:channel});
  }));
  // A Specialist declares actual capacity before the company may assign paid work.
  app.get('/api/specialist/availability',wrap(async(req,res)=>{
