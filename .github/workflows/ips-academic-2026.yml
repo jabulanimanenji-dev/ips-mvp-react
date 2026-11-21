@@ -11,6 +11,7 @@ on:
       - work/ips-academic-finance-prepayment-20261121
       - work/ips-academic-worklist-ux-20261121
       - work/ips-academic-persistent-abuse-20261121
+      - work/ips-academic-production-image-20261121
       - work/ips-academic-upload-malware-gate-20261121
       - work/ips-academic-client-gridfs-20261121
       - work/ips-academic-gridfs-documents-20261121
@@ -155,6 +156,22 @@ jobs:
           docker rm -f ips-academic-review-ci 2>/dev/null || true
           docker rm -f ips-academic-independent-restore 2>/dev/null || true
           rm -rf academic-company/academic-recovery
+      - name: Build fail-closed production academic image without review fixtures
+        working-directory: .
+        run: |
+          set -euo pipefail
+          docker build --pull -f Dockerfile.ips-academic-production -t ips-academic-production:ci .
+          docker run --rm --entrypoint /bin/sh ips-academic-production:ci -ceu '
+            test ! -e /app/scripts/seed-review.mjs
+            test ! -e /app/review-entrypoint.sh
+            ! command -v mongod
+            test -s /app/src/app.mjs
+            test "$(id -un)" = node
+            test "$NODE_ENV" = production
+            test "$IPS_ACADEMIC_MODE" = production
+          '
+          output="$(docker run --rm ips-academic-production:ci 2>&1 || true)"
+          printf '%s\n' "$output" | grep -q 'IPS academic MongoDB must be explicitly configured'
       - name: Verify academic constitution is preserved
         working-directory: .
         run: test -s GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md
