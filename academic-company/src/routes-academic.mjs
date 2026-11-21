@@ -4,6 +4,7 @@ import express from 'express';
 import {email,validEmail,validUsername,publicDocument,normalizeFilename,strongToken,validToken} from './security.mjs';
 import {SERVICES,SERVICE_MAP,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
+import {ensureBillingRecord} from './routes-finance.mjs';
 
 export function registerAcademicRoutes(ctx){
  const {app,db,documentBucket,inspectAcademicUpload,config,env,security,throttle,sendEmail,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid}=ctx;
@@ -314,7 +315,9 @@ export function registerAcademicRoutes(ctx){
    revisionCount:0,assignedBy:'',qaReviewer:'',createdAt:now(),updatedAt:now()};
   try{await db.projects.insertOne(project)}
   catch(e){if(e.code===11000){const existing=await db.projects.findOne({quoteId:q.id});
+    if(existing)await ensureBillingRecord(db,existing,now,uid);
     return res.json({success:true,commission:commissionView(existing),paymentsEnabled:false})}throw e}
+  await ensureBillingRecord(db,project,now,uid);
   await notify(rootEmail,'Accepted academic quotation '+q.id+' awaits commissioned payment capability','finance');
   res.json({success:true,commission:commissionView(project),paymentsEnabled:false});
  }));
