@@ -49,15 +49,21 @@ const chooseLevel=()=>state.catalogue.levels.map(x=>[x,x]);
 const privacyCheck='<label class="field full"><span><input type="checkbox" name="privacyConsent" required> I agree to secure processing of my private enquiry and written communication from IPS.</span></label>';
 const integrityCheck='<label class="field full"><span><input type="checkbox" name="integrityAcknowledged" required> I agree to the academic integrity requirements.</span></label>';
 async function api(endpoint,{method='GET',body,operator=false}={}){
- const res=await fetch('/api'+endpoint,{method,credentials:'same-origin',cache:'no-store',
-  headers:{...(body?{'Content-Type':'application/json'}:{}),...(state.rootLens&&!operator&&(/^\/(academic|support|notifications)(\/|$)/.test(endpoint)||
-   /^\/operations\/inbox$/.test(endpoint)||/^\/operations\/[^/]+\/(?:files|upload)$/.test(endpoint)||
-   (method==='GET'&&(/^\/operations\/direct-message$/.test(endpoint)||
-   /^\/operations\/direct-message\/[^/]+\/thread$/.test(endpoint)||
-   (method==='GET'&&(/^\/finance\/(?:my-billing|work-logs|disputes)$/.test(endpoint)||
-    /^\/finance\/compensation\/[^/]+$/.test(endpoint)))))?{'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},body:body?JSON.stringify(body):undefined});
- const data=await res.json().catch(()=>({}));
- if(!res.ok)throw Error(data.error||'IPS could not complete the requested action.');
+ const assistedRead=method==='GET'&&(
+  /^\/operations\/direct-message$/.test(endpoint)||
+  /^\/operations\/direct-message\/[^/]+\/thread$/.test(endpoint)||
+  /^\/finance\/(?:my-billing|work-logs|disputes)$/.test(endpoint)||
+  /^\/finance\/compensation\/[^/]+$/.test(endpoint));
+ const assistedEndpoint=/^\/(academic|support|notifications)(\/|$)/.test(endpoint)||
+  /^\/operations\/inbox$/.test(endpoint)||
+  /^\/operations\/[^/]+\/(?:files|upload)$/.test(endpoint)||assistedRead;
+ const assisted=!!(state.rootLens&&!operator&&assistedEndpoint);
+ const response=await fetch('/api'+endpoint,{method,credentials:'same-origin',cache:'no-store',
+  headers:{...(body?{'Content-Type':'application/json'}:{}),
+   ...(assisted?{'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},
+  body:body?JSON.stringify(body):undefined});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(data.error||'IPS could not complete the requested action.');
  return data;
 }
 const PHOTO_LIBRARY='https://images.unsplash.com/photo-1629050290461-283e7bd7805f?auto=format&fit=crop&w=1400&q=82';
