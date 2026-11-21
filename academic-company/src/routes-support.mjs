@@ -184,7 +184,7 @@ export function beginCompanyAutomation(ctx){
       id:q.id,status:'offered',expires:{$gte:today,$lte:inTwoDays},
       reminderSentAt:{$exists:false}
      },{$set:{reminderSentAt:new Date()}},{returnDocument:'after'});
-     if(claimed)await notifyQuotation(claimed,'Your reviewed academic quotation will expire soon.',
+     if(claimed)await notifyQuotation(claimed,'Your reviewed academic quotation '+claimed.id+' will expire soon.',
       'quotation_expiry_reminder');
     }
   }catch(e){console.error('IPS academic automation incident',e?.name||'Error')}
