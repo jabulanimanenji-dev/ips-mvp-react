@@ -194,6 +194,14 @@ try{
   await overflow(studentPage);
   await screen(studentPage,'16-student-inbox-navigation');
  });
+ await pass('Student sees honest Telegram availability without an unverified bot destination',async()=>{
+  await studentPage.locator('.sidebar').getByRole('button',{name:'Profile',exact:true}).click();
+  await studentPage.getByRole('heading',{name:'Private Telegram updates'}).waitFor();
+  await studentPage.getByText('Telegram connection is not yet enabled.').waitFor();
+  assert.equal(await studentPage.locator('select[name=contactPreference] option[value=telegram]').count(),0);
+  await overflow(studentPage);
+  await screen(studentPage,'27-student-honest-telegram-contact');
+ });
  const specialistPage=await pageOpen(false);
  await pass('Approved academic Specialist sees only assigned nursing work and IPS coordination',async()=>{
   await signIn(specialistPage,specialist.email,'SpecialistAcademic2026!');
