@@ -16,6 +16,16 @@ export const legacyIdentityDecision=()=>({
  rootOrManagerPermissionsAutomaticallyCarriedOver:false
 });
 const safeInt=n=>Number.isSafeInteger(n)&&n>=0?n:0;
+const allow={
+ market_id:new Set(['TEST','PRODUCTION']),
+ service_type:new Set(['Physical Goods','Academic Services','academic','professional']),
+ family:new Set(['professional','academic','academics']),
+ category:new Set(['Finance & Accounting','D.2.1H Testing','Audit Verification','Academic Services']),
+ status:new Set(['New','New Request','In Progress','Assigned','SENT','Open','Active','Suspended','closed','sent','received']),
+ payment_status:new Set(['PENDING_VERIFICATION','UNPAID','PAID','REFUNDED']),
+ application_status:new Set(['approved','more_information','rejected','pending']),
+ direction:new Set(['inbound','outbound'])
+};
 export function summarizeLegacyBoundary(input){
  // Only aggregated category names, statuses and counts are accepted here.
  // This module intentionally does not accept raw customer/account documents.
@@ -25,7 +35,7 @@ export function summarizeLegacyBoundary(input){
    'application_status','direction']){
    if(Object.hasOwn(row,key)){
     const v=String(row[key]||'unknown');
-    values[key]=v.length<=80?v:'[unverified-value]';
+    values[key]=allow[key]?.has(v)?v:'[redacted-unverified-label]';
    }
   }
   return {group:values,count:safeInt(row.count),
