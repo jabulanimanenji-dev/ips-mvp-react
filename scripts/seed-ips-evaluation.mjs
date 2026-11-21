@@ -161,7 +161,7 @@ try{
   await SupportTicket.updateOne({ticket_id:supportId},{$setOnInsert:{
     ticket_id:supportId,client_id:clientId,client_name:'QuietResearcher',
     client_email:'client.evaluation@example.org',
-    subject:'Demo: clarification on project feedback',category:'Service',
+    subject:'Demo: clarification on project feedback',category:'service',
     priority:'urgent',status:'In Progress',assigned_admin:staffId('client_relations'),
     messages:[
       {sender_id:clientId,sender_role:'client',body:'EVALUATION ONLY: I need help understanding the feedback delivery timeline.'},
