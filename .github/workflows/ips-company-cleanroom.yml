@@ -1,0 +1,39 @@
+name: IPS New Company — Clean-Room Acceptance
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  real-mongodb-company:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Restore locked dependencies
+        run: npm ci
+      - name: Check NEW company source and UI syntax without importing legacy modules
+        run: |
+          node --check company-next/server.mjs
+          node --check company-next/public/app.js
+          node --check company-next/scripts/verify-company.mjs
+          node -e "const fs=require('fs');const s=fs.readFileSync('company-next/server.mjs','utf8');if(/from ['\"]\.\.\/(?:models|services|src)/.test(s))process.exit(1)"
+      - name: Run actual client, specialist, Root, manager, employee and QA lifecycle against independent MongoDB 7
+        run: node company-next/scripts/verify-company.mjs
+      - name: Confirm old IPS production models are not referenced by new company runtime
+        run: |
+          if grep -E "(from .*models/|from .*services/|phase-12|ips-mvp-react)" company-next/server.mjs; then
+            echo 'FAIL: legacy model/service dependency found'
+            exit 1
+          fi
+          echo 'PASS: no runtime dependency on legacy IPS'
