@@ -81,6 +81,9 @@ jobs:
           node --check scripts/verify-restoration.mjs
           node --check scripts/encrypted-mongo-archive.mjs
           node --check scripts/verify-encrypted-archive.mjs
+          node --check src/legacy-reconciliation.mjs
+          node --check scripts/audit-legacy-boundary.mjs
+          node --check scripts/verify-legacy-boundary.mjs
           node -e "import('./src/catalogue.mjs').then(x=>{if(x.SERVICES.length!==16||x.SERVICES.some(s=>!s.title||!s.questions.length))process.exit(1)})"
           if grep -R -E 'International Project Services|generic project marketplace|company-next/server.mjs' src/ public/; then
             echo "REJECT: wrong IPS company identity"
@@ -92,6 +95,8 @@ jobs:
         run: node scripts/verify-staging-boundary.mjs
       - name: Confirm document-screening protocol and fail-closed operation
         run: node scripts/verify-document-scan.mjs
+      - name: Reject nonacademic legacy rows and personally identifying migration reports
+        run: node scripts/verify-legacy-boundary.mjs
       - name: Prove production-compatible encrypted database archive is authenticated and safe from reuse
         run: node scripts/verify-encrypted-archive.mjs
       - name: Exercise actual isolated academic service workflows against MongoDB 7
