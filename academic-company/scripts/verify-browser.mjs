@@ -275,14 +275,38 @@ try{
   await rootPage.getByText('Agreement signed').first().waitFor();
   await screen(rootPage,'08-nyoro-academic-people-management');
   await rootPage.getByRole('button',{name:'Inbox & messages'}).click();
-  await rootPage.getByText('Pediatric Nursing Research').first().waitFor();
-  await screen(rootPage,'09-academic-department-queues');
+  await rootPage.getByRole('heading',{name:'Inbox & conversations'}).waitFor();
+  assert.ok(await rootPage.locator('[data-work-row]:not([hidden])').count()<=14,
+   'Root inbox must not render an endless first page of academic cases');
+  await rootPage.locator('input[data-work-search]').fill('Pediatric Nursing Research');
+  assert.ok(await rootPage.locator('[data-work-row]:not([hidden])').count()>0,
+   'Root must find academic case messages by subject');
+  await rootPage.locator('input[data-work-search]').fill('');
+  await screen(rootPage,'09-nyoro-searchable-academic-company-inbox');
   await rootPage.getByRole('button',{name:'Finance',exact:true}).click();
   await rootPage.getByRole('heading',{name:'Accepted quotation billing'}).waitFor();
   await rootPage.getByRole('heading',{name:'Specialist time & review'}).waitFor();
   await rootPage.getByRole('heading',{name:'Billing concerns'}).waitFor();
   assert.equal(await rootPage.locator('form[data-form=compensation-propose]').count(),1);
   await overflow(rootPage);await screen(rootPage,'31-root-real-finance-workspace');
+ });
+ await pass('Root navigates searchable departmental queues without an endless list',async()=>{
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Department queues'}).click();
+  await rootPage.getByRole('heading',{name:'Department queues'}).waitFor();
+  const n=await rootPage.locator('[data-work-row]').count();
+  assert.ok(n>0,'The company must have accountable academic work waiting in the real queue');
+  assert.ok(await rootPage.locator('[data-work-row]:not([hidden])').count()<=14);
+  await rootPage.locator('input[data-work-search]').fill('no matching case expected 27');
+  assert.equal(await rootPage.locator('[data-work-row]:not([hidden])').count(),0);
+  await rootPage.locator('input[data-work-search]').fill('');
+  if(n>14){
+   await rootPage.getByRole('button',{name:'Next page'}).click();
+   assert.ok((await rootPage.locator('[data-work-page]').innerText()).includes('Page 2'));
+   await rootPage.getByRole('button',{name:'Previous page'}).click();
+   assert.ok((await rootPage.locator('[data-work-page]').innerText()).includes('Page 1'));
+  }
+  await overflow(rootPage);
+  await screen(rootPage,'32-root-searchable-paginated-responsibility-queues');
  });
  await pass('Root has separate searchable Student and Specialist directories and one academic job workroom',async()=>{
   await rootPage.locator('.sidebar').getByRole('button',{name:'Students',exact:true}).click();
