@@ -141,18 +141,8 @@ export function registerAcademicRoutes(ctx){
    {$set:{status:'offered',priceMinor:total,currency:'PLN',terms,deliverables:scope,expires,
      offeredBy:req.actor.id,updatedAt:now()}},{returnDocument:'after'});
   if(!q)return res.status(409).json({error:'Academic scope approval is required before a final quotation.'});
-  try{
-   await sendEmail(q.contactEmail,'IPS Academic Services — your reviewed quotation '+q.id,
-    'IPS has reviewed your '+q.serviceName+' enquiry ('+q.id+').\n'+
-    'Reviewed scope: '+scope+'\nPrice: '+(total/100).toFixed(2)+' PLN\n'+
-    'Terms: '+terms+'\nTo accept, sign in to IPS with the same verified email. No payments can be collected yet.');
-  }catch{
-   await db.quotes.updateOne({id:q.id,status:'offered'},{$set:{status:'offer_delivery_failed',updatedAt:now()}});
-   await notify(rootEmail,'Quotation '+q.id+' email delivery failed; retry required','communication_failure');
-   return res.status(503).json({error:'Quotation was approved but outbound email delivery failed. Retry is required.'});
-  }
   await audit(req.actor,'academic_written_offer_issued',q.id,{currency:'PLN'});
-  await notify(q.studentId,'Your reviewed academic quotation '+q.id+' is ready','quotation');
+  await notifyQuotation(q,'Your reviewed academic quotation '+q.id+' is ready','quotation');
   res.json({quote:quoteView(q)});
  }));
  app.post('/api/academic/quotes/:id/decision',wrap(async(req,res)=>{
