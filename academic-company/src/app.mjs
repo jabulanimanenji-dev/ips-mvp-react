@@ -67,23 +67,41 @@ await Promise.all([
  db.audit.createIndex({at:-1}),
  db.notifications.createIndex({accountId:1,createdAt:-1}),
  db.notificationDeliveries.createIndex({status:1,nextAttemptAt:1,createdAt:1}),
+ db.outbox.createIndex({idempotencyKey:1},{unique:true,sparse:true}),
  db.quoteMessages.createIndex({quoteId:1,createdAt:1}),
  db.quoteFiles.createIndex({quoteId:1,createdAt:-1}),
  db.directMessages.createIndex({toId:1,createdAt:-1}),
  db.rootOperations.createIndex({commissionId:1},{unique:true})
 ]);
 const rootEmail=email(env.ROOT_EMAIL);
-async function sendEmail(to,subject,text){
+async function sendEmail(to,subject,text,deliveryKey=''){
+ // Only queued notices use a stable provider idempotency key. Verification and
+ // password-recovery challenges continue to carry their own single-use tokens.
+ const idempotencyKey=String(deliveryKey||'');
+ if(idempotencyKey&&!/^[A-Za-z0-9_-]{1,128}$/.test(idempotencyKey))
+  throw Error('Invalid outgoing delivery identity.');
  if(config.sandbox){
-  await db.outbox.insertOne({id:uid('MAIL'),to:email(to),subject,text,createdAt:now(),synthetic:true});
-  return;
+  const row={id:uid('MAIL'),to:email(to),subject,text,createdAt:now(),synthetic:true,
+   ...(idempotencyKey?{idempotencyKey}:{})};
+  if(idempotencyKey){
+   await db.outbox.updateOne({idempotencyKey},{$setOnInsert:row},{upsert:true});
+   const saved=await db.outbox.findOne({idempotencyKey});
+   return {provider:'sandbox',id:saved.id,synthetic:true};
+  }
+  await db.outbox.insertOne(row);
+  return {provider:'sandbox',id:row.id,synthetic:true};
  }
  const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
  try{
   const r=await fetch('https://api.resend.com/emails',{method:'POST',
-   headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json'},
+   headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json',
+    ...(idempotencyKey?{'Idempotency-Key':idempotencyKey}:{})},
    body:JSON.stringify({from:env.FROM_EMAIL,to:[to],subject,text}),signal:controller.signal});
-  if(!r.ok)throw Error('Academic confirmation provider returned '+r.status);
+  if(!r.ok)throw Error('Academic email provider returned '+r.status);
+  const response=await r.json().catch(()=>null);
+  if(typeof response?.id!=='string'||!response.id)
+   throw Error('Academic email provider did not confirm acceptance identity.');
+  return {provider:'resend',id:response.id,providerAccepted:true};
  }finally{clearTimeout(timeout)}
 }
 async function audit(actor,action,ref='',details={}){

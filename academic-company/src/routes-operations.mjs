@@ -44,7 +44,7 @@ export function registerOperationsRoutes(ctx){
  const quoteMessageFilter=(a,q)=>a.role==='student'?{audience:{$in:['student','shared']}}:{};
  app.get('/api/operations/delivery-status',wrap(async(req,res)=>{
   if(!authorize(req,res,['root']))return;
-  const statuses=['pending','sending','delivered','failed'];
+  const statuses=['pending','sending','provider_accepted','synthetic_dispatched','delivered','failed'];
   const [counts,exceptions]=await Promise.all([
    Promise.all(statuses.map(async status=>[status,
     await db.notificationDeliveries.countDocuments({status})])),
