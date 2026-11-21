@@ -43,6 +43,7 @@ import {registerQuoteHandoffRoutes} from './services/quoteHandoff.js';
 import {registerSpecialistPayoutRoutes} from './services/specialistPayouts.js';
 import {registerStudentRefundRoutes} from './services/studentRefunds.js';
 import {registerPasswordRecoveryRoutes,sessionFilter,sessionVersion} from './services/passwordRecovery.js';
+import {registerAdminPasswordRecoveryRoutes} from './services/adminPasswordRecovery.js';
 import { usernameValid,usernameKey,normalizeUsername,passwordValid,emailValid,normalizeEmail } from './shared/privacyIdentity.js';
 import {enforcePublicationGate} from './shared/publicationReadiness.js';
 import {canTransitionService,PAYMENT_REQUIRED_SERVICE_STATES} from './shared/serviceTransitions.js';
@@ -200,7 +201,8 @@ const publicAuthPaths=new Set([
   '/writer/login','/writer/verify-email','/writer/resend-verification',
   '/client/resend-verification','/client/password-recovery/request',
    '/writer/password-recovery/request','/writer/password-recovery/complete',
-  '/client/password-recovery/complete','/admin/company-team/accept','/logout'
+  '/client/password-recovery/complete','/admin/password-recovery/request',
+  '/admin/password-recovery/complete','/admin/company-team/accept','/logout'
 ]);
 app.use('/api',async(req,res,next)=>{
   // Expired cookies must not stop people signing in or recovering an account.
@@ -339,6 +341,13 @@ registerPasswordRecoveryRoutes(app,{hashPassword,grantSession:async(res,scope,ac
   setSessionCookie(res,signSession({id,role:scope==='writer'?'writer':'client',
     email_verified:true,session_version:sessionVersion(account)}));
 }});
+// Company staff recover their own account by a verified, one-use email link.
+registerAdminPasswordRecoveryRoutes(app,{
+  hashPassword,grantSession:async(res,account)=>{
+    setSessionCookie(res,signSession({id:account.id,role:'admin',admin_role:account.role,
+      session_version:Number(account.session_version)||1}));
+  }
+});
 registerEnquiryRoutes(app, { requireSession });
 registerCompanyCaseDesk(app,{requireSession});
 registerCompanyOperatingSystem(app,{requireSession,hashPassword,validAdminPassword});
