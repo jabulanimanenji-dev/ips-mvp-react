@@ -248,6 +248,25 @@ export function registerIdentityRoutes(ctx){
   security.set(res,{id:a.id,role:a.role,version:a.sessionVersion});
   res.json({success:true,account:readonlyUser(a)});
  }));
+ app.get('/api/administration/specialists/:id/review',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','manager']))return;
+  if(req.actor.role==='manager'&&req.actor.department!=='specialist_network')
+   return res.status(403).json({error:'Specialist Network credential review authority required.'});
+  const a=await db.accounts.findOne({id:req.params.id,role:'specialist'});
+  if(!a)return res.status(404).json({error:'Specialist application not found.'});
+  res.json({specialist:{
+   id:a.id,name:a.name,verified:!!a.verified,status:a.status,
+   qualification:a.qualification||'',experience:a.experience||'',
+   professionalLanguages:a.professionalLanguages||'',
+   expertise:a.expertise||[],credentialEvidenceReference:a.credentialEvidenceReference||'',
+   credentialReviewStatus:a.credentialReviewStatus||'pending',
+   professionalAgreementVersion:a.professionalAgreementVersion||'',
+   professionalAgreementAcceptedAt:a.professionalAgreementAcceptedAt||null,
+   credentialReviewHistory:(a.credentialReviewHistory||[]).map(e=>({
+    reviewerId:e.reviewerId,reviewedAt:e.reviewedAt,reviewNote:e.reviewNote,
+    evidenceVerificationReference:e.evidenceVerificationReference,decision:e.decision}))
+  }});
+ }));
  app.post('/api/administration/people/:id/decision',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','manager']))return;
   const target=await db.accounts.findOne({id:req.params.id});
@@ -255,9 +274,31 @@ export function registerIdentityRoutes(ctx){
   const decision=String(req.body?.decision||'');
   if(target.role==='root'||target.id===rootEmail)return res.status(403).json({error:'Nyoro Root Admin is not a manageable employee record.'});
   if(decision==='approve_specialist'){
-   if(target.role!=='specialist'||target.status!=='pending_review'||!target.verified)return res.status(409).json({error:'The applicant is not eligible for specialist approval.'});
-   if(req.actor.role!=='root'&&req.actor.department!=='specialist_network')return res.status(403).json({error:'Specialist Network permission required.'});
-   await db.accounts.updateOne({id:target.id,status:'pending_review'},{$set:{approved:true,status:'active',reviewedBy:req.actor.id,reviewedAt:now()}});
+   if(target.role!=='specialist'||target.status!=='pending_review'||!target.verified)
+    return res.status(409).json({error:'The applicant is not eligible for specialist approval.'});
+   if(req.actor.role!=='root'&&req.actor.department!=='specialist_network')
+    return res.status(403).json({error:'Specialist Network permission required.'});
+   const reviewNote=String(req.body?.reviewNote||'').trim();
+   const evidenceVerificationReference=String(req.body?.evidenceVerificationReference||'').trim();
+   if(!target.qualification||!target.credentialEvidenceReference||
+    target.professionalAgreementVersion!==agreementVersion||
+    !target.professionalAgreementAcceptedAt||
+    req.body?.credentialVerified!==true||
+    reviewNote.length<30||reviewNote.length>2000||
+    evidenceVerificationReference.length<12||evidenceVerificationReference.length>400)
+    return res.status(409).json({error:'Specialist approval requires an accepted current confidentiality agreement, evidence reference and a documented human credential verification.'});
+   const reviewedAt=now();
+   const updated=await db.accounts.updateOne({id:target.id,status:'pending_review',
+    approved:false,verified:true,professionalAgreementVersion:agreementVersion},
+    {$set:{approved:true,status:'active',credentialReviewStatus:'verified',
+     reviewedBy:req.actor.id,reviewedAt},
+     $push:{credentialReviewHistory:{decision:'approved',reviewerId:req.actor.id,
+      reviewedAt,reviewNote,evidenceVerificationReference}}});
+   if(!updated.modifiedCount)
+    return res.status(409).json({error:'Specialist application changed during authorization. Refresh and re-check.'});
+   await notify(target.id,'Your IPS Specialist application was approved after credential and agreement review.','recruitment');
+   await audit(req.actor,'academic_specialist_credential_verified',target.id,{
+    agreementVersion,evidenceVerificationReference});
   }else if(['suspend','reactivate'].includes(decision)){
    const permitted=req.actor.role==='root'||(target.role==='staff'&&target.managerId===req.actor.id);
    if(!permitted)return res.status(403).json({error:'Only Root or the employee’s own manager may change this state.'});
