@@ -18,7 +18,7 @@ const panel=(heading,description,inner)=>'<section class="panel"><h2>'+e(heading
 const empty=t=>'<div class="empty">'+e(t)+'</div>';
 const brand=()=>'<a href="#" class="mark" data-nav="home"><span class="crest">IPS</span><span><strong>IPS ACADEMIC SERVICES</strong><small>ACADEMIC & RESEARCH SUPPORT</small></span></a>';
 const header=()=>'<div class="masthead"><header class="top">'+brand()+'<nav aria-label="Primary navigation" class="topnav">'+
- (state.account?'<span class="pill">'+e(state.account.role==='root'?'NYORO · ROOT ADMIN':state.account.role==='student'?'STUDENT / RESEARCHER':state.account.role.toUpperCase())+'</span>'+b('Sign out','logout'):
+ (state.account?'<span class="pill">'+e(state.account.role==='root'?'NYORO · ROOT ADMIN':state.account.role==='student'?'STUDENT / RESEARCHER':state.account.role.toUpperCase())+'</span>'+(state.rootLens?b('Return to Root','root-lens-exit'):'')+b('Sign out','logout'):
  [buttonRoute('Academic services','services'),buttonRoute('How IPS works','how'),buttonRoute('Privacy','privacy'),buttonRoute('Student / Researcher','register'),buttonRoute('Join our specialist network','specialist'),buttonRoute('Login','login','primary')].join(''))+
  '</nav></header></div>';
 const footer=()=>'<footer class="foot"><span>© IPS Academic Services · Professional academic and research support</span><span>Written communication only · Private enquiries · Ethical academic assistance · No telephone calls</span></footer>';
@@ -33,7 +33,7 @@ const privacyCheck='<label class="field full"><span><input type="checkbox" name=
 const integrityCheck='<label class="field full"><span><input type="checkbox" name="integrityAcknowledged" required> I request legitimate academic guidance or editing and will respect my institution’s authorship and integrity requirements.</span></label>';
 async function api(endpoint,{method='GET',body}={}){
  const res=await fetch('/api'+endpoint,{method,credentials:'same-origin',cache:'no-store',
-  headers:body?{'Content-Type':'application/json'}:{},body:body?JSON.stringify(body):undefined});
+  headers:{...(body?{'Content-Type':'application/json'}:{}),...(state.rootLens&&/^\/(academic|support|notifications)(\/|$)/.test(endpoint)?{'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},body:body?JSON.stringify(body):undefined});
  const data=await res.json().catch(()=>({}));
  if(!res.ok)throw Error(data.error||'IPS could not complete the requested action.');
  return data;
@@ -174,7 +174,7 @@ function tokenForm(kind){
 function departmentsForRole(a){
  if(a.role==='student')return [['overview','My academic overview'],['quotes','My quotations'],['commissions','My academic work'],['support','Written support'],['notifications','Private updates'],['profile','Account & privacy']];
  if(a.role==='specialist')return [['overview','Academic assignments'],['commissions','Assigned academic work'],['support','IPS support'],['notifications','Private updates'],['profile','Professional profile']];
- if(a.role==='root')return [['overview','Nyoro · Command Centre'],['queues','Today & queues'],['quotes','Academic enquiries'],['people','Students & Specialists'],['commissions','Academic delivery'],['quality','Quality Assurance'],['support','Client Relations'],['workforce','Managers & Staff'],['finance','Finance & Billing'],['audit','Governance & Audit'],['notifications','Company alerts']];
+ if(a.role==='root')return [['overview','Nyoro · Command Centre'],['root-students','Student workspace'],['root-specialists','Specialist workspace'],['queues','Today & queues'],['quotes','Academic enquiries'],['people','Students & Specialists'],['commissions','Academic delivery'],['quality','Quality Assurance'],['support','Client Relations'],['workforce','Managers & Staff'],['finance','Finance & Billing'],['audit','Governance & Audit'],['notifications','Company alerts']];
  const t=[['overview','Department overview'],['queues','My department queue']];
  if(a.department==='client_relations')t.push(['quotes','Academic enquiries'],['people','Student accounts'],['support','Written support']);
  if(a.department==='academic_delivery')t.push(['quotes','Academic scope'],['commissions','Academic delivery']);
@@ -185,16 +185,31 @@ function departmentsForRole(a){
  if(a.role==='manager')t.push(['workforce','My department staff']);
  t.push(['notifications','My notifications']);return t;
 }
+async function openRootLens(accountId){
+ if(state.account?.role!=='root')throw Error('Only Nyoro Root Admin can open another academic workspace.');
+ let directory=state.rootDirectory;
+ if(!directory.some(p=>p.id===accountId)){
+  directory=(await api('/administration/people')).people;
+ }
+ const selected=directory.find(p=>p.id===accountId);
+ if(!selected||!['student','specialist'].includes(selected.role)||!selected.verified||selected.status!=='active'||
+   (selected.role==='specialist'&&!selected.approved))throw Error('Choose an active verified academic workspace from the IPS directory.');
+ state.rootLens={account:selected,directory:directory.filter(p=>p.role===selected.role&&p.verified&&p.status==='active'&&(p.role!=='specialist'||p.approved))};
+ state.tab='overview';state.page='workspace';state.opened='';state.error='';state.message='';
+ history.replaceState(null,'','/root');
+ render();
+}
 function work(){
- const a=state.account;
+ const a=state.rootLens?.account||state.account;
  const tabs=departmentsForRole(a);
  if(!tabs.some(x=>x[0]===state.tab))state.tab='overview';
  const title=a.role==='root'?'Nyoro · Root Administration':a.role==='student'?
  (state.firstLogin?'Welcome to IPS':'Welcome back')+', '+(a.username||'Student / Researcher'):
  a.role==='specialist'?a.name+' · Academic Specialist':a.name+' · '+(state.catalogue.departments.find(x=>x.id===a.department)?.name||'IPS Team');
+ const oversight=state.rootLens?'<div class="root-assist"><div><span class="kicker">NYORO ROOT ADMINISTRATION / ASSISTED WORKSPACE</span><strong>Currently viewing '+e(a.role==='student'?'Student / Researcher':'Academic Specialist')+' · '+e(a.username||a.name)+'</strong><p>Root remains signed in. Every assisted action is attributed to Nyoro. Review-only simulation is allowed for fictional accounts; live client agreements and specialist authorship cannot be forged.</p></div><div class="root-assist-controls"><label class="field">Switch '+e(a.role==='student'?'Student':'Specialist')+' without another login<select data-root-target>'+state.rootLens.directory.map(p=>'<option value="'+e(p.id)+'"'+(p.id===a.id?' selected':'')+'>'+e(p.username||p.name)+' · '+e(p.id)+'</option>').join('')+'</select></label>'+b('Return to Nyoro Root','root-lens-exit','','primary')+'</div></div>':'';
  shell('<div class="workspace"><aside class="sidebar"><div class="nav-label">IPS ACADEMIC COMPANY</div>'+tabs.map(t=>navData(t[0],t[1],state.tab)).join('')+
  '<div class="nav-label">YOUR RESPONSIBILITY</div><div class="notice" style="font-size:11px">'+e(a.role==='root'?'The Root Admin has no manager and cannot be deleted by staff.':a.role==='student'?'Your academic enquiries, projects and documents remain private to you and authorized IPS personnel.':a.role==='specialist'?'Only assigned academic work and approved communication are visible to Specialists.':'Your company authority is limited to your assigned department.')+'</div></aside>'+
- '<main class="workmain"><div class="work-title"><span class="kicker">IPS ACADEMIC SERVICES / '+e(state.tab.toUpperCase())+'</span><h1>'+e(title)+'</h1><p>'+e(a.role==='root'?'Lead academic service operations, qualified Specialists, communications, quality assurance and responsible departments.':
+ '<main class="workmain">'+oversight+'<div class="work-title"><span class="kicker">IPS ACADEMIC SERVICES / '+e(state.tab.toUpperCase())+'</span><h1>'+e(title)+'</h1><p>'+e(a.role==='root'?'Lead academic service operations, qualified Specialists, communications, quality assurance and responsible departments.':
  a.role==='student'?'Your confidential academic support, reviewed quotations and secure work history.':
  a.role==='specialist'?'Your professional academic assignments, approvals, submissions and IPS coordination.':
  'Manage real academic-service responsibilities and clients within your approved authority.')+'</p></div>'+flash()+
@@ -204,11 +219,20 @@ function work(){
 const kpi=(name,count,sub)=>'<div class="metric"><span>'+e(name)+'</span><strong>'+e(count)+'</strong><small>'+e(sub)+'</small></div>';
 const record=(heading,desc,id,stage,buttons='')=>'<article class="record"><div><h3>'+e(heading)+'</h3><p>'+e(short(desc))+'</p><small class="subtle">'+e(id)+'</small></div><aside>'+stat(stage)+buttons+'</aside></article>';
 async function loadTab(){
- const a=state.account,tab=state.tab;
+ const a=state.rootLens?.account||state.account,tab=state.tab;
  const target=root.querySelector('#workbody');if(!target)return;
  try{
  let html='';
- if(tab==='overview'){
+ if(tab==='root-students'||tab==='root-specialists'){
+  const people=(await api('/administration/people')).people.filter(p=>p.role===(tab==='root-students'?'student':'specialist'));
+  state.rootDirectory=people;
+  html=panel(tab==='root-students'?'Student / Researcher workspaces':'Academic Specialist workspaces',
+   'Nyoro can enter a real workspace without signing out, see its genuine records and perform permitted assisted actions. Root remains the accountable operator.',
+   people.length?'<div class="small-list">'+people.map(p=>record(p.username||p.name,
+     p.email+' · '+(p.role==='specialist'?'Verified professional academic specialist':'Private academic account'),
+     p.id,p.status,b('Open workspace as Root','root-lens-open',p.id,'primary'))).join('')+'</div>':
+   empty('No verified active '+(tab==='root-students'?'Students / Researchers':'Specialists')+' are currently available.'));
+ }else if(tab==='overview'){
   const d=await api('/academic/dashboard'),m=d.metrics;
   html='<div class="metrics">'+kpi('Academic enquiries',m.enquiries,'Actual scoped cases')+
    kpi('Academic commissions',m.academicCommissions,'Visible to this role')+
@@ -432,6 +456,11 @@ document.addEventListener('submit',async ev=>{
  finally{state.busy=false}
  if(state.account){render()}else{const msg=state.message,err=state.error;render();const container=root.querySelector('.page-intro')||root.querySelector('.hero')||root.querySelector('.auth .page-intro');if(container)container.insertAdjacentHTML('afterend',err?'<div class="notice error">'+e(err)+'</div>':'<div class="notice success">'+e(msg)+'</div>')}
 });
+document.addEventListener('change',async ev=>{
+ const select=ev.target.closest('select[data-root-target]');
+ if(!select||!state.rootLens||state.account?.role!=='root')return;
+ try{await openRootLens(select.value)}catch(err){state.error=err.message;render()}
+});
 document.addEventListener('click',async ev=>{
  const route=ev.target.closest('[data-nav]'),tab=ev.target.closest('[data-tab]'),action=ev.target.closest('[data-action]'),category=ev.target.closest('[data-category]');
  if(category){state.category=category.dataset.category;services();return}
@@ -440,6 +469,8 @@ document.addEventListener('click',async ev=>{
   state.page=dest;state.category=dest==='specialist'?'specialist':dest==='register'?'student':state.category;render();return}
  if(tab){state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;state.error='';state.message='';
+ if(act==='root-lens-exit'){state.rootLens=null;state.rootDirectory=[];state.page='workspace';state.tab='overview';state.opened='';history.replaceState(null,'','/root');render();return}
+ if(act==='root-lens-open'){try{await openRootLens(id)}catch(err){state.error=err.message;render()}return}
  if(act==='service'){state.service=id;state.page='service';serviceDetail();return}
  if(act==='request-service'){state.service=id;state.page='quote';quote();return}
  if(act==='tab-commissions'||act==='tab-queues'){state.tab=act.slice(4);state.opened='';state.message='';state.error='';render();return}
