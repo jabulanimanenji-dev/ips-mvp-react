@@ -110,7 +110,7 @@ export function registerSupportRoutes(ctx){
  }));
 }
 export function beginCompanyAutomation(ctx){
- const {db,rootEmail,notify,notifyQuotation,audit,sendEmail,uid,config}=ctx;
+ const {db,rootEmail,notify,notifyQuotation,audit,sendEmail,sendTelegram,uid,config}=ctx;
  let busy=false,mailBusy=false;
  const deliveryTick=async()=>{
   if(mailBusy)return;mailBusy=true;
@@ -123,7 +123,14 @@ export function beginCompanyAutomation(ctx){
     },{$set:{status:'sending',lockedAt:now}},{sort:{createdAt:1},returnDocument:'after'});
     if(!job)break;
     try{
-     const receipt=await sendEmail(job.to,job.subject,job.text,job.id);
+     let receipt;
+     if(job.channel==='telegram'){
+      const current=await db.accounts.findOne({id:job.accountId,verified:true,status:'active',
+       telegramChatId:job.chatId,telegramVerifiedAt:{$exists:true},
+       telegramConnectionStatus:'confirmed'});
+      if(!current)throw Error('Telegram destination was revoked or is unverified.');
+      receipt=await sendTelegram(job.chatId,job.text,job.id);
+     }else receipt=await sendEmail(job.to,job.subject,job.text,job.id);
      const status=config.sandbox?'synthetic_dispatched':'provider_accepted';
      // Provider API acceptance is not proof of inbox delivery.
      // Delivery events must be verified independently before marking delivered.
@@ -139,7 +146,8 @@ export function beginCompanyAutomation(ctx){
       $unset:{lockedAt:''}});
      if(failed)await db.notifications.insertOne({
       id:uid('NT'),accountId:rootEmail,kind:'communication_failure',
-      message:'An opted-in IPS email notice could not be delivered after retries: '+job.id,
+      message:'An opted-in IPS '+(job.channel==='telegram'?'Telegram':'email')+
+       ' notice could not be delivered after retries: '+job.id,
       read:false,createdAt:new Date()});
     }
    }

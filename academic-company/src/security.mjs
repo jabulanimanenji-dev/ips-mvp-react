@@ -21,7 +21,9 @@ export const publicAccount=a=>a?({
  id:a.id,role:a.role,username:a.username||'',name:a.name||'',email:a.email,
  verified:!!a.verified,approved:!!a.approved,status:a.status,department:a.department||'',
  managerId:a.managerId||'',expertise:a.expertise||[],firstLogin:!a.lastLoginAt,
- specialistAgreementVersion:a.specialistAgreementVersion||''
+ specialistAgreementVersion:a.specialistAgreementVersion||'',
+ contactPreference:a.contactPreference||'workspace',
+ telegramLinked:!!(a.telegramChatId&&a.telegramVerifiedAt&&a.telegramConnectionStatus==='confirmed')
 }):null;
 export const publicDocument=d=>{
  if(!d)return null;

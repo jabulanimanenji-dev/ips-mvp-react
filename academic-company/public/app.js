@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,backStack:[],isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[]};
+ message:'',error:'',busy:false,backStack:[],isEvaluation:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],telegramLinkUrl:''};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
@@ -127,9 +127,10 @@ function quoteFields(guest){
  field('Preferred deadline','deadline','date','',false)+
  textarea('Describe the academic help you need','requirements','Share the topic, current progress, challenges and expected result')+
  textarea('University guidance or special instructions (optional)','institutionGuidance','Brief, style guide, supervisor comments or permitted support',false)+
- options('Preferred written reply','contactChannel',guest?[['email','Email'],['telegram','Telegram (email verification still required)']]:
- [['workspace','Private IPS workspace'],['email','Email'],['telegram','Telegram (if available)']])+
- field('Telegram username, if selected','telegramUsername','text','@yourusername',false)+integrityCheck;
+ options('Preferred written reply','contactChannel',guest?[['email','Email']]:
+ [['workspace','Private IPS workspace'],['email','Email'],
+ ...(state.account?.telegramLinked&&state.catalogue.telegramBotUsername?
+  [['telegram','Verified private Telegram chat']]:[])] )+integrityCheck;
  return info;
 }
 function quote(){
@@ -209,7 +210,7 @@ function tokenForm(kind){
 }
 function departmentsForRole(a){
  if(a.role==='student')return [['overview','Overview'],['inbox','Inbox & messages'],['notifications','Updates'],
-  ['quotes','My quotations'],['commissions','My academic work'],['support','Support'],['profile','Account']];
+  ['quotes','My quotations'],['commissions','My academic work'],['support','Support'],['profile','Profile']];
  if(a.role==='specialist')return [['overview','My work'],['inbox','Inbox & messages'],['notifications','Updates'],
   ['commissions','Assignments & files'],['support','Support'],['profile','Profile']];
  if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],['notifications','Alerts & delivery'],
@@ -398,9 +399,21 @@ async function loadTab(){
    '<p><strong>'+e(a.username||a.name)+'</strong> · '+e(a.email)+'</p>'+
    (rootAssisted?'<p>Nyoro is operating this workspace. Passwords and personal preferences remain account-holder controlled.</p>':
    form('contact-preference',options('Reply method','contactPreference',
-    [['workspace','IPS workspace'],['email','Email'],['telegram','Telegram']])+
-     field('Telegram username (optional)','telegram','text','@username',false),'Save changes')+
+    [['workspace','IPS workspace'],['email','Email'],
+     ...(a.telegramLinked?[['telegram','Telegram (verified)']]:[])]),'Save changes')+
    '<div class="case-actions">'+buttonRoute('Email me a password reset link','recover')+'</div>'));
+  if(!rootAssisted&&['student','specialist'].includes(a.role)){
+   const bot=state.catalogue.telegramBotUsername;
+   html+=panel('Private Telegram updates',
+    'Only a Telegram chat you link through the IPS bot can receive notifications. Full academic details stay in IPS.',
+    '<p>'+e(a.telegramLinked?'Your private bot chat is connected.':'Telegram is not connected to this account.')+'</p>'+
+    (bot?'<div class="action-row">'+(a.telegramLinked?b('Disconnect Telegram','telegram-unlink'):
+      b('Connect my Telegram chat','telegram-link'))+
+      b('Refresh connection status','telegram-refresh','','quiet')+'</div>'+
+      (state.telegramLinkUrl&&!a.telegramLinked?'<p><a href="'+e(state.telegramLinkUrl)+
+       '" target="_blank" rel="noopener noreferrer">Open IPS Telegram bot and confirm this one-use link</a></p>':''):
+     '<p>Telegram connection is not yet enabled. IPS workspace and email remain available.</p>'));
+  }
   if(a.role==='specialist'&&!rootAssisted){
    const agreement=state.catalogue.specialistAgreement;
    html+=panel('Specialist confidentiality agreement',
@@ -927,7 +940,7 @@ async function submit(name,formNode){
   await api('/specialist/availability',{method:'PATCH',body:data});
   return 'Your availability and assignment capacity are saved for IPS Academic Delivery.';
  }
- if(name==='contact-preference'){await api('/profile',{method:'PATCH',body:data});return 'Your preferred written contact channel was saved.'}
+ if(name==='contact-preference'){await api('/profile',{method:'PATCH',body:data});state.account.contactPreference=data.contactPreference;return 'Your preferred written contact channel was saved.'}
  throw Error('This academic operation has not been connected.');
 }
 document.addEventListener('submit',async ev=>{
@@ -976,6 +989,28 @@ document.addEventListener('click',async ev=>{
   const kind=parts[0];state.opened=parts.slice(1).join('::');
   state.tab=kind==='quote'?'quotes':kind==='support'?'support':kind==='direct'?'inbox':kind==='alert'?'notifications':'commissions';
   render();return;
+ }
+ if(act==='telegram-link'||act==='telegram-unlink'||act==='telegram-refresh'){
+  try{
+   if(act==='telegram-link'){
+    const result=await api('/contact/telegram/link',{method:'POST'});
+    state.telegramLinkUrl=result.url;
+    state.message='Open the one-use Telegram link to verify your private chat, then refresh the connection status.';
+   }else if(act==='telegram-unlink'){
+    await api('/contact/telegram/unlink',{method:'POST'});
+    state.account.telegramLinked=false;
+    state.account.contactPreference='workspace';
+    state.telegramLinkUrl='';
+    state.message='Telegram chat unlinked. IPS will retain written updates inside your private workspace.';
+   }else{
+    const result=await api('/contact/telegram/status');
+    state.account.telegramLinked=result.linked;
+    if(result.linked)state.telegramLinkUrl='';
+    state.message=result.linked?'Telegram chat ownership verified.':'Telegram has not yet been linked by the IPS bot.';
+   }
+   render();
+  }catch(err){state.error=err.message;render()}
+  return;
  }
  if(act==='person-message'){remember();state.opened='DMTO:'+id;render();return}
 if(act==='service'){remember();state.service=id;state.page='service';serviceDetail();return}
