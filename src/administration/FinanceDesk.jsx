@@ -93,7 +93,7 @@ export default function FinanceDesk(){
       <Panel title="Controlled financial transitions">
         {[
           ['Quotation issued','Written scope and version recorded; no money collected'],
-          ['Client accepted','A customer's explicit authorization, not settlement'],
+          ['Client accepted',"A customer's explicit authorization, not settlement"],
           ['Payment verified','Only a correctly signed provider event can establish payment'],
           ['Specialist payout','Completed work and a verified settlement agreement'],
           ['Refund reviewed','Verified original payment and strict replay-safe reconciliation']
