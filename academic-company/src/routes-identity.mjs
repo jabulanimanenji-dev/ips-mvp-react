@@ -12,6 +12,18 @@ export function registerIdentityRoutes(ctx){
   return actual.length===expected.length&&crypto.timingSafeEqual(Buffer.from(actual),Buffer.from(expected));
  };
  const readonlyUser=a=>publicDocument(publicAccount(a));
+ const agreementVersion='IPS-SPECIALIST-CONFIDENTIALITY-V1-2026';
+ const agreementSections=[
+  {title:'Confidential student materials',text:'Use student briefs, correspondence and files solely for assigned legitimate IPS services. Do not disclose personally identifying or academic materials to unauthorized persons.'},
+  {title:'Academic integrity and professional accuracy',text:'Provide only permitted tutoring, editorial guidance, research methods consultation or similarly authorized academic support. Do not fabricate sources or data, impersonate an author, promise grades, or misrepresent the source or extent of your contribution.'},
+  {title:'Central company communication',text:'Use authorized IPS workspaces for assignments and student correspondence. Do not contact a Student independently, subcontract work or transfer case files without company authorization.'},
+  {title:'Security and offboarding',text:'Keep account credentials private, report incidents promptly, use only approved file channels, and cease access to confidential IPS work when your assignment or agreement ends.'},
+  {title:'Review and contract verification',text:'Electronic acceptance is recorded with the agreement version and date. IPS must separately review credentials and any further written contractual documentation before approving assignments.'}
+ ];
+ app.get('/api/specialist/agreement',(_req,res)=>res.json({
+  version:agreementVersion,title:'IPS Academic Specialist confidentiality and professional conduct agreement',
+  sections:agreementSections,requiresCredentialReview:true,revision:'1.0'}));
+
  async function mailChallenge(a,reason='verify'){
   const token=strongToken(),hash=security.digest(reason+':'+token),deadline=requestedAt();
   const keys=reason==='verify'?{challengeHash:hash,challengeUntil:deadline}:{recoveryHash:hash,recoveryUntil:deadline};
@@ -36,6 +48,14 @@ export function registerIdentityRoutes(ctx){
    return res.status(400).json({error:'Choose a valid academic account, real email, strong password and privacy consent.'});
   if(role==='student'&&!validUsername(uname))return res.status(400).json({error:'Choose a private username with 3–32 permitted characters.'});
   if(role==='specialist'&&(fullName.length<3||fullName.length>120))return res.status(400).json({error:'A Specialist must supply their real professional full name.'});
+  const qualification=String(req.body?.qualification||'').trim();
+  const evidenceReference=String(req.body?.credentialEvidenceReference||'').trim();
+  if(role==='specialist'&&(qualification.length<5||qualification.length>300||
+   evidenceReference.length<12||evidenceReference.length>500||
+   req.body?.specialistAgreementAccepted!==true||
+   req.body?.agreementVersion!==agreementVersion))
+   return res.status(400).json({error:'Specialists must provide a meaningful qualification, supporting credential reference and accept the current IPS confidentiality agreement.'});
+
   const expertise=role==='specialist'?Array.isArray(req.body.expertise)?
    [...new Set(req.body.expertise.filter(id=>SERVICE_MAP.has(id)))].slice(0,12):[]:[];
   if(role==='specialist'&&!expertise.length)return res.status(400).json({error:'Choose the actual academic services you can professionally support.'});
@@ -48,8 +68,11 @@ export function registerIdentityRoutes(ctx){
    ...(role==='specialist'?{availabilityStatus:'unavailable',maxConcurrentCases:0,
      activeAssignments:0,turnaroundDays:0}:{}),
    privacyConsentAt:now(),createdAt:now(),lastLoginAt:null,
-   ...(role==='specialist'?{qualification:String(req.body.qualification||'').slice(0,300),
-     experience:String(req.body.experience||'').slice(0,200)}:{})};
+   ...(role==='specialist'?{qualification,credentialEvidenceReference:evidenceReference,
+     credentialReviewStatus:'pending',credentialReviewHistory:[],
+     professionalAgreementVersion:agreementVersion,professionalAgreementAcceptedAt:now(),
+     experience:String(req.body.experience||'').slice(0,200),
+     professionalLanguages:String(req.body.professionalLanguages||'').slice(0,180)}:{})};
   try{await db.accounts.insertOne(item)}catch(e){if(e.code===11000)return res.status(409).json({error:'Email or username already registered.'});throw e}
   try{await mailChallenge(item,'verify')}
   catch{await db.accounts.deleteOne({id:item.id,status:'pending_verification'});return res.status(503).json({error:'We could not deliver your verification email. The account was not activated.'})}
