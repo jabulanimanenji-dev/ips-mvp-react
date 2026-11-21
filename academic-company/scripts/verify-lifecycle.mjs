@@ -1308,6 +1308,47 @@ try{
    decision:'approve_specialist',reviewNote:'Cannot undo a rejected professional review silently.',
    credentialEvidenceReviewed:true}),409);
  });
+ await assertCheck('Server-side people search pages beyond 300 accounts without leaking scoped identities',async()=>{
+  // Direct test inserts model genuine directory scale; sandbox only, no invitation
+  // or password bypass in the real registration endpoints.
+  const salt=random(),createdAt=new Date();
+  const entries=Array.from({length:330},(_,i)=>({
+   id:'CI-DIR-'+salt+'-'+String(i).padStart(4,'0'),
+   role:'student',email:'ci-directory-'+salt+'-'+i+'@example.org',
+   username:'CiDirectory'+salt+i,usernameKey:'cidirectory'+salt+i,
+   name:'',verified:true,approved:true,status:'active',sessionVersion:1,
+   createdAt,updatedAt:createdAt
+  }));
+  await db.collection('academic_accounts').insertMany(entries,{ordered:true});
+  const p1=await call('/administration/people?page=1&pageSize=100&role=student',
+   {cookie:rootCookie});
+  assert.equal(p1.data.page,1);
+  assert.equal(p1.data.pageSize,100);
+  assert.equal(p1.data.people.length,100);
+  assert.equal(p1.data.hasNext,true);
+  assert.ok(p1.data.total>=330);
+  const last=await call('/administration/people?page=4&pageSize=100&role=student',
+   {cookie:rootCookie});
+  assert.ok(last.data.people.length>=30);
+  assert.equal(last.data.hasNext,false);
+  assert.equal(last.data.hasPrevious,true);
+  const exact=await call('/administration/people?role=student&search='+encodeURIComponent(entries[248].email),
+   {cookie:rootCookie});
+  assert.equal(exact.data.people.length,1);
+  assert.equal(exact.data.people[0].id,entries[248].id);
+  assert.ok(!JSON.stringify(exact.data.people[0]).includes('passwordHash'));
+  const regexLiteral=await call('/administration/people?role=student&search='+encodeURIComponent('.*'),
+   {cookie:rootCookie});
+  assert.equal(regexLiteral.data.people.length,0,'Search input must never become an unrestricted MongoDB regular expression');
+  const scoped=await call('/administration/people?role=student&search=ci-directory-',
+   {cookie:managerCookie});
+  assert.equal(scoped.data.people.length,100);
+  await call('/administration/people?role=student&search=ci-directory-',
+   {cookie:studentCookie},403);
+  await call('/administration/people?role=student&status=secret',{cookie:rootCookie},400);
+  await call('/administration/people?pageSize=301',{cookie:rootCookie},400);
+  await call('/administration/people?page=-1',{cookie:rootCookie},400);
+ });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
   const people=await call('/administration/people',{cookie:rootCookie});
   assert.ok(!people.data.people.some(x=>x.role==='root'));
