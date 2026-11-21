@@ -14,6 +14,7 @@ import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs
 import {registerOperationsRoutes} from './routes-operations.mjs';
 import {registerTelegramRoutes,telegramConfigured} from './routes-telegram.mjs';
 import {inspectAcademicFile,scanConfiguration} from './document-scan.mjs';
+import {verifyResendSignature,recordResendEvent} from './routes-resend-webhook.mjs';
 
 const env=process.env;
 const config=ensureRuntime(env);
@@ -27,6 +28,22 @@ app.use(helmet({contentSecurityPolicy:{directives:{
  "img-src":["'self'","data:","https://images.unsplash.com"],"connect-src":["'self'"],
  "font-src":["'self'"],"frame-ancestors":["'none'"]
 }}}));
+// Preserve signed raw body before JSON parsing for Resend delivery webhooks.
+app.post('/api/integrations/resend/webhook',
+ express.raw({type:'application/json',limit:'256kb'}),async(req,res)=>{
+  if(!env.RESEND_WEBHOOK_SECRET)return res.status(503).json({error:'IPS email delivery verification is unavailable.'});
+  if(!verifyResendSignature(req.body,req.headers,env.RESEND_WEBHOOK_SECRET))
+   return res.status(401).json({error:'Resend webhook signature or timestamp is invalid.'});
+  try{
+   const payload=JSON.parse(req.body.toString('utf8'));
+   const eventId=String(req.get('svix-id')||req.get('webhook-id')||'');
+   const result=await recordResendEvent({db,rootEmail,now,uid},payload,eventId);
+   return res.json({ok:true,duplicate:result.duplicate});
+  }catch(err){
+   console.error('IPS Resend webhook could not be processed',err?.name||'Error');
+   return res.status(503).json({error:'IPS could not record this signed delivery event.'});
+  }
+ });
 app.use(express.json({limit:'8mb'}));
 app.use((req,res,next)=>{
  res.setHeader('X-IPS-Product','IPS Academic Services');
@@ -59,6 +76,7 @@ const db={
  directFiles:raw.collection('academic_direct_files'),
  rootOperations:raw.collection('academic_root_operations'),
  rootExternalFiles:raw.collection('academic_root_external_files'),
+ providerEvents:raw.collection('academic_provider_delivery_events'),
  telegramMessages:raw.collection('academic_telegram_messages')
 };
 await Promise.all([
@@ -84,7 +102,9 @@ await Promise.all([
  db.rootExternalFiles.createIndex({commissionId:1,createdAt:-1}),
  db.telegramMessages.createIndex({providerUpdateId:1},{unique:true,
   partialFilterExpression:{providerUpdateId:{$type:'number'}}}),
- db.telegramMessages.createIndex({accountId:1,createdAt:-1})
+ db.telegramMessages.createIndex({accountId:1,createdAt:-1}),
+ db.providerEvents.createIndex({id:1},{unique:true}),
+ db.providerEvents.createIndex({emailId:1,receivedAt:-1})
 ]);
 const rootEmail=email(env.ROOT_EMAIL);
 // The immutable Root identity is intentionally not a user-directory account.
@@ -261,6 +281,7 @@ app.get('/api/health',wrap(async(_req,res)=>res.json({
  payments:'integration-pending',
  documentScreening:scanConfiguration(env).host?'configured_not_proven':
   (config.sandbox?'synthetic_not_scanned':'unavailable'),
+ resendWebhook:env.RESEND_WEBHOOK_SECRET?'configured_not_proven':'unavailable',
  database:mongoose.connection.readyState===1?'connected':'unavailable'
 })));
 app.get('/api/catalogue',(_req,res)=>res.json({
