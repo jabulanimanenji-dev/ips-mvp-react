@@ -257,115 +257,167 @@ const kpi=(name,count,sub)=>'<div class="metric"><span>'+e(name)+'</span><strong
 const record=(heading,desc,id,stage,buttons='')=>'<article class="record"><div><h3>'+e(heading)+'</h3><p>'+e(short(desc))+'</p><small class="subtle">'+e(id)+'</small></div><aside>'+stat(stage)+buttons+'</aside></article>';
 async function loadTab(){
  const a=state.rootLens?.account||state.account,tab=state.tab;
- const rootAssisted=!!state.rootLens,canSimulate=!rootAssisted||state.isEvaluation;
  const target=root.querySelector('#workbody');if(!target)return;
+ const rootAssisted=!!state.rootLens,canSimulate=!rootAssisted||state.isEvaluation;
  try{
  let html='';
- if(tab==='root-students'||tab==='root-specialists'){
-  const people=(await api('/administration/people')).people.filter(p=>p.role===(tab==='root-students'?'student':'specialist'));
-  state.rootDirectory=people;
-  html=panel(tab==='root-students'?'Student / Researcher workspaces':'Academic Specialist workspaces',
-   'Nyoro can enter a real workspace without signing out, see its genuine records and perform permitted assisted actions. Root remains the accountable operator.',
-   people.length?'<div class="small-list">'+people.map(p=>record(p.username||p.name,
-     p.email+' · '+(p.role==='specialist'?'Verified professional academic specialist':'Private academic account'),
-     p.id,p.status,b('Open workspace as Root','root-lens-open',p.id,'primary'))).join('')+'</div>':
-   empty('No verified active '+(tab==='root-students'?'Students / Researchers':'Specialists')+' are currently available.'));
- }else if(tab==='overview'){
+ if(tab==='overview'){
   const d=await api('/academic/dashboard'),m=d.metrics;
-  html='<div class="metrics">'+kpi('Academic enquiries',m.enquiries,'Actual scoped cases')+
-   kpi('Academic commissions',m.academicCommissions,'Visible to this role')+
-   kpi('Support cases',m.support,'Written cases')+
-   kpi('Unread updates',m.alerts,'Account-specific')+'</div>'+(a.role==='root'?realActivityChart(m):'')+'<div class="cols">'+
-   panel(a.role==='student'?'Your next academic step':a.role==='specialist'?'Your academic work':'Today at IPS Academic Services',
-   a.role==='student'?'Submit a private academic quotation or inspect your existing projects.':
-   a.role==='specialist'?'Review only the assignments formally allocated by IPS.':
-   'The company is organized around academic intake, Specialist eligibility, work coordination and independent QA.',
-   '<div class="action-row">'+(a.role==='student'?(state.rootLens&&!state.isEvaluation?'<div class="notice">Nyoro may observe this workspace. Only the Student can commission genuine work.</div>':buttonRoute('Request academic assistance','quote','primary')):
-   a.role==='specialist'?b('View assignments','tab-commissions','','primary'):b('Open company queues','tab-queues','','primary')+b('Student workspace','tab-root-students')+b('Specialist workspace','tab-root-specialists'))+'</div>')+
-   panel('Academic standards and confidentiality','IPS coordinates legitimate academic support through authorized personnel.',
-   '<div class="bullet">Verified email and controlled accounts</div><div class="bullet">Professionally scoped academic services</div>'+
-   '<div class="bullet">Independent academic quality review</div><div class="bullet">Written contact only; no phone calls</div>'+
-   '<p class="fine mt">Payment processing is pending and not represented as live in this evaluation.</p>')+'</div>';
+  html='<div class="metrics">'+kpi('Enquiries',m.enquiries,'Academic requests')+
+   kpi('Academic jobs',m.academicCommissions,'Jobs you can access')+
+   kpi('Support',m.support,'Written support')+
+   kpi('Updates',m.alerts,'Unread alerts')+'</div>'+
+   (a.role==='root'?realActivityChart(m):'')+
+   '<div class="ops-grid">'+
+   panel(a.role==='student'?'Your next step':a.role==='specialist'?'Your assignments':'Work that needs attention','',
+    '<div class="case-actions">'+(a.role==='student'?buttonRoute('Request a quote','quote','primary')+
+      b('Open my academic work','tab-commissions'):
+     a.role==='specialist'?b('View assignments & files','tab-commissions','','primary')+
+      b('Open inbox','tab-inbox'):
+      b('Open inbox','tab-inbox','','primary')+
+      b('Academic jobs','tab-commissions'))+'</div>')+
+   panel('Messages & files','Find academic conversations, uploaded documents and delivery in the relevant job.',
+    '<div class="case-actions">'+b('Go to inbox','tab-inbox','','primary')+
+    b('Open academic jobs','tab-commissions')+'</div>')+
+   (a.role==='root'?panel('People & staffing','Students and Specialists are managed separately.',
+    '<div class="case-actions">'+b('Manage Students','tab-students')+
+     b('Manage Specialists','tab-specialists')+b('Team','tab-workforce')+'</div>'):'')+'</div>';
+ }else if(tab==='inbox'){
+  const d=await api('/operations/inbox');
+  html=panel('Inbox & conversations','Academic enquiries, job messages, support and direct company correspondence.',
+   d.inbox.length?'<div class="small-list">'+d.inbox.slice(0,120).map(x=>
+    '<article class="inbox-row"><div><span class="kicker">'+e(x.type)+' · '+e(x.service||'IPS')+'</span>'+
+    '<h3>'+e(x.subject||'Academic case')+'</h3><p>'+e(x.id)+' · '+date(x.updatedAt)+'</p></div>'+
+    '<div class="case-actions">'+stat(x.status)+b('Open','inbox-open',x.type+'::'+x.id,'primary')+'</div></article>').join('')+'</div>':
+   empty('Nothing waiting in your IPS inbox. New written correspondence will appear here.'))+
+   (state.opened?.startsWith('DM-')?await dmDetail(state.opened,a):'');
  }else if(tab==='queues'){
   const d=await api('/administration/queues');
-  html=panel('Department responsibilities','Queues contain actual academic cases and pending actions, not decorative counters.',
+  html=panel('Department queue','Only tasks needing an IPS response appear here.',
    d.queues.length?'<div class="small-list">'+d.queues.map(q=>
-    '<div class="panel"><span class="kicker">'+e(q.department.replaceAll('_',' '))+'</span><h3>'+e(q.name)+' · '+e(q.count)+'</h3>'+
-    (q.items.length?q.items.map(i=>record(i.service+' · '+i.subject,'Academic case needing attention',i.id,i.stage)).join(''):empty('No cases waiting in this queue.'))+'</div>').join('')+'</div>':empty('No queues are assigned to your current department.'));
+    '<section class="panel"><h3>'+e(q.name)+' · '+q.count+'</h3>'+
+    (q.items.length?q.items.map(x=>record(x.service+' · '+x.subject,'',x.id,x.stage,
+      b('Open work','queue-open',x.id))).join(''):empty('Nothing waiting in this queue.'))+'</section>').join('')+'</div>':empty('No pending tasks for this department.'));
  }else if(tab==='quotes'){
   const d=await api('/academic/quotes');
-  html=(a.role==='student'?panel('Request academic assistance','Every enquiry is reviewed for scope and integrity before a price is issued.',
-   (canSimulate?'<div class="action-row">'+buttonRoute('Get a new academic quote','quote','primary')+'</div>':'<div class="notice">Nyoro may review academic requests here; only the actual Student can authorize new real commissions.</div>')+
-   (!rootAssisted?form('claim-quote',field('Existing verified guest quote reference','reference','text','IPS-Q-…'),'Link my earlier quote'):'') ):'')+
-   panel(a.role==='student'?'My academic quotations':'Academic enquiry register','Real subject, academic level, service, decisions and next steps.',
-   d.quotes.length?'<div class="small-list">'+d.quotes.map(q=>
-    record(q.serviceName+' · '+q.subject,q.requirements,q.id,q.status,
-     (a.role==='student'&&q.status==='offered'&&canSimulate?b('Accept quote','quote-accept',q.id,'primary')+b('Decline','quote-decline',q.id):
-      a.role==='root'||a.role==='manager'?q.status==='received'?b('Review scope','scope-form',q.id):
-       q.status==='scoped'?b('Issue written quotation','offer-form',q.id):'':'')+
-     b('Details','quote-detail',q.id))).join('')+'</div>':empty('No academic quotations yet.'))+
-   (state.opened?quoteDetail(d.quotes.find(q=>q.id===state.opened),a):'');
+  html=(a.role==='student'?panel('New academic request','',
+   '<div class="case-actions">'+(canSimulate?buttonRoute('Request a quotation','quote','primary'):'')+
+   (!rootAssisted?form('claim-quote',field('Existing enquiry reference','reference','text','IPS-Q-…'),'Link existing enquiry'):'')+
+   '</div>'):'')+
+   panel(a.role==='student'?'Your quotations':'Academic enquiries','Review scope, quotation and messages in one record.',
+    d.quotes.length?'<div class="small-list">'+d.quotes.map(q=>
+     record(q.subject+' · '+q.serviceName,q.requirements,q.id,q.status,
+      (a.role==='student'&&q.status==='offered'&&canSimulate?
+       b('Accept quotation','quote-accept',q.id,'primary')+b('Decline','quote-decline',q.id):
+       ['root','manager'].includes(a.role)&&q.status==='received'?
+       b('Review','scope-form',q.id):['root','manager'].includes(a.role)&&q.status==='scoped'?
+       b('Send quotation','offer-form',q.id):'')+
+      b('Open enquiry & messages','quote-detail',q.id))).join('')+'</div>':
+     empty('No academic enquiries yet.'))+
+    (state.opened?await quoteDetail(d.quotes.find(q=>q.id===state.opened),a):'');
  }else if(tab==='commissions'||tab==='quality'){
   const d=await api('/academic/commissions');
-  const items=tab==='quality'?d.commissions.filter(p=>['qa_pending','correction_requested','client_delivery'].includes(p.status)):d.commissions;
-  html=panel(tab==='quality'?'Academic quality assurance':'Academic commissions and delivery',
-    'Every commission is subject-specific, accountable, confidential and governed by real QA.',
-    items.length?'<div class="small-list">'+items.map(p=>record(p.serviceName+' · '+p.subject,
-     p.requirements,p.id,p.status,b('Open academic commission','commission-open',p.id))).join('')+'</div>':
-     empty('No assigned academic cases in this view.'))+
-     (state.opened?await commissionDetail(items.find(p=>p.id===state.opened),a):'');
- }else if(tab==='people'||tab==='workforce'){
+  const items=tab==='quality'?d.commissions.filter(x=>['qa_pending','correction_requested','client_delivery'].includes(x.status)):d.commissions;
+  html=panel(tab==='quality'?'Quality review':'Academic jobs',
+   'Open any job to manage its messages, instructions, assigned work and files.',
+   items.length?'<div class="small-list">'+items.map(p=>record(
+     p.subject+' · '+p.serviceName,
+     'Updated '+date(p.updatedAt),p.id,p.status,
+     b('Open job','commission-open',p.id,'primary'))).join('')+'</div>':
+     empty('No academic jobs in this view.'))+
+   (state.opened?await commissionDetail(items.find(p=>p.id===state.opened),a):'');
+ }else if(['students','specialists','root-students','root-specialists','workforce'].includes(tab)){
   const d=await api('/administration/people');
-  const people=tab==='workforce'?d.people.filter(p=>['manager','staff'].includes(p.role)):d.people;
-  const invite=['root','manager'].includes(a.role)&&tab==='workforce';
-  html=(invite?panel(a.role==='root'?'Appoint an IPS department manager':'Invite staff into my department',
-    'Root has no manager. Department managers can invite only their own staff.',
-    form('staff-invite',field('Professional full name','name')+field('Work email address','email','email')+
-     (a.role==='root'?options('Accountable department','department',state.catalogue.departments.map(x=>[x.id,x.name])):''),'Send private invitation')):'')+
-   panel(tab==='workforce'?'Workforce governance':'Students / Researchers and qualified Specialists',
-   'View actual verified identities and perform only authorized company actions.',
-   people.length?'<div class="table-wrap"><table class="table"><thead><tr><th>Private identity</th><th>Position</th><th>Verification</th><th>Permitted management</th></tr></thead><tbody>'+
-   people.map(p=>'<tr><td><b>'+e(p.username||p.name||'Private account')+'</b><small>'+e(p.email)+'</small></td><td>'+e(p.role)+' · '+e(p.department||'—')+'</td><td>'+stat(p.verified?'verified':p.status)+'</td><td><div class="actions">'+
-     (canRecover(a,p)?b('Send recovery link','person-recover',p.id,'small'):'')+
-     (canApprove(a,p)?b('Approve Specialist','person-approve',p.id,'small'):'')+
-     (canSuspend(a,p)?b('Suspend','person-suspend',p.id,'small danger'):'')+
-     '</div></td></tr>').join('')+'</tbody></table></div>':empty('No academic company identities yet.'));
+  const role=tab==='root-students'||tab==='students'?'student':
+    tab==='root-specialists'||tab==='specialists'?'specialist':'employee';
+  const people=d.people.filter(p=>role==='employee'?['manager','staff'].includes(p.role):p.role===role);
+  state.rootDirectory=people;
+  const rootLensList=tab==='root-students'||tab==='root-specialists';
+  const invite=['root','manager'].includes(a.role)&&tab==='workforce'?
+   panel(a.role==='root'?'Create a department manager':'Invite department staff','',
+    form('staff-invite',field('Full professional name','name')+
+    field('Verified work email','email','email')+
+    (a.role==='root'?options('Department','department',state.catalogue.departments.map(x=>[x.id,x.name])):''),
+    'Email invitation')):'';
+  const labels={student:'Students / Researchers',specialist:'Academic Specialists',employee:'Managers & staff'};
+  html=invite+panel(rootLensList?'Select a workspace':labels[role],
+   rootLensList?'Open the actual workspace under Nyoro’s accountable Root session.':'Separate people directories with straightforward management.',
+   '<div class="directory-toolbar"><label class="field">Search<input type="search" data-directory-search placeholder="Name, username or email" autocomplete="off"></label>'+
+   '<label class="field">Status<select data-directory-status><option value="all">All statuses</option>'+
+   '<option value="active">Active</option><option value="pending_review">Pending approval</option>'+
+   '<option value="suspended">Suspended</option></select></label></div>'+
+   (people.length?'<div class="table-wrap"><table class="table directory-table"><thead><tr><th>Account</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
+   people.map(p=>'<tr data-directory-row data-status="'+e(p.status)+'" data-search="'+e((p.username||p.name||'')+' '+p.email)+'"><td><b>'+e(p.username||p.name||'Private account')+'</b><small>'+e(p.email)+'</small></td>'+
+   '<td>'+e(p.role==='student'?'Student / Researcher':p.role==='specialist'?'Specialist':p.role)+'</td>'+
+   '<td>'+stat(p.verified?p.status:'unverified')+'</td><td><div class="actions">'+
+   (a.role==='root'&&['student','specialist'].includes(p.role)&&p.verified&&p.status==='active'?
+    b('Open workspace','root-lens-open',p.id,'small primary'):'')+
+   (a.role==='root'?b('Message','person-message',p.id,'small'):'')+
+   (!rootLensList&&canRecover(a,p)?b('Send reset link','person-recover',p.id,'small'):'')+
+   (!rootLensList&&canApprove(a,p)?b('Approve','person-approve',p.id,'small'):'')+
+   (!rootLensList&&canSuspend(a,p)?b('Suspend','person-suspend',p.id,'small danger'):'')+
+   (!rootLensList&&p.status==='suspended'&&a.role==='root'?b('Reactivate','person-reactivate',p.id,'small'):'')+
+   '</div></td></tr>').join('')+'</tbody></table></div>':empty('No accounts found.')))+
+   (a.role==='root'&&state.opened?.startsWith('DMTO:')?directCompose(state.opened.slice(5),people):'');
  }else if(tab==='support'){
   const d=await api('/support');
-  html=(['student','specialist'].includes(a.role)&&canSimulate?panel('Ask IPS for written assistance','Your confidential request is placed in the company support queue.',
-   form('support',field('Subject','subject')+textarea('How can IPS help?','message'),'Send written support request')):'')+
-   panel('Confidential support cases','Company-managed written assistance with ownership and history.',
-   d.tickets.length?'<div class="small-list">'+d.tickets.map(t=>record(t.subject,t.replies?.at(-1)?.message,t.id,t.status,
-    b('Open support history','support-open',t.id))).join('')+'</div>':empty('No written support cases.'))+
+  html=(['student','specialist'].includes(a.role)&&canSimulate?
+   panel('Ask IPS for help','',
+   form('support',field('Subject','subject')+textarea('Message','message','What do you need help with?'),'Send message')):'')+
+   panel('Support conversations','',d.tickets.length?'<div class="small-list">'+d.tickets.map(t=>
+    record(t.subject,t.replies?.at(-1)?.message,t.id,t.status,b('Open conversation','support-open',t.id))).join('')+'</div>':
+    empty('No support cases yet.'))+
    (state.opened?supportDetail(d.tickets.find(t=>t.id===state.opened)):'');
- }else if(tab==='notifications'){
-  const d=await api('/notifications');
-  html=panel('Private academic updates','Every notice belongs to your authorized IPS identity.',
-   d.notifications.length?'<div class="small-list">'+d.notifications.map(n=>
-    record(n.message,date(n.createdAt),n.id,n.kind,n.read||rootAssisted?'':b('Mark read','notification-read',n.id,'small'))).join('')+'</div>':empty('No updates awaiting you.'));
  }else if(tab==='profile'){
-  html=panel('Account and written contact preferences',
-   a.role==='student'?'Your legal full name is not required simply to use IPS.':'Your professional identity is verified and protected.',
-   '<p><strong>'+e(a.username||a.name)+'</strong><br><span class="muted">'+e(a.email)+'</span></p>'+
-   '<div class="separator"></div>'+(rootAssisted?'<div class="notice">Nyoro is viewing an actual account. Only the account holder can change private contact preferences or credentials.</div>':form('contact-preference',
-   options('Preferred written contact','contactPreference',[['workspace','Private IPS workspace'],['email','Email'],['telegram','Telegram']])+
-   field('Telegram username, if selected','telegram','text','@username',false),'Save private contact preference')+
-   '<div class="action-row">'+buttonRoute('Recover account password','recover')+'</div>'));
+  html=panel('Account & preferences','',
+   '<p><strong>'+e(a.username||a.name)+'</strong> · '+e(a.email)+'</p>'+
+   (rootAssisted?'<p>Nyoro is operating this workspace. Passwords and personal preferences remain account-holder controlled.</p>':
+   form('contact-preference',options('Reply method','contactPreference',
+    [['workspace','IPS workspace'],['email','Email'],['telegram','Telegram']])+
+     field('Telegram username (optional)','telegram','text','@username',false),'Save changes')+
+   '<div class="case-actions">'+buttonRoute('Email me a password reset link','recover')+'</div>'));
  }else if(tab==='finance'){
   const d=await api('/administration/queues');
   const q=d.queues.find(x=>x.department==='finance');
-  html=panel('Academic Finance & Billing','Real invoicing and payment settlement integration is pending — no fake paid production projects.',
-   '<div class="notice warn">Payment processing is intentionally disabled until all nonpayment academic service journeys pass.</div>'+
-   (q?'<p>'+e(q.count)+' accepted academic cases are awaiting genuine payment integration.</p>':empty('No finance queue under your authority.')));
+  html=panel('Finance readiness','Payment provider integration is not enabled in this evaluation.',
+   q?'<p>'+e(q.count)+' accepted academic cases await the verified payment gate.</p>':
+   empty('No outstanding finance cases.'));
  }else if(tab==='audit'){
   const d=await api('/administration/audit');
-  html=panel('Academic company security and audit','Identity, managerial and academic workflow events are recorded and permission-scoped.',
-   d.events.length?'<div class="table-wrap"><table class="table"><thead><tr><th>Recorded</th><th>Role</th><th>Action</th><th>Reference</th></tr></thead><tbody>'+
-   d.events.map(x=>'<tr><td>'+e(date(x.at))+'</td><td>'+e(x.actorRole)+'</td><td>'+e(x.action)+'</td><td>'+e(x.ref)+'</td></tr>').join('')+
-   '</tbody></table></div>':empty('No governance events recorded.'));
+  html=panel('Audit trail','Every company action, including Root intervention, is attributable.',
+   d.events.length?'<div class="table-wrap"><table class="table"><thead><tr><th>When</th><th>Role</th><th>Action</th><th>Case / account</th></tr></thead><tbody>'+
+   d.events.map(x=>'<tr><td>'+date(x.at)+'</td><td>'+e(x.actorRole)+'</td><td>'+e(x.action.replaceAll('_',' '))+'</td><td>'+e(x.ref)+'</td></tr>').join('')+'</tbody></table></div>':
+   empty('No events recorded.'));
+ }else if(tab==='notifications'){
+  const d=await api('/notifications');
+  html=panel('Updates','',d.notifications.length?'<div class="small-list">'+d.notifications.map(n=>
+   record(n.message,date(n.createdAt),n.id,n.kind,n.read||rootAssisted?'':b('Mark read','notification-read',n.id))).join('')+'</div>':
+   empty('No updates.'));
  }
  const current=root.querySelector('#workbody');if(current)current.innerHTML=html;
- }catch(err){const current=root.querySelector('#workbody');if(current)current.innerHTML='<div class="notice error">'+e(err.message)+'</div>';}
+ }catch(err){const current=root.querySelector('#workbody');if(current)current.innerHTML='<div class="notice error" role="alert">'+e(err.message)+'</div>'}
+}
+function directCompose(id,people){
+ const p=people.find(x=>x.id===id);if(!p)return '';
+ return '<div class="mt">'+panel('Write to '+(p.username||p.name),'Send a private IPS message or academic document.',
+ form('direct-message','<input type="hidden" name="recipientId" value="'+e(id)+'">'+
+ textarea('Message','body','Your message to this account'),'Send message')+
+ form('direct-file','<input type="hidden" name="recipientId" value="'+e(id)+'">'+
+ field('Attach PDF, DOCX or TXT (5 MB max)','upload','file','','true'),
+ 'Send private document'))+'</div>';
+}
+async function dmDetail(id,a){
+ const all=await api('/operations/direct-message');
+ const m=all.messages.find(x=>x.id===id);
+ if(!m)return '';
+ const thread=await api('/operations/direct-message/'+encodeURIComponent(id)+'/thread');
+ return '<div class="mt">'+panel('Private IPS conversation','',
+  '<div class="messages">'+thread.messages.map(t=>'<div class="message"><small>'+
+   e(t.fromRole||'IPS')+' · '+date(t.createdAt)+'</small><p>'+e(t.body||'')+'</p>'+
+   (t.attachmentId?'<p><a href="/api/operations/direct-file/'+e(t.attachmentId)+'" download>Download attached document</a></p>':'')+
+   '</div>').join('')+'</div>'+
+   form('direct-reply','<input type="hidden" name="messageId" value="'+e(id)+'">'+
+    textarea('Reply','body','Write your reply'),'Send reply'))+'</div>';
 }
 function canRecover(a,p){return p.verified&&p.status==='active'&&
  (a.role==='root'||(a.role==='manager'&&p.role==='staff'&&p.managerId===a.id)||
