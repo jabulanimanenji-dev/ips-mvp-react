@@ -21,8 +21,8 @@ const header=()=>'<div class="masthead"><header class="top">'+brand()+'<nav aria
  (state.account?'<span class="pill">'+e(state.account.role==='root'?'NYORO · ROOT ADMIN':state.account.role==='student'?'STUDENT / RESEARCHER':state.account.role.toUpperCase())+'</span>'+(state.rootLens?b('Return to Root','root-lens-exit'):'')+b('Sign out','logout'):
  [buttonRoute('Academic services','services'),buttonRoute('How IPS works','how'),buttonRoute('Privacy','privacy'),buttonRoute('Student / Researcher','register'),buttonRoute('Join our specialist network','specialist'),buttonRoute('Login','login','primary')].join(''))+
  '</nav></header></div>';
-const footer=()=>'<footer class="foot"><span>© IPS Academic Services · Professional academic and research support</span><span>Written communication only · Private enquiries · Ethical academic assistance · No telephone calls</span></footer>';
-const banner=()=>state.isEvaluation?'<div class="notice warn banner" role="status">IPS ACADEMIC SERVICES — ISOLATED EVALUATION. All review accounts and commissioned examples are fictional. No live email, Telegram messages or payments. Do not enter real student data.</div>':'';
+const footer=()=>'<footer class="foot"><span>© IPS Academic Services · Academic & research support</span><span>'+buttonRoute('Privacy policy','privacy','quiet')+' · Written correspondence only</span></footer>';
+const banner=()=>state.isEvaluation?'<div class="banner" role="status">REVIEW ENVIRONMENT · Fictional accounts and academic records · No payments or external messages</div>':'';
 const flash=()=>state.error?'<div class="notice error" role="alert">'+e(state.error)+'</div>':state.message?'<div class="notice success" role="status">'+e(state.message)+'</div>':'';
 const shell=content=>{root.innerHTML=header()+banner()+content+footer();document.title='IPS Academic Services | '+(state.account?'Private workspace':state.page==='services'?'Academic services':'Academic & Research Support')};
 const intro=(tag,title,desc)=>'<div class="page-intro"><span class="kicker">'+e(tag)+'</span><h1>'+e(title)+'</h1><p>'+e(desc)+'</p></div>';
@@ -30,7 +30,7 @@ const navData=(route,name,active)=>'<button type="button" data-tab="'+e(route)+'
 const selectService=()=>state.catalogue.services.map(s=>[s.id,s.title]);
 const chooseLevel=()=>state.catalogue.levels.map(x=>[x,x]);
 const privacyCheck='<label class="field full"><span><input type="checkbox" name="privacyConsent" required> I agree to secure processing of my private enquiry and written communication from IPS.</span></label>';
-const integrityCheck='<label class="field full"><span><input type="checkbox" name="integrityAcknowledged" required> I request legitimate academic guidance or editing and will respect my institution’s authorship and integrity requirements.</span></label>';
+const integrityCheck='<label class="field full"><span><input type="checkbox" name="integrityAcknowledged" required> I agree to the academic integrity requirements.</span></label>';
 async function api(endpoint,{method='GET',body}={}){
  const res=await fetch('/api'+endpoint,{method,credentials:'same-origin',cache:'no-store',
   headers:{...(body?{'Content-Type':'application/json'}:{}),...(state.rootLens&&/^\/(academic|support|notifications)(\/|$)/.test(endpoint)?{'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},body:body?JSON.stringify(body):undefined});
@@ -38,67 +38,67 @@ async function api(endpoint,{method='GET',body}={}){
  if(!res.ok)throw Error(data.error||'IPS could not complete the requested action.');
  return data;
 }
+const PHOTO_LIBRARY='https://images.unsplash.com/photo-1629050290461-283e7bd7805f?auto=format&fit=crop&w=1400&q=82';
+const PHOTO_DESK='https://images.unsplash.com/photo-1769794371055-54436b54577e?auto=format&fit=crop&w=1100&q=80';
 function academicCard(s,i){
- const graphic=['methods','presentation'].includes(s.category)?'/assets/academic-analysis.svg':'/assets/academic-research.svg';
- return '<article class="service-card"><img class="service-visual" src="'+graphic+'" alt="'+e(s.category==='methods'?'Statistical analysis charts and research materials':'Academic research volumes, manuscripts and scholarly desk materials')+'" loading="lazy">'+
- '<div class="service-code">IPS / '+e(s.category.toUpperCase())+' · '+String(i+1).padStart(2,'0')+'</div><h3>'+e(s.title)+'</h3><p>'+e(s.subtitle)+'</p>'+b('Explore academic support','service',s.id,'small')+'</article>';
+ return '<article class="service-card"><span class="service-code">ACADEMIC SERVICE / '+String(i+1).padStart(2,'0')+'</span>'+
+ '<h3>'+e(s.title)+'</h3><p>'+e(s.subtitle)+'</p><div class="card-footer">'+b('View service','service',s.id,'small quiet')+'</div></article>';
 }
 function home(){
  const featured=state.catalogue.services.filter(s=>['thesis-dissertation','statistics','academic-editing','research-methods','references-formatting','literature-reviews'].includes(s.id));
- shell('<main>'+
- '<section class="hero"><div class="hero-grid"><div><span class="kicker">IPS ACADEMIC SERVICES · CONFIDENTIAL ACADEMIC SUPPORT</span>'+
+ shell('<main class="public-site">'+
+ '<section class="hero"><div class="hero-grid"><div class="hero-copy"><span class="kicker">IPS / ACADEMIC SERVICES</span>'+
  '<h1>Expert guidance for <em>your academic journey.</em></h1>'+
- '<p>Research methodology, thesis guidance, statistical interpretation, academic editing, referencing and more — coordinated by IPS and delivered through qualified academic Specialists.</p>'+
- '<div class="cta-row">'+buttonRoute('Get a private academic quote','quote','primary')+buttonRoute('Explore academic services','services')+buttonRoute('Specialist opportunities','specialist','quiet')+'</div>'+
- '<div class="trust"><span>Students & Researchers</span><span>Verified Specialist network</span><span>Private, written correspondence</span></div></div>'+
- '<aside class="hero-side"><img class="hero-illustration" src="/assets/academic-research.svg" alt="Academic research illustration: scholarly books, open manuscript, charts and a globe" fetchpriority="high"><span class="kicker">HOW IPS SUPPORTS YOU</span><h2>Academic standards. Personal discretion.</h2>'+
- [['01','Tell us what academic guidance you need','Choose a service and describe your discipline, requirements and deadline.'],['02','Receive a professionally reviewed quotation','IPS checks scope and academic integrity, then replies in writing.'],['03','Work through one accountable company','Qualified Specialists work under IPS coordination and independent quality assurance.']].map(x=>'<div class="step"><b>'+x[0]+'</b><div><strong>'+x[1]+'</strong><p>'+x[2]+'</p></div></div>').join('')+
- '</aside></div></section>'+
- '<div class="strip"><section class="section"><div class="section-head"><div><span class="kicker">ACADEMIC EXPERTISE</span><h2>Support for genuine academic work</h2></div><p>From an undergraduate draft to doctoral research methods, IPS helps clients understand, improve and present their own work.</p></div>'+
- '<div class="service-grid">'+featured.map(academicCard).join('')+'</div><div class="cta-row">'+buttonRoute('View all 16 academic services','services')+'</div></section></div>'+
- '<section class="section"><div class="section-head"><div><span class="kicker">WORK WITH CONFIDENCE</span><h2>Privacy is built into your experience</h2></div></div><div class="cols">'+
- panel('For Students / Researchers','Choose a private username. Full legal names are not required to register or request a quote.','<div class="bullet">Automatic email verification and secure account access</div><div class="bullet">Written responses through approved contact channels</div><div class="bullet">Private submissions, progress updates and delivery history</div><div class="action-row">'+buttonRoute('Open your private workspace','register','primary')+'</div>')+
- panel('For Academic Specialists','Join our verified professional network for scoped academic assignments.','<div class="bullet">Academic experience and qualifications reviewed by IPS</div><div class="bullet">Clearly assigned briefs and manageable workloads</div><div class="bullet">Secure submissions, revisions and independent QA</div><div class="action-row">'+buttonRoute('Join our specialist network','specialist')+'</div>')+'</div></section>'+
- '<div class="strip"><section class="section">'+panel('Responsible academic support',state.catalogue.academicIntegrityNotice,
- '<div class="cta-row">'+buttonRoute('Request academic guidance','quote','primary')+buttonRoute('How our service works','how')+'</div>')+'</section></div></main>');
+ '<p>Research support, thesis guidance, statistical analysis, academic editing and more. One professional team, one clear process.</p>'+
+ '<div class="cta-row">'+buttonRoute('Request a quotation','quote','primary')+buttonRoute('Explore services','services')+'</div>'+
+ '<div class="hero-signature"><span>Students & Researchers</span><span>Qualified Specialists</span><span>Written support</span></div></div>'+
+ '<figure class="hero-photography"><img class="hero-photo" src="'+PHOTO_LIBRARY+'" alt="Photograph of an authentic historic library reading room and its bookshelves" referrerpolicy="no-referrer" fetchpriority="high">'+
+ '<figcaption><span class="kicker">ACADEMIC RESEARCH & GUIDANCE</span><strong>Focused support for meaningful scholarly work.</strong></figcaption></figure></div></section>'+
+ '<section class="section experience"><div class="section-head"><div><span class="kicker">THE IPS EXPERIENCE</span><h2>Professional help, without the complexity.</h2></div>'+
+ '<p>Tell us what you need. Receive a written scope and quotation. Follow your academic work in one secure workspace.</p></div>'+
+ '<div class="simple-flow"><div><b>01</b><strong>Send your requirements</strong><span>Service, subject and deadline</span></div><div><b>02</b><strong>Review your quotation</strong><span>Clear scope and terms</span></div><div><b>03</b><strong>Follow your work</strong><span>Updates, files and delivery</span></div></div></section>'+
+ '<div class="strip"><section class="section"><div class="section-head"><div><span class="kicker">WHAT WE DO</span><h2>Academic services</h2></div>'+buttonRoute('All services','services')+'</div>'+
+ '<div class="service-grid">'+featured.map(academicCard).join('')+'</div></section></div>'+
+ '<section class="section photo-story"><div><span class="kicker">RESEARCH, WRITING & ANALYSIS</span><h2>Work with a team that understands academic standards.</h2><p>Support shaped around your subject and your institution’s requirements, coordinated by IPS.</p><div class="cta-row">'+buttonRoute('Get started','register','primary')+buttonRoute('Join as a Specialist','specialist')+'</div></div>'+
+ '<img src="'+PHOTO_DESK+'" alt="Real photograph of a research desk with university books, handwritten notes and study materials" loading="lazy" referrerpolicy="no-referrer"></section>'+
+ '</main>');
 }
 function services(){
- const cats=[['all','All academic services'],...state.catalogue.categories.map(x=>[x.id,x.name])];
+ const cats=[['all','All services'],...state.catalogue.categories.map(x=>[x.id,x.name])];
  const rows=state.catalogue.services.filter(s=>state.category==='all'||s.category===state.category);
- shell('<main class="page">'+intro('IPS ACADEMIC SERVICES / CATALOGUE','Academic services designed around your discipline.',
- 'Explore our academic guidance, research support, editing and data services. Each service has a defined scope and a confidential written quotation process.')+
+ shell('<main class="page wide-page">'+intro('ACADEMIC EXPERTISE','Services for every stage of academic work.',
+ 'Choose a service to see its scope or request a quotation.')+
  '<div class="category-tabs" role="group" aria-label="Academic service categories">'+cats.map(c=>'<button data-category="'+e(c[0])+'" class="'+(state.category===c[0]?'selected':'')+'">'+e(c[1])+'</button>').join('')+'</div>'+
- '<div class="service-visual-banner"><img src="/assets/academic-analysis.svg" alt="Academic statistics and reproducible research charts shown on a laboratory desk" loading="lazy"><div><span class="kicker">EVIDENCE-LED ACADEMIC SUPPORT</span><h3>Thesis guidance, research methods and analytical support.</h3><p>Explore academically appropriate services, then submit a private enquiry for a reviewed written quotation.</p></div></div><div class="service-grid">'+rows.map(academicCard).join('')+'</div><div class="notice mt">'+e(state.catalogue.academicIntegrityNotice)+'</div></main>');
+ '<div class="service-grid">'+rows.map(academicCard).join('')+'</div></main>');
 }
 function serviceDetail(){
  const s=state.catalogue.services.find(x=>x.id===state.service);
  if(!s)return services();
- shell('<main><header class="detail-hero"><span class="kicker">IPS / '+e(s.category.toUpperCase())+' / ACADEMIC SUPPORT</span><h1>'+e(s.title)+'</h1><p>'+e(s.description)+'</p><div class="cta-row">'+b('Request a quotation for this service','request-service',s.id,'primary')+buttonRoute('All academic services','services')+'</div></header>'+
- '<div class="detail-layout"><div>'+panel('What IPS can help you with','Scope is agreed in writing before any commission.',
+ shell('<main><header class="detail-hero"><span class="kicker">ACADEMIC SERVICES / '+e(s.category.toUpperCase())+'</span><h1>'+e(s.title)+'</h1><p>'+e(s.description)+'</p>'+
+ '<div class="cta-row">'+b('Request a quote for this service','request-service',s.id,'primary')+buttonRoute('Browse services','services')+'</div></header>'+
+ '<div class="detail-layout"><div>'+panel('How we can help','Academic guidance tailored to your brief.',
  '<div class="small-list">'+s.deliverables.map(x=>'<div class="bullet">'+e(x)+'</div>').join('')+'</div>')+'</div>'+
- '<div>'+panel('What to include in your enquiry','Your privacy matters. Only share information necessary for a scoped academic quote.',
- '<div class="small-list">'+s.questions.map(x=>'<div class="bullet">'+e(x)+'</div>').join('')+'</div><div class="separator"></div>'+b('Get a private academic quote','request-service',s.id,'primary'))+'</div></div></main>');
+ '<div>'+panel('Your brief','Include enough information for an accurate quote.',
+ '<div class="small-list">'+s.questions.map(x=>'<div class="bullet">'+e(x)+'</div>').join('')+'</div><div class="action-row">'+b('Get a quotation','request-service',s.id,'primary')+'</div>')+'</div></div></main>');
 }
 function how(){
- shell('<main class="page">'+intro('HOW IPS ACADEMIC SERVICES WORKS','An accountable academic service, from enquiry to delivery.',
- 'You deal with IPS as a company. We assess the request, coordinate approved Specialists, review deliverables and keep you informed in writing.')+
- '<div class="service-grid">'+[
- ['01','Private academic enquiry','Choose academic service, discipline, academic level and deadline. Request assistance under a username without providing your legal name.'],
- ['02','Scope and integrity review','IPS checks academic suitability and asks any necessary questions. No unsupported price or misleading academic promise.'],
- ['03','Written quotation','Authorized staff provide a real quotation with scope, deliverables, timing, revisions and terms.'],
- ['04','Governed Specialist assignment','After the formal commission/payment checkpoint, IPS selects a qualified approved Specialist.'],
- ['05','Independent academic QA','Submissions are reviewed by IPS before any final client release; corrections are documented.'],
- ['06','Secure delivery and aftercare','You receive the approved academic deliverable securely, can request revisions within the agreed scope and track closure.']
- ].map((x,i)=>'<div class="service-card"><span class="service-code">STEP '+x[0]+'</span><h3>'+e(x[1])+'</h3><p>'+e(x[2])+'</p></div>').join('')+'</div><div class="cta-row">'+buttonRoute('Request academic support','quote','primary')+'</div></main>');
+ shell('<main class="page wide-page">'+intro('HOW IT WORKS','A straightforward academic service.',
+ 'Your requirements and all subsequent messages, documents and work updates stay in one IPS case.')+
+ '<div class="simple-flow long-flow">'+[
+ ['1','Request','Choose your service and send your brief'],
+ ['2','Review','IPS agrees scope and sends a quotation'],
+ ['3','Commission','You accept and complete the agreed payment when available'],
+ ['4','Delivery','We coordinate Specialists, quality assurance and secure release']
+ ].map(x=>'<div><b>'+x[0]+'</b><strong>'+e(x[1])+'</strong><span>'+e(x[2])+'</span></div>').join('')+'</div>'+
+ '<div class="cta-row">'+buttonRoute('Request a quotation','quote','primary')+buttonRoute('View services','services')+'</div></main>');
 }
 function privacy(){
- shell('<main class="page">'+intro('IPS / CONFIDENTIALITY','Privacy and academic discretion are part of our service.',
- 'IPS clients can use a private username, verified email and written contact preferences. Confidential academic materials must stay within authorized company workflows.')+
- '<div class="cols">'+
- panel('What we collect','We request only information appropriate for the academic support being considered.',
- '<div class="bullet">Private username and verified email for account access</div><div class="bullet">Your chosen service, subject, academic level and required instructions</div><div class="bullet">Relevant drafts and documents only when necessary</div><div class="bullet">Specialists provide genuine professional identities and qualifications</div>')+
- panel('What IPS protects','Academic files, quotations and correspondence are not public records.',
- '<div class="bullet">Role-based company access and documented activities</div><div class="bullet">Verified email links and self-service password recovery</div><div class="bullet">Written communication — no telephone calls</div><div class="bullet">Private project files and independent review</div>')+'</div><div class="notice mt">The standalone evaluation is for inspection only and must not be used to upload genuine client materials. The production privacy policy and applicable regulatory notices require separate legal approval.</div></main>');
+ shell('<main class="page policy-page">'+intro('PRIVACY & DATA PROTECTION','Discreet by design.',
+ 'IPS uses verified accounts, role-limited access and secure company records to protect academic work and correspondence.')+
+ panel('How IPS handles information','Only the information needed to provide academic services is requested.',
+ '<p>Students and Researchers can use a private username. Specialists provide their real professional identities. Only authorized IPS personnel can access relevant case records.</p>'+
+ '<p>Account recovery uses time-limited email links. IPS does not ask you to disclose passwords to staff. Academic documents and messages are visible only to their authorized participants.</p>'+
+ '<p>For privacy or data access concerns, use your IPS workspace and its written support channel.</p>')+'</main>');
 }
 function quoteFields(guest){
  const info=options('Academic service needed','serviceId',selectService())+
@@ -114,15 +114,13 @@ function quoteFields(guest){
 }
 function quote(){
  state.page='quote';const guest=!state.account;
- shell('<main class="page">'+intro('REQUEST AN IPS QUOTATION','Tell us what academic support you need.',
- 'IPS first reviews your academic scope, then supplies a confidential written quotation. There are no phone calls and no automatic prices.')+
- '<div class="cols"><div>'+panel('Academic enquiry','Select a real service and describe your requirements.',
+ shell('<main class="page quote-page">'+intro('REQUEST A QUOTATION','Tell us what you need.',
+ 'Choose an academic service and describe your requirements. IPS will reply in writing.')+
+ panel('Your academic request','',
  form(guest?'guest-quote':'student-quote',
- (guest?field('Your private username','username','text','A pseudonym is welcome')+field('Email for confirmation','email','email','you@example.com'):'')+
- quoteFields(guest)+(guest?privacyCheck:''),'Send confidential academic enquiry'))+'</div><aside>'+
- panel('Your confidentiality comes first','You are not required to provide your legal name for a quotation.',
- '<div class="bullet">We verify email ownership automatically</div><div class="bullet">A qualified person reviews the scope and quote</div><div class="bullet">You choose how IPS replies in writing</div><div class="bullet">Academic integrity remains mandatory</div>'+
- '<div class="separator"></div><p>'+e(state.catalogue.academicIntegrityNotice)+'</p>')+'</aside></div></main>');
+ (guest?field('Private username','username','text','Choose a username')+
+ field('Email address','email','email','you@example.com'):'')+
+ quoteFields(guest)+(guest?privacyCheck:''),'Send request'))+'</main>');
  const el=root.querySelector('select[name=serviceId]');if(el&&state.service)el.value=state.service;
 }
 function auth(title,subtitle,formContent,extras=''){
