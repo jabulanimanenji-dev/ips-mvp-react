@@ -530,6 +530,24 @@ async function go(){
       reason:'Approved paid work allocated to vetted specialist'}});
   assert.equal(assignedSpecialist.status,200,JSON.stringify(assignedSpecialist.body));
   assert.equal(assignedSpecialist.body.request.provider_id,specialistId);
+
+  const assignedClientNotice=await Notification.findOne({
+    recipient_role:'client',recipient_id:aliceId,order_id:requestId,type:'service_status',
+    message:/Assigned/
+  }).lean();
+  const assignedSpecialistNotice=await Notification.findOne({
+    recipient_role:'writer',recipient_id:specialistId,order_id:requestId,type:'service_status',
+    message:/Assigned/
+  }).lean();
+  assert.ok(assignedClientNotice,'Customer must receive the actual specialist-assignment status');
+  assert.ok(assignedSpecialistNotice,'Specialist must receive their assigned work status');
+  const specialistNotificationView=await call('/api/notifications/writer/'+specialistId,{
+    session:specialist.cookie});
+  assert.equal(specialistNotificationView.status,200);
+  assert.ok(specialistNotificationView.body.notifications.some(x=>x.type==='service_status'&&x.order_id===requestId));
+  assert.equal((await call('/api/notifications/writer/'+specialistId,{session:bob.cookie})).status,403);
+  pass('Real project assignment automatically notifies only its verified client and specialist');
+
   const unassignedBeforeWork=await call('/api/services/'+requestId,{
     method:'PATCH',session:admin.cookie,json:{
       provider_id:'',status:'Awaiting Assignment',
