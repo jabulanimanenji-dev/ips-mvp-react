@@ -210,11 +210,36 @@ export function registerAcademicRoutes(ctx){
   if(!specialist)return res.status(400).json({error:'Select a verified and approved IPS academic Specialist.'});
   const p=await db.projects.findOne({id:req.params.id,status:'ready_for_assignment'});
   if(!p)return res.status(409).json({error:'The commission cannot be assigned until verified payment readiness.'});
-  if(!specialist.expertise?.includes(p.serviceId))return res.status(409).json({error:'The specialist has not been approved for this academic discipline.'});
-  const updated=await db.projects.findOneAndUpdate({id:p.id,status:'ready_for_assignment',specialistId:''},
-   {$set:{specialistId:specialist.id,status:'specialist_assigned',assignedBy:req.actor.id,updatedAt:now()},
-    $setOnInsert:{}},{returnDocument:'after'});
-  if(!updated)return res.status(409).json({error:'Another manager changed this academic assignment.'});
+  if(!specialist.expertise?.includes(p.serviceId))
+   return res.status(409).json({error:'The Specialist is not approved for this academic service.'});
+  if(!['available','limited'].includes(specialist.availabilityStatus)||!specialist.maxConcurrentCases)
+   return res.status(409).json({error:'This Specialist has not declared available capacity.'});
+  const actual=await db.projects.countDocuments({specialistId:specialist.id,
+   status:{$nin:['completed','cancelled','closed']}});
+  await db.accounts.updateOne({id:specialist.id},{$max:{activeAssignments:actual}});
+  // Atomic reservation prevents simultaneous managers assigning more jobs than the
+  // Specialist declared. Failed commission updates release the reserved slot.
+  const claim=await db.accounts.findOneAndUpdate({
+   id:specialist.id,role:'specialist',status:'active',verified:true,approved:true,
+   availabilityStatus:{$in:['available','limited']},
+   $expr:{$lt:[{$ifNull:['$activeAssignments',0]},'$maxConcurrentCases']}
+  },{$inc:{activeAssignments:1}},{returnDocument:'after'});
+  if(!claim)return res.status(409).json({error:'Specialist capacity is full. Choose another available academic professional.'});
+  let updated;
+  try{
+   updated=await db.projects.findOneAndUpdate({id:p.id,status:'ready_for_assignment',specialistId:''},
+    {$set:{specialistId:specialist.id,status:'specialist_assigned',assignedBy:req.actor.id,updatedAt:now()}},
+    {returnDocument:'after'});
+  }catch(err){
+   await db.accounts.updateOne({id:specialist.id,activeAssignments:{$gt:0}},
+    {$inc:{activeAssignments:-1}});
+   throw err;
+  }
+  if(!updated){
+   await db.accounts.updateOne({id:specialist.id,activeAssignments:{$gt:0}},
+    {$inc:{activeAssignments:-1}});
+   return res.status(409).json({error:'Another manager changed this academic assignment.'});
+  }
   await db.projects.updateOne({id:p.id,'milestones.name':'Specialist assignment'},
    {$set:{'milestones.$.status':'complete','milestones.$.at':now()}});
   await notify(specialist.id,'IPS assigned an academic '+p.serviceName+' commission '+p.id,'assignment');
@@ -291,6 +316,9 @@ export function registerAcademicRoutes(ctx){
      studentDecisionNote:note,updatedAt:now(),...(req.rootOperatorId?{rootEvaluationDecision:true,decisionActorId:req.rootOperatorId}:{})},
     $inc:{revisionCount:decision==='request_revision'?1:0}},{returnDocument:'after'});
   if(!p)return res.status(409).json({error:'No academic delivery is awaiting your decision.'});
+  if(decision==='accept'&&p.specialistId)
+   await db.accounts.updateOne({id:p.specialistId,activeAssignments:{$gt:0}},
+    {$inc:{activeAssignments:-1}});
   await db.projects.updateOne({id:p.id,'milestones.name':'Secure final delivery'},
    {$set:{'milestones.$.status':decision==='accept'?'complete':'pending',
     'milestones.$.at':now()}});
