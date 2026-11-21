@@ -220,6 +220,7 @@ const kpi=(name,count,sub)=>'<div class="metric"><span>'+e(name)+'</span><strong
 const record=(heading,desc,id,stage,buttons='')=>'<article class="record"><div><h3>'+e(heading)+'</h3><p>'+e(short(desc))+'</p><small class="subtle">'+e(id)+'</small></div><aside>'+stat(stage)+buttons+'</aside></article>';
 async function loadTab(){
  const a=state.rootLens?.account||state.account,tab=state.tab;
+ const rootAssisted=!!state.rootLens,canSimulate=!rootAssisted||state.isEvaluation;
  const target=root.querySelector('#workbody');if(!target)return;
  try{
  let html='';
@@ -257,12 +258,12 @@ async function loadTab(){
  }else if(tab==='quotes'){
   const d=await api('/academic/quotes');
   html=(a.role==='student'?panel('Request academic assistance','Every enquiry is reviewed for scope and integrity before a price is issued.',
-   '<div class="action-row">'+buttonRoute('Get a new academic quote','quote','primary')+'</div>'+
-   form('claim-quote',field('Existing verified guest quote reference','reference','text','IPS-Q-…'),'Link my earlier quote')):'')+
+   (canSimulate?'<div class="action-row">'+buttonRoute('Get a new academic quote','quote','primary')+'</div>':'<div class="notice">Nyoro may review academic requests here; only the actual Student can authorize new real commissions.</div>')+
+   (!rootAssisted?form('claim-quote',field('Existing verified guest quote reference','reference','text','IPS-Q-…'),'Link my earlier quote'):'') ):'')+
    panel(a.role==='student'?'My academic quotations':'Academic enquiry register','Real subject, academic level, service, decisions and next steps.',
    d.quotes.length?'<div class="small-list">'+d.quotes.map(q=>
     record(q.serviceName+' · '+q.subject,q.requirements,q.id,q.status,
-     (a.role==='student'&&q.status==='offered'?b('Accept quote','quote-accept',q.id,'primary')+b('Decline','quote-decline',q.id):
+     (a.role==='student'&&q.status==='offered'&&canSimulate?b('Accept quote','quote-accept',q.id,'primary')+b('Decline','quote-decline',q.id):
       a.role==='root'||a.role==='manager'?q.status==='received'?b('Review scope','scope-form',q.id):
        q.status==='scoped'?b('Issue written quotation','offer-form',q.id):'':'')+
      b('Details','quote-detail',q.id))).join('')+'</div>':empty('No academic quotations yet.'))+
@@ -294,7 +295,7 @@ async function loadTab(){
      '</div></td></tr>').join('')+'</tbody></table></div>':empty('No academic company identities yet.'));
  }else if(tab==='support'){
   const d=await api('/support');
-  html=(['student','specialist'].includes(a.role)?panel('Ask IPS for written assistance','Your confidential request is placed in the company support queue.',
+  html=(['student','specialist'].includes(a.role)&&canSimulate?panel('Ask IPS for written assistance','Your confidential request is placed in the company support queue.',
    form('support',field('Subject','subject')+textarea('How can IPS help?','message'),'Send written support request')):'')+
    panel('Confidential support cases','Company-managed written assistance with ownership and history.',
    d.tickets.length?'<div class="small-list">'+d.tickets.map(t=>record(t.subject,t.replies?.at(-1)?.message,t.id,t.status,
@@ -304,15 +305,15 @@ async function loadTab(){
   const d=await api('/notifications');
   html=panel('Private academic updates','Every notice belongs to your authorized IPS identity.',
    d.notifications.length?'<div class="small-list">'+d.notifications.map(n=>
-    record(n.message,date(n.createdAt),n.id,n.kind,n.read?'':b('Mark read','notification-read',n.id,'small'))).join('')+'</div>':empty('No updates awaiting you.'));
+    record(n.message,date(n.createdAt),n.id,n.kind,n.read||rootAssisted?'':b('Mark read','notification-read',n.id,'small'))).join('')+'</div>':empty('No updates awaiting you.'));
  }else if(tab==='profile'){
   html=panel('Account and written contact preferences',
    a.role==='student'?'Your legal full name is not required simply to use IPS.':'Your professional identity is verified and protected.',
    '<p><strong>'+e(a.username||a.name)+'</strong><br><span class="muted">'+e(a.email)+'</span></p>'+
-   '<div class="separator"></div>'+form('contact-preference',
+   '<div class="separator"></div>'+(rootAssisted?'<div class="notice">Nyoro is viewing an actual account. Only the account holder can change private contact preferences or credentials.</div>':form('contact-preference',
    options('Preferred written contact','contactPreference',[['workspace','Private IPS workspace'],['email','Email'],['telegram','Telegram']])+
    field('Telegram username, if selected','telegram','text','@username',false),'Save private contact preference')+
-   '<div class="action-row">'+buttonRoute('Recover account password','recover')+'</div>');
+   '<div class="action-row">'+buttonRoute('Recover account password','recover')+'</div>'));
  }else if(tab==='finance'){
   const d=await api('/administration/queues');
   const q=d.queues.find(x=>x.department==='finance');
@@ -357,7 +358,7 @@ async function commissionDetail(p,a){
  if(manager&&p.status==='ready_for_assignment')acts=form('assign',
   '<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+field('Approved Specialist reference','specialistId','text','SPC-…'),
   'Assign qualified academic Specialist');
- if(specialist&&['specialist_assigned','correction_requested','student_revision_requested'].includes(p.status))
+ if(specialist&&(!state.rootLens||state.isEvaluation)&&['specialist_assigned','correction_requested','student_revision_requested'].includes(p.status))
   acts=form('submit-academic','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
    field('Academic deliverable for independent QA','upload','file','','true'),'Submit for IPS academic QA');
  if(manager&&p.status==='qa_pending')
@@ -365,7 +366,7 @@ async function commissionDetail(p,a){
    options('Quality decision','decision',[['approve','Approve for secure client delivery'],['return_for_correction','Return to Specialist for corrections']])+
    textarea('Specific academic quality assessment','note','Describe the evidence, strengths or corrections needed'),
    'Record independent quality review');
- if(student&&p.status==='client_delivery')acts=form('student-decision',
+ if(student&&(!state.rootLens||state.isEvaluation)&&p.status==='client_delivery')acts=form('student-decision',
   '<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
    options('Your decision','decision',[['accept','Accept completed academic support'],['request_revision','Request a revision within agreed scope']])+
    textarea('Revision request (required only if requesting revision)','note','Describe the correction needed',false),
@@ -377,7 +378,7 @@ async function commissionDetail(p,a){
  (['root','manager','staff'].includes(a.role)?options('Directed IPS recipient','audience',
  [['student','Student / Researcher'],['specialist','Assigned Specialist'],['shared','Both participants']]):'')+
  textarea('Private academic message','body','Send your message through the IPS company coordination desk'),
- 'Send written message');
+ state.rootLens?'Send official Root coordination message':'Send written message');
  return '<div class="mt cols">'+
  panel('Academic commission '+p.id,'Academic subject: '+p.subject+' · '+p.academicLevel,
  '<p>'+e(p.serviceName)+'</p><p>'+e(p.requirements)+'</p><p><strong>Company status:</strong> '+stat(p.status)+'</p>'+
@@ -465,7 +466,7 @@ document.addEventListener('click',async ev=>{
  const route=ev.target.closest('[data-nav]'),tab=ev.target.closest('[data-tab]'),action=ev.target.closest('[data-action]'),category=ev.target.closest('[data-category]');
  if(category){state.category=category.dataset.category;services();return}
  if(route){ev.preventDefault();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
-  if(state.account&&['home','services','quote','how','privacy'].includes(dest)){state.page=dest==='home'?'services':dest;render();return}
+  if(state.account&&['home','services','quote','how','privacy'].includes(dest)){if(state.rootLens&&dest==='quote'&&!state.isEvaluation){state.error='Real client quote authorization must come from the account holder.';render();return}state.page=dest==='home'?'services':dest;render();return}
   state.page=dest;state.category=dest==='specialist'?'specialist':dest==='register'?'student':state.category;render();return}
  if(tab){state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;state.error='';state.message='';
