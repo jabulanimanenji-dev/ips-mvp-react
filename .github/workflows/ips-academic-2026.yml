@@ -136,17 +136,21 @@ jobs:
           test "$ready" -eq 1
       - name: Verify exact academic image — five authenticated identities and private academic files
         run: node scripts/verify-review-image.mjs
-      - name: Save and checksum restorable academic MongoDB archive
+      - name: Encrypt actual sandbox MongoDB dump without ever storing plaintext archive
         working-directory: .
+        env:
+          IPS_BACKUP_AES256_KEY: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
         run: |
-          mkdir -p academic-company/academic-recovery
+          set -euo pipefail
           docker run --rm --network host mongo:7 \
             mongodump --uri mongodb://127.0.0.1:27017/ips_academic_sandbox \
-            --archive > academic-company/academic-recovery/academic-backup.archive
-          test -s academic-company/academic-recovery/academic-backup.archive
-          sha256sum academic-company/academic-recovery/academic-backup.archive
-      - name: Independently restore archive into another real MongoDB 7 server
+            --archive | node academic-company/scripts/encrypted-mongo-archive.mjs encrypt "$RUNNER_TEMP/ips-academic-ci.mongo-aes256gcm"
+          test -s "$RUNNER_TEMP/ips-academic-ci.mongo-aes256gcm"
+          sha256sum "$RUNNER_TEMP/ips-academic-ci.mongo-aes256gcm"
+      - name: Independently decrypt and restore into a distinct real MongoDB 7 server
         working-directory: .
+        env:
+          IPS_BACKUP_AES256_KEY: ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
         run: |
           set -euo pipefail
           docker run -d --name ips-academic-independent-restore \
@@ -157,8 +161,8 @@ jobs:
             sleep 1
           done
           test "$ready" -eq 1
-          docker cp academic-company/academic-recovery/academic-backup.archive ips-academic-independent-restore:/tmp/academic-backup.archive
-          docker exec ips-academic-independent-restore mongorestore --archive=/tmp/academic-backup.archive
+          node academic-company/scripts/encrypted-mongo-archive.mjs decrypt "$RUNNER_TEMP/ips-academic-ci.mongo-aes256gcm" | \
+            docker exec -i ips-academic-independent-restore mongorestore --archive
       - name: Boot recovered academic application and authenticate against restored private file
         run: node scripts/verify-restoration.mjs
       - name: Capture academic review failure diagnostics
@@ -171,7 +175,7 @@ jobs:
         run: |
           docker rm -f ips-academic-review-ci 2>/dev/null || true
           docker rm -f ips-academic-independent-restore 2>/dev/null || true
-          rm -rf academic-company/academic-recovery
+          rm -f "$RUNNER_TEMP/ips-academic-ci.mongo-aes256gcm"
       - name: Build fail-closed production academic image without review fixtures
         working-directory: .
         run: |
