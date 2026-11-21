@@ -17,15 +17,25 @@ const rootRecipient={recipient_id:'admin',recipient_role:'admin'};
 const eventKey=(kind,task)=>'ips-task/'+kind+'/'+String(task._id)+'/'+new Date(task.due_at).getTime();
 
 export async function runCompanyAutomationTick({
-  env=process.env,now=()=>new Date(),limit=MAX_TASKS,
+  env=process.env,now=()=>new Date(),limit=MAX_TASKS,cursor=null,
   actionModel=CompanyCaseAction,adminModel=Admin,notificationModel=Notification
 }={}){
   const at=safeDate(now());
   if(!Number.isFinite(at.getTime()))throw Error('Invalid automation clock');
-  if(mongoose.connection.readyState!==1)return {scanned:0,created:0,escalated:0,databaseUnavailable:true};
+  if(mongoose.connection.readyState!==1)return {scanned:0,created:0,escalated:0,nextCursor:null,databaseUnavailable:true};
   await notificationModel.init(); // Create the unique idempotency index before writing.
-  const tasks=await actionModel.find({entry_kind:'task',task_status:'open',due_at:{$lte:at}})
-    .sort({due_at:1}).limit(Math.min(MAX_TASKS,Math.max(1,Math.floor(limit)))).lean();
+  const pageLimit=Math.min(MAX_TASKS,Math.max(1,Math.floor(limit)));
+  const query={entry_kind:'task',task_status:'open',due_at:{$lte:at}};
+  // Keyset paging prevents large overdue backlogs from starving newer work.
+  if(cursor?.id&&cursor?.dueAt&&mongoose.isValidObjectId(cursor.id)){
+    const after=safeDate(cursor.dueAt);
+    if(Number.isFinite(after.getTime()))
+      query.$or=[{due_at:{$gt:after}},{due_at:after,_id:{$gt:new mongoose.Types.ObjectId(cursor.id)}}];
+  }
+  const tasks=await actionModel.find(query).sort({due_at:1,_id:1}).limit(pageLimit).lean();
+  const last=tasks[tasks.length-1];
+  const nextCursor=tasks.length===pageLimit&&last?
+    {dueAt:new Date(last.due_at).toISOString(),id:String(last._id)}:null;
   let created=0,escalated=0;
   async function notify(kind,task,recipient){
     const result=await notificationModel.updateOne({dedupe_key:eventKey(kind,task)},{$setOnInsert:{
@@ -61,15 +71,15 @@ export async function runCompanyAutomationTick({
     }
     if(recipient)await notify('escalated',task,recipient);
   }
-  return {scanned:tasks.length,created,escalated};
+  return {scanned:tasks.length,created,escalated,nextCursor};
 }
 
 export function startCompanyAutomationWorker({env=process.env,intervalMs=60000}={}){
   if(!companyAutomationEnabled(env))return null;
-  let busy=false;
+  let busy=false,cursor=null;
   const tick=async()=>{
     if(busy)return;busy=true;
-    try{await runCompanyAutomationTick({env});}
+    try{const result=await runCompanyAutomationTick({env,cursor});cursor=result.nextCursor;}
     catch(error){console.error('IPS company task automation failed:',error?.name||'error');}
     finally{busy=false;}
   };
