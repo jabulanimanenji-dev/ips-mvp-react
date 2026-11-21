@@ -13,7 +13,11 @@ export function registerOperationsRoutes(ctx){
  const caseAccess=(a,p)=>a&&(a.role==='root'||a.role==='student'&&p.studentId===a.id||
    a.role==='specialist'&&p.specialistId===a.id||
    staff(a)&&['client_relations','academic_delivery','quality_assurance'].includes(a.department));
- const quoteAccess=(a,q)=>a&&(a.role==='root'||a.role==='student'&&q.studentId===a.id||intake(a));
+ const quoteAccess=(a,q)=>!!a&&(a.role==='root'||
+  a.role==='student'&&q.studentId===a.id||
+  a.role==='manager'&&a.department==='client_relations'||
+  a.role==='staff'&&a.department==='client_relations'&&
+   (!q.assignedTo||q.assignedTo===a.id));
  const quickFile=input=>{
   const filename=normalizeFilename(input?.filename),mime=String(input?.mime||''),
     data=String(input?.data||''),purpose=String(input?.purpose||'');
