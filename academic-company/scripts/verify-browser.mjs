@@ -12,7 +12,7 @@ const vars={...process.env,NODE_ENV:'test',IPS_ACADEMIC_MODE:'evaluation',
  PORT:'18122',PUBLIC_APP_URL:origin,
  ROOT_EMAIL:'nyoro.ips-academic-test@example.org',ROOT_PASSWORD:'AcademicRootTest2026!',
  SESSION_SECRET:'Academic-test-only-HMAC-secret-of-sufficient-length-2026-abcdefghijklmnopqrstuvwxyz',
- RESEND_API_KEY:'',FROM_EMAIL:'',IPS_ACADEMIC_TEST_SETTLEMENT:'true'};
+ RESEND_API_KEY:'',FROM_EMAIL:'',IPS_ACADEMIC_TEST_SETTLEMENT:'false'};
 const proc=spawn(process.execPath,['src/app.mjs'],{env:vars,stdio:['ignore','pipe','pipe']});
 let mongo,browser,log='',count=0;
 for(const stream of [proc.stdout,proc.stderr])stream.on('data',d=>log=(log+String(d)).slice(-1900));
