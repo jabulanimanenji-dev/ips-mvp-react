@@ -251,6 +251,98 @@ try{
   assert.equal(auditEvent.actorRole,'root');
   assert.equal(auditEvent.details.selectedRole,'student');
  });
+ await assertCheck('Students and Root exchange real written academic enquiry messages before payment',async()=>{
+  const q=await db.collection('academic_quotations').findOne({rootAssistedBy:vars.ROOT_EMAIL,studentId:{$exists:true}});
+  assert.ok(q?.id);
+  await call('/academic/quotes/'+q.id+'/messages',{method:'POST',cookie:studentCookie,body:{
+   body:'Please explain the distinction between editing and legitimate research-methodology guidance.'}},201);
+  const r=await call('/academic/quotes/'+q.id+'/messages',withAuth(rootCookie,{
+   body:'IPS confirms a scope review is required before an academic quotation can be issued.',
+   audience:'student'}),201);
+  assert.equal(r.data.message.actorRole,'root');
+  const view=await call('/academic/quotes/'+q.id+'/messages',{cookie:studentCookie});
+  assert.equal(view.data.messages.length,2);
+  await call('/academic/quotes/'+q.id+'/messages',{cookie:otherCookie},403);
+ });
+ await assertCheck('Root sends any verified Student a direct message and a private downloadable document; Student replies',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const msg=await call('/operations/direct-message',withAuth(rootCookie,{recipientId:student.id,
+   body:'IPS is coordinating your nursing academic support. Please check the approved document.'}),201);
+  assert.equal(msg.data.message.fromRole,'root');
+  const inbox=await call('/operations/direct-message',{cookie:studentCookie});
+  assert.ok(inbox.data.messages.some(m=>m.id===msg.data.message.id));
+  const r=await call('/operations/direct-message/'+msg.data.message.id+'/reply',
+   withAuth(studentCookie,{body:'Thank you. I have read the IPS academic note.'}),201);
+  assert.equal(r.data.message.toId,vars.ROOT_EMAIL);
+  const contents=Buffer.from('Student-private nursing research reference guidance from IPS Root. The file is for this verified Student only.');
+  const doc=await call('/operations/direct-message/file',withAuth(rootCookie,{
+   recipientId:student.id,filename:'private-academic-note.txt',mime:'text/plain',data:contents.toString('base64')}),201);
+  const raw=await fetch(url+'/api/operations/direct-file/'+doc.data.file.id,{headers:{Cookie:studentCookie}});
+  assert.equal(raw.status,200);assert.equal(Buffer.from(await raw.arrayBuffer()).toString(),contents.toString());
+  await call('/operations/direct-file/'+doc.data.file.id,{cookie:otherCookie},403);
+  assert.ok(await db.collection('academic_evaluation_mail').findOne({to:studentMail,
+   subject:'IPS Academic Services — new private message'}),'Root direct message should trigger immediate automatic email');
+ });
+ await assertCheck('Root takes over a real academic job and privately outsources without exposing provider details',async()=>{
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,
+   {decision:'approved',note:'Student-authored nursing research editing feedback remains permitted.'}));
+  await call('/academic/quotes/'+q.id+'/offer',withAuth(rootCookie,{
+   priceMinor:17000,deliverables:'Editorial review on existing student-authored nursing research.',
+   terms:'No ghostwriting. One editorial review and one revision allowed for the fictional IPS case.'}));
+  const dec=await call('/academic/quotes/'+q.id+'/decision',withAuth(studentCookie,{decision:'accept'}));
+  const job=dec.data.commission;
+  await call('/operations/'+job.id+'/takeover',withAuth(rootCookie,{reason:'Unavailable Specialist; Root needs to source this approved academic review.'}),409);
+  await call('/evaluation/confirm-synthetic-payment/'+job.id,withAuth(rootCookie,{}));
+  const assigned=await call('/operations/'+job.id+'/takeover',withAuth(rootCookie,{
+   reason:'No approved Specialist available for this subject, Root assumes academic delivery.'}));
+  assert.equal(assigned.data.commission.status,'root_in_progress');
+  await call('/operations/'+job.id+'/outsourcing',withAuth(rootCookie,{
+   provider:'Private offline research editor reference, known only to Nyoro',
+   instructions:'Root arranges independent academic editing assistance manually and takes responsibility for review.'}));
+  const privateInfo=await call('/operations/'+job.id+'/outsourcing',{cookie:rootCookie});
+  assert.ok(privateInfo.data.privateFulfilment.providerReference.includes('Private offline'));
+  await call('/operations/'+job.id+'/outsourcing',{cookie:studentCookie},403);
+  const ref=await call('/operations/'+job.id+'/upload',withAuth(studentCookie,{
+   filename:'student-reference.txt',mime:'text/plain',purpose:'reference',
+   data:Buffer.from('An independently written nursing literature-review draft reference, owned by the Student.').toString('base64')}),201);
+  const before=await call('/operations/'+job.id+'/files',{cookie:studentCookie});
+  assert.ok(before.data.files.some(x=>x.id===ref.data.file.id));
+  const submitted=await call('/operations/'+job.id+'/upload',withAuth(rootCookie,{
+   filename:'reviewed-feedback.txt',mime:'text/plain',purpose:'deliverable',
+   data:Buffer.from('Academic editing feedback on independent nursing research text: correct citation structure and clarify methodology limitations.').toString('base64')}),201);
+  assert.equal(submitted.data.needsQa,true);
+  const preApproved=await call('/operations/'+job.id+'/files',{cookie:studentCookie});
+  assert.equal(preApproved.data.files.length,1,'Student cannot see Root draft prior to independent QA');
+  await call('/academic/commissions/'+job.id+'/quality',withAuth(rootCookie,{
+   decision:'approve',note:'Root has reviewed the internally sourced editing feedback for academic integrity and final delivery.'}));
+  const released=await call('/operations/'+job.id+'/files',{cookie:studentCookie});
+  assert.equal(released.data.files.length,2);
+  assert.ok(released.data.files.some(x=>x.id===submitted.data.file.id));
+  const raw=await fetch(url+'/api/academic/files/'+submitted.data.file.id,{headers:{Cookie:studentCookie}});
+  assert.equal(raw.status,200);
+  assert.equal(raw.headers.get('x-content-sha256'),submitted.data.file.sha256);
+  await call('/academic/commissions/'+job.id,{cookie:specialistCookie},403);
+  await call('/operations/'+job.id+'/files',{cookie:otherCookie},403);
+  assert.ok(await db.collection('academic_audit_events').findOne({action:'root_academic_job_takeover',ref:job.id}));
+  assert.ok(await db.collection('academic_audit_events').findOne({action:'root_private_external_fulfilment_recorded',ref:job.id}));
+ });
+ await assertCheck('Verified pending Specialist recovers immediately without manager or Root action',async()=>{
+  const pendingEmail=emailFor('pending-specialist');
+  await call('/auth/register',{method:'POST',body:{role:'specialist',email:pendingEmail,
+   fullName:'Evaluation Pending Academic Specialist',password:'PendingAcademic2026!',
+   confirmPassword:'PendingAcademic2026!',qualification:'BSc Research',expertise:['academic-editing'],
+   privacyConsent:true}},202);
+  const verification=token(await inbox(pendingEmail,'Confirm your IPS Academic Services email'),'verify');
+  await call('/auth/verify',{method:'POST',body:{email:pendingEmail,token:verification}});
+  const request=await call('/auth/recovery/request',{method:'POST',body:{email:pendingEmail}},202);
+  assert.equal(request.data.accepted,true);
+  const recovery=token(await inbox(pendingEmail,'Your private IPS password recovery'),'recover');
+  const completed=await call('/auth/recovery/complete',{method:'POST',body:{
+   email:pendingEmail,token:recovery,password:'RecoveredPending2026!',confirmPassword:'RecoveredPending2026!'}});
+  assert.equal(completed.data.reviewRequired,true);
+  await call('/auth/login',{method:'POST',body:{email:pendingEmail,password:'RecoveredPending2026!'}},403);
+ });
  await assertCheck('Real database audit, scoped queues, role safety and dedicated academic collections',async()=>{
   const people=await call('/administration/people',{cookie:rootCookie});
   assert.ok(!people.data.people.some(x=>x.role==='root'));
