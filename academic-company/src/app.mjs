@@ -313,6 +313,8 @@ app.use('/api',async(req,res,next)=>{
   if(!/^(?:STU|SPC)-[A-Z0-9-]{4,55}$/.test(targetId))
    return res.status(400).json({error:'Choose a real Student or Specialist workspace from the IPS directory.'});
   if(!(/^(?:\/academic\/|\/support(?:\/|$)|\/notifications(?:\/|$))/.test(req.path)||
+   (['GET','HEAD'].includes(req.method)&&(/^\/finance\/(?:my-billing|work-logs|disputes)$/.test(req.path)||
+    /^\/finance\/compensation\/[^/]+$/.test(req.path)))||
    /^\/operations\/inbox$/.test(req.path)||/^\/operations\/[^/]+\/(?:files|upload|upload-reference-binary)$/.test(req.path)||
    (['GET','HEAD'].includes(req.method)&&(/^\/operations\/direct-message$/.test(req.path)||
     /^\/operations\/direct-message\/[^/]+\/thread$/.test(req.path)))))
