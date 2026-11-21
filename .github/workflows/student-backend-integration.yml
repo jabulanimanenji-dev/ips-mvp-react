@@ -67,6 +67,8 @@ jobs:
         run: node scripts/verify-company-automation-integration.mjs
       - name: Authenticated support ownership and actual client replies — real MongoDB
         run: node scripts/verify-support-assignment-integration.mjs
+      - name: Adversarial anonymous access, simultaneous case assignments, cross-department isolation and concurrent replies
+        run: node scripts/verify-adversarial-http-integration.mjs
       - name: Automatic employee and manager verified-mail password reset and signed private access — real MongoDB
         run: node scripts/verify-admin-password-recovery-integration.mjs
       - name: Financial correctness on genuine MongoDB — hide legacy synthetic money and enforce private roles
