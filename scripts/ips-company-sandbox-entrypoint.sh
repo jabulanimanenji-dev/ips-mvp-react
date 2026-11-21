@@ -5,7 +5,7 @@ if [[ "$IPS_CLEANROOM_MODE" != sandbox || "$NODE_ENV" != test ]]; then
   echo "IPS evaluation image refuses production use." >&2
   exit 2
 fi
-if [[ -n "$RESEND_API_KEY" || -n "$STRIPE_SECRET_KEY" || -n "$TELEGRAM_BOT_TOKEN" || -n "$R2_ENDPOINT" ]]; then
+if [[ -n "$(printenv RESEND_API_KEY || true)" || -n "$(printenv STRIPE_SECRET_KEY || true)" || -n "$(printenv TELEGRAM_BOT_TOKEN || true)" || -n "$(printenv R2_ENDPOINT || true)" ]]; then
   echo "IPS cleanroom evaluation refuses live provider credentials." >&2
   exit 3
 fi
