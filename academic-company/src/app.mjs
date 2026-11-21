@@ -6,6 +6,7 @@ import helmet from 'helmet';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SERVICES,CATEGORIES,DEPARTMENTS,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
+import {SPECIALIST_AGREEMENT} from './specialist-agreement.mjs';
 import {email,validEmail,hashPassword,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid} from './security.mjs';
 import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
@@ -206,7 +207,7 @@ app.get('/api/health',wrap(async(_req,res)=>res.json({
 app.get('/api/catalogue',(_req,res)=>res.json({
  company:'IPS Academic Services',categories:CATEGORIES,services:SERVICES,
  levels:ACADEMIC_LEVELS,departments:Object.entries(DEPARTMENTS).map(([id,name])=>({id,name})),
- academicIntegrityNotice,noPhoneCalls:true
+ academicIntegrityNotice,noPhoneCalls:true,specialistAgreement:SPECIALIST_AGREEMENT
 }));
 // Root's assisted workspaces reuse the genuine Student and Specialist APIs without changing
 // the Root session. Every delegated mutation is attributed to Nyoro, never the client.
