@@ -496,7 +496,8 @@ async function commissionDetail(p,a){
   form('case-upload','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
    options('File type','purpose',purposes)+
    field('Choose file','upload','file','','true'),'Upload document')):'';
- const timeline=['Academic scope and quotation','Commission/payment verification','Specialist assignment',
+ const timeline=['Academic scope and quotation','Commission/payment verification',
+  p.managedBy?'Root work allocation':'Specialist assignment',
   'Academic quality assurance','Secure final delivery'];
  const current=(p.milestones||[]).findIndex(m=>m.status==='pending'||m.status==='blocked');
  const flow='<div class="case-flow">'+timeline.map((name,i)=>
