@@ -52,9 +52,11 @@ try{
   assert.ok((await publicPage.locator('body').innerText()).includes('Students & Researchers'));
   await overflow(publicPage);await screen(publicPage,'01-academic-homepage');
  });
- await pass('Academic website loads real non-person illustrations and signup confirms passwords',async()=>{
-  await publicPage.locator('img.hero-illustration').waitFor();
-  assert.ok(await publicPage.locator('img.hero-illustration').evaluate(img=>img.complete&&img.naturalWidth>0));
+ await pass('Academic website uses verified real photography and signup confirms passwords',async()=>{
+  await publicPage.locator('img.hero-photo').waitFor();
+  const photo=publicPage.locator('img.hero-photo');
+  assert.ok((await photo.getAttribute('src')).startsWith('https://images.unsplash.com/photo-'));
+  assert.equal(await publicPage.locator('img[src$=".svg"]').count(),0);
   await publicPage.getByRole('button',{name:'Student / Researcher',exact:true}).click();
   await publicPage.locator('input[name=confirmPassword]').waitFor();
   await publicPage.locator('input[name=username]').fill('VisualScholar');
@@ -74,10 +76,10 @@ try{
   await publicPage.getByRole('button',{name:'Theses & Research'}).click();
   assert.ok((await publicPage.locator('.service-card').count())>2);
   await screen(publicPage,'02-academic-service-catalogue');
-  await publicPage.locator('.service-card').first().getByRole('button',{name:'Explore academic support'}).click();
-  await publicPage.getByRole('button',{name:'Request a quotation for this service'}).waitFor();
+  await publicPage.locator('.service-card').first().getByRole('button',{name:'View service'}).click();
+  await publicPage.getByRole('button',{name:'Request a quote for this service'}).waitFor();
   await screen(publicPage,'03-academic-service-details');
-  await publicPage.getByRole('button',{name:'Request a quotation for this service'}).click();
+  await publicPage.getByRole('button',{name:'Request a quote for this service'}).click();
   await publicPage.locator('select[name=academicLevel]').waitFor();
   await publicPage.locator('textarea[name=requirements]').waitFor();
   await publicPage.locator('input[name=username]').waitFor();
@@ -93,7 +95,7 @@ try{
   await overflow(studentPage);await screen(studentPage,'05-student-academic-workspace');
  });
  await pass('Student sees actual approved academic file through private authenticated download',async()=>{
-  await studentPage.getByRole('button',{name:'Open academic commission'}).first().click();
+  await studentPage.getByRole('button',{name:'Open job'}).first().click();
   await studentPage.locator('a[download]').first().waitFor();
   await studentPage.getByText('Centralized company relay prevents uncontrolled student–Specialist messaging').count().catch(()=>0);
   await screen(studentPage,'06-student-academic-delivery');
@@ -101,24 +103,24 @@ try{
  const specialistPage=await pageOpen(false);
  await pass('Approved academic Specialist sees only assigned nursing work and IPS coordination',async()=>{
   await signIn(specialistPage,specialist.email,'SpecialistAcademic2026!');
-  await specialistPage.getByRole('button',{name:'Assigned academic work'}).click();
+  await specialistPage.getByRole('button',{name:'Assignments & files'}).click();
   await specialistPage.getByText('Academic Editing & Proofreading').first().waitFor();
-  await specialistPage.getByRole('button',{name:'Open academic commission'}).first().click();
-  await specialistPage.getByText('Written IPS academic coordination').waitFor();
+  await specialistPage.getByRole('button',{name:'Open job'}).first().click();
+  await specialistPage.getByText('Job messages').waitFor();
   await overflow(specialistPage);await screen(specialistPage,'07-approved-specialist-academic-work');
  });
  const rootPage=await pageOpen(false);
  await pass('Nyoro Root Administration governs students, specialists, academic queues, quality and finance',async()=>{
   await signIn(rootPage,vars.ROOT_EMAIL,vars.ROOT_PASSWORD);
   await rootPage.getByText('Nyoro · Root Administration').first().waitFor();
-  await rootPage.getByRole('button',{name:'Students & Specialists'}).click();
+  await rootPage.getByRole('button',{name:'Specialists',exact:true}).click();
   await rootPage.getByText('Evaluation Academic Nursing Editor').first().waitFor();
   await screen(rootPage,'08-nyoro-academic-people-management');
-  await rootPage.getByRole('button',{name:'Today & queues'}).click();
-  await rootPage.getByText('Academic enquiries awaiting review or reply').waitFor();
+  await rootPage.getByRole('button',{name:'Inbox & messages'}).click();
+  await rootPage.getByText('Pediatric Nursing Research').first().waitFor();
   await screen(rootPage,'09-academic-department-queues');
-  await rootPage.getByRole('button',{name:'Finance & Billing'}).click();
-  await rootPage.getByText('Payment processing is intentionally disabled').waitFor();
+  await rootPage.getByRole('button',{name:'Finance',exact:true}).click();
+  await rootPage.getByText('Payment provider integration is not enabled').waitFor();
   await overflow(rootPage);
  });
  const rootDirect=await pageOpen(false);
@@ -134,16 +136,16 @@ try{
  });
  await pass('Root opens real Student workspace and then Specialist workspace with no login switching',async()=>{
   await rootDirect.locator('.sidebar').getByRole('button',{name:'Student workspace'}).click();
-  const row=rootDirect.locator('.record',{hasText:'PrivateScholar'}).first();
-  await row.getByRole('button',{name:'Open workspace as Root'}).click();
+  const row=rootDirect.locator('tr[data-directory-row]',{hasText:'PrivateScholar'}).first();
+  await row.getByRole('button',{name:'Open workspace'}).click();
   await rootDirect.getByText('NYORO ROOT ADMINISTRATION / ASSISTED WORKSPACE').waitFor();
   await rootDirect.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
   await rootDirect.getByText('Pediatric Nursing Research').first().waitFor();
   await rootDirect.getByRole('button',{name:'Return to Nyoro Root'}).click();
   await rootDirect.locator('.sidebar').getByRole('button',{name:'Specialist workspace'}).click();
-  const spec=rootDirect.locator('.record',{hasText:'Evaluation Academic Nursing Editor'}).first();
-  await spec.getByRole('button',{name:'Open workspace as Root'}).click();
-  await rootDirect.locator('.sidebar').getByRole('button',{name:'Assigned academic work'}).click();
+  const spec=rootDirect.locator('tr[data-directory-row]',{hasText:'Evaluation Academic Nursing Editor'}).first();
+  await spec.getByRole('button',{name:'Open workspace'}).click();
+  await rootDirect.locator('.sidebar').getByRole('button',{name:'Assignments & files'}).click();
   await rootDirect.getByText('Academic Editing & Proofreading').first().waitFor();
   const session=await rootDirect.evaluate(async()=>{const r=await fetch('/api/session');return (await r.json()).account.role});
   assert.equal(session,'root','Root session must remain Root while assisted workspaces are open');
@@ -154,20 +156,20 @@ try{
  const managerPage=await pageOpen(false);
  await pass('Department manager sees only academic Client Relations responsibility',async()=>{
   await signIn(managerPage,manager.email,'ManagerAcademic2026!');
-  await managerPage.getByRole('button',{name:'Academic enquiries'}).click();
+  await managerPage.getByRole('button',{name:'Enquiries',exact:true}).click();
   await managerPage.getByText('Pediatric Nursing Research').first().waitFor();
-  assert.equal(await managerPage.getByRole('button',{name:'Governance & Audit'}).count(),0);
-  await managerPage.getByRole('button',{name:'My department staff'}).click();
+  assert.equal(await managerPage.getByRole('button',{name:'Audit',exact:true}).count(),0);
+  await managerPage.getByRole('button',{name:'My team'}).click();
   await managerPage.getByText('Academic Client Relations Associate').first().waitFor();
   await screen(managerPage,'10-academic-department-manager');
  });
  const staffPage=await pageOpen(false);
  await pass('Staff has written student support, no Root or finance controls',async()=>{
   await signIn(staffPage,staff.email,'StaffAcademic2026!');
-  await staffPage.getByRole('button',{name:'Written support'}).click();
+  await staffPage.getByRole('button',{name:'Support',exact:true}).click();
   await staffPage.getByText('Nursing editing document').first().waitFor();
-  assert.equal(await staffPage.getByRole('button',{name:'Finance & Billing'}).count(),0);
-  assert.equal(await staffPage.getByRole('button',{name:'Governance & Audit'}).count(),0);
+  assert.equal(await staffPage.getByRole('button',{name:'Finance',exact:true}).count(),0);
+  assert.equal(await staffPage.getByRole('button',{name:'Audit',exact:true}).count(),0);
   await screen(staffPage,'11-client-relations-staff');
  });
  const mobile=await pageOpen(true);
