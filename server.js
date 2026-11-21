@@ -29,6 +29,7 @@ import { registerContactWebhooks, registerContactApi } from './services/contactC
 import { registerEnquiryRoutes } from './services/contactEnquiries.js';
 import { registerCompanyCaseDesk } from './services/companyCaseDesk.js';
 import {registerCompanyOperatingSystem} from './services/companyOperatingSystem.js';
+import {registerCompanyFinanceRoutes} from './services/companyFinance.js';
 import {permittedCompanyPermissions} from './shared/companyGovernance.js';
 import { startContactEmailWorker } from './services/contactEmailQueue.js';
 import {startCompanyAutomationWorker} from './services/companyAutomation.js';
@@ -341,6 +342,7 @@ registerPasswordRecoveryRoutes(app,{hashPassword,grantSession:async(res,scope,ac
 registerEnquiryRoutes(app, { requireSession });
 registerCompanyCaseDesk(app,{requireSession});
 registerCompanyOperatingSystem(app,{requireSession,hashPassword,validAdminPassword});
+registerCompanyFinanceRoutes(app,{requireSession});
 registerPrivateQuoteRoutes(app, { readSession, requireSession });
 registerQuoteHandoffRoutes(app, {requireSession});
 registerSpecialistPayoutRoutes(app,{requireSession});
