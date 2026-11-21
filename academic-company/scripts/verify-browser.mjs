@@ -124,6 +124,19 @@ try{
   await studentPage.getByText('Academic Editing & Proofreading').first().waitFor();
   await overflow(studentPage);await screen(studentPage,'05-student-academic-workspace');
  });
+ await pass('Student uploads and downloads an academic brief directly inside a pre-commission quotation',async()=>{
+  await studentPage.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
+  await studentPage.getByRole('button',{name:'Open enquiry & messages'}).first().click();
+  await studentPage.getByRole('heading',{name:'Supporting documents'}).waitFor();
+  await studentPage.locator('form[data-form=quote-upload] input[name=upload]').setInputFiles({
+   name:'student-scope-reference.txt',mimeType:'text/plain',
+   buffer:Buffer.from('Academic research author-provided university guidance and literature review scope notes.')});
+  await studentPage.locator('form[data-form=quote-upload]').getByRole('button',{name:'Upload document'}).click();
+  await studentPage.getByText('Supporting academic document attached to this enquiry.').waitFor();
+  await studentPage.locator('a[href*="/api/academic/quote-files/"]').first().waitFor();
+  await screen(studentPage,'19-student-precommission-quote-files-and-messages');
+  await studentPage.locator('.sidebar').getByRole('button',{name:'My academic work'}).click();
+ });
  await pass('Student sees actual approved academic file through private authenticated download',async()=>{
   await studentPage.getByRole('button',{name:'Open job'}).first().click();
   await studentPage.locator('a[download]').first().waitFor();
@@ -185,6 +198,34 @@ try{
   await screen(rootPage,'17-root-single-job-workroom');
   await rootPage.locator('.workmain').getByRole('button',{name:'← Back'}).click();
   await rootPage.locator('.record').first().waitFor();
+ });
+ await pass('Nyoro sends a live-workflow private message and document to a Student in one account directory',async()=>{
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Students',exact:true}).click();
+  const p=rootPage.locator('tr[data-directory-row]',{hasText:'PrivateScholar'}).first();
+  await p.getByRole('button',{name:'Message'}).click();
+  await rootPage.locator('form[data-form=direct-message] textarea[name=body]').fill(
+   'IPS has received your academic research instructions and will coordinate the next step in writing.');
+  await rootPage.locator('form[data-form=direct-message]').getByRole('button',{name:'Send message'}).click();
+  await rootPage.getByText('Private message sent to this IPS account.').waitFor();
+  await rootPage.locator('form[data-form=direct-file] input[name=upload]').setInputFiles({
+   name:'ips-academic-feedback.txt',mimeType:'text/plain',
+   buffer:Buffer.from('IPS academic research guidance: review the scope and ask for clarification if needed.')});
+  await rootPage.locator('form[data-form=direct-file]').getByRole('button',{name:'Send private document'}).click();
+  await rootPage.getByText('Document sent securely to this account’s IPS inbox.').waitFor();
+  await screen(rootPage,'20-root-private-message-and-attachment');
+ });
+ await pass('Student receives Root direct document and replies through actual IPS inbox thread',async()=>{
+  await studentPage.locator('.sidebar').getByRole('button',{name:'Inbox & messages'}).click();
+  const m=studentPage.locator('.inbox-row',{hasText:'Secure academic document'}).first();
+  await m.getByRole('button',{name:'Open'}).click();
+  await studentPage.getByRole('heading',{name:'Private IPS conversation'}).waitFor();
+  await studentPage.locator('a[href*="/api/operations/direct-file/"]').first().waitFor();
+  await studentPage.locator('form[data-form=direct-reply] textarea[name=body]').fill(
+   'I received the private academic guidance document. Thank you for the update.');
+  await studentPage.locator('form[data-form=direct-reply]').getByRole('button',{name:'Send reply'}).click();
+  await studentPage.getByText('Private reply recorded.').waitFor();
+  await overflow(studentPage);
+  await screen(studentPage,'21-student-direct-file-and-reply');
  });
  const rootDirect=await pageOpen(false);
  await pass('Direct /root URL authenticates Nyoro and stays within Root Administrator identity',async()=>{
