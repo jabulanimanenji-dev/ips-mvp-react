@@ -343,8 +343,10 @@ try{
   assert.equal(submitted.data.needsQa,true);
   const preApproved=await call('/operations/'+job.id+'/files',{cookie:studentCookie});
   assert.equal(preApproved.data.files.length,1,'Student cannot see Root draft prior to independent QA');
-  await call('/academic/commissions/'+job.id+'/quality',withAuth(rootCookie,{
+  const rootQa=await call('/academic/commissions/'+job.id+'/quality',withAuth(rootCookie,{
    decision:'approve',note:'Root has reviewed the internally sourced editing feedback for academic integrity and final delivery.'}));
+  assert.equal(rootQa.data.commission.qaMode,'root_supervised_exception',
+   'Nyoro emergency release of its own delivery must never be falsely labeled independent QA');
   const released=await call('/operations/'+job.id+'/files',{cookie:studentCookie});
   assert.equal(released.data.files.length,2);
   assert.ok(released.data.files.some(x=>x.id===submitted.data.file.id));
