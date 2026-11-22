@@ -21,7 +21,8 @@ const goBack=()=>{
 window.addEventListener('popstate',()=>goBack());
 const escapeText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&#39;'}[c]));
 const e=escapeText;
-const stat=value=>'<span class="pill '+(['active','approved','accepted','completed','client_delivery','scoped'].includes(value)?'good':['suspended','declined','correction_requested'].includes(value)?'bad':'wait')+'">'+e(String(value||'pending').replaceAll('_',' '))+'</span>';
+const readableStatus=value=>({client_delivery:'Ready for your review',qa_pending:'Under academic quality review',awaiting_payment_integration:'Commissioning unavailable until payments launch',ready_for_assignment:'Preparing your academic team',specialist_assigned:'Specialist assigned',correction_requested:'Corrections in progress',student_revision_requested:'Revision requested',pending_review:'Application under review',pending_verification:'Email verification required',offer_delivery_failed:'Quote notification needs attention'})[value]||String(value||'pending').replaceAll('_',' ');
+const stat=value=>'<span class="pill '+(['active','approved','accepted','completed','client_delivery','scoped'].includes(value)?'good':['suspended','declined','correction_requested'].includes(value)?'bad':'wait')+'">'+e(readableStatus(value))+'</span>';
 const date=d=>d?new Date(d).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'Not scheduled';
 const price=c=>Number.isInteger(c)?(c/100).toLocaleString('en-PL',{style:'currency',currency:'PLN'}):'Reviewed quote pending';
 const short=t=>String(t||'').length>150?String(t).slice(0,150)+'…':String(t||'');
@@ -158,7 +159,7 @@ function auth(title,subtitle,formContent,extras=''){
  panel('Secure sign-in','',formContent+extras)+'</main>');
 }
 function login(){state.page='login';auth('Welcome back','Sign in to your Student / Researcher, Specialist or authorized IPS staff workspace.',
- form('login',field('Verified email address','email','email','you@example.com')+field('Password','password','password'),'Open my IPS workspace'),
+ form('login',field('Email or Student username','email','text','Email or private username')+field('Password','password','password'),'Open my IPS workspace'),
  '<div class="action-row">'+buttonRoute('Get started','register')+buttonRoute('Forgot password?','recover')+buttonRoute('Resend email verification','resend')+'</div>')}
 function rootLogin(){
  state.page='root-login';
@@ -193,8 +194,9 @@ function register(role='student'){
  field('Confirm password','confirmPassword','password','Re-enter the same secure password')+
  (specialist?field('Academic qualification','qualification','text','Degree, field or training')+
  field('Professional experience','experience','text','Relevant research or editing experience',false)+
- '<label class="field full">Academic services you can professionally provide'+
- '<select name="expertise" multiple size="8">'+selectService().map(x=>'<option value="'+e(x[0])+'">'+e(x[1])+'</option>').join('')+'</select><small>Hold Ctrl to select multiple academic specialisms.</small></label>':'')+
+ '<fieldset class="field full expertise-choices"><legend>Academic services you can professionally provide</legend>'+
+ '<div class="expertise-grid">'+selectService().map(x=>'<label class="check"><input type="checkbox" name="expertise" value="'+e(x[0])+'"> '+e(x[1])+'</label>').join('')+
+ '</div><small>Select all services that match your qualifications.</small></fieldset>':'')+
  (specialist?specialistAgreementFields():'')+
  privacyCheck;
  auth(specialist?'Join our academic specialist network':'Get started with IPS',
@@ -433,10 +435,10 @@ async function loadTab(){
    '<label class="field">Status<select data-directory-status>'+
    [['all','All statuses'],['active','Active'],['pending_review','Pending approval'],['suspended','Suspended'],['disabled','Offboarded'],['rejected','Rejected'],['invited','Invited']].map(([value,label])=>
     '<option value="'+e(value)+'"'+(state.directoryStatus===value?' selected':'')+'>'+e(label)+'</option>').join('')+'</select></label></div>'+
-   '<div class="case-actions">'+b('Search whole company','directory-apply','','small primary')+
+   '<div class="case-actions">'+b('Search directory','directory-apply','','small primary')+
    b('Clear search','directory-clear','','small')+'</div>'+
    '<p class="subtle">Showing '+people.length+' of '+d.total+
-   ' authorised account records · Page '+d.page+'. Search the complete company directory rather than only the first 300.</p>'+
+   ' matching accounts · Page '+d.page+'.</p>'+
    (people.length?'<div class="table-wrap"><table class="table directory-table"><thead><tr><th>Account</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead><tbody>'+
    people.map(p=>'<tr data-directory-row data-status="'+e(p.status)+'" data-search="'+e((p.username||p.name||'')+' '+p.email)+'"><td><b>'+e(p.username||p.name||'Private account')+'</b><small>'+e(p.email)+'</small></td>'+
    '<td>'+e(p.role==='student'?'Student / Researcher':p.role==='specialist'?'Specialist':p.role)+'</td>'+
