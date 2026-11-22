@@ -30,6 +30,7 @@ on:
       - work/ips-company-operational-hardening-20261122
       - work/ips-company-final-visual-evidence-20261122
       - work/ips-lease-concurrency-20261122
+      - work/ips-offsite-backup-ops-20261122
   pull_request:
     branches:
       - main
@@ -88,6 +89,8 @@ jobs:
           node --check scripts/verify-restoration.mjs
           node --check scripts/encrypted-mongo-archive.mjs
           node --check scripts/verify-encrypted-archive.mjs
+          node --check scripts/verify-offsite-backup.mjs
+          bash -n scripts/backup-offsite.sh
           node --check src/legacy-reconciliation.mjs
           node --check scripts/audit-legacy-boundary.mjs
           node --check scripts/verify-legacy-boundary.mjs
@@ -106,6 +109,8 @@ jobs:
         run: node scripts/verify-legacy-boundary.mjs
       - name: Prove production-compatible encrypted database archive is authenticated and safe from reuse
         run: node scripts/verify-encrypted-archive.mjs
+      - name: Verify real backup runner encryption and private offsite read-back with disposable providers
+        run: node scripts/verify-offsite-backup.mjs
       - name: Exercise actual isolated academic service workflows against MongoDB 7
         run: node scripts/verify-lifecycle.mjs
       - name: Reject stale notification worker settlements against real MongoDB 7
@@ -206,6 +211,11 @@ jobs:
           '
           output="$(docker run --rm ips-academic-production:ci 2>&1 || true)"
           printf '%s\n' "$output" | grep -q 'IPS academic MongoDB must be explicitly configured'
+      - name: Build standalone private backup cron container with genuine MongoDB tools
+        working-directory: .
+        run: |
+          docker build -f Dockerfile.ips-academic-backup -t ips-academic-backup:ci .
+          docker run --rm --entrypoint /bin/sh ips-academic-backup:ci -ceu 'command -v mongodump; command -v aws; command -v node; test "$(id -un)" = node; test ! -e /app/public'
       - name: Verify academic constitution is preserved
         working-directory: .
         run: test -s GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md
