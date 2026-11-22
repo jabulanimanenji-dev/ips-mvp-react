@@ -95,6 +95,14 @@ export function registerPublicContactRoutes(ctx){
   res.json({cases:rows.map(publicView),total,page,pageSize:50,
    hasNext:page*50<total,hasPrevious:page>1});
  }));
+ app.get('/api/administration/public-contacts/:id',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','manager','staff']))return;
+  const item=await db.publicContacts.findOne({id:req.params.id,contactVerified:true});
+  if(!item)return res.status(404).json({error:'No verified public correspondence matches this reference.'});
+  if(!permitted(req.actor,item.category))
+   return res.status(403).json({error:'Another company department owns this private written request.'});
+  res.json({case:publicView(item)});
+ }));
  app.post('/api/administration/public-contacts/:id/claim',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','manager','staff']))return;
   const item=await db.publicContacts.findOne({id:req.params.id,contactVerified:true,status:'open'});
