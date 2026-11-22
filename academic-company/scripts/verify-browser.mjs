@@ -574,6 +574,7 @@ try{
   await staffPage.locator('.sidebar').getByRole('button',{name:'Support',exact:true}).click();
   const row=staffPage.locator('.record').filter({hasText:subject});
   await row.getByRole('button',{name:'Open conversation'}).click();
+  await staffPage.locator('form[data-form=support-reply]').waitFor();
   assert.equal(await staffPage.locator('form[data-form=support-reply]').count(),1,
    'A legitimate Client Relations first response should not require a separate Claim operation');
   const reply=staffPage.locator('form[data-form=support-reply]');
