@@ -118,37 +118,65 @@ export function registerSupportRoutes(ctx){
    const cases=await db.quotes.find({status:{$in:['received','clarify','offer_delivery_failed']},
     ...ownership}).sort({createdAt:1}).limit(50).toArray();
    queues.push({department:'client_relations',name:'Academic enquiries awaiting review or reply',
-    count:cases.length,items:cases.map(q=>({id:q.id,service:q.serviceName,subject:q.subject,
+    count:await db.quotes.countDocuments({status:{$in:['received','clarify','offer_delivery_failed']},...ownership}),items:cases.map(q=>({id:q.id,service:q.serviceName,subject:q.subject,
       stage:q.status,assignedTo:q.assignedTo||'',createdAt:q.createdAt}))});
    const support=await db.support.find({status:'open'}).sort({createdAt:1}).limit(50).toArray();
    queues.push({department:'client_relations',name:'Written student/specialist support',
-    count:support.length,items:support.map(t=>({id:t.id,service:'Support',subject:t.subject,
+    count:await db.support.countDocuments({status:'open'}),items:support.map(t=>({id:t.id,service:'Support',subject:t.subject,
       stage:t.status,createdAt:t.createdAt}))});
   }
   if(root||dept==='specialist_network'){
    const applications=await db.accounts.find({role:'specialist',status:'pending_review',verified:true})
     .sort({createdAt:1}).limit(50).toArray();
    queues.push({department:'specialist_network',name:'Verified Specialist applications awaiting evaluation',
-    count:applications.length,items:applications.map(a=>({id:a.id,service:'Specialist application',
+    count:await db.accounts.countDocuments({role:'specialist',status:'pending_review',verified:true}),items:applications.map(a=>({id:a.id,service:'Specialist application',
       subject:a.name,stage:'pending_review',createdAt:a.createdAt}))});
   }
   if(root||dept==='quality_assurance'){
    const waiting=await db.projects.find({status:'qa_pending'}).sort({updatedAt:1}).limit(50).toArray();
    queues.push({department:'quality_assurance',name:'Academic deliverables awaiting QA',
-    count:waiting.length,items:waiting.map(p=>({id:p.id,service:p.serviceName,subject:p.subject,
-      stage:'qa_pending',createdAt:p.updatedAt}))});
+    count:await db.projects.countDocuments({status:'qa_pending'}),items:waiting.map(p=>({id:p.id,service:p.serviceName,subject:p.subject,
+      stage:'qa_pending',ownerId:p.qaOwnerId||'',createdAt:p.updatedAt}))});
   }
   if(root||dept==='academic_delivery'){
    const ready=await db.projects.find({status:'ready_for_assignment'}).sort({updatedAt:1}).limit(50).toArray();
    queues.push({department:'academic_delivery',name:'Commissioned academic work awaiting a qualified Specialist',
-    count:ready.length,items:ready.map(p=>({id:p.id,service:p.serviceName,subject:p.subject,
-      stage:p.status,createdAt:p.updatedAt}))});
+    count:await db.projects.countDocuments({status:'ready_for_assignment'}),items:ready.map(p=>({id:p.id,service:p.serviceName,subject:p.subject,
+      stage:p.status,ownerId:p.deliveryOwnerId||'',createdAt:p.updatedAt}))});
   }
   if(root||dept==='finance'){
    const waiting=await db.projects.find({status:'awaiting_payment_integration'}).sort({updatedAt:1}).limit(50).toArray();
    queues.push({department:'finance',name:'Accepted academic quotations blocked until payment integration',
-    count:waiting.length,items:waiting.map(p=>({id:p.id,service:p.serviceName,subject:p.subject,
+    count:await db.projects.countDocuments({status:'awaiting_payment_integration'}),items:waiting.map(p=>({id:p.id,service:p.serviceName,subject:p.subject,
       stage:p.status,createdAt:p.updatedAt}))});
+  }
+
+  if(root||dept==='communications'){
+   const inbound=await db.telegramMessages.find({direction:'inbound',read:false})
+    .sort({createdAt:1}).limit(50).toArray();
+   const exceptions=await db.notificationDeliveries.find({
+    status:{$in:['failed','bounced','complained','suppressed']}})
+    .sort({createdAt:1}).limit(50).toArray();
+   queues.push({department:'communications',name:'Unanswered private Telegram messages',
+    count:await db.telegramMessages.countDocuments({direction:'inbound',read:false}),
+    items:inbound.map(m=>({id:m.id,type:'telegram',accountId:m.accountId,
+     subject:'Private linked IPS account',service:'Telegram conversation',stage:'unread',
+     createdAt:m.createdAt}))});
+   queues.push({department:'communications',name:'Provider delivery exceptions',
+    count:await db.notificationDeliveries.countDocuments({
+     status:{$in:['failed','bounced','complained','suppressed']}}),
+    items:exceptions.map(d=>({id:d.id,type:'delivery',service:'Written delivery exception',
+     subject:d.kind||'Provider notice',stage:d.status,createdAt:d.createdAt}))});
+  }
+  if(root||dept==='governance'){
+   const overdue=await db.notifications.find({accountId:rootEmail,
+    kind:{$in:['communication_failure','intake_escalation','qa_escalation']},read:false})
+    .sort({createdAt:1}).limit(50).toArray();
+   queues.push({department:'governance',name:'Security, recovery and operating exceptions',
+    count:await db.notifications.countDocuments({accountId:rootEmail,
+     kind:{$in:['communication_failure','intake_escalation','qa_escalation']},read:false}),
+    items:overdue.map(n=>({id:n.id,type:'alert',service:'Governance exception',
+     subject:n.message,stage:'unread',createdAt:n.createdAt}))});
   }
   res.json({queues,product:'IPS Academic Services',paymentsEnabled:false});
  }));
