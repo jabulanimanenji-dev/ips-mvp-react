@@ -248,3 +248,17 @@ input::placeholder,textarea::placeholder{color:#a9b8c1}
 .field.full>.check{display:flex;gap:10px;align-items:flex-start;
  font-size:13px;line-height:1.6;color:#dfe9ec}
 .field.full>.check input{margin-top:4px;flex-shrink:0;accent-color:#c9ac75}
+
+/* Keep the everyday job action visible; specialist sourcing is secondary. */
+.quick-owner-action{margin:19px 0 10px;padding:14px 15px;
+ border:1px solid #947d58;border-radius:10px;background:#243e4a;
+ display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.quick-owner-action .subtle{color:#d6e3e8;font-size:12px;line-height:1.55;
+ flex:1 1 210px}
+.optional-root-tools{margin-top:18px;border:1px solid #445e6e;
+ border-radius:10px;background:#192f40;overflow:hidden}
+.optional-root-tools>summary{cursor:pointer;color:#e9d8b0;font-weight:650;
+ font-size:14px;padding:16px 20px}
+.optional-root-tools>summary:focus-visible{outline:2px solid #dfc48d;outline-offset:-2px}
+.optional-root-tools>p{color:#c8d8e0;padding:0 20px;font-size:12px}
+.optional-root-tools>.panel{margin:13px;border-color:#4b6777;box-shadow:none}
