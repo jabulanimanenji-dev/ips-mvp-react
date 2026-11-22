@@ -1,3 +1,18 @@
+## November 22 — Business logic remediation and operational hardening (independently qualified)
+
+Canonical company branch `company/ips-academic-services-2026` was fast-forwarded without force through two complete source-bound releases:
+
+- `9786f9a6b6560b494f66c925d22911006bc76352`: GitHub Actions `44970995615` **SUCCESS**. Fixes Student username login, verified guest automatic account association, human quote ownership, unpaid commission withdrawal, Specialist voluntary scoped offer/fee acceptance, per-case staff permissions, owned support replies, full value aggregation, privacy rights requests, public verified appeals, client-approved document version history, Root actionable queues, and responsive navigation.
+- `beda95c1441714e6f2a898456c6c345abf22edcf`: GitHub Actions `44971856549` **SUCCESS**, 30 completed stages. **59 real MongoDB lifecycle/security checks**, **31 desktop/mobile Chrome journeys**, 17 historical-data boundary checks, 7 authenticated encrypted archive tests, independently restored actual synthetic documents, Root-only supplier file SHA-256/permission proofs. Added indexed private inbox full-database search and pagination, Specialist offer expiry, one-time Root alerts for unanswered company work, concise versioned privacy and academic-integrity consent and accessible Specialist availability controls.
+
+Render independent review service `srv-dc0qs16c6qcc73f6ieug` deployed exact second commit as `dep-dc14cstg1s2s73avd8cg`; Render confirmed **live**. This is still an isolated evaluation service populated with fictional accounts; it cannot be represented as official real-customer production. The live historical service and its separate Atlas DB are untouched. Archive branches `archive/ips-academic-before-business-logic-remediation-20261122` and `archive/ips-academic-before-inbox-and-sla-hardening-20261122` provide rollback source identity.
+
+**Owner-only authorization or external access still required:** verified company legal-controller/jurisdiction and retention/currency policies; paid Atlas backup-capable capacity plus secure offsite object-store/key custody approval; Render/DNS/Resend/Telegram/real ClamAV credentials and dashboard-only controls unavailable through current connectors; personal external inbox and bot receipt witness; final appearance, policies, publication and official cutover authorization. Render workspace renaming is waived.
+
+**Engineering production admission still outstanding after owner-controlled prerequisites:** actual production scanner and provider configuration, genuine external delivery/webhook evidence, independent backup/restore of authorized live customer records and legacy obligation reconciliation, production release flags tied to genuine evidence, official-domain authenticated user tests and cutover with rollback, including native Edge/device acceptance. Do not claim payments alone remains until those gates pass.
+
+**Known source-level enhancements not proven complete by this release:** service-specific structured QA rubric and assignment, comprehensive specialist qualification document collection, full case rescheduling/substitution/incident handling, company-wide finance and governance paging, durable URL deep links and legal-rights disposal/export resolution. These remain engineering quality backlog, not tasks to transfer to the owner.
+
 # IPS Academic Services — production priority, historical preservation and release register
 
 Evidence date: 2026-11-21. This is a source-bound infrastructure ledger, not authority to delete customer records or activate an unverified company. This register branch is NOT attached to any live Render service.
