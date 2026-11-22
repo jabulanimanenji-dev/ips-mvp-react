@@ -397,6 +397,27 @@ try{
   await overflow(rootPage);
   await screen(rootPage,'40-root-one-click-job-takeover');
  });
+ await pass('Nyoro uploads a 6 MB Root-authored document directly to QA without the old 5 MB cap',async()=>{
+  const id='IPS-A-CHROME-QUICK-TAKEOVER';
+  const form=rootPage.locator('form[data-form=case-upload]');
+  await form.locator('select[name=purpose]').selectOption('deliverable');
+  await form.locator('input[name=upload]').setInputFiles({
+   name:'six-megabyte-root-review.txt',mimeType:'text/plain',
+   buffer:Buffer.alloc(6*1024*1024,82)
+  });
+  await form.getByRole('button',{name:'Upload document'}).click();
+  await rootPage.getByText('Nyoro’s private academic document is submitted for governed quality review.').waitFor();
+  const p=await mongo.db.collection('academic_commissions').findOne({id});
+  assert.equal(p.status,'qa_pending');
+  assert.equal(p.qaMode,'root_supervised_exception');
+  const file=await mongo.db.collection('academic_private_files').findOne({id:p.pendingFileId});
+  assert.ok(file?.blobId,'Root direct upload must use GridFS instead of the 5 MB legacy JSON route');
+  assert.equal(file.byteLength,6*1024*1024);
+  assert.equal(await rootPage.locator('form[data-form=quality]').count(),1,
+   'IPS quality review must be the immediate next step after Root submission');
+  await overflow(rootPage);
+  await screen(rootPage,'44-root-large-document-direct-qa');
+ });
  await pass('Root takeover of a pending Specialist offer confirms withdrawal and stops later acceptance',async()=>{
   const id='IPS-A-CHROME-PENDING-OFFER';
   const now=new Date();
