@@ -351,6 +351,36 @@ try{
   await rootPage.locator('.workmain').getByRole('button',{name:'← Back',exact:true}).click();
   await rootPage.locator('.record').first().waitFor();
  });
+ await pass('Root takes over an unassigned job in one click, then sees the next action without supplier paperwork',async()=>{
+  const id='IPS-A-CHROME-QUICK-TAKEOVER';
+  const subject='Quick Root takeover usability check';
+  const now=new Date();
+  await mongo.db.collection('academic_commissions').insertOne({
+   id,quoteId:'IPS-Q-CHROME-QUICK-TAKEOVER',studentId:student.id,
+   specialistId:'',serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',
+   academicLevel:'Undergraduate',subject,requirements:'Synthetic editorial review only.',
+   status:'ready_for_assignment',paymentStatus:'synthetic_test_only',
+   priceMinor:12500,currency:'PLN',evaluationPayment:true,synthetic:true,
+   createdAt:now,updatedAt:now,revisionCount:0,
+   milestones:[{name:'Specialist assignment',status:'pending',at:null}]
+  });
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Academic jobs',exact:true}).click();
+  const job=rootPage.locator('.record').filter({hasText:subject});
+  await job.getByRole('button',{name:'Take over job'}).click();
+  await rootPage.getByText('Nyoro now manages this job. Upload the deliverable for quality review.').waitFor();
+  assert.equal((await mongo.db.collection('academic_commissions').findOne({id})).status,'root_in_progress');
+  assert.equal(await rootPage.locator('form[data-form=root-takeover]').count(),0,
+   'Takeover must never ask Nyoro to fill out a mandatory prose form');
+  assert.equal(await rootPage.getByRole('button',{name:'Take over job'}).count(),0,
+   'Root must not see an action to take over a job already under Root management');
+  assert.equal(await rootPage.locator('form[data-form=case-upload] select[name=purpose]').inputValue(),
+   'deliverable','The next upload should default to a QA-bound deliverable');
+  assert.equal(await rootPage.locator('details.optional-root-tools').count(),1);
+  assert.equal(await rootPage.locator('details.optional-root-tools').getAttribute('open'),null,
+   'Optional external sourcing must be collapsed for direct IPS delivery');
+  await overflow(rootPage);
+  await screen(rootPage,'40-root-one-click-job-takeover');
+ });
  await pass('Nyoro sends a live-workflow private message and document to a Student in one account directory',async()=>{
   await rootPage.locator('.sidebar').getByRole('button',{name:'Students',exact:true}).click();
   const p=rootPage.locator('tr[data-directory-row]',{hasText:'PrivateScholar'}).first();
