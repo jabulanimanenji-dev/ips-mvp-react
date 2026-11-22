@@ -1224,7 +1224,7 @@ async function uploadAcademicReferenceBinary(endpoint,file,audience='student'){
     {'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},
   body:file});
  const response=await result.json().catch(()=>({}));
- if(!result.ok)throw Error(response.error||'IPS could not store the private reference.');
+ if(!result.ok)throw Error(response.error||'IPS could not store the private academic document.');
  return response;
 }
 async function uploadAcademicBinary(commissionId,file){
@@ -1297,6 +1297,12 @@ async function submit(name,formNode){
    await uploadAcademicReferenceBinary('/api/operations/'+
     encodeURIComponent(data.commissionId)+'/upload-reference-binary',chosen);
    return 'Your large academic reference is securely attached to this workroom.';
+  }
+  if(data.purpose==='deliverable'&&state.account?.role==='root'&&!state.rootLens){
+   const file=formNode.querySelector('input[name=upload]')?.files?.[0];
+   await uploadAcademicReferenceBinary('/api/operations/'+
+    encodeURIComponent(data.commissionId)+'/upload-deliverable-binary',file);
+   return 'Nyoro’s private academic document is submitted for governed quality review.';
   }
   if(data.purpose==='deliverable'&&
    (state.account?.role==='specialist'||state.rootLens?.account?.role==='specialist')){
