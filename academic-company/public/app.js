@@ -465,7 +465,7 @@ async function loadTab(){
   }
  }else if(tab==='support'){
   const d=await api('/support');
-  if(state.opened)html=supportDetail(d.tickets.find(t=>t.id===state.opened));
+  if(state.opened)html=await supportDetail(d.tickets.find(t=>t.id===state.opened));
   else html=(['student','specialist'].includes(a.role)&&canSimulate?
    panel('Ask IPS for help','',
    form('support',field('Subject','subject')+textarea('Message','message','What do you need help with?'),'Send message')):'')+
@@ -940,13 +940,43 @@ async function commissionDetail(p,a){
    upload+actions+'</div><section class="case-chat"><h3>Job messages</h3>'+
    '<p>Communication stays attached to the academic job.</p>'+conversation+'</section></div></section>';
 }
-function supportDetail(t){
+async function supportDetail(t){
  if(!t)return '';
- return '<div class="mt"><div class="toolbar">'+b('← Back to support','close-case')+'</div>'+panel('Support case '+t.id,'Written assistance, ownership and resolution history.',
- '<div class="messages">'+(t.replies||[]).map(r=>'<div class="message"><small>'+e(r.role)+' · '+date(r.at)+'</small><p>'+e(r.message)+'</p></div>').join('')+'</div>'+
- (t.status==='open'?form('support-reply',
- '<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+textarea('Private reply','message','Write the next helpful response'), 'Send secure reply')+
- '<div class="action-row">'+b('Resolve support case','support-close',t.id)+'</div>':''))+'</div>';
+ const a=state.rootLens?.account||state.account;
+ const company=['root','manager','staff'].includes(a.role);
+ const canOwn=company&&(a.role==='root'||a.department==='client_relations');
+ const owned=!!t.assignedTo&&t.assignedTo===a.id;
+ let assignment='';
+ if(t.status==='open'&&canOwn){
+  const claim=!t.assignedTo?b('Take responsibility','support-claim',t.id,'primary'):'';
+  let transfer='';
+  if(a.role==='root'||a.role==='manager'&&a.department==='client_relations'){
+   const r=await api('/administration/people?role=staff&pageSize=100',{operator:true});
+   const people=r.people.filter(p=>p.department==='client_relations'&&p.status==='active');
+   transfer=people.length?form('support-assign',
+    '<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+
+    options('Responsible Client Relations employee','assigneeId',people.map(p=>[p.id,p.name||p.email]))+
+    textarea('Reason for handoff','reason','Why is this person responsible now?'),
+    'Assign support owner'):'';
+  }
+  assignment=panel('Support responsibility',
+   'This support case has one accountable employee. Writing a reply never silently changes the owner.',
+   '<p><strong>Responsible:</strong> '+e(t.assignedTo||'Unassigned · needs ownership')+'</p>'+
+   claim+transfer);
+ }
+ const canRespond=t.status==='open'&&(!company||a.role==='root'||owned);
+ return '<div class="mt"><div class="toolbar">'+b('← Back to support','close-case')+'</div>'+
+  panel('Support case '+t.id,'Written assistance, case ownership and resolution history.',
+  '<p><strong>Status:</strong> '+e(readableStatus(t.status))+
+  ' · <strong>Responsible:</strong> '+e(t.assignedTo||'IPS Client Relations queue')+'</p>'+
+  '<div class="messages">'+(t.replies||[]).map(r=>
+    '<div class="message"><small>'+e(r.role)+' · '+date(r.at)+'</small><p>'+e(r.message)+'</p></div>').join('')+'</div>'+
+  (canRespond?form('support-reply',
+   '<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+
+   textarea('Private reply','message','Write the next helpful response'),'Send secure reply')+
+   '<div class="action-row">'+b('Resolve support case','support-close',t.id)+'</div>':
+   '<p>This case requires an assigned employee before a reply or resolution.</p>'))+
+   assignment+'</div>';
 }
 function render(){
  if(!state.catalogue){root.textContent='IPS Academic Services is loading…';return}
@@ -1203,6 +1233,11 @@ async function submit(name,formNode){
  if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Message sent and attached to this academic job.'}
  if(name==='support'){await api('/support',{method:'POST',body:data});return 'Your written academic support case is in the IPS Client Relations queue.'}
  if(name==='support-reply'){await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',{method:'POST',body:{message:data.message}});return 'Private support response recorded.'}
+ if(name==='support-assign'){
+  await api('/support/'+encodeURIComponent(data.ticketId)+'/assign',{method:'POST',body:{
+   assigneeId:data.assigneeId,reason:data.reason}});
+  return 'Support responsibility transferred with an audit record.';
+ }
  if(name==='specialist-agreement'){
   const r=await api('/specialist/agreement/accept',{method:'POST',body:data});
   state.account.specialistAgreementVersion=r.agreementVersion;
@@ -1342,6 +1377,7 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
    if(act==='person-recover'){await api('/administration/people/'+encodeURIComponent(id)+'/send-recovery',{method:'POST'});state.message='IPS emailed a secure recovery link to the account owner.'}
    else{const decision=act==='person-reactivate'?'reactivate':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
   }
+  else if(act==='support-claim'){await api('/support/'+encodeURIComponent(id)+'/claim',{method:'POST'});state.message='You are now responsible for this support request.'}
   else if(act==='support-close'){await api('/support/'+encodeURIComponent(id)+'/resolve',{method:'POST'});state.message='Written support case resolved.'}
   else if(act==='notification-read'){await api('/notifications/'+encodeURIComponent(id)+'/read',{method:'POST'});state.message='Notification marked read.'}
   else if(act==='telegram-read'){
