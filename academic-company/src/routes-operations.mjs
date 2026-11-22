@@ -418,16 +418,25 @@ export function registerOperationsRoutes(ctx){
  }));
  app.post('/api/operations/:id/takeover',wrap(async(req,res)=>{
   if(!authorize(req,res,['root']))return;
-  const note=String(req.body?.reason||'').trim();
-  if(note.length<12||note.length>1200)return res.status(400).json({error:'Record a short reason for taking over this academic job.'});
-  const eligible=['ready_for_assignment','specialist_assigned','root_in_progress','correction_requested','student_revision_requested'];
+  // Routine unassigned work needs ONE action, not a mandatory narrative form.
+  // A standard, specific reason remains recorded for governance. Root may add
+  // a detailed reason when a specialist is being replaced or in an exception.
+  const customReason=String(req.body?.reason||'').trim();
+  if(customReason&& (customReason.length<12||customReason.length>1200))
+   return res.status(400).json({error:'An optional handoff note must contain 12–1200 characters.'});
+  const note=customReason||'Nyoro Root Admin assumed direct responsibility for this academic job.';
+  const eligible=['ready_for_assignment','specialist_assigned','correction_requested','student_revision_requested'];
   const p=await db.projects.findOne({id:req.params.id});
   if(!p)return res.status(404).json({error:'Academic job not found.'});
   if(p.paymentStatus==='not_collected'||p.status==='awaiting_payment_integration')
    return res.status(409).json({error:'Root may review this job but cannot start a paid commission before the payment gate.'});
+  if(p.status==='root_in_progress'&&p.managedBy===rootEmail)
+   return res.json({commission:publicDocument(p),rootInCharge:true,alreadyManaged:true});
   if(!eligible.includes(p.status))return res.status(409).json({error:'This job is in QA, delivery or completed status. Reopen it through an authorized case change.'});
   const before=p.specialistId||'';
-  const u=await db.projects.findOneAndUpdate({id:p.id,status:p.status},
+  const previousSpecialistFilter=before?{specialistId:before}:
+   {$or:[{specialistId:''},{specialistId:null},{specialistId:{$exists:false}}]};
+  const u=await db.projects.findOneAndUpdate({id:p.id,status:p.status,...previousSpecialistFilter},
    {$set:{status:'root_in_progress',specialistId:'',managedBy:rootEmail,
      fulfilmentMode:'root',updatedAt:now()}},{returnDocument:'after'});
   if(!u)return res.status(409).json({error:'The case changed while Root took responsibility.'});
