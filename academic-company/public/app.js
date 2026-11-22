@@ -518,12 +518,10 @@ async function loadTab(){
      record(q.subject+' · '+q.serviceName,q.requirements,q.id,q.status,
       (a.role==='student'&&q.status==='offered'&&canSimulate?
        b('Accept quotation','quote-accept',q.id,'primary')+b('Decline','quote-decline',q.id):
-       ['root','manager'].includes(a.role)&&q.status==='received'?
-       b('Review','scope-form',q.id):['root','manager'].includes(a.role)&&q.status==='scoped'?
-       b('Send quotation','offer-form',q.id):'')+
-      (!q.assignedTo&&['received','clarify','scoped'].includes(q.status)&&
-       a.role==='staff'&&a.department==='client_relations'?b('Claim enquiry','quote-claim',q.id):'')+
-      b('Open enquiry & messages','quote-detail',q.id))).join('')+'</div>':
+       b(q.status==='received'&&['root','manager'].includes(a.role)?
+          'Review enquiry':q.status==='scoped'&&['root','manager'].includes(a.role)?
+          'Prepare quotation':'Open enquiry',
+        'quote-detail',q.id,'primary')))).join('')+'</div>':
      empty('No academic enquiries yet.'))+
     '';
  }else if(tab==='commissions'||tab==='quality'){
@@ -885,7 +883,8 @@ async function quoteDetail(q,a){
    (manager?options('Document audience','audience',[['student','Student / Researcher'],['internal','IPS internal']]):'')+
    field('PDF, DOCX or TXT (up to 20 MB)','upload','file','','true'),
    'Upload document'));
- const authorizedQuoteManager=state.account?.role==='root'||['root','manager'].includes(a.role);
+ const authorizedQuoteManager=!state.rootLens&&
+  (a.role==='root'||a.role==='manager'&&['client_relations','academic_delivery'].includes(a.department));
  const clarificationActions=a.role==='student'&&q.status==='clarify'&&(!state.rootLens||state.isEvaluation)?
   panel('Clarification requested by IPS','Send your updated instructions back into the academic scope review queue.',
    form('quote-resubmit',
@@ -913,7 +912,7 @@ async function quoteDetail(q,a){
  if(!state.rootLens&&['root','manager','staff'].includes(a.role)&&
   (a.role==='root'||a.department==='client_relations')){
   const claimable=!q.assignedTo&&['received','clarify','scoped'].includes(q.status);
-  const current='<p><strong>Accountable employee:</strong> '+e(q.assignedTo||'Unassigned')+'</p>';
+  const current='<p><strong>Responsible:</strong> '+e(q.assignedTo||'Not yet assigned')+'</p>';
   if(authorizedIntake){
    const people=(await api('/administration/people',{operator:true})).people.filter(p=>
     ['manager','staff'].includes(p.role)&&p.department==='client_relations'&&p.status==='active');
@@ -922,16 +921,19 @@ async function quoteDetail(q,a){
     '<div class="small-list">'+history.history.slice(-5).reverse().map(h=>
      '<p><strong>'+e(h.action)+' → '+e(h.to)+'</strong><small> · '+date(h.at)+
       '</small>'+(h.reason?'<span>'+e(h.reason)+'</span>':'')+'</p>').join('')+'</div>':'';
-   ownershipPanel=panel('Academic enquiry ownership','Each request has an accountable Client Relations employee. Staff handoffs are audited and private.',
-    current+(claimable?b('Claim this enquiry','quote-claim',q.id,'small'):'')+
+   ownershipPanel='<details class="optional-admin-tools"><summary>Change responsible person or view assignment history</summary>'+
+    '<p>Reviews automatically assign an unowned enquiry to the reviewer. Only open this when you need to delegate or transfer responsibility.</p>'+
+    current+
     (['received','clarify','scoped','offered','offer_delivery_failed'].includes(q.status)&&people.length?
      form('quote-assign',
       '<input type="hidden" name="quoteId" value="'+e(q.id)+'">'+
-      options('Assign to Client Relations','assigneeId',people.map(p=>[p.id,p.name||p.email]))+
-      textarea('Reason for assignment or handoff','reason','Document the accountable employee and reason'),
-      'Assign accountable employee'):'')+trail);
-  }else ownershipPanel=panel('Academic enquiry ownership','',current+
-    (claimable?b('Claim this enquiry','quote-claim',q.id,'small primary'):''));
+      options('Responsible Client Relations employee','assigneeId',people.map(p=>[p.id,p.name||p.email]))+
+      textarea('Optional handoff note','reason','Only if additional context is useful',false),
+      'Assign responsibility'):'')+trail+'</details>';
+  }else ownershipPanel=(claimable&&a.role==='staff'?
+   '<div class="case-actions quick-owner-action">'+b('Take this enquiry','quote-claim',q.id,'primary')+
+   '<span class="subtle">The system records that you accepted responsibility.</span></div>':'')+
+   '<p class="subtle">Responsible: '+e(q.assignedTo||'Not yet assigned')+'</p>';
  }
  const revisionActions=authorizedQuoteManager&&['offered','expired'].includes(q.status)?
   panel('Revise written quotation','Preserve every earlier amount, scope and expiry. The Student must review this new version.',
@@ -955,7 +957,11 @@ async function quoteDetail(q,a){
    (q.terms?'<p><strong>Terms:</strong> '+e(q.terms)+'</p>':'')+
    decisionActions+'<div class="case-actions">'+b('← Back to quotations','close-case')+'</div></div>';
  return '<section class="mt"><div class="section-head"><h2>Enquiry & written conversation</h2></div>'+
- '<div class="case-layout"><div>'+summary+ownershipPanel+clarificationActions+adminActions+revisionActions+docsPanel+'</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
+ '<div class="case-layout"><div>'+summary+clarificationActions+adminActions+
+ (q.status==='received'&&authorizedQuoteManager?
+  '<p class="subtle next-step-hint">Review the scope above. IPS will assign you responsibility automatically.</p>':'')+
+ docsPanel+revisionActions+ownershipPanel+
+ '</div><section class="case-chat"><h3>Messages</h3>'+thread+chat+'</section></div></section>';
 }
 async function commissionDetail(p,a){
  if(!p)return '';
@@ -1401,10 +1407,16 @@ async function submit(name,formNode){
   return 'New quotation version issued and client notified according to contact preference.';
  }
  if(name==='quote-assign'){
-  await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/assign',
+  const selected=formNode.querySelector('select[name=assigneeId]');
+  if(!selected?.value)throw Error('Choose an eligible responsible employee.');
+  const info=selected.options[selected.selectedIndex]?.text||'this employee';
+  if(!window.confirm('Assign this enquiry to '+info+'? The previous owner will be notified if responsibility changes.'))
+   return 'Assignment unchanged.';
+  const result=await api('/academic/quotes/'+encodeURIComponent(data.quoteId)+'/assign',
    {method:'POST',operator:state.account?.role==='root',
     body:{assigneeId:data.assigneeId,reason:data.reason}});
-  return 'Client Relations ownership handoff recorded and responsible employee notified.';
+  return result.alreadyAssigned?'This employee already owns the enquiry.':
+   'Responsibility assigned and recorded automatically.';
  }
  if(name==='scope'){await api('/academic/quotes/'+encodeURIComponent(id)+'/scope',{method:'POST',operator:state.account?.role==='root',body:data});return 'Academic scope decision has been recorded.'}
  if(name==='offer'){data.priceMinor=Math.round(Number(data.pricePLN)*100);delete data.pricePLN;
