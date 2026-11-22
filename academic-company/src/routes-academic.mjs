@@ -63,6 +63,9 @@ export function registerAcademicRoutes(ctx){
  const reviewedOffer=input=>{
   const total=Number(input?.priceMinor),terms=String(input?.terms||'').trim(),
    deliverables=String(input?.deliverables||'').trim();
+  const revisions=Number(input?.revisionAllowance??1);
+  if(!Number.isSafeInteger(revisions)||revisions<0||revisions>5)
+   return {error:'State the included revision allowance as 0–5 review rounds.'};
   const requested=String(input?.expires||'').trim();
   const expires=requested||new Date(Date.now()+14*86400000).toISOString().slice(0,10);
   if(!Number.isSafeInteger(total)||total<=0||total>100000000||
@@ -73,7 +76,7 @@ export function registerAcademicRoutes(ctx){
    expiryDate.toISOString().slice(0,10)!==expires||
    expires<utcDate()||expiryDate.getTime()>Date.now()+366*86400000)
    return {error:'Choose a real quotation expiry date from today up to one year ahead (UTC date).'};
-  return {priceMinor:total,currency:'PLN',terms,deliverables,expires};
+  return {priceMinor:total,currency:'PLN',terms,deliverables,expires,revisionAllowance:revisions};
  };
  const quoteBase=(input,valid,owner)=>({
   id:uid('IPS-Q'),studentId:owner?.id||'',username:owner?.username||String(input?.username||''),
@@ -371,7 +374,7 @@ export function registerAcademicRoutes(ctx){
     {name:'Specialist assignment',status:'pending',at:now()},
     {name:'Academic quality assurance',status:'pending',at:now()},
     {name:'Secure final delivery',status:'pending',at:now()}],
-   revisionCount:0,revisionAllowance:1,
+   revisionCount:0,revisionAllowance:q.revisionAllowance??1,
    coordinatorId:q.assignedTo||rootEmail,coordinatorManagerId:coordManagerId||'',
    deliveryOwnerId:'',deliveryManagerId:'',qaOwnerId:'',qaManagerId:'',
    assignedBy:'',qaReviewer:'',createdAt:now(),updatedAt:now()};
@@ -605,7 +608,8 @@ export function registerAcademicRoutes(ctx){
    'root_supervised_exception':'independent_ips_review';
   await db.projects.updateOne({id:p.id},{$set:{qaMode}});
   if(decision==='approve')await db.projects.updateOne({id:p.id,status:'client_delivery'},
-   {$set:{releasedFileId:p.pendingFileId}});
+   {$set:{releasedFileId:p.pendingFileId},
+    $addToSet:{releasedFileHistory:p.pendingFileId}});
   await db.projects.updateOne({id:p.id,'milestones.name':'Academic quality assurance'},
    {$set:{'milestones.$.status':decision==='approve'?'complete':'pending',
     'milestones.$.at':now()}});
@@ -623,7 +627,15 @@ export function registerAcademicRoutes(ctx){
   const note=String(req.body?.note||'').trim();
   if(decision==='request_revision'&&(note.length<15||note.length>1700))
    return res.status(400).json({error:'Describe the academic revision needed.'});
-  const p=await db.projects.findOneAndUpdate({id:req.params.id,studentId:req.actor.id,status:'client_delivery'},
+  const condition={id:req.params.id,studentId:req.actor.id,status:'client_delivery'};
+  if(decision==='request_revision'){
+   const current=await db.projects.findOne(condition,
+    {projection:{revisionCount:1,revisionAllowance:1}});
+   if(current&&(current.revisionCount||0)>=(current.revisionAllowance??1))
+    return res.status(409).json({error:'The agreed revision allowance is exhausted. Contact IPS for an updated written scope.'});
+   condition.revisionCount={$lt:Math.max(0,current?.revisionAllowance??1)};
+  }
+  const p=await db.projects.findOneAndUpdate(condition,
    {$set:{status:decision==='accept'?'completed':'student_revision_requested',
      studentDecisionNote:note,updatedAt:now(),...(req.rootOperatorId?{rootEvaluationDecision:true,decisionActorId:req.rootOperatorId}:{})},
     $inc:{revisionCount:decision==='request_revision'?1:0}},{returnDocument:'after'});
@@ -646,7 +658,8 @@ export function registerAcademicRoutes(ctx){
   const rows=await db.files.find({commissionId:p.id}).sort({createdAt:-1}).toArray();
   // Failed QA submissions and Specialist working drafts are never released to Students.
   const accessible=studentOwner(req.actor,p)
-   ?(['client_delivery','completed'].includes(p.status)?rows.filter(x=>x.id===p.releasedFileId):[])
+   ?(['client_delivery','completed'].includes(p.status)?
+    rows.filter(x=>[p.releasedFileId,...(p.releasedFileHistory||[])].includes(x.id)):[])
    :rows;
   res.json({files:accessible.map(x=>({id:x.id,filename:x.filename,mime:x.mime,sha256:x.sha256,createdAt:x.createdAt,revision:x.revision}))});
  }));
@@ -656,7 +669,8 @@ export function registerAcademicRoutes(ctx){
   const p=await db.projects.findOne({id:file.commissionId});
   if(!p||!canSee(req.actor,p))return denial(res);
   if(studentOwner(req.actor,p)&&!(file.purpose==='reference'||file.kind==='client_reference')&&
-   (!['client_delivery','completed'].includes(p.status)||file.id!==p.releasedFileId))return denial(res);
+   (!['client_delivery','completed'].includes(p.status)||
+    ![p.releasedFileId,...(p.releasedFileHistory||[])].includes(file.id)))return denial(res);
   res.setHeader('Cache-Control','private,no-store');
   res.setHeader('Content-Type',file.mime);
   res.setHeader('Content-Disposition','attachment; filename="'+file.filename+'"');
