@@ -293,13 +293,17 @@ function work(){
  const a=state.rootLens?.account||state.account;
  const tabs=departmentsForRole(a);
  if(!tabs.some(x=>x[0]===state.tab))state.tab='overview';
- const title=a.role==='root'?'Nyoro · Root Administration':a.role==='student'?
+ const title=a.role==='root'?(state.tab==='overview'?'Nyoro · Root Administration':
+  (tabs.find(x=>x[0]===state.tab)?.[1]||'Company management')):a.role==='student'?
  (state.firstLogin?'Welcome to IPS':'Welcome back')+', '+(a.username||'Student / Researcher'):
  a.role==='specialist'?a.name+' · Academic Specialist':a.name+' · '+(state.catalogue.departments.find(x=>x.id===a.department)?.name||'IPS Team');
  const oversight=state.rootLens?'<div class="root-assist"><div><span class="kicker">NYORO ROOT ADMINISTRATION / ASSISTED WORKSPACE</span><strong>Currently viewing '+e(a.role==='student'?'Student / Researcher':'Academic Specialist')+' · '+e(a.username||a.name)+'</strong><p>Operating under Nyoro Root authority. Every assisted action is audited.</p></div><div class="root-assist-controls"><label class="field">Switch '+e(a.role==='student'?'Student':'Specialist')+' without another login<select data-root-target>'+state.rootLens.directory.map(p=>'<option value="'+e(p.id)+'"'+(p.id===a.id?' selected':'')+'>'+e(p.username||p.name)+' · '+e(p.id)+'</option>').join('')+'</select></label>'+b('Return to Nyoro Root','root-lens-exit','','primary')+'</div></div>':'';
  shell('<div class="workspace"><aside class="sidebar"><div class="nav-label">IPS ACADEMIC COMPANY</div>'+tabs.map(t=>navData(t[0],t[1],state.tab)).join('')+
  '</aside>'+
- '<main class="workmain">'+oversight+'<div class="toolbar">'+b('← Back','back','','back-btn')+'<span class="subtle">'+e(a.role==='root'?'ROOT ADMIN':a.role==='student'?'STUDENT WORKSPACE':a.role==='specialist'?'SPECIALIST WORKSPACE':'IPS TEAM')+' / '+e(state.tab.replaceAll('-',' '))+'</span></div><div class="work-title"><span class="kicker">IPS ACADEMIC SERVICES / '+e(state.tab.toUpperCase())+'</span><h1>'+e(title)+'</h1><p>'+e(a.role==='root'?'Lead academic service operations, qualified Specialists, communications, quality assurance and responsible departments.':
+ '<main class="workmain">'+oversight+
+ '<details class="workspace-mobile-menu"><summary>Workspace menu · '+e(tabs.find(t=>t[0]===state.tab)?.[1]||'Overview')+'</summary>'+
+ '<nav aria-label="Workspace sections">'+tabs.map(t=>navData(t[0],t[1],state.tab)).join('')+'</nav></details>'+
+ '<div class="toolbar">'+b('← Back','back','','back-btn')+'<span class="subtle">'+e(a.role==='root'?'ROOT ADMIN':a.role==='student'?'STUDENT WORKSPACE':a.role==='specialist'?'SPECIALIST WORKSPACE':'IPS TEAM')+' / '+e(state.tab.replaceAll('-',' '))+'</span></div><div class="work-title"><span class="kicker">IPS ACADEMIC SERVICES / '+e(state.tab.toUpperCase())+'</span><h1>'+e(title)+'</h1><p>'+e(a.role==='root'?'Lead academic service operations, qualified Specialists, communications, quality assurance and responsible departments.':
  a.role==='student'?'Your confidential academic support, reviewed quotations and secure work history.':
  a.role==='specialist'?'Your professional academic assignments, approvals, submissions and IPS coordination.':
  'Manage real academic-service responsibilities and clients within your approved authority.')+'</p></div>'+flash()+
