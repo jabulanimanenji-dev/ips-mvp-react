@@ -98,9 +98,17 @@ export function registerAcademicRoutes(ctx){
    {$set:{status:'received',contactVerified:true,updatedAt:now()},
     $unset:{verifyHash:'',verifyUntil:''}},{returnDocument:'after'});
   if(!quote)return res.status(400).json({error:'The private enquiry confirmation expired or was already used.'});
+  // A guest who already owns a verified Student account must not have to
+  // hunt for a reference and manually attach the same verified email twice.
+  const account=await db.accounts.findOne({email:mail,role:'student',
+   verified:true,status:'active'},{projection:{id:1,username:1}});
+  if(account)await db.quotes.updateOne({id:quote.id,studentId:''},
+   {$set:{studentId:account.id,username:account.username,updatedAt:now()}});
   await notify(rootEmail,'Verified guest academic enquiry '+quote.id+' awaits review','intake');
   await audit({id:'guest',role:'guest'},'academic_guest_enquiry_verified',quote.id);
-  res.json({success:true,reference:quote.id,message:'Your enquiry is verified and awaiting IPS written review.'});
+  res.json({success:true,reference:quote.id,linkedToAccount:!!account,
+   message:account?'Your enquiry is verified and appears in your private Student workspace.':
+    'Your enquiry is verified. Create a private IPS account with the same email to view your written quotation and messages; it will attach automatically.'});
  }));
  app.post('/api/academic/quotes',wrap(async(req,res)=>{
   if(!authorize(req,res,['student']))return;
@@ -125,7 +133,11 @@ export function registerAcademicRoutes(ctx){
   const q=await db.quotes.findOneAndUpdate({id:ref,contactEmail:req.actor.email,
    studentId:'',contactVerified:true,status:{$in:['received','scoped','offered']}},
    {$set:{studentId:req.actor.id,username:req.actor.username,updatedAt:now()}},{returnDocument:'after'});
-  if(!q)return res.status(404).json({error:'There is no verified academic quotation under this email and reference.'});
+  if(!q){
+   const linked=await db.quotes.findOne({id:ref,studentId:req.actor.id,contactVerified:true});
+   if(linked)return res.json({success:true,quote:quoteView(linked),alreadyLinked:true});
+   return res.status(404).json({error:'There is no verified academic quotation under this email and reference.'});
+  }
   await audit(req.actor,'academic_guest_quotation_claimed',q.id);
   res.json({success:true,quote:quoteView(q)});
  }));
