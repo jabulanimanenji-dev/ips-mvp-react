@@ -539,6 +539,49 @@ try{
   assert.equal(await staffPage.getByRole('button',{name:'Audit',exact:true}).count(),0);
   await screen(staffPage,'11-client-relations-staff');
  });
+ await pass('Client Relations answers a new support case immediately; Student can reopen the same conversation',async()=>{
+  const subject='Browser support reopened without another ticket';
+  const created=await studentPage.evaluate(async subj=>{
+   const r=await fetch('/api/support',{method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({subject:subj,message:
+     'My independently authored literature review needs an explanation of its citation feedback.'})});
+   return {status:r.status,body:await r.json()};
+  },subject);
+  assert.equal(created.status,201,JSON.stringify(created.body));
+  const id=created.body.ticket.id;
+  await staffPage.locator('.sidebar').getByRole('button',{name:'Support',exact:true}).click();
+  const row=staffPage.locator('.record').filter({hasText:subject});
+  await row.getByRole('button',{name:'Open conversation'}).click();
+  assert.equal(await staffPage.locator('form[data-form=support-reply]').count(),1,
+   'A legitimate Client Relations first response should not require a separate Claim operation');
+  const reply=staffPage.locator('form[data-form=support-reply]');
+  await reply.locator('textarea[name=message]').fill(
+   'We have received your citation feedback question; IPS will clarify the permitted editorial changes.');
+  await reply.getByRole('button',{name:'Send secure reply'}).click();
+  await staffPage.getByText('IPS assigned this support case to you automatically.').waitFor();
+  const assigned=await mongo.db.collection('academic_support_cases').findOne({id});
+  assert.equal(assigned.assignedTo,staff.id);
+  assert.equal(assigned.replies.length,2);
+  await studentPage.locator('.sidebar').getByRole('button',{name:'Support',exact:true}).click();
+  await studentPage.locator('.record').filter({hasText:subject})
+   .getByRole('button',{name:'Open conversation'}).click();
+  await studentPage.getByRole('button',{name:'Resolve support case'}).click();
+  await studentPage.locator('form[data-form=support-reopen]').waitFor();
+  assert.equal(await studentPage.locator('form[data-form=support-reply]').count(),0);
+  await studentPage.locator('form[data-form=support-reopen] textarea[name=reason]')
+   .fill('The referencing explanation is still incomplete; please confirm the required corrections.');
+  await studentPage.locator('form[data-form=support-reopen]')
+   .getByRole('button',{name:'Reopen support case'}).click();
+  await studentPage.getByText('Support case reopened with its previous conversation').waitFor();
+  const reopened=await mongo.db.collection('academic_support_cases').findOne({id});
+  assert.equal(reopened.status,'open');
+  assert.equal(reopened.reopenCount,1);
+  assert.equal(reopened.replies.length,3);
+  assert.equal(reopened.assignedTo,staff.id);
+  await overflow(studentPage);
+  await screen(studentPage,'43-reopen-original-support-conversation');
+ });
  await pass('Client Relations staff claims academic enquiry and opens private ownership workroom',async()=>{
   const created=await studentPage.evaluate(async()=>{
    const res=await fetch('/api/academic/quotes',{method:'POST',credentials:'same-origin',
