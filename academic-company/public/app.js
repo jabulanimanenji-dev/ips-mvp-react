@@ -240,7 +240,7 @@ function tokenForm(kind){
  const params=new URLSearchParams(location.hash.slice(1)),token=params.get(kind)||'',mail=params.get('email')||'';
  const headline=kind==='verify'?'Verify your IPS email':kind==='invite'?'Accept your IPS staff invitation':kind==='guestconfirm'?'Verify your academic enquiry':kind==='contactverify'?'Verify your IPS written request':'Set a new password';
  const contents='<input type="hidden" name="token" value="'+e(token)+'"><input type="hidden" name="email" value="'+e(mail)+'">'+
- ((['guestconfirm','contactverify'].includes(kind)?'<input type="hidden" name="reference" value="'+e(params.get('ref')||'')+'">':'')+
+ (['guestconfirm','contactverify'].includes(kind)?'<input type="hidden" name="reference" value="'+e(params.get('ref')||'')+'">':'')+
  (['recover','invite'].includes(kind)?field('New strong password','password','password','8+ characters, uppercase, number and symbol')+field('Confirm password','confirmPassword','password'):'');
  state.page=kind;auth(headline,'This private link expires and can only be used once.',form(kind,contents,
  kind==='guestconfirm'?'Confirm my academic enquiry':kind==='contactverify'?'Verify my written request':kind==='verify'?'Verify my email':'Secure my account'));
