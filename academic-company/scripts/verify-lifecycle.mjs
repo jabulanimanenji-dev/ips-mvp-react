@@ -1026,6 +1026,57 @@ try{
   assert.ok(await db.collection('academic_audit_events').findOne({action:'root_academic_job_takeover',ref:job.id}));
   assert.ok(await db.collection('academic_audit_events').findOne({action:'root_private_external_fulfilment_recorded',ref:job.id}));
  });
+ await assertCheck('Root submits a genuine 6 MB academic deliverable through the scanner and QA with no early client release',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const id='IPS-A-ROOT-BINARY-'+random(),at=new Date();
+  const p={id,quoteId:'IPS-Q-ROOT-BINARY-'+random(),studentId:student.id,
+   specialistId:'',serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',
+   subject:'Legitimate large Root editorial feedback',academicLevel:'Undergraduate',
+   status:'root_in_progress',managedBy:vars.ROOT_EMAIL,fulfilmentMode:'root',
+   paymentStatus:'not_collected',revisionCount:0,revisionAllowance:1,
+   milestones:[],createdAt:at,updatedAt:at};
+  await db.collection('academic_commissions').insertOne(p);
+  const bytes=Buffer.alloc(6*1024*1024,82),
+   sha=crypto.createHash('sha256').update(bytes).digest('hex');
+  const endpoint=url+'/api/operations/'+id+'/upload-deliverable-binary';
+  const post=(cookie)=>fetch(endpoint,{method:'POST',headers:{Cookie:cookie,
+   Origin:url,'Content-Type':'application/octet-stream',
+   'X-IPS-File-Name':'large-root-academic-review.txt','X-IPS-File-Type':'text/plain'},
+   body:bytes});
+  const unpaid=await post(rootCookie);
+  assert.equal(unpaid.status,409,'Root cannot bypass unpaid commissioning');
+  await db.collection('academic_commissions').updateOne({id},
+   {$set:{paymentStatus:'synthetic_test_only',evaluationPayment:true}});
+  const denied=await post(studentCookie);
+  assert.equal(denied.status,403);
+  const saved=await post(rootCookie);
+  assert.equal(saved.status,201,'Root binary upload failed: '+(await saved.clone().text()).slice(0,220));
+  const json=await saved.json();
+  assert.equal(json.file.sha256,sha);
+  assert.equal(json.storage,'private_gridfs');
+  assert.equal(json.byteLength,bytes.length);
+  const file=await db.collection('academic_private_files').findOne({id:json.file.id});
+  assert.ok(file?.blobId);
+  assert.equal(file.fileData,undefined,'Large Root file bytes must not be embedded in the metadata document');
+  const before=await fetch(url+'/api/academic/files/'+file.id,{headers:{Cookie:studentCookie}});
+  assert.equal(before.status,403,'Unapproved Root authored material must not be visible to the Student');
+  const current=await db.collection('academic_commissions').findOne({id});
+  assert.equal(current.status,'qa_pending');
+  assert.equal(current.qaMode,'root_supervised_exception');
+  const tooLate=await post(rootCookie);
+  assert.equal(tooLate.status,409,'Root cannot submit a second competing deliverable during QA');
+  const qa=await call('/academic/commissions/'+id+'/quality',withAuth(rootCookie,{
+   decision:'approve',note:'A documented supervised Root release reviewed the permitted academic editing feedback.'}));
+  assert.equal(qa.data.commission.qaMode,'root_supervised_exception');
+  const after=await fetch(url+'/api/academic/files/'+file.id,{headers:{Cookie:studentCookie}});
+  assert.equal(after.status,200);
+  assert.equal(crypto.createHash('sha256')
+   .update(Buffer.from(await after.arrayBuffer())).digest('hex'),sha);
+  await call('/academic/files/'+file.id,{cookie:otherCookie},403);
+  const audit=await db.collection('academic_audit_events').findOne({
+   action:'academic_root_gridfs_deliverable_submitted',ref:id});
+  assert.equal(audit.details.sha256,sha);
+ });
  await assertCheck('Nyoro authorizes private supplier safeguards and alone accesses the checksummed vault',async()=>{
   const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
   await call('/academic/quotes/'+q.id+'/scope',withAuth(rootCookie,{
