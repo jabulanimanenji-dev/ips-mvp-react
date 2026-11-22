@@ -168,6 +168,26 @@ try{
   await overflow(studentPage);
   await screen(studentPage,'29-student-private-billing-no-receipts');
  });
+ await pass('Verified Student requests account data access directly and sees its Governance case',async()=>{
+  await studentPage.locator('.sidebar').getByRole('button',{name:'Profile',exact:true}).click();
+  const form=studentPage.locator('form[data-form=privacy-request]');
+  await form.waitFor();
+  const requestId=await form.locator('input[name=requestId]').inputValue();
+  await form.locator('select[name=type]').selectOption('access');
+  await form.getByRole('button',{name:'Send private data request'}).click();
+  await studentPage.getByText('Your verified privacy request').waitFor();
+  const caseRow=await mongo.db.collection('academic_public_contacts')
+   .findOne({sourceAccountId:student.id,requestId});
+  assert.ok(caseRow?.id);
+  assert.equal(caseRow.category,'privacy_request');
+  assert.equal(caseRow.contactVerified,true);
+  assert.equal(caseRow.automaticErasure,false);
+  assert.equal(await studentPage.getByText('Data request · access').count(),1);
+  assert.equal(await studentPage.locator('form[data-form=public-contact]').count(),0,
+   'Verified customer must not be forced into another email-verification journey');
+  await overflow(studentPage);
+  await screen(studentPage,'45-student-verified-privacy-request');
+ });
  await pass('Student uploads and downloads an academic brief directly inside a pre-commission quotation',async()=>{
   await studentPage.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
   await studentPage.getByRole('button',{name:'Open enquiry'}).first().click();
