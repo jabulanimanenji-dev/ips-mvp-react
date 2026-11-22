@@ -438,6 +438,8 @@ try{
   assert.equal(session,'root','Root session must remain Root while assisted workspaces are open');
   await screen(rootDirect,'14-root-assisted-specialist-workspace');
   await rootDirect.getByRole('button',{name:'Return to Nyoro Root'}).click();
+  await rootDirect.locator('#workbody .metrics').first().waitFor();
+  await rootDirect.getByRole('heading',{name:'Work requiring action now'}).waitFor();
   await screen(rootDirect,'15-nyoro-command-centre');
  });
  const managerPage=await pageOpen(false);
