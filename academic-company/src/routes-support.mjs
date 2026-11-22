@@ -254,6 +254,28 @@ export function beginCompanyAutomation(ctx){
      {$setOnInsert:{id:'NT-ESC-'+q.id,accountId:rootEmail,kind:'intake_escalation',ref:q.id,
       message:'Academic enquiry has been waiting for review: '+q.id,read:false,createdAt:new Date()}},{upsert:true});
    }
+   // A Specialist must never remain allocated to an unanswered, time-limited
+   // offer. Expiry is atomic and audited; it does not consume capacity.
+   const at=new Date();
+   for(const p of await db.projects.find({
+    status:'awaiting_specialist_acceptance',
+    'assignmentOffer.expiresAt':{$lte:at}}).limit(100).toArray()){
+    const prior=p.assignmentOffer||{};
+    const reset=await db.projects.findOneAndUpdate({id:p.id,
+     status:'awaiting_specialist_acceptance',assignmentVersion:prior.version,
+     'assignmentOffer.expiresAt':{$lte:at}},
+     {$set:{status:'ready_for_assignment',updatedAt:at},
+      $unset:{assignmentOffer:''},
+      $push:{assignmentHistory:{specialistId:prior.specialistId,
+       version:prior.version,decision:'expired',reason:'Offer expired automatically',at}}},{returnDocument:'after'});
+    if(!reset)continue;
+    await audit({id:'system',role:'system'},'academic_specialist_offer_expired',p.id,
+     {specialistId:prior.specialistId,version:prior.version});
+    await notify(rootEmail,'Specialist offer expired without acceptance for '+p.id+
+     '. Academic Delivery must allocate the work again.','assignment_offer_expired');
+    if(prior.specialistId)await notify(prior.specialistId,
+     'The IPS assignment offer for '+p.id+' expired and is no longer available.','assignment_offer');
+   }
    const overdue=new Date(Date.now()-24*3600000);
    for(const p of await db.projects.find({status:'qa_pending',updatedAt:{$lt:overdue}}).limit(100).toArray()){
     await db.notifications.updateOne({accountId:rootEmail,kind:'qa_escalation',ref:p.id},
