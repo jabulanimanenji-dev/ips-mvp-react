@@ -334,6 +334,20 @@ try{
  await pass('Root has separate searchable Student and Specialist directories and one academic job workroom',async()=>{
   await rootPage.locator('.sidebar').getByRole('button',{name:'Students',exact:true}).click();
   await rootPage.getByText('PrivateScholar',{exact:false}).first().waitFor();
+  const studentRow=rootPage.locator('tr[data-directory-row]',{hasText:'PrivateScholar'}).first();
+  assert.equal(await studentRow.getByRole('button',{name:'Suspend',exact:true}).count(),0,
+   'Dangerous status changes must not appear directly on a crowded people-directory row');
+  assert.equal(await studentRow.getByRole('button',{name:'Send reset link'}).count(),0,
+   'Routine row must not duplicate private access controls');
+  await studentRow.getByRole('button',{name:'Manage',exact:true}).click();
+  const security=rootPage.locator('details.account-security-tools');
+  await security.waitFor();
+  assert.equal(await security.getAttribute('open'),null,
+   'Account security operations must be collapsed until intentionally opened');
+  await security.locator('summary').click();
+  await security.getByRole('button',{name:'Email password reset link'}).waitFor();
+  await security.getByRole('button',{name:'Suspend account'}).waitFor();
+  await rootPage.getByRole('button',{name:'← Back to directory'}).click();
   assert.equal(await rootPage.getByText('Evaluation Academic Nursing Editor').count(),0);
   await rootPage.locator('input[data-directory-search]').fill('nobody matches');
   assert.equal(await rootPage.locator('tr[data-directory-row]:not([hidden])').count(),0);
