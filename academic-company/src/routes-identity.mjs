@@ -76,7 +76,8 @@ export function registerIdentityRoutes(ctx){
      specialistAgreementSignature:fullName,specialistAgreementAcceptedAt:now()}:{}),
    ...(role==='specialist'?{availabilityStatus:'unavailable',maxConcurrentCases:0,
      activeAssignments:0,turnaroundDays:0}:{}),
-   privacyConsentAt:now(),createdAt:now(),lastLoginAt:null,
+   privacyConsentAt:now(),privacyNoticeVersion:PRIVACY_NOTICE_VERSION,
+   createdAt:now(),lastLoginAt:null,
    ...(role==='specialist'?{qualification:String(req.body.qualification||'').slice(0,300),
      experience:String(req.body.experience||'').slice(0,200)}:{})};
   try{await db.accounts.insertOne(item)}catch(e){if(e.code===11000)return res.status(409).json({error:'Email or username already registered.'});throw e}
