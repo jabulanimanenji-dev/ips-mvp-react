@@ -206,14 +206,14 @@ async function audit(actor,action,ref='',details={}){
 }
 // Every non-transactional notice uses the same durable delivery queue. Provider acceptance
 // is not a read receipt; no academic subject, name, price, file or message is emailed.
-async function queuePrivateNotice(to,kind,notificationId,accountId=''){
+async function queuePrivateNotice(to,kind,notificationId,accountId='',actionText=''){
  const recipient=email(to);
  if(!validEmail(recipient))throw Error('A verified email address is required for private notices.');
  await db.notificationDeliveries.insertOne({
   id:uid('OUT'),notificationId,accountId,to:recipient,
   subject:'IPS Academic Services — new private update',
   text:'A private IPS Academic Services update is ready in your secure workspace.\n'+
-       'Sign in: '+config.origin+'\n\nFor security, this email contains no academic case details.',
+       (actionText||'Sign in: '+config.origin)+'\n\nFor security, this email contains no academic case details.',
   kind,status:'pending',attempts:0,nextAttemptAt:now(),createdAt:now()
  });
 }
@@ -252,7 +252,7 @@ async function notifyQuotation(q,message,kind='quotation'){
  if(q.studentId){
   await notify(q.studentId,message,kind,{channel:q.contactChannel||'workspace'});
  }else if(q.contactVerified&&q.contactChannel==='email'){
-  await queuePrivateNotice(q.contactEmail,kind,uid('GUEST-NOTICE'));
+  await queuePrivateNotice(q.contactEmail,kind,uid('GUEST-NOTICE'),'','Create your private IPS account with this verified email to review the quotation: '+config.origin);
  }
  if(q.contactChannel==='telegram'&&!q.studentId){
   // A Telegram username alone is not a verified bot chat destination. Do not
