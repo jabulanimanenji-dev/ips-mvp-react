@@ -92,6 +92,7 @@ jobs:
           node --check scripts/verify-review-image.mjs
           node --check scripts/review-atlas-guard.mjs
           node --check scripts/verify-review-atlas-guard.mjs
+          node --check scripts/verify-scenario-register.mjs
           bash -n scripts/review-entrypoint.sh
           node --check scripts/verify-restoration.mjs
           node --check scripts/encrypted-mongo-archive.mjs
@@ -107,6 +108,8 @@ jobs:
             echo "REJECT: wrong IPS company identity"
             exit 1
           fi
+      - name: Enforce all 409 owner operating-scenario gates without falsely claiming success
+        run: node scripts/verify-scenario-register.mjs
       - name: Ensure persistent free review cannot access live or legacy Atlas databases
         run: node scripts/verify-review-atlas-guard.mjs
       - name: Prove source-bound production release cannot be activated with missing proof
