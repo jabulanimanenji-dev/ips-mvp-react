@@ -178,32 +178,61 @@ export function registerOperationsRoutes(ctx){
  }));
  app.get('/api/operations/inbox',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
-  const a=req.actor;
+  const a=req.actor,page=Number(req.query.page||1),pageSize=Number(req.query.pageSize||20),
+   term=String(req.query.search||'').trim(),status=String(req.query.status||'all');
+  if(!Number.isSafeInteger(page)||page<1||page>10000||
+   !Number.isSafeInteger(pageSize)||pageSize<1||pageSize>100||term.length>100||
+   (status!=='all'&&!/^[a-z_]{3,45}$/.test(status)))
+   return res.status(400).json({error:'Choose a valid private inbox search, status and page.'});
   const qFilter=a.role==='student'?{studentId:a.id}:
    a.role==='root'||a.role==='manager'&&a.department==='client_relations'?{}:
    a.role==='staff'&&a.department==='client_relations'?
-    {$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]}:
-    {id:'none'};
-  const cFilter=a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:
+    {$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},
+      {assignedTo:{$exists:false}}]}:{id:'none'};
+  const cFilter=a.role==='student'?{studentId:a.id}:
+   a.role==='specialist'?{specialistId:a.id}:
    a.role==='root'?{}:staff(a)?scopedCaseFilter(a):{id:'none'};
-  const [quotes,commissions,cases,dm,alerts]=await Promise.all([
-   db.quotes.find(qFilter).sort({updatedAt:-1}).limit(60).toArray(),
-   db.projects.find(cFilter).sort({updatedAt:-1}).limit(80).toArray(),
-   db.support.find(a.role==='root'||intake(a)?{}:{ownerId:a.id}).sort({updatedAt:-1}).limit(40).toArray(),
-   db.directMessages.find(a.role==='root'?{}:{toId:a.id}).sort({createdAt:-1}).limit(40).toArray(),
-   db.notifications.find({accountId:a.id,read:false}).sort({createdAt:-1}).limit(35).toArray()]);
-  res.json({inbox:[
-   ...quotes.map(q=>({type:'quote',id:q.id,subject:q.subject,service:q.serviceName,
-    status:q.status,updatedAt:q.updatedAt})),
-   ...commissions.map(p=>({type:'commission',id:p.id,subject:p.subject,service:p.serviceName,
-    status:p.status,updatedAt:p.updatedAt,assigned:!!p.specialistId})),
-   ...cases.map(t=>({type:'support',id:t.id,subject:t.subject,service:'Support',
-    status:t.status,updatedAt:t.updatedAt})),
-   ...dm.map(m=>({type:'direct',id:m.id,subject:m.subject||'IPS message',
-    service:'Direct company message',status:'message',updatedAt:m.createdAt})),
-   ...alerts.map(n=>({type:'alert',id:n.id,subject:n.message,
-    service:'Company update',status:'unread',updatedAt:n.createdAt}))
-  ].sort((x,y)=>new Date(y.updatedAt)-new Date(x.updatedAt))});
+  const supportFilter=a.role==='root'||a.role==='manager'&&a.department==='client_relations'?{}:
+   a.role==='staff'&&a.department==='client_relations'?
+    {$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},
+     {assignedTo:{$exists:false}}]}:
+   a.role==='student'||a.role==='specialist'?{ownerId:a.id}:{id:'none'};
+  const projections=(type,service,statusValue,updatedAt)=>({$project:{
+   _id:0,type:{$literal:type},id:'$id',subject:'$subject',
+   service:typeof service==='string'&&service.startsWith('$')?service:{$literal:service},
+   status:typeof statusValue==='string'&&statusValue.startsWith('$')?statusValue:{$literal:statusValue},
+   updatedAt:updatedAt||'$updatedAt'
+  }});
+  const pipeline=[
+   {$match:qFilter},projections('quote','$serviceName','$status','$updatedAt'),
+   {$unionWith:{coll:'academic_commissions',
+    pipeline:[{$match:cFilter},projections('commission','$serviceName','$status','$updatedAt')]}},
+   {$unionWith:{coll:'academic_support_cases',
+    pipeline:[{$match:supportFilter},projections('support','Support','$status','$updatedAt')]}},
+   {$unionWith:{coll:'academic_direct_messages',
+    pipeline:[{$match:a.role==='root'?{}:{toId:a.id}},
+     projections('direct','Direct company message','message','$createdAt')]}},
+   {$unionWith:{coll:'academic_notifications',
+    pipeline:[{$match:{accountId:a.id,read:false}},
+     {$project:{_id:0,type:{$literal:'alert'},id:'$id',
+      subject:'$message',service:{$literal:'Company update'},
+      status:{$literal:'unread'},updatedAt:'$createdAt'}}]}}
+  ];
+  if(status!=='all')pipeline.push({$match:{status}});
+  if(term){
+   // Never compile user-controlled query regex directly.
+   const escaped=term.replace(/[^A-Za-z0-9 ]/g,'\\$&');
+   const pattern=new RegExp(escaped,'i');
+   pipeline.push({$match:{$or:[
+    {subject:pattern},{service:pattern},{id:pattern},{status:pattern},{type:pattern}]}});
+  }
+  pipeline.push({$sort:{updatedAt:-1,id:1}},
+   {$facet:{items:[{$skip:(page-1)*pageSize},{$limit:pageSize}],
+    totals:[{$count:'count'}]}});
+  const result=await db.quotes.aggregate(pipeline,{allowDiskUse:true,maxTimeMS:15000}).toArray();
+  const inbox=result[0]?.items||[],total=result[0]?.totals?.[0]?.count||0;
+  res.json({inbox,page,pageSize,total,hasNext:page*pageSize<total,
+   hasPrevious:page>1,query:term,statusFilter:status});
  }));
  app.get('/api/academic/quotes/:id/messages',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','root','manager','staff']))return;
