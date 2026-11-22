@@ -238,3 +238,13 @@ input::placeholder,textarea::placeholder{color:#a9b8c1}
  .workspace-mobile-menu nav{grid-template-columns:1fr}
  .workspace-mobile-menu nav button{min-height:40px}
 }
+
+
+/* Privacy and academic-integrity explanations expand in place, preserving form state. */
+.consent-summary{border:1px solid #4b6777;border-radius:9px;background:#173044;
+ padding:13px 15px;margin:6px 0 13px;color:#d7e7ec}
+.consent-summary summary{color:#ebd7ac;font-weight:650;cursor:pointer}
+.consent-summary p{font-size:13px;line-height:1.65;margin:12px 0 0}
+.field.full>.check{display:flex;gap:10px;align-items:flex-start;
+ font-size:13px;line-height:1.6;color:#dfe9ec}
+.field.full>.check input{margin-top:4px;flex-shrink:0;accent-color:#c9ac75}
