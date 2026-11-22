@@ -29,6 +29,7 @@ on:
       - work/ips-company-logic-remediation-20261122
       - work/ips-company-operational-hardening-20261122
       - work/ips-company-final-visual-evidence-20261122
+      - work/ips-lease-concurrency-20261122
   pull_request:
     branches:
       - main
@@ -80,6 +81,7 @@ jobs:
           node --check src/routes-public-contact.mjs
           node --check public/app.js
           node --check scripts/verify-lifecycle.mjs
+          node --check scripts/verify-delivery-lease.mjs
           node --check scripts/verify-browser.mjs
           node --check scripts/seed-review.mjs
           node --check scripts/verify-review-image.mjs
@@ -106,6 +108,8 @@ jobs:
         run: node scripts/verify-encrypted-archive.mjs
       - name: Exercise actual isolated academic service workflows against MongoDB 7
         run: node scripts/verify-lifecycle.mjs
+      - name: Reject stale notification worker settlements against real MongoDB 7
+        run: node scripts/verify-delivery-lease.mjs
       - name: Install real Chrome automation library
         run: npm install --no-save --ignore-scripts playwright@1.56.1
       - name: Verify real academic website and role-specific Chrome journeys
