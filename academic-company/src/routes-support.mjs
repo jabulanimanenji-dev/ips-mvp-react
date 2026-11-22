@@ -195,6 +195,22 @@ export function registerSupportRoutes(ctx){
   res.json({queues,product:'IPS Academic Services',paymentsEnabled:false});
  }));
 }
+// Shared delivery leases: a worker whose lock has expired cannot overwrite
+// the outcome of a newer worker which reclaimed the same MongoDB job.
+export async function claimNotificationDelivery(collection,{now=new Date(),leaseId}={}){
+ if(typeof leaseId!=='string'||!/^LEASE-[A-F0-9]{18}$/.test(leaseId))
+  throw Error('A fresh IPS delivery lease identity is required.');
+ const stale=new Date(now.getTime()-65000);
+ return collection.findOneAndUpdate({
+  nextAttemptAt:{$lte:now},
+  $or:[{status:'pending'},{status:'sending',lockedAt:{$lt:stale}}]
+ },{$set:{status:'sending',lockedAt:now,leaseId}},
+ {sort:{createdAt:1},returnDocument:'after'});
+}
+export async function settleNotificationDelivery(collection,job,update){
+ if(!job?.id||!job.leaseId)throw Error('A claimed IPS delivery lease is required.');
+ return collection.updateOne({id:job.id,status:'sending',leaseId:job.leaseId},update);
+}
 export function beginCompanyAutomation(ctx){
  const {db,rootEmail,notify,notifyQuotation,audit,sendEmail,sendTelegram,uid,config}=ctx;
  let busy=false,mailBusy=false;
@@ -202,11 +218,8 @@ export function beginCompanyAutomation(ctx){
   if(mailBusy)return;mailBusy=true;
   try{
    for(let i=0;i<8;i++){
-    const now=new Date(),stale=new Date(Date.now()-65000);
-    const job=await db.notificationDeliveries.findOneAndUpdate({
-     nextAttemptAt:{$lte:now},
-     $or:[{status:'pending'},{status:'sending',lockedAt:{$lt:stale}}]
-    },{$set:{status:'sending',lockedAt:now}},{sort:{createdAt:1},returnDocument:'after'});
+    const job=await claimNotificationDelivery(db.notificationDeliveries,{
+     now:new Date(),leaseId:uid('LEASE')});
     if(!job)break;
     try{
      let receipt;
@@ -220,19 +233,21 @@ export function beginCompanyAutomation(ctx){
      const status=config.sandbox?'synthetic_dispatched':'provider_accepted';
      // Provider API acceptance is not proof of inbox delivery.
      // Delivery events must be verified independently before marking delivered.
-     await db.notificationDeliveries.updateOne({id:job.id,status:'sending'},{
+     const settled=await settleNotificationDelivery(db.notificationDeliveries,job,{
       $set:{status,provider:receipt.provider,providerMessageId:receipt.id,
-       acceptedAt:new Date()},$unset:{lockedAt:''}});
+       acceptedAt:new Date()},$unset:{lockedAt:'',leaseId:''}});
+     if(settled.modifiedCount!==1)continue;
      if(job.telegramMessageId)await db.telegramMessages.updateOne({id:job.telegramMessageId},
       {$set:{status,provider:receipt.provider,providerMessageId:receipt.id,acceptedAt:new Date()}});
      if(receipt.provider==='resend')await reconcileResendDelivery(db,receipt.id);
     }catch(e){
      const attempts=(job.attempts||0)+1,failed=attempts>=4;
      const delay=Math.min(180000,4000*(2**(attempts-1)));
-     await db.notificationDeliveries.updateOne({id:job.id,status:'sending'},{
+     const settled=await settleNotificationDelivery(db.notificationDeliveries,job,{
       $set:{status:failed?'failed':'pending',attempts,
        nextAttemptAt:new Date(Date.now()+delay),lastError:'Provider delivery failed'},
-      $unset:{lockedAt:''}});
+      $unset:{lockedAt:'',leaseId:''}});
+     if(settled.modifiedCount!==1)continue;
      if(job.telegramMessageId)await db.telegramMessages.updateOne({id:job.telegramMessageId},
       {$set:{status:failed?'failed':'pending',attempts,lastError:'Provider delivery failed'}});
      if(failed)await db.notifications.insertOne({
