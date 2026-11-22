@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',telegramLinkUrl:'',guestVerifiedEmail:''};
+ message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',telegramLinkUrl:'',guestVerifiedEmail:'',contactPage:1,contactKind:'general'};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
@@ -37,9 +37,9 @@ const empty=t=>'<div class="empty">'+e(t)+'</div>';
 const brand=()=>'<a href="#" class="mark" data-nav="home"><span class="crest">IPS</span><span><strong>IPS ACADEMIC SERVICES</strong><small>ACADEMIC & RESEARCH SUPPORT</small></span></a>';
 const header=()=>'<div class="masthead"><header class="top">'+brand()+'<nav aria-label="Primary navigation" class="topnav">'+
  (state.account?'<span class="pill">'+e(state.account.role==='root'?'NYORO · ROOT ADMIN':state.account.role==='student'?'STUDENT / RESEARCHER':state.account.role.toUpperCase())+'</span>'+(state.rootLens?b('Return to Root','root-lens-exit'):'')+b('Sign out','logout'):
- [buttonRoute('Academic services','services'),buttonRoute('How IPS works','how'),buttonRoute('Privacy','privacy'),buttonRoute('Student / Researcher','register'),buttonRoute('Join our specialist network','specialist'),buttonRoute('Login','login','primary')].join(''))+
+ [buttonRoute('Academic services','services'),buttonRoute('How IPS works','how'),buttonRoute('Privacy','privacy'),buttonRoute('Contact IPS','contact'),buttonRoute('Student / Researcher','register'),buttonRoute('Join our specialist network','specialist'),buttonRoute('Login','login','primary')].join(''))+
  '</nav></header></div>';
-const footer=()=>'<footer class="foot"><span>© IPS Academic Services · Academic & research support</span><span>'+buttonRoute('Privacy policy','privacy','quiet')+' · Written correspondence only</span></footer>';
+const footer=()=>'<footer class="foot"><span>© IPS Academic Services · Academic & research support</span><span>'+buttonRoute('Privacy policy','privacy','quiet')+' · '+buttonRoute('Contact IPS','contact','quiet')+' · Written correspondence only</span></footer>';
 const banner=()=>state.isEvaluation?'<div class="banner" role="status">REVIEW ENVIRONMENT · Fictional accounts and academic records · No payments or external messages</div>':
  state.isStaging?'<div class="banner" role="status">ISOLATED IPS PROVIDER TESTING · Approved test identities only · External written messages may be real · No payments</div>':'';
 const flash=()=>state.error?'<div class="notice error" role="alert">'+e(state.error)+'</div>':state.message?'<div class="notice success" role="status">'+e(state.message)+'</div>':'';
@@ -123,12 +123,36 @@ function how(){
  '<div class="cta-row">'+buttonRoute('Request a quotation','quote','primary')+buttonRoute('View services','services')+'</div></main>');
 }
 function privacy(){
- shell('<main class="page policy-page">'+intro('PRIVACY & DATA PROTECTION','Discreet by design.',
- 'IPS uses verified accounts, role-limited access and secure company records to protect academic work and correspondence.')+
- panel('How IPS handles information','Only the information needed to provide academic services is requested.',
- '<p>Students and Researchers can use a private username. Specialists provide their real professional identities. Only authorized IPS personnel can access relevant case records.</p>'+
- '<p>Account recovery uses time-limited email links. IPS does not ask you to disclose passwords to staff. Academic documents and messages are visible only to their authorized participants.</p>'+
- '<p>For privacy or data access concerns, use your IPS workspace and its written support channel.</p>')+'</main>');
+ shell('<main class="page policy-page">'+intro('PRIVACY & DATA PROTECTION','Discreet academic support with accountable data handling.',
+ 'Your private academic work is processed to answer enquiries, coordinate permitted services and provide secure records.')+
+ panel('What IPS requests','Students use a chosen private username rather than a mandatory legal name.',
+ '<p>We collect verified email ownership, academic enquiries, agreed scope, correspondence, uploaded files, service decisions and essential security records. Specialists provide their professional names, qualifications and agreements. Billing details are collected only when needed for actual commissioning.</p>'+
+ '<p>Authorized IPS personnel receive case-specific access according to their responsibilities. We do not offer telephone calls.</p>')+
+ panel('How data is used and protected','Academic files remain inside authenticated workspaces.',
+ '<p>IPS uses private sessions, role-based access, screened document uploads and logged administrative decisions. External services may include the hosting platform, database provider, verified email delivery and Telegram when you explicitly connect that channel. Telegram notices contain no academic documents or confidential case details.</p>'+
+ '<p>We keep records only for operational, contractual, security and applicable legal retention needs. An authorized review is required before deleting records that must be retained.</p>')+
+ panel('Your requests and rights','Access, corrections, consent concerns and lawful retention or erasure requests must reach an accountable privacy reviewer.',
+ '<p>You can request a copy of your information, explain a correction or raise a privacy concern using the verified written contact form. IPS verifies your email before routing the request to Governance. The company will explain any retention exceptions in its response.</p>'+
+ '<div class="case-actions">'+buttonRoute('Send a privacy or data request','contact','primary')+'</div>')+
+ panel('Academic integrity and legitimate use','Guidance must preserve the student’s permitted authorship.',
+ '<p>IPS offers legitimate academic guidance, editorial services, tutoring, permitted data analysis and research support. We do not fabricate data or references, guarantee grades, or misrepresent student authorship.</p>'+
+ '<p>This page describes current company practices. Formal jurisdiction-specific notices, identity of the registered controller and mandatory retention periods remain subject to legal and owner verification before official production publication.</p>')+'</main>');
+}
+function contact(){
+ state.page='contact';
+ shell('<main class="page quote-page">'+intro('CONTACT IPS IN WRITING','Tell IPS what you need.',
+ 'Questions, Specialist application appeals and privacy rights requests are available without an account or telephone call.')+
+ panel('Verified written contact','Your email is used to verify ownership and send a written response.',
+ form('public-contact',
+ options('Request type','category',[['general','General academic services enquiry'],
+  ['specialist_appeal','Specialist application review or appeal'],
+  ['privacy_request','Privacy, data access or correction']])+
+ field('Reply email address','email','email','you@example.com')+
+ field('Subject','subject','text','What should IPS help you with?')+
+ textarea('Your request','message','Describe the question or review you need. Do not include passwords or confidential documents.')+
+ privacyCheck,'Send private request'))+'</main>');
+ const selected=root.querySelector('select[name=category]');if(selected)selected.value=state.contactKind||'general';
+ const mail=root.querySelector('input[name=email]');if(mail&&state.account?.email)mail.value=state.account.email;
 }
 function quoteFields(guest){
  const info=options('Academic service needed','serviceId',selectService())+
@@ -214,12 +238,12 @@ function resendVerification(){state.page='resend';auth('Resend your verification
  form('resend-verification',field('Registered email','email','email','you@example.com'),'Resend verification email'))}
 function tokenForm(kind){
  const params=new URLSearchParams(location.hash.slice(1)),token=params.get(kind)||'',mail=params.get('email')||'';
- const headline=kind==='verify'?'Verify your IPS email':kind==='invite'?'Accept your IPS staff invitation':kind==='guestconfirm'?'Verify your academic enquiry':'Set a new password';
+ const headline=kind==='verify'?'Verify your IPS email':kind==='invite'?'Accept your IPS staff invitation':kind==='guestconfirm'?'Verify your academic enquiry':kind==='contactverify'?'Verify your IPS written request':'Set a new password';
  const contents='<input type="hidden" name="token" value="'+e(token)+'"><input type="hidden" name="email" value="'+e(mail)+'">'+
- (kind==='guestconfirm'?'<input type="hidden" name="reference" value="'+e(params.get('ref')||'')+'">':'')+
+ ((['guestconfirm','contactverify'].includes(kind)?'<input type="hidden" name="reference" value="'+e(params.get('ref')||'')+'">':'')+
  (['recover','invite'].includes(kind)?field('New strong password','password','password','8+ characters, uppercase, number and symbol')+field('Confirm password','confirmPassword','password'):'');
  state.page=kind;auth(headline,'This private link expires and can only be used once.',form(kind,contents,
- kind==='guestconfirm'?'Confirm my academic enquiry':kind==='verify'?'Verify my email':'Secure my account'));
+ kind==='guestconfirm'?'Confirm my academic enquiry':kind==='contactverify'?'Verify my written request':kind==='verify'?'Verify my email':'Secure my account'));
 }
 function departmentsForRole(a){
  if(a.role==='student')return [['overview','Overview'],['inbox','Inbox & messages'],['notifications','Updates'],
@@ -1015,11 +1039,11 @@ function render(){
  if(state.rootEntry&&state.account&&state.account.role!=='root')return rootForbidden();
 
  const params=new URLSearchParams(location.hash.slice(1));
- for(const k of ['verify','recover','invite','guestconfirm'])if(params.has(k)){tokenForm(k);return}
+ for(const k of ['verify','recover','invite','guestconfirm','contactverify'])if(params.has(k)){tokenForm(k);return}
  if(state.rootEntry&&!state.account&&!['recover','recovery'].includes(state.page))return rootLogin();
- if(state.account&&!['quote','services','service','how','privacy','recover','resend'].includes(state.page))return work();
+ if(state.account&&!['quote','services','service','how','privacy','contact','recover','resend'].includes(state.page))return work();
  switch(state.page){case 'services':services();break;case 'service':serviceDetail();break;
- case 'how':how();break;case 'privacy':privacy();break;case 'quote':quote();break;
+ case 'how':how();break;case 'privacy':privacy();break;case 'contact':contact();break;case 'quote':quote();break;
  case 'login':login();break;case 'recover':case 'recovery':recovery();break;case 'resend':resendVerification();break;
  case 'register':register(state.registerRole==='specialist'?'specialist':'student');break;
  case 'specialist':register('specialist');break;case 'recovery':recovery();break;
@@ -1089,6 +1113,15 @@ async function submit(name,formNode){
   const r=await api('/auth/register',{method:'POST',body:data});state.page='login';return 'IPS sent your verification link. Confirm your mailbox before signing in.';
  }
  if(name==='guest-quote'){const r=await api('/academic/guest-quote',{method:'POST',body:data});state.page='login';return 'Your private academic enquiry '+r.reference+' needs email confirmation. IPS has sent a one-use link.'}
+ if(name==='public-contact'){
+  const r=await api('/public/contact',{method:'POST',body:data});
+  state.page='contact';return 'IPS sent a one-use email verification link for request '+r.reference+'. Verify before we review it.';
+ }
+ if(name==='contactverify'){
+  const r=await api('/public/contact/verify',{method:'POST',body:data});
+  history.replaceState(null,'',location.pathname+location.search);
+  state.page='home';return r.message;
+ }
  if(name==='student-quote'){const r=await api('/academic/quotes',{method:'POST',body:data});state.page='workspace';state.tab='quotes';return 'IPS received your academic enquiry '+r.quote.id+'. A qualified team member will review its scope.'}
  if(name==='guestconfirm'){const result=await api('/academic/guest-confirm',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);state.guestVerifiedEmail=data.email;state.page=result.linkedToAccount?'login':'register';state.registerRole='student';return result.message;}
  if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
@@ -1329,9 +1362,9 @@ document.addEventListener('click',async ev=>{
  const route=ev.target.closest('[data-nav]'),tab=ev.target.closest('[data-tab]'),action=ev.target.closest('[data-action]'),category=ev.target.closest('[data-category]');
  if(category){remember();state.category=category.dataset.category;services();return}
  if(route){ev.preventDefault();const tokenParams=new URLSearchParams(location.hash.slice(1));
-  if(['recover','verify','invite','guestconfirm'].some(k=>tokenParams.has(k)))history.replaceState(null,'',location.pathname+location.search);
+  if(['recover','verify','invite','guestconfirm','contactverify'].some(k=>tokenParams.has(k)))history.replaceState(null,'',location.pathname+location.search);
   remember();const dest=route.dataset.nav;state.error='';state.message='';state.opened='';
-  if(state.account&&['home','services','quote','how','privacy'].includes(dest)){if(state.rootLens&&dest==='quote'&&!state.isEvaluation){state.error='Real client quote authorization must come from the account holder.';render();return}state.page=dest==='home'?'services':dest;render();return}
+  if(state.account&&['home','services','quote','how','privacy','contact'].includes(dest)){if(state.rootLens&&dest==='quote'&&!state.isEvaluation){state.error='Real client quote authorization must come from the account holder.';render();return}state.page=dest==='home'?'services':dest;render();return}
   state.page=dest;state.registerRole=dest==='specialist'?'specialist':dest==='register'?'student':state.registerRole;render();return}
  if(tab){remember();state.workPage=0;state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;
