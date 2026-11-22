@@ -810,15 +810,56 @@ try{
   const r=await call('/support',withAuth(studentCookie,{
    subject:'Nursing editing document',message:'Please clarify which reference corrections were included in my academic editing delivery.'}),201);
   const id=r.data.ticket.id;
-  await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'IPS has logged the reference-format explanation for your review.'}),409);
-  const claimed=await call('/support/'+id+'/claim',withAuth(staffCookie,{}));
+  // A first authorized reply also claims an unowned ticket; no extra form.
+  const first=await call('/support/'+id+'/reply',withAuth(staffCookie,{
+   message:'IPS has logged the reference-format explanation for your review.'}));
+  assert.equal(first.data.claimedAutomatically,true);
   const staff=(await db.collection('academic_accounts').findOne({email:staffMail}));
-  assert.equal(claimed.data.ticket.assignedTo,staff.id);
+  const claimed=await db.collection('academic_support_cases').findOne({id});
+  assert.equal(claimed.assignedTo,staff.id);
+  assert.equal(claimed.ownershipHistory.length,1);
   await call('/support/'+id+'/claim',withAuth(managerCookie,{}),409);
-  await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'IPS has logged the reference-format explanation for your review.'}));
-  const all=await call('/support',{cookie:studentCookie});assert.ok(all.data.tickets.some(t=>t.id===id&&t.replies.length===2));
+  const all=await call('/support',{cookie:studentCookie});
+  assert.ok(all.data.tickets.some(t=>t.id===id&&t.replies.length===2));
   await call('/support/'+id+'/resolve',withAuth(studentCookie,{}));
   await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'Should not be appended.'}),409);
+  await call('/support/'+id+'/reopen',withAuth(otherCookie,{
+   reason:'Please let me see someone else’s private support history.'}),403);
+  await call('/support/'+id+'/reopen',withAuth(staffCookie,{
+   reason:'The company did not authorize me to reopen this ticket.'}),403);
+  const reopened=await call('/support/'+id+'/reopen',withAuth(studentCookie,{
+   reason:'I still require a detailed explanation of the referencing corrections.'}));
+  assert.equal(reopened.data.ticket.status,'open');
+  assert.equal(reopened.data.ticket.reopenCount,1);
+  assert.ok(reopened.data.ticket.replies.at(-1).message.includes('Reopening request'));
+  await call('/support/'+id+'/reopen',withAuth(studentCookie,{
+   reason:'This second request should not count twice.'}),409);
+  assert.equal((await db.collection('academic_support_cases').findOne({id}))
+   .reopeningHistory.length,1);
+  await call('/support/'+id+'/reply',withAuth(staffCookie,{
+   message:'IPS has reviewed your reopened issue and will send the remaining clarification.'}));
+  await call('/support/'+id+'/resolve',withAuth(studentCookie,{}));
+ });
+ await assertCheck('Routine support handoffs need no narrative and do not silently reassign the same owner',async()=>{
+  const created=await call('/support',withAuth(studentCookie,{
+   subject:'Academic support delegation check',
+   message:'I require a written update about my submitted manuscript and the review status.'}),201);
+  const id=created.data.ticket.id;
+  const staff=await db.collection('academic_accounts').findOne({email:staffMail});
+  const managed=await call('/support/'+id+'/assign',withAuth(managerCookie,{
+   assigneeId:staff.id}));
+  assert.equal(managed.data.ticket.assignedTo,staff.id);
+  assert.match(managed.data.ticket.ownershipHistory.at(-1).reason,/Manager assigned/);
+  const repeated=await call('/support/'+id+'/assign',withAuth(managerCookie,{
+   assigneeId:staff.id}));
+  assert.equal(repeated.data.alreadyAssigned,true);
+  assert.equal((await db.collection('academic_support_cases').findOne({id}))
+   .ownershipHistory.length,1);
+  await call('/support/'+id+'/assign',withAuth(otherCookie,{
+   assigneeId:staff.id}),403);
+  await call('/support/'+id+'/reply',withAuth(staffCookie,{
+   message:'The original review will proceed through the IPS Academic Services team.'}));
+  await call('/support/'+id+'/resolve',withAuth(studentCookie,{}));
  });
  await assertCheck('Completing a case releases the reserved slot for another real commission',async()=>{
   const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
