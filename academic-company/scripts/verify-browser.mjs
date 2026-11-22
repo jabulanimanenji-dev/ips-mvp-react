@@ -381,6 +381,38 @@ try{
   await overflow(rootPage);
   await screen(rootPage,'40-root-one-click-job-takeover');
  });
+ await pass('Root takeover of a pending Specialist offer confirms withdrawal and stops later acceptance',async()=>{
+  const id='IPS-A-CHROME-PENDING-OFFER';
+  const now=new Date();
+  await mongo.db.collection('academic_commissions').insertOne({
+   id,quoteId:'IPS-Q-CHROME-PENDING-OFFER',studentId:student.id,specialistId:'',
+   serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',
+   academicLevel:'Undergraduate',subject:'Pending Specialist offer quick Root decision',
+   requirements:'Synthetic consent-based editorial assistance.',
+   status:'awaiting_specialist_acceptance',paymentStatus:'synthetic_test_only',
+   priceMinor:13000,currency:'PLN',evaluationPayment:true,synthetic:true,
+   assignmentVersion:1,assignmentOffer:{specialistId:specialist.id,version:1,
+    feeMinor:6000,terms:'Optional, synthetic specialist assignment offer.',
+    createdAt:now,expiresAt:new Date(Date.now()+7200000)},
+   createdAt:now,updatedAt:now,
+   milestones:[{name:'Specialist assignment',status:'pending',at:null}]
+  });
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Academic jobs',exact:true}).click();
+  const row=rootPage.locator('.record').filter({hasText:'Pending Specialist offer quick Root decision'});
+  await row.getByRole('button',{name:'Take over job'}).waitFor();
+  rootPage.once('dialog',dialog=>dialog.dismiss());
+  await row.getByRole('button',{name:'Take over job'}).click();
+  assert.equal((await mongo.db.collection('academic_commissions').findOne({id})).status,
+   'awaiting_specialist_acceptance','Declining the withdrawal prompt must not reassign the job');
+  rootPage.once('dialog',dialog=>dialog.accept());
+  await row.getByRole('button',{name:'Take over job'}).click();
+  await rootPage.getByText('Nyoro now manages this job. Upload the deliverable for quality review.').waitFor();
+  const changed=await mongo.db.collection('academic_commissions').findOne({id});
+  assert.equal(changed.status,'root_in_progress');
+  assert.equal(changed.assignmentOffer,undefined,'The pending offer must be revoked');
+  await overflow(rootPage);
+  await screen(rootPage,'41-root-simplified-pending-offer-withdrawal');
+ });
  await pass('Nyoro sends a live-workflow private message and document to a Student in one account directory',async()=>{
   await rootPage.locator('.sidebar').getByRole('button',{name:'Students',exact:true}).click();
   const p=rootPage.locator('tr[data-directory-row]',{hasText:'PrivateScholar'}).first();
