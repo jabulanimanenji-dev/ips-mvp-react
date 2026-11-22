@@ -10,6 +10,7 @@ import {SPECIALIST_AGREEMENT} from './specialist-agreement.mjs';
 import {email,validEmail,hashPassword,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid} from './security.mjs';
 import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
+import {registerAssignmentOfferRoutes} from './routes-assignment-offers.mjs';
 import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs';
 import {registerOperationsRoutes} from './routes-operations.mjs';
 import {registerTelegramRoutes,telegramConfigured} from './routes-telegram.mjs';
@@ -360,6 +361,7 @@ app.get('/api/session',wrap(async(req,res)=>{
 }));
 registerIdentityRoutes(ctx);
 registerAcademicRoutes(ctx);
+registerAssignmentOfferRoutes(ctx);
 registerSupportRoutes(ctx);
 registerOperationsRoutes(ctx);
 registerTelegramRoutes(ctx);
