@@ -47,7 +47,7 @@ const shell=content=>{root.innerHTML=header()+banner()+((state.page!=='home'&&st
 const intro=(tag,title,desc)=>'<div class="page-intro"><span class="kicker">'+e(tag)+'</span><h1>'+e(title)+'</h1><p>'+e(desc)+'</p></div>';
 const navData=(route,name,active)=>'<button type="button" data-tab="'+e(route)+'" class="'+(active===route?'active':'')+'">'+e(name)+'</button>';
 const selectService=()=>state.catalogue.services.map(s=>[s.id,s.title]);
-const chooseLevel=()=>state.catalogue.levels.map(x=>[x,x]);
+const chooseLevel=()=>[['','Select your academic level'],...state.catalogue.levels.map(x=>[x,x])];
 const privacyCheck='<label class="field full"><span><input type="checkbox" name="privacyConsent" required> I agree to secure processing of my private enquiry and written communication from IPS.</span></label>';
 const integrityCheck='<label class="field full"><span><input type="checkbox" name="integrityAcknowledged" required> I agree to the academic integrity requirements.</span></label>';
 async function api(endpoint,{method='GET',body,operator=false}={}){
@@ -156,6 +156,7 @@ function contact(){
 }
 function quoteFields(guest){
  const info=options('Academic service needed','serviceId',selectService())+
+ '<section class="service-scoping" data-service-guidance aria-live="polite"></section>'+
  options('Your academic level','academicLevel',chooseLevel())+
  field('Academic subject / discipline','subject','text','e.g. Nursing, Economics, Psychology')+
  field('Preferred deadline','deadline','date','',false)+
@@ -178,6 +179,14 @@ function quote(){
  field('Email address','email','email','you@example.com'):'')+
  quoteFields(guest)+(guest?privacyCheck:''),'Send request'))+'</main>');
  const el=root.querySelector('select[name=serviceId]');if(el&&state.service)el.value=state.service;
+ updateServiceGuidance();
+}
+function updateServiceGuidance(){
+ const id=root.querySelector('select[name=serviceId]')?.value;
+ const service=state.catalogue.services.find(x=>x.id===id);
+ const node=root.querySelector('[data-service-guidance]');if(!node)return;
+ node.innerHTML=service?'<strong>Tell IPS about this service</strong><p>'+e(service.description)+
+  '</p><ul>'+service.questions.map(q=>'<li>'+e(q)+'</li>').join('')+'</ul>':'';
 }
 function auth(title,subtitle,formContent,extras=''){
  shell('<main class="auth">'+intro('SECURE IPS ACADEMIC ACCESS',title,subtitle)+flash()+
@@ -1392,6 +1401,7 @@ function filterDirectory(){
 }
 document.addEventListener('input',ev=>{if(ev.target.matches('[data-directory-search]'))filterDirectory();if(ev.target.matches('[data-work-search]'))filterWorklist(true)});
 document.addEventListener('change',async ev=>{
+ if(ev.target.matches('select[name=serviceId]')){updateServiceGuidance();return}
  if(ev.target.matches('[data-directory-status]')){filterDirectory();return}
  if(ev.target.matches('[data-work-status]')){filterWorklist(true);return}
  const select=ev.target.closest('select[data-root-target]');
