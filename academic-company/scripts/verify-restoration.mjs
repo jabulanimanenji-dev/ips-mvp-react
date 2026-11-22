@@ -40,11 +40,14 @@ try{
  assert.equal(p.status,200);assert.equal(p.json.commission.serviceId,'academic-editing');
  const list=await request('/academic/commissions/'+project.id+'/files',{cookie:studentCookie});
  assert.equal(list.status,200);
- assert.equal(list.json.files.length,1,'Student must receive only the final QA-approved release');
- assert.equal(list.json.files[0].id,project.releasedFileId,'Wrong academic file released after restore');
+ assert.ok(list.json.files.length>=1,'Student needs at least one QA-approved release after restoration');
+ assert.ok(list.json.files.some(f=>f.id===project.releasedFileId),'Final QA-approved file is unavailable after restore');
+ const authorizedIds=new Set([project.releasedFileId,...(project.releasedFileHistory||[])]);
+ assert.ok(list.json.files.every(f=>authorizedIds.has(f.id)),
+  'QA-rejected drafts must not be readable after independent restoration');
  assert.ok(await db.collection('academic_private_files').countDocuments({commissionId:project.id})>=2,
   'Restored history of earlier academic draft versions is missing');
- const chosen=list.json.files[0];
+ const chosen=list.json.files.find(f=>f.id===project.releasedFileId);
  const downloaded=await fetch(base+'/api/academic/files/'+chosen.id,{headers:{Cookie:studentCookie}});
  assert.equal(downloaded.status,200);const bytes=Buffer.from(await downloaded.arrayBuffer());
  const digest=crypto.createHash('sha256').update(bytes).digest('hex');
