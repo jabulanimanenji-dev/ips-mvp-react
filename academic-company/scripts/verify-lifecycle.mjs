@@ -1413,6 +1413,57 @@ try{
     maxConcurrentCases:previous.maxConcurrentCases,turnaroundDays:previous.turnaroundDays,
     activeAssignments:previous.activeAssignments}});
  });
+ await assertCheck('Unregistered people can verify written appeals and privacy requests without phone or login',async()=>{
+  const mail=emailFor('public-appeal');
+  const submitted=await call('/public/contact',{method:'POST',body:{
+   category:'specialist_appeal',email:mail,
+   subject:'Request review of my professional Specialist application',
+   message:'I would like IPS to review my academic credentials and explain how to supply additional evidence.',
+   privacyConsent:true}},202);
+  const reference=submitted.data.reference;
+  const before=await call('/administration/public-contacts',{cookie:rootCookie});
+  assert.ok(!before.data.cases.some(c=>c.id===reference),
+   'Unverified email senders must not appear in real management queues');
+  const letter=await inbox(mail,'Confirm your written IPS Academic Services request');
+  const code=token(letter,'contactverify');
+  await call('/public/contact/verify',{method:'POST',body:{
+   email:mail,token:code,reference}});
+  await call('/public/contact/verify',{method:'POST',body:{
+   email:mail,token:code,reference}},400);
+  const verified=await call('/administration/public-contacts?category=specialist_appeal',
+   {cookie:rootCookie});
+  assert.ok(verified.data.cases.some(c=>c.id===reference));
+  await call('/administration/public-contacts/'+reference,{cookie:staffCookie},403);
+  await call('/administration/public-contacts/'+reference+'/claim',
+   withAuth(staffCookie,{}),403);
+  const own=await call('/administration/public-contacts/'+reference+'/claim',
+   withAuth(rootCookie,{}));
+  assert.equal(own.data.case.assignedTo,vars.ROOT_EMAIL);
+  await call('/administration/public-contacts/'+reference+'/reply',
+   withAuth(rootCookie,{message:'IPS received your request for a documented Specialist application review. Please provide any additional qualifications through our verified written process.'}));
+  const reply=await inbox(mail,'IPS Academic Services — written response '+reference);
+  assert.ok(reply.text.includes('additional qualifications'));
+  const record=await db.collection('academic_public_contacts').findOne({id:reference});
+  assert.equal(record.status,'replied');
+  assert.equal(record.replies.length,1);
+  assert.ok(!JSON.stringify(verified.data).includes('verificationHash'));
+  await call('/administration/public-contacts?category=privacy_request',{cookie:managerCookie},403);
+  const privacyMail=emailFor('public-privacy');
+  const rights=await call('/public/contact',{method:'POST',body:{
+   category:'privacy_request',email:privacyMail,subject:'Request a copy of my account information',
+   message:'Please explain what information IPS retains under my verified email and how I may seek a correction.',
+   privacyConsent:true}},202);
+  const validation=token(await inbox(privacyMail,'Confirm your written IPS Academic Services request'),
+   'contactverify');
+  await call('/public/contact/verify',{method:'POST',body:{
+   email:privacyMail,reference:rights.data.reference,token:validation}});
+  const privateQueue=await call('/administration/queues',{cookie:rootCookie});
+  assert.ok(privateQueue.data.queues.some(q=>q.department==='governance'&&
+   q.items.some(x=>x.id===rights.data.reference&&x.type==='contact')));
+  await call('/administration/public-contacts/'+rights.data.reference,{cookie:managerCookie},403);
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'academic_public_contact_verified',ref:rights.data.reference}));
+ });
  await assertCheck('Server-side people search pages beyond 300 accounts without leaking scoped identities',async()=>{
   // Direct test inserts model genuine directory scale; sandbox only, no invitation
   // or password bypass in the real registration endpoints.
