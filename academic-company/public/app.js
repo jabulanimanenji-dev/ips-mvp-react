@@ -638,6 +638,22 @@ async function loadTab(){
        '" target="_blank" rel="noopener noreferrer">Open IPS Telegram bot and confirm this one-use link</a></p>':''):
      '<p>Telegram connection is not yet enabled. IPS workspace and email remain available.</p>'));
   }
+  if(!rootAssisted&&['student','specialist'].includes(a.role)){
+   const rights=await api('/profile/privacy-requests');
+   html+=panel('Privacy and account data',
+    'Ask IPS to provide, correct, restrict or review deletion of your personal records. IPS reviews retention obligations before any deletion.',
+    (rights.requests.length?'<div class="small-list">'+rights.requests.map(r=>
+     record('Data request · '+e(r.type),date(r.createdAt),
+      r.reference,r.status)).join('')+'</div>':'')+
+    form('privacy-request',
+     '<input type="hidden" name="requestId" value="'+e('PRIV-'+crypto.randomUUID())+'">'+
+     options('Request type','type',[
+      ['access','Access my information'],['correction','Correct my information'],
+      ['erasure','Review account/data deletion'],['portability','Copy of my records'],
+      ['restriction','Restrict processing'],['objection','Object to a particular use']])+
+     textarea('Further information','details','Explain what information needs attention if relevant',false),
+     'Send private data request'));
+  }
   if(a.role==='specialist'&&!rootAssisted){
    const agreement=state.catalogue.specialistAgreement;
    html+=panel('Specialist confidentiality agreement',
@@ -1500,6 +1516,12 @@ async function submit(name,formNode){
   return 'Your availability and assignment capacity are saved for IPS Academic Delivery.';
  }
  if(name==='contact-preference'){await api('/profile',{method:'PATCH',body:data});state.account.contactPreference=data.contactPreference;return 'Your preferred written contact channel was saved.'}
+ if(name==='privacy-request'){
+  const r=await api('/profile/privacy-requests',{method:'POST',
+   body:{type:data.type,details:data.details||'',requestId:data.requestId}});
+  return r.duplicate?'Your existing data request remains open under reference '+r.reference+'.':
+   'Your verified privacy request '+r.reference+' is now in the IPS Governance queue.';
+ }
  throw Error('This academic operation has not been connected.');
 }
 document.addEventListener('submit',async ev=>{
