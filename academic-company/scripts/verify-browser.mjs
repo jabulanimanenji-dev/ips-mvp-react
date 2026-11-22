@@ -56,6 +56,28 @@ try{
   assert.ok((await publicPage.locator('body').innerText()).includes('Students & Researchers'));
   await overflow(publicPage);await screen(publicPage,'01-academic-homepage');
  });
+ await pass('Public written support and verified data-rights contact are reachable without registration',async()=>{
+  await publicPage.locator('.topnav').getByRole('button',{name:'Contact IPS'}).click();
+  await publicPage.getByRole('heading',{name:'Tell IPS what you need.'}).waitFor();
+  assert.equal(await publicPage.locator('form[data-form=public-contact]').count(),1);
+  await publicPage.locator('select[name=category]').selectOption('privacy_request');
+  await publicPage.locator('input[name=email]').fill('privacy-browser-evaluation@example.org');
+  await publicPage.locator('input[name=subject]').fill('Request review of my IPS data');
+  await publicPage.locator('textarea[name=message]').fill(
+   'Please explain how to obtain my records and correct any inaccurate information.');
+  await publicPage.locator('input[name=privacyConsent]').check();
+  await publicPage.getByRole('button',{name:'Send private request'}).click();
+  await publicPage.getByText('IPS sent a one-use email verification link',{exact:false}).waitFor();
+  const mail=await mongo.db.collection('academic_evaluation_mail').findOne({
+   to:'privacy-browser-evaluation@example.org',
+   subject:'Confirm your written IPS Academic Services request'});
+  assert.ok(mail?.text.includes('#contactverify='));
+  await publicPage.locator('.topnav').getByRole('button',{name:'Privacy'}).click();
+  await publicPage.getByRole('heading',{name:'Discreet academic support with accountable data handling.'}).waitFor();
+  await overflow(publicPage);
+  await screen(publicPage,'35-public-data-rights-policy');
+  await publicPage.locator('.topnav').getByRole('button',{name:'Academic services'}).click();
+ });
  await pass('Academic website uses verified real photography and signup confirms passwords',async()=>{
   await publicPage.locator('img.hero-photo').waitFor();
   const photo=publicPage.locator('img.hero-photo');
