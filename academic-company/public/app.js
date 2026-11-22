@@ -1038,10 +1038,27 @@ async function commissionDetail(p,a){
        'Store in private vault'):'')+files);
   }
  }
+ const nextStage={
+  awaiting_payment_integration:'Commissioning cannot begin before secure payment setup. You may withdraw this unpaid request.',
+  ready_for_assignment:'IPS Academic Delivery must offer the permitted work to an eligible Specialist.',
+  awaiting_specialist_acceptance:'An approved Specialist is reviewing the offered scope, fee and deadline.',
+  specialist_assigned:'The accepted Specialist prepares the agreed academic work and securely submits it.',
+  root_in_progress:'IPS Root Administration is directly coordinating this permitted academic work.',
+  qa_pending:'An accountable IPS quality reviewer must verify the submitted work before release.',
+  correction_requested:'The responsible Specialist or IPS coordinator must correct QA findings.',
+  student_revision_requested:'The Specialist must address the Student’s permitted revision request.',
+  client_delivery:'The Student reviews the approved delivery and may accept or request an included revision.',
+  completed:'The Student accepted delivery. The academic work history remains available.',
+  cancelled:'This request was withdrawn or closed without a completed commission.'
+ };
  const overview='<div class="case-summary"><span class="kicker">ACADEMIC JOB / '+e(p.id)+'</span>'+
   '<h3>'+e(p.subject)+'</h3><p>'+e(p.requirements)+'</p>'+
   '<div class="case-actions">'+stat(p.status)+
-   '<span class="pill">'+e(p.serviceName)+'</span></div>'+flow+
+   '<span class="pill">'+e(p.serviceName)+'</span></div>'+
+  '<p class="next-action"><strong>What happens next:</strong> '+e(nextStage[p.status]||'IPS will confirm the next permitted action in writing.')+'</p>'+flow+
+  '<p><strong>Last updated:</strong> '+date(p.updatedAt)+'</p>'+
+  '<p><strong>Included revision rounds:</strong> '+e(p.revisionAllowance??1)+
+   ' · <strong>Revision requests used:</strong> '+e(p.revisionCount||0)+'</p>'+
   '<p><strong>Delivery:</strong> '+e(p.deadline||'As agreed in your quotation')+'</p>'+
   '<p><strong>Company responsibility:</strong> '+e(p.managedBy?'Nyoro · IPS Root':
     p.specialistId?'Assigned IPS Specialist':'IPS Academic Delivery')+'</p>'+
