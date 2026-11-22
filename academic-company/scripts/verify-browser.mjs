@@ -315,7 +315,7 @@ try{
  });
  await pass('Root navigates searchable departmental queues without an endless list',async()=>{
   await rootPage.locator('.sidebar').getByRole('button',{name:'Department queues'}).click();
-  await rootPage.getByRole('heading',{name:'Department queues'}).waitFor();
+  await rootPage.locator('#workbody').getByRole('heading',{name:'Department queues'}).waitFor();
   const n=await rootPage.locator('[data-work-row]').count();
   assert.ok(n>0,'The company must have accountable academic work waiting in the real queue');
   assert.ok(await rootPage.locator('[data-work-row]:not([hidden])').count()<=14);
