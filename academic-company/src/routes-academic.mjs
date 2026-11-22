@@ -26,7 +26,24 @@ export function registerAcademicRoutes(ctx){
  };
  const studentOwner=(a,p)=>a?.role==='student'&&a.id===p.studentId;
  const specialistOwner=(a,p)=>a?.role==='specialist'&&a.id===p.specialistId;
- const adminOf=(a,p)=>!!a&&(a.role==='root'||(['manager','staff'].includes(a.role)&&['academic_delivery','quality_assurance','client_relations'].includes(a.department)));
+ // Department membership is not authority to read every academic case or file.
+ const caseStaffScope=(a,p)=>!!a&&(
+  a.department==='client_relations'&&
+   (p.coordinatorId===a.id||(a.role==='manager'&&p.coordinatorManagerId===a.id))||
+  a.department==='academic_delivery'&&
+   (p.deliveryOwnerId===a.id||(a.role==='manager'&&p.deliveryManagerId===a.id))||
+  a.department==='quality_assurance'&&
+   (p.qaOwnerId===a.id||(a.role==='manager'&&p.qaManagerId===a.id)));
+ const adminOf=(a,p)=>!!a&&(a.role==='root'||
+  ['manager','staff'].includes(a.role)&&caseStaffScope(a,p));
+ const caseFilter=a=>a.role==='root'?{}:
+  a.department==='client_relations'?{$or:[{coordinatorId:a.id},
+   ...(a.role==='manager'?[{coordinatorManagerId:a.id}]:[])]}:
+  a.department==='academic_delivery'?{$or:[{deliveryOwnerId:a.id},
+   ...(a.role==='manager'?[{deliveryManagerId:a.id}]:[])]}:
+  a.department==='quality_assurance'?{$or:[{qaOwnerId:a.id},
+   ...(a.role==='manager'?[{qaManagerId:a.id}]:[])]}:{id:'unavailable'};
+
  const canSee=(a,p)=>!!a&&(studentOwner(a,p)||specialistOwner(a,p)||adminOf(a,p));
  const denial=(res)=>res.status(403).json({error:'You do not have access to this private academic record.'});
  const validateBrief=input=>{
@@ -340,6 +357,10 @@ export function registerAcademicRoutes(ctx){
     {$set:{acceptedOfferVersion:q.offerVersion||1}});
   await audit(req.actor,'academic_quote_'+decision,q.id);
   if(decision==='decline')return res.json({success:true,quote:quoteView(q)});
+  const owner=await db.accounts.findOne({id:q.assignedTo||''},
+   {projection:{id:1,role:1,managerId:1}});
+  const coordManagerId=owner?.role==='staff'?owner.managerId:
+   owner?.role==='manager'?owner.id:'';
   const project={id:uid('IPS-A'),quoteId:q.id,studentId:q.studentId,specialistId:'',
    serviceId:q.serviceId,serviceName:q.serviceName,academicLevel:q.academicLevel,
    subject:q.subject,requirements:q.requirements,deliverables:q.deliverables,
@@ -351,7 +372,8 @@ export function registerAcademicRoutes(ctx){
     {name:'Academic quality assurance',status:'pending',at:now()},
     {name:'Secure final delivery',status:'pending',at:now()}],
    revisionCount:0,revisionAllowance:1,
-   coordinatorId:q.assignedTo||rootEmail,deliveryOwnerId:'',qaOwnerId:'',
+   coordinatorId:q.assignedTo||rootEmail,coordinatorManagerId:coordManagerId||'',
+   deliveryOwnerId:'',deliveryManagerId:'',qaOwnerId:'',qaManagerId:'',
    assignedBy:'',qaReviewer:'',createdAt:now(),updatedAt:now()};
   try{await db.projects.insertOne(project)}
   catch(e){if(e.code===11000){const existing=await db.projects.findOne({quoteId:q.id});
@@ -388,7 +410,7 @@ export function registerAcademicRoutes(ctx){
   const a=req.actor;
   if(!listAllowed(a))return res.status(403).json({error:'No authority to inspect academic commissions.'});
   const filter=a.role==='student'?{studentId:a.id}:
-   a.role==='specialist'?{specialistId:a.id}:{};
+   a.role==='specialist'?{specialistId:a.id}:caseFilter(a);
   const items=await db.projects.find(filter).sort({createdAt:-1}).limit(120).toArray();
   res.json({commissions:items.map(p=>commissionView(p,a))});
  }));
@@ -694,8 +716,9 @@ export function registerAcademicRoutes(ctx){
   const a=req.actor,root=a.role==='root',dept=a.department||'';
   const quoteFilter=root||(['manager','staff'].includes(a.role)&&dept==='client_relations')?{}:
    a.role==='student'?{studentId:a.id}:{id:'unavailable'};
-  const projectFilter=root||(['manager','staff'].includes(a.role)&&['academic_delivery','quality_assurance'].includes(dept))?{}:
-   a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:{id:'unavailable'};
+  const projectFilter=root?{}:
+   a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:
+   ['manager','staff'].includes(a.role)?caseFilter(a):{id:'unavailable'};
   const ticketFilter=root||(['manager','staff'].includes(a.role)&&dept==='client_relations')?{}:
    ['student','specialist'].includes(a.role)?{ownerId:a.id}:{id:'unavailable'};
   const [q,p,t,alerts,pendingQA]=await Promise.all([
