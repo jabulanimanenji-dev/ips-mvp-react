@@ -100,6 +100,10 @@ export function registerIdentityRoutes(ctx){
    await audit(found,'specialist_email_verified',found.id);
    return res.json({success:true,reviewRequired:true,message:'Email verified. IPS will review your qualifications before specialist access.'});
   }
+  // Verified email proves ownership of earlier confirmed guest enquiries.
+  // Attach them once, with no extra manual claim or legal-name requirement.
+  await db.quotes.updateMany({contactEmail:found.email,studentId:'',contactVerified:true},
+   {$set:{studentId:found.id,username:found.username,updatedAt:now()}});
   security.set(res,{role:found.role,id:found.id,version:found.sessionVersion});
   await audit(found,'student_email_verified',found.id);
   res.json({success:true,account:readonlyUser(found)});
