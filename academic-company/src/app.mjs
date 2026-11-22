@@ -314,16 +314,19 @@ function wrap(handler){return async(req,res)=>{try{await handler(req,res)}catch(
 }}}
 const inspectAcademicUpload=buffer=>inspectAcademicFile(buffer,{env,sandbox:config.sandbox});
 const ctx={app,db,documentBucket,inspectAcademicUpload,env,config,security,throttle,sendEmail,sendTelegram,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
-app.get('/api/health',wrap(async(_req,res)=>res.json({
- ready:mongoose.connection.readyState===1,
+app.get('/api/health',wrap(async(_req,res)=>{
+ const databaseReady=mongoose.connection.readyState===1;
+ return res.status(databaseReady?200:503).json({
+ ready:databaseReady,
  product:'IPS Academic Services',identity:'academic-services-only',release:'academic-company-2026-v1',
  environment:config.sandbox?'ISOLATED_ACADEMIC_REVIEW':config.staging?'STAGING_REAL_PROVIDER_VALIDATION':'PRODUCTION',
  payments:'integration-pending',
  documentScreening:scanConfiguration(env).host?'configured_not_proven':
   (config.sandbox?'synthetic_not_scanned':'unavailable'),
  resendWebhook:env.RESEND_WEBHOOK_SECRET?'configured_not_proven':'unavailable',
- database:mongoose.connection.readyState===1?'connected':'unavailable'
-})));
+ database:databaseReady?'connected':'unavailable'
+ });
+}));
 app.get('/api/catalogue',(_req,res)=>res.json({
  company:'IPS Academic Services',categories:CATEGORIES,services:SERVICES,
  levels:ACADEMIC_LEVELS,departments:Object.entries(DEPARTMENTS).map(([id,name])=>({id,name})),
