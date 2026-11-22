@@ -49,16 +49,21 @@ export function registerFinanceRoutes(ctx){
  }));
  app.get('/api/finance/overview',wrap(async(req,res)=>{
   if(!staffGuard(req,res))return;
-  const [bills,logs,comp,disputes]=await Promise.all([
+  const [bills,logs,comp,disputes,summaryRows]=await Promise.all([
    db.billing.find().sort({createdAt:-1}).limit(150).toArray(),
    db.workLogs.find().sort({createdAt:-1}).limit(150).toArray(),
    db.compensation.find().sort({updatedAt:-1}).limit(150).toArray(),
-   db.billingDisputes.find().sort({updatedAt:-1}).limit(100).toArray()]);
+   db.billingDisputes.find().sort({updatedAt:-1}).limit(100).toArray(),
+   db.billing.aggregate([{$match:{state:{$ne:'cancelled_before_payment'}}},
+    {$group:{_id:null,count:{$sum:1},amountMinor:{$sum:'$amountMinor'}}}]).toArray()]);
   res.json({billing:bills.map(billingView),workLogs:logs.map(workView),
    compensation:comp.map(summary),disputes:disputes.map(disputeView),
-   totals:{awaitingPaymentIntegration:bills.length,
-    acceptedQuoteValueMinor:bills.reduce((v,b)=>v+b.amountMinor,0),
+   totals:{awaitingPaymentIntegration:summaryRows[0]?.count||0,
+    acceptedQuoteValueMinor:summaryRows[0]?.amountMinor||0,
     collectedAmountMinor:0,issuedReceipts:0,executedPayoutMinor:0},
+   sample:{billingShown:bills.length,billingTotal:await db.billing.countDocuments(),
+    workLogsShown:logs.length,workLogsTotal:await db.workLogs.countDocuments(),
+    disputesShown:disputes.length,disputesTotal:await db.billingDisputes.countDocuments()},
    currency:'PLN',paymentsEnabled:false});
  }));
  app.get('/api/finance/work-logs',wrap(async(req,res)=>{
