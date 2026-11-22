@@ -1525,7 +1525,7 @@ try{
   await db.collection('academic_notifications').deleteOne({id:item.id});
   await db.collection('academic_notification_deliveries').deleteMany({
    accountId:vars.ROOT_EMAIL,kind:'support_escalation',
-   notificationId:{$exists:false}});
+   notificationId:item.id});
  });
  await assertCheck('Server-side people search pages beyond 300 accounts without leaking scoped identities',async()=>{
   // Direct test inserts model genuine directory scale; sandbox only, no invitation
