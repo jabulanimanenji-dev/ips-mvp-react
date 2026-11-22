@@ -373,6 +373,55 @@ export function registerOperationsRoutes(ctx){
   res.status(201).json({file:metadata(file),storage:'private_gridfs',
    byteLength:blob.byteLength});
  }));
+ // Nyoro may deliver large, permitted Root-managed work just as an assigned
+ // Specialist can. A private 20 MiB binary file is scanner-gated and
+ // GridFS-backed, and is NEVER client-delivered before governed QA.
+ app.post('/api/operations/:id/upload-deliverable-binary',
+  express.raw({type:'application/octet-stream',limit:'21mb'}),wrap(async(req,res)=>{
+  if(!authorize(req,res,['root']))return;
+  if(await throttle.limited(req,'academic-root-deliverable',20))
+   return res.status(429).json({error:'Please retry your private Root document submission later.'});
+  const eligible=['root_in_progress','correction_requested','student_revision_requested'];
+  const p=await db.projects.findOne({id:req.params.id});
+  if(!p)return res.status(404).json({error:'Academic job not found.'});
+  if(p.paymentStatus==='not_collected'||p.status==='awaiting_payment_integration')
+   return res.status(409).json({error:'No academic deliverable may bypass genuine payment commissioning.'});
+  if(!eligible.includes(p.status)||p.fulfilmentMode!=='root')
+   return res.status(409).json({error:'Only a Root-managed, eligible academic job accepts Nyoro direct submissions.'});
+  const checked=binaryDocument(req);
+  if(checked.error)return res.status(400).json({error:checked.error});
+  const scanned=await verifyScan(res,checked.buffer);
+  if(!scanned)return;
+  const id=uid('AF'),at=now();
+  const blob=await storePrivateBlob({id,...checked,
+   context:{kind:'academic_submission',commissionId:p.id,rootSubmission:true}});
+  const file={id,commissionId:p.id,studentId:p.studentId,specialistId:'',
+   filename:checked.filename,mime:checked.mime,purpose:'deliverable',
+   kind:'academic_submission',...blob,scanStatus:scanned,createdAt:at,
+   uploadedBy:rootEmail,rootSubmission:true,revision:p.revisionCount||0};
+  try{
+   await db.files.insertOne(file);
+   const updated=await db.projects.findOneAndUpdate({id:p.id,status:p.status,
+    fulfilmentMode:'root',paymentStatus:p.paymentStatus},
+    {$set:{status:'qa_pending',pendingFileId:id,qaMode:'root_supervised_exception',
+     updatedAt:at}},{returnDocument:'after'});
+   if(!updated){
+    await db.files.deleteOne({id});
+    await documentBucket.delete(blob.blobId);
+    return res.status(409).json({error:'The Root-managed job changed during upload. Refresh before retrying.'});
+   }
+  }catch(err){
+   await db.files.deleteOne({id}).catch(()=>{});
+   await documentBucket.delete(blob.blobId).catch(()=>{});
+   throw err;
+  }
+  await audit(req.actor,'academic_root_gridfs_deliverable_submitted',p.id,{
+   fileId:id,sha256:blob.sha256,byteLength:blob.byteLength,
+   qaMode:'root_supervised_exception'});
+  await notify(rootEmail,'Root-managed deliverable awaiting documented QA on '+p.id,'quality');
+  res.status(201).json({file:metadata(file),needsQa:true,storage:'private_gridfs',
+   byteLength:blob.byteLength,qaMode:'root_supervised_exception'});
+ }));
  app.post('/api/operations/:id/upload',wrap(async(req,res)=>{
   if(!authorize(req,res,['root','student','specialist','manager','staff']))return;
   const p=await db.projects.findOne({id:req.params.id});
