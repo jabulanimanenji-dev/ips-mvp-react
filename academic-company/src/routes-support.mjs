@@ -253,8 +253,8 @@ export function beginCompanyAutomation(ctx){
   if(result.upsertedCount)await db.notificationDeliveries.insertOne({
    id:uid('OUT'),accountId:rootEmail,to:rootEmail,kind,
    subject:'IPS Academic Services — company action requires attention',
-   text:'A company responsibility requires action in Nyoro Root Administration.\\n'+
-     'Sign in securely: '+config.origin+'\\n'+
+   text:'A company responsibility requires action in Nyoro Root Administration.\n'+
+     'Sign in securely: '+config.origin+'\n'+
      'Academic details remain in the IPS workspace.',
    status:'pending',attempts:0,nextAttemptAt:at,createdAt:at});
  };
