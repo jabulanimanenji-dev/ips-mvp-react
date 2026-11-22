@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',telegramLinkUrl:''};
+ message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',telegramLinkUrl:'',guestVerifiedEmail:''};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
@@ -148,6 +148,7 @@ function quote(){
  shell('<main class="page quote-page">'+intro('REQUEST A QUOTATION','Tell us what you need.',
  'Choose an academic service and describe your requirements. IPS will reply in writing.')+
  panel('Your academic request','',
+ (guest?'<p class="subtle">You can request a confidential quotation without creating an account. IPS verifies your email first; create a free private Student account with that email to see the reviewed quotation and reply securely.</p>':'')+
  form(guest?'guest-quote':'student-quote',
  (guest?field('Private username','username','text','Choose a username')+
  field('Email address','email','email','you@example.com'):'')+
@@ -205,6 +206,7 @@ function register(role='student'){
  form('register',content,specialist?'Submit Specialist application':'Create private IPS account'),
  '<div class="action-row">'+buttonRoute('Already registered? Sign in','login')+'</div>');
  const select=root.querySelector('select[name=role]');if(select){select.value=role;select.addEventListener('change',ev=>register(ev.target.value))}
+ if(state.guestVerifiedEmail&&!specialist){const input=root.querySelector('input[name=email]');if(input)input.value=state.guestVerifiedEmail;}
 }
 function recovery(){state.page='recover';auth('Reset your password','Enter the registered email. IPS automatically sends a one-use recovery link.',
  form('recovery',field('Registered email','email','email','you@example.com'),'Email recovery link'))}
@@ -850,6 +852,13 @@ async function commissionDetail(p,a){
    '</strong><small>'+e((f.purpose||'academic file').replaceAll('_',' '))+' · Uploaded '+date(f.createdAt)+
    ' · '+e(f.sha256?.slice(0,12)||'')+'</small></div>'+
    '<a href="/api/academic/files/'+encodeURIComponent(f.id)+'" download>Download ↓</a></article>').join('');
+ if(student&&p.status==='awaiting_payment_integration'&&!assisted)
+  actions+=panel('Accepted quotation · commissioning not yet open',
+   'You have not been charged. IPS will not begin paid work before verified commissioning. You may withdraw this request without a refund process because no payment was collected.',
+   form('withdraw-unpaid',
+    '<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
+    textarea('Reason for withdrawal','reason','Tell IPS why you no longer want to proceed'),
+    'Withdraw unpaid request'));
  const canDeliver=(isRoot||specialist&&canSimulate)&&['specialist_assigned','root_in_progress','correction_requested','student_revision_requested'].includes(p.status);
  const canReference=isRoot||student||specialist;
  const purposes=canDeliver&&canReference?[['reference','Supporting document'],['deliverable','Deliverable for QA']]:
@@ -1058,7 +1067,7 @@ async function submit(name,formNode){
  }
  if(name==='guest-quote'){const r=await api('/academic/guest-quote',{method:'POST',body:data});state.page='login';return 'Your private academic enquiry '+r.reference+' needs email confirmation. IPS has sent a one-use link.'}
  if(name==='student-quote'){const r=await api('/academic/quotes',{method:'POST',body:data});state.page='workspace';state.tab='quotes';return 'IPS received your academic enquiry '+r.quote.id+'. A qualified team member will review its scope.'}
- if(name==='guestconfirm'){await api('/academic/guest-confirm',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);state.page='login';return 'Your academic quotation enquiry is verified and awaiting written IPS review.'}
+ if(name==='guestconfirm'){const result=await api('/academic/guest-confirm',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);state.guestVerifiedEmail=data.email;state.page=result.linkedToAccount?'login':'register';state.registerRole='student';return result.message;}
  if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
  if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page=state.account?'workspace':'login';if(state.account)state.tab='profile';return 'If this account is verified, a one-use recovery link is being emailed now.'}
  if(name==='resend-verification'){await api('/auth/resend-verification',{method:'POST',body:data});state.page='login';return 'If verification is pending, IPS has emailed a new link.'}
@@ -1154,6 +1163,12 @@ async function submit(name,formNode){
    {method:'POST',body:{decision:data.decision,note:data.note}});
   state.opened='';
   return 'Billing concern reviewed without creating a financial settlement.';
+ }
+ if(name==='withdraw-unpaid'){
+  await api('/academic/commissions/'+encodeURIComponent(data.commissionId)+'/withdraw',
+   {method:'POST',body:{reason:data.reason}});
+  state.opened='';
+  return 'Your unpaid academic request was withdrawn. No payment or refund was involved.';
  }
  if(name==='billing-dispute'){
   await api('/finance/disputes',{method:'POST',body:{commissionId:data.commissionId,reason:data.reason}});
