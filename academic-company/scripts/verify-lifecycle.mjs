@@ -1557,6 +1557,41 @@ try{
     maxConcurrentCases:previous.maxConcurrentCases,turnaroundDays:previous.turnaroundDays,
     activeAssignments:previous.activeAssignments}});
  });
+ await assertCheck('Verified Students and Specialists can request privacy rights without redundant email checks or automatic deletion',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const id='PRIV-IPS-ACCESS-'+random();
+  await call('/profile/privacy-requests',withAuth(rootCookie,{
+   type:'access',requestId:'PRIV-ROOT-MUST-NOT-PASS'}),403);
+  await call('/profile/privacy-requests',withAuth(studentCookie,{
+   type:'erasure',requestId:'PRIV-TOO-SHORT',details:'Brief'}),400);
+  const opened=await call('/profile/privacy-requests',withAuth(studentCookie,{
+   type:'access',requestId:id,details:''}),201);
+  assert.match(opened.data.reference,/^IPS-CONT-/);
+  assert.equal(opened.data.reviewRequired,true);
+  const duplicate=await call('/profile/privacy-requests',withAuth(studentCookie,{
+   type:'access',requestId:id,details:''}));
+  assert.equal(duplicate.data.duplicate,true);
+  assert.equal(duplicate.data.reference,opened.data.reference);
+  const auditRecord=await db.collection('academic_public_contacts').findOne({id:opened.data.reference});
+  assert.equal(auditRecord.sourceAccountId,student.id);
+  assert.equal(auditRecord.contactVerified,true);
+  assert.equal(auditRecord.reviewRequired,true);
+  assert.equal(auditRecord.automaticErasure,false);
+  assert.equal(auditRecord.verificationMethod,'authenticated_account_session');
+  assert.equal(await db.collection('academic_public_contacts').countDocuments({
+   sourceAccountId:student.id,requestId:id}),1);
+  const own=await call('/profile/privacy-requests',{cookie:studentCookie});
+  assert.ok(own.data.requests.some(x=>x.reference===opened.data.reference));
+  const foreign=await call('/profile/privacy-requests',{cookie:otherCookie});
+  assert.ok(!foreign.data.requests.some(x=>x.reference===opened.data.reference));
+  const specialist=await call('/profile/privacy-requests',{cookie:specialistCookie});
+  assert.ok(!specialist.data.requests.some(x=>x.reference===opened.data.reference));
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'academic_verified_account_privacy_requested',ref:opened.data.reference}));
+  const queues=await call('/administration/queues',{cookie:rootCookie});
+  assert.ok(queues.data.queues.some(q=>q.department==='governance'&&
+   q.items?.some(item=>item.id===opened.data.reference)));
+ });
  await assertCheck('Unregistered people can verify written appeals and privacy requests without phone or login',async()=>{
   const mail=emailFor('public-appeal');
   const submitted=await call('/public/contact',{method:'POST',body:{
