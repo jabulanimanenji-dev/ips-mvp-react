@@ -182,7 +182,8 @@ try{
   assert.equal(caseRow.category,'privacy_request');
   assert.equal(caseRow.contactVerified,true);
   assert.equal(caseRow.automaticErasure,false);
-  assert.equal(await studentPage.getByText('Data request · access').count(),1);
+  assert.equal(await studentPage.locator('.record').filter({hasText:caseRow.id}).count(),1,
+   'The new verified privacy request must appear exactly once, even when older requests exist');
   assert.equal(await studentPage.locator('form[data-form=public-contact]').count(),0,
    'Verified customer must not be forced into another email-verification journey');
   await overflow(studentPage);
