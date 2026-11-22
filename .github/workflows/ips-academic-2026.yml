@@ -33,6 +33,7 @@ on:
       - work/ips-offsite-backup-ops-20261122
       - work/ips-final-real-production-topology-20261122
       - work/ips-simplify-takeover-20261122
+      - work/ips-video22-quoteflow-ux-20261122
   pull_request:
     branches:
       - main
