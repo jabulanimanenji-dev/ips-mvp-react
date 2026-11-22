@@ -23,6 +23,10 @@ const escapeText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<
 const e=escapeText;
 const readableStatus=value=>({client_delivery:'Ready for your review',qa_pending:'Under academic quality review',awaiting_payment_integration:'Commissioning unavailable until payments launch',ready_for_assignment:'Preparing your academic team',specialist_assigned:'Specialist assigned',correction_requested:'Corrections in progress',student_revision_requested:'Revision requested',awaiting_specialist_acceptance:'Awaiting Specialist confirmation',pending_review:'Application under review',pending_verification:'Email verification required',offer_delivery_failed:'Quote notification needs attention'})[value]||String(value||'pending').replaceAll('_',' ');
 const stat=value=>'<span class="pill '+(['active','approved','accepted','completed','client_delivery','scoped'].includes(value)?'good':['suspended','declined','correction_requested'].includes(value)?'bad':'wait')+'">'+e(readableStatus(value))+'</span>';
+const rootCanTakeOver=p=>!!p&&['ready_for_assignment','specialist_assigned','correction_requested','student_revision_requested'].includes(p.status)&&
+ p.paymentStatus!=='not_collected'&&p.status!=='awaiting_payment_integration';
+const rootTakeoverButton=p=>rootCanTakeOver(p)?b('Take over job',p.specialistId?'root-takeover-assigned':'root-takeover',p.id,'primary'):'';
+
 const date=d=>d?new Date(d).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'Not scheduled';
 const price=c=>Number.isInteger(c)?(c/100).toLocaleString('en-PL',{style:'currency',currency:'PLN'}):'Reviewed quote pending';
 const short=t=>String(t||'').length>150?String(t).slice(0,150)+'…':String(t||'');
@@ -540,7 +544,8 @@ async function loadTab(){
    items.length?'<div class="small-list">'+items.map(p=>record(
      p.subject+' · '+p.serviceName,
      'Updated '+date(p.updatedAt),p.id,p.status,
-     b('Open job','commission-open',p.id,'primary'))).join('')+'</div>':
+     b('Open job','commission-open',p.id,'primary')+
+     (a.role==='root'&&!state.rootLens?rootTakeoverButton(p):''))).join('')+'</div>':
      empty('No academic jobs in this view.'))+
    '';
  }else if(['students','specialists','root-students','root-specialists','workforce'].includes(tab)){
@@ -997,7 +1002,7 @@ async function commissionDetail(p,a){
     'Withdraw unpaid request'));
  const canDeliver=(isRoot||specialist&&canSimulate)&&['specialist_assigned','root_in_progress','correction_requested','student_revision_requested'].includes(p.status);
  const canReference=isRoot||student||specialist;
- const purposes=canDeliver&&canReference?[['reference','Supporting document'],['deliverable','Deliverable for QA']]:
+ const purposes=canDeliver&&canReference?[['deliverable','Deliverable for QA'],['reference','Supporting document']]:
    canDeliver?[['deliverable','Deliverable for QA']]:[['reference','Supporting document']];
  const upload=(canReference||canDeliver)?panel('Upload a document',
   'Private PDF, DOCX or TXT references and Specialist deliverables · up to 20 MB per document.',
@@ -1020,10 +1025,6 @@ async function commissionDetail(p,a){
       [['student','Student / Researcher'],['specialist','Assigned Specialist'],['shared','Both']]):'')+
    textarea('Message','body','Write a message about this job'),'Send message');
  if(isRoot&&!state.rootLens){
-  const takeover=['ready_for_assignment','specialist_assigned','root_in_progress','correction_requested','student_revision_requested'].includes(p.status);
-  if(takeover)actions+=panel('Root takeover','Manage the assignment directly if no Specialist is available.',
-   form('root-takeover','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
-     textarea('Reason','reason','Why is Root taking responsibility?'),'Take responsibility'));
   if(p.status==='root_in_progress'){
    const [sourceData,supplierDocs]=await Promise.all([
     api('/operations/'+encodeURIComponent(p.id)+'/outsourcing',{operator:true}),
@@ -1040,8 +1041,11 @@ async function commissionDetail(p,a){
      (f.kind==='supplier_return'&&f.status==='private'&&authorized?
       b('Submit for QA','external-qa',p.id+'::'+f.id,'small'):'')+'</div></article>').join('')+
     '</div>':empty('No supplier files stored in the Root-only vault yet.');
-   actions+=panel('Private external sourcing & document vault',
-    'Only Nyoro can inspect supplier identities, contracts, instructions and returned work. IPS must approve confidentiality and academic-integrity safeguards before any supplier return is accepted.',
+   actions+='<details class="optional-root-tools"'+(arrangement?.mode==='private_external'?' open':'')+
+    '><summary>Optional: use an external academic provider</summary>'+
+    '<p>Skip this if IPS is handling the work directly. Only Nyoro can access third-party agreements and files.</p>'+
+    panel('Private external sourcing & document vault',
+    'When a third party is involved, verify confidentiality, consent and academic-integrity requirements before using their work.',
     '<p><strong>Arrangement:</strong> '+e(arrangement?.providerReference||'Not yet registered')+
     ' · '+e(authorized?'Authorized and recorded':'Not yet authorized')+'</p>'+
     form('root-outsourcing','<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
@@ -1061,7 +1065,7 @@ async function commissionDetail(p,a){
        options('Document type','kind',[['agreement','NDA or contract'],['instructions','Private work instructions'],
         ['supplier_return','Supplier returned work for QA'],['qa_reference','Private QA reference']])+
        field('Upload Root-only document (up to 5 MB)','upload','file','','true'),
-       'Store in private vault'):'')+files);
+       'Store in private vault'):'')+files)+'</details>';
   }
  }
  const nextStage={
@@ -1069,7 +1073,7 @@ async function commissionDetail(p,a){
   ready_for_assignment:'IPS Academic Delivery must offer the permitted work to an eligible Specialist.',
   awaiting_specialist_acceptance:'An approved Specialist is reviewing the offered scope, fee and deadline.',
   specialist_assigned:'The accepted Specialist prepares the agreed academic work and securely submits it.',
-  root_in_progress:'IPS Root Administration is directly coordinating this permitted academic work.',
+  root_in_progress:'You are managing this job. Upload the completed document for academic quality review. External sourcing is optional.',
   qa_pending:'An accountable IPS quality reviewer must verify the submitted work before release.',
   correction_requested:'The responsible Specialist or IPS coordinator must correct QA findings.',
   student_revision_requested:'The Specialist must address the Student’s permitted revision request.',
@@ -1088,6 +1092,12 @@ async function commissionDetail(p,a){
   '<p><strong>Delivery:</strong> '+e(p.deadline||'As agreed in your quotation')+'</p>'+
   '<p><strong>Company responsibility:</strong> '+e(p.managedBy?'Nyoro · IPS Root':
     p.specialistId?'Assigned IPS Specialist':'IPS Academic Delivery')+'</p>'+
+  (isRoot&&!state.rootLens&&rootCanTakeOver(p)?
+   '<div class="case-actions quick-owner-action">'+rootTakeoverButton(p)+
+   '<span class="subtle">'+e(p.specialistId?'This replaces the current Specialist and notifies them.':
+     'One action: Nyoro becomes responsible for this job.')+'</span></div>':'')+
+  (isRoot&&p.status==='root_in_progress'&&p.managedBy?
+   '<p class="next-action"><strong>You manage this job.</strong> Upload the deliverable below; quality review follows automatically.</p>':'')+
   (p.qaMode==='root_supervised_exception'?'<p><strong>Quality record:</strong> IPS Root-supervised release exception</p>':'')+
   '<div class="case-actions">'+b('← Back to jobs','close-case')+
    b('Open inbox','tab-inbox')+'</div></div>';
@@ -1271,11 +1281,6 @@ async function submit(name,formNode){
   const result=await api('/operations/'+encodeURIComponent(data.commissionId)+'/upload',
    {method:'POST',operator,body:{...payload,purpose:data.purpose}});
   return result.needsQa?'Deliverable uploaded. IPS quality review is next.':'Reference uploaded and available to authorized participants.';
- }
- if(name==='root-takeover'){
-  await api('/operations/'+encodeURIComponent(data.commissionId)+'/takeover',
-   {method:'POST',operator:true,body:{reason:data.reason}});
-  return 'Nyoro now manages this academic job directly. This action is recorded in the audit trail.';
  }
  if(name==='root-outsourcing'){
   await api('/operations/'+encodeURIComponent(data.commissionId)+'/outsourcing',
@@ -1600,6 +1605,15 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
  state.busy=true;
  try{
   if(act==='logout'){await api('/auth/logout',{method:'POST'});state.backStack=[];state.account=null;state.rootLens=null;state.page=state.rootEntry?'root-login':'home';state.opened='';state.tab='overview';}
+  else if(act==='root-takeover'||act==='root-takeover-assigned'){
+   if(act==='root-takeover-assigned'&&!window.confirm(
+    'This will replace the assigned Specialist and notify them. Take over this job?'))return;
+   const r=await api('/operations/'+encodeURIComponent(id)+'/takeover',
+    {method:'POST',operator:true,body:{}});
+   state.message=r.alreadyManaged?'Nyoro already manages this job.':
+    'Nyoro now manages this job. Upload the deliverable for quality review.';
+   state.tab='commissions';state.opened=id;
+  }
   else if(['quote-accept','quote-decline'].includes(act)){
    const decision=act==='quote-accept'?'accept':'decline';
    const r=await api('/academic/quotes/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});
