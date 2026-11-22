@@ -1,7 +1,7 @@
 // IPS Academic Services: accessible written contact, privacy-rights requests
 // and rejected Specialist appeals without an authenticated account.
 // Contact is activated only after verified ownership of the reply email.
-import {email,validEmail,strongToken,validToken,publicDocument} from './security.mjs';
+import {PRIVACY_NOTICE_VERSION,email,validEmail,strongToken,validToken,publicDocument} from './security.mjs';
 
 export function registerPublicContactRoutes(ctx){
  const {app,db,config,security,throttle,sendEmail,notify,audit,authorize,
