@@ -425,7 +425,8 @@ export function registerOperationsRoutes(ctx){
   if(customReason&& (customReason.length<12||customReason.length>1200))
    return res.status(400).json({error:'An optional handoff note must contain 12–1200 characters.'});
   const note=customReason||'Nyoro Root Admin assumed direct responsibility for this academic job.';
-  const eligible=['ready_for_assignment','specialist_assigned','correction_requested','student_revision_requested'];
+  const eligible=['ready_for_assignment','awaiting_specialist_acceptance',
+   'specialist_assigned','correction_requested','student_revision_requested'];
   const p=await db.projects.findOne({id:req.params.id});
   if(!p)return res.status(404).json({error:'Academic job not found.'});
   if(p.paymentStatus==='not_collected'||p.status==='awaiting_payment_integration')
@@ -434,11 +435,24 @@ export function registerOperationsRoutes(ctx){
    return res.json({commission:publicDocument(p),rootInCharge:true,alreadyManaged:true});
   if(!eligible.includes(p.status))return res.status(409).json({error:'This job is in QA, delivery or completed status. Reopen it through an authorized case change.'});
   const before=p.specialistId||'';
+  const offered=p.status==='awaiting_specialist_acceptance'?p.assignmentOffer:null;
+  if(p.status==='awaiting_specialist_acceptance'&&
+    (!offered?.specialistId||!Number.isSafeInteger(offered.version)))
+   return res.status(409).json({error:'The outstanding assignment is inconsistent. Refresh before taking over.'});
   const previousSpecialistFilter=before?{specialistId:before}:
    {$or:[{specialistId:''},{specialistId:null},{specialistId:{$exists:false}}]};
-  const u=await db.projects.findOneAndUpdate({id:p.id,status:p.status,...previousSpecialistFilter},
-   {$set:{status:'root_in_progress',specialistId:'',managedBy:rootEmail,
-     fulfilmentMode:'root',updatedAt:now()}},{returnDocument:'after'});
+  const offerFilter=offered?{assignmentVersion:offered.version,
+   'assignmentOffer.specialistId':offered.specialistId}:{};
+  const at=now();
+  const change={$set:{status:'root_in_progress',specialistId:'',managedBy:rootEmail,
+    fulfilmentMode:'root',updatedAt:at},$unset:{assignmentOffer:''},
+   ...(offered?{$push:{assignmentHistory:{specialistId:offered.specialistId,
+    version:offered.version,decision:'withdrawn_by_root',reason:note,at}}}:{})};
+  // CAS on status, specialist and offered-version prevents a pending Specialist
+  // acceptance from succeeding after Root withdraws the offer.
+  const u=await db.projects.findOneAndUpdate({
+   id:p.id,status:p.status,...previousSpecialistFilter,...offerFilter},
+   change,{returnDocument:'after'});
   if(!u)return res.status(409).json({error:'The case changed while Root took responsibility.'});
   // Reassignment immediately releases the former Specialist's reserved capacity.
   if(before)await db.accounts.updateOne({id:before,activeAssignments:{$gt:0}},
@@ -448,8 +462,13 @@ export function registerOperationsRoutes(ctx){
   await db.rootOperations.updateOne({commissionId:p.id},
    {$set:{mode:'root',managedBy:rootEmail,reason:note,priorSpecialistId:before,
       updatedAt:now()}},{upsert:true});
-  await audit(req.actor,'root_academic_job_takeover',p.id,{reason:note,priorSpecialist:before});
+  await audit(req.actor,'root_academic_job_takeover',p.id,{
+   reason:note,priorSpecialist:before,
+   withdrawnOfferSpecialist:offered?.specialistId||''});
   if(before)await notify(before,'IPS Root Administration has reassigned academic job '+p.id,'assignment');
+  if(offered?.specialistId)await notify(offered.specialistId,
+   'IPS withdrew the pending Specialist offer for academic job '+p.id+'. No action is required.',
+   'assignment_offer');
   await notify(p.studentId,'IPS is directly coordinating your academic work '+p.id,'assignment');
   res.json({commission:publicDocument(await db.projects.findOne({id:p.id})),rootInCharge:true});
  }));
