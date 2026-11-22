@@ -63,7 +63,7 @@ export function registerAcademicRoutes(ctx){
  const reviewedOffer=input=>{
   const total=Number(input?.priceMinor),terms=String(input?.terms||'').trim(),
    deliverables=String(input?.deliverables||'').trim();
-  const revisions=Number(input?.revisionAllowance??1);
+  const revisions=Number(input?.revisionAllowance===''||input?.revisionAllowance===undefined?1:input.revisionAllowance);
   if(!Number.isSafeInteger(revisions)||revisions<0||revisions>5)
    return {error:'State the included revision allowance as 0–5 review rounds.'};
   const requested=String(input?.expires||'').trim();
