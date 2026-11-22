@@ -250,12 +250,13 @@ function departmentsForRole(a){
   ['quotes','My quotations'],['commissions','My academic work'],['billing','Billing'],['support','Support'],['profile','Profile']];
  if(a.role==='specialist')return [['overview','My work'],['inbox','Inbox & messages'],['notifications','Updates'],
   ['commissions','Assignments & files'],['worklogs','Work records'],['support','Support'],['profile','Profile']];
- if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],['queues','Department queues'],['notifications','Alerts & delivery'],
+ if(a.role==='root')return [['overview','Command centre'],['inbox','Inbox & messages'],['contacts','Public contacts'],['queues','Department queues'],['notifications','Alerts & delivery'],
   ['quotes','Enquiries'],['students','Students'],['specialists','Specialists'],
   ['commissions','Academic jobs'],['quality','Quality review'],['root-students','Student workspace'],
   ['root-specialists','Specialist workspace'],['workforce','Team & managers'],
   ['finance','Finance'],['audit','Audit']];
  const t=[['overview','Overview'],['inbox','Inbox & messages'],['notifications','Updates'],['queues','My queue']];
+ if(['client_relations','specialist_network','governance'].includes(a.department))t.push(['contacts','Public contacts']);
  if(a.department==='client_relations')t.push(['quotes','Enquiries'],['students','Students'],['support','Support']);
  if(a.department==='academic_delivery')t.push(['commissions','Academic jobs']);
  if(a.department==='specialist_network')t.push(['specialists','Specialists']);
@@ -410,6 +411,39 @@ async function loadTab(){
       b('Open work','queue-open',x.id,'primary'))+
     '</div></article>').join('')+'</div>'+workListPager():
    empty('No pending tasks for this department.'));
+ }else if(tab==='contacts'){
+  const d=await api('/administration/public-contacts?page='+state.contactPage);
+  const summaries=d.cases||[];
+  if(state.opened){
+   const item=(await api('/administration/public-contacts/'+encodeURIComponent(state.opened))).case;
+   const canRespond=a.role==='root'||item.assignedTo===a.id;
+   html=panel('Verified written contact · '+item.id,
+    'IPS accepted the request after the sender verified email ownership. Keep correspondence confidential and in writing.',
+    '<p><strong>Category:</strong> '+e(item.category.replaceAll('_',' '))+
+    ' · <strong>Status:</strong> '+e(item.status)+
+    ' · <strong>Responsible:</strong> '+e(item.assignedTo||'Not yet assigned')+'</p>'+
+    '<p><strong>Reply email:</strong> '+e(item.email)+'</p>'+
+    '<h3>'+e(item.subject)+'</h3><p>'+e(item.message)+'</p>'+
+    (item.replies||[]).map(x=>'<div class="message"><small>'+date(x.at)+
+     ' · IPS written reply</small><p>'+e(x.message)+'</p></div>').join('')+
+    (item.status==='open'&&!item.assignedTo?
+     b('Claim this written request','contact-claim',item.id,'primary'):'')+
+    (canRespond?form('contact-reply',
+      '<input type="hidden" name="contactId" value="'+e(item.id)+'">'+
+      textarea('Written response','message',
+       'Write a factual reply without copying confidential documents into email'),
+      'Email verified sender'):'<p>Claim this request before responding on behalf of IPS.</p>')+
+    '<div class="case-actions">'+b('← Back to written contacts','contact-close')+'</div>');
+  }else html=panel('Public written contacts',
+   'Verified guest enquiries, Specialist application appeals and data-rights requests belong to accountable departments.',
+   '<p>'+e(d.total)+' matching written requests · Page '+e(d.page)+'</p>'+
+   (summaries.length?summaries.map(x=>
+    record(x.subject,x.category.replaceAll('_',' ')+' · '+x.email+
+     ' · '+(x.assignedTo?'Assigned':'Needs owner'),x.id,x.status,
+     b('Open request','contact-open',x.id,'small primary'))).join(''):
+    empty('No verified written requests assigned to this department.'))+
+   '<div class="case-actions">'+(d.hasPrevious?b('Previous requests','contact-prev'):'')+
+   (d.hasNext?b('More requests','contact-next'):'')+'</div>');
  }else if(tab==='quotes'){
   const d=await api('/academic/quotes');
   if(state.opened)html=await quoteDetail(d.quotes.find(q=>q.id===state.opened),a);
@@ -1316,6 +1350,11 @@ async function submit(name,formNode){
  if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Message sent and attached to this academic job.'}
  if(name==='support'){await api('/support',{method:'POST',body:data});return 'Your written academic support case is in the IPS Client Relations queue.'}
  if(name==='support-reply'){await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',{method:'POST',body:{message:data.message}});return 'Private support response recorded.'}
+ if(name==='contact-reply'){
+  await api('/administration/public-contacts/'+encodeURIComponent(data.contactId)+'/reply',
+   {method:'POST',body:{message:data.message}});
+  return 'IPS sent the response to the verified email address. Provider acceptance is not proof of reading.';
+ }
  if(name==='support-assign'){
   await api('/support/'+encodeURIComponent(data.ticketId)+'/assign',{method:'POST',body:{
    assigneeId:data.assigneeId,reason:data.reason}});
@@ -1389,6 +1428,19 @@ document.addEventListener('click',async ev=>{
  if(act==='close-case'){if(state.backStack.length)history.back();else{state.opened='';render()}return}
  if(['tab-inbox','tab-students','tab-specialists','tab-workforce'].includes(act)){
   remember();state.tab=act.slice(4);state.opened='';render();return}
+ if(['contact-open','contact-close','contact-claim','contact-prev','contact-next','queue-contact'].includes(act)){
+  try{
+   if(act==='contact-claim'){
+    await api('/administration/public-contacts/'+encodeURIComponent(id)+'/claim',
+     {method:'POST'});
+   }else if(act==='contact-open'||act==='queue-contact'){
+    remember();state.tab='contacts';state.opened=id;
+   }else if(act==='contact-close')state.opened='';
+   else state.contactPage=Math.max(1,state.contactPage+(act==='contact-next'?1:-1));
+   render();
+  }catch(err){state.error=err.message;render()}
+  return;
+ }
  if(act==='queue-claim'){
   try{await api('/operations/'+encodeURIComponent(id)+'/claim',{method:'POST'});
    state.tab=state.account?.department==='quality_assurance'?'quality':'commissions';
