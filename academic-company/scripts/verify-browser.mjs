@@ -576,9 +576,10 @@ try{
   const row=rootPage.locator('.record').filter({hasText:'Direct enquiry review without claim'});
   await row.getByRole('button',{name:'Review enquiry'}).click();
   assert.equal(await rootPage.getByRole('button',{name:'Claim this enquiry'}).count(),0);
-  assert.equal(await rootPage.locator('form[data-form=quote-assign]').count(),1,
-   'Delegation must exist but be inside secondary optional section');
   const delegate=rootPage.locator('details.optional-admin-tools');
+  await delegate.waitFor();
+  assert.ok((await delegate.innerText()).includes('responsible'),
+   'Secondary case management must remain available when eligible employees exist');
   assert.equal(await delegate.getAttribute('open'),null,'Routine handoff must stay collapsed');
   assert.equal(await rootPage.locator('form[data-form=scope]').count(),1);
   await rootPage.locator('form[data-form=scope] textarea[name=note]')
