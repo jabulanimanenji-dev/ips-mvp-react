@@ -114,8 +114,8 @@ export function registerIdentityRoutes(ctx){
  }));
  app.post('/api/auth/login',wrap(async(req,res)=>{
   if(await throttle.limited(req,'academic-login',13))return res.status(429).json({error:'Too many login attempts.'});
-  const mail=email(req.body?.email),password=String(req.body?.password||'');
-  if(mail===rootEmail){
+  const loginKey=email(req.body?.email),password=String(req.body?.password||'');
+  if(loginKey===rootEmail){
    const root=await rootMatch(password);
    if(!root)return res.status(401).json({error:'Invalid credentials.'});
    security.set(res,{id:rootEmail,role:'root',version:root.sessionVersion});
@@ -123,7 +123,7 @@ export function registerIdentityRoutes(ctx){
    return res.json({account:{id:rootEmail,email:rootEmail,name:'Nyoro',
     role:'root',status:'active',verified:true,approved:true}});
   }
-  const a=await db.accounts.findOne({email:mail});
+  const a=await db.accounts.findOne({$or:[{email:loginKey},{usernameKey:loginKey}]});
   if(!a||!checkPassword(password,a.passwordHash))return res.status(401).json({error:'Invalid credentials.'});
   if(!a.verified)return res.status(403).json({error:'Please verify your email before logging in.'});
   if(a.role==='specialist'&&!a.approved)return res.status(403).json({error:'Your IPS Specialist application is awaiting approval.'});
