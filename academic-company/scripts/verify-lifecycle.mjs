@@ -1348,6 +1348,71 @@ try{
    decision:'approve_specialist',reviewNote:'Cannot undo a rejected professional review silently.',
    credentialEvidenceReviewed:true}),409);
  });
+ await assertCheck('Specialist must accept scoped assignment and fee before capacity is reserved',async()=>{
+  const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const previous={availabilityStatus:specialist.availabilityStatus,
+   maxConcurrentCases:specialist.maxConcurrentCases,turnaroundDays:specialist.turnaroundDays,
+   activeAssignments:specialist.activeAssignments};
+  await call('/specialist/availability',{method:'PATCH',cookie:specialistCookie,body:{
+   availabilityStatus:'available',maxConcurrentCases:Math.max(2,(previous.activeAssignments||0)+1),
+   turnaroundDays:7}});
+  const id='IPS-A-CI-OFFER-'+random(),quoteId='IPS-Q-CI-OFFER-'+random(),at=new Date();
+  await db.collection('academic_commissions').insertOne({
+   id,quoteId,studentId:student.id,specialistId:'',
+   serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',
+   subject:'Review of student-owned research text',academicLevel:'Undergraduate',
+   requirements:'Only legitimate editorial guidance on the student-owned text.',
+   deliverables:'Tracked feedback on a permitted independent academic draft.',
+   deadline:'2026-12-20',priceMinor:35000,currency:'PLN',
+   paymentStatus:'synthetic_test_only',evaluationPayment:true,
+   status:'ready_for_assignment',revisionCount:0,createdAt:at,updatedAt:at,
+   milestones:[{name:'Specialist assignment',status:'pending',at:null}]
+  });
+  const offerBody={specialistId:specialist.id,feeMinor:12000,
+   terms:'A voluntary editorial consultation. Seven day turnaround, one feedback revision, no ghostwriting.'};
+  await call('/academic/commissions/'+id+'/assignment-offer',
+   withAuth(staffCookie,offerBody),403);
+  await call('/academic/commissions/'+id+'/assignment-decision',
+   withAuth(studentCookie,{decision:'accept'}),403);
+  const sent=await call('/academic/commissions/'+id+'/assignment-offer',
+   withAuth(rootCookie,offerBody),201);
+  assert.equal(sent.data.status,'awaiting_specialist_acceptance');
+  assert.equal((await db.collection('academic_accounts').findOne({id:specialist.id})).activeAssignments,
+   previous.activeAssignments,'Sending offer must not reserve capacity');
+  const offered=await call('/academic/assignment-offers',{cookie:specialistCookie});
+  assert.ok(offered.data.offers.some(x=>x.id===id&&x.feeMinor===12000));
+  await call('/academic/commissions/'+id+'/assignment-decision',withAuth(specialistCookie,{
+   decision:'decline',reason:'I cannot meet this required time frame.'}));
+  assert.equal((await db.collection('academic_commissions').findOne({id})).status,'ready_for_assignment');
+  await call('/academic/commissions/'+id+'/assignment-offer',withAuth(rootCookie,offerBody),201);
+  const accept=await call('/academic/commissions/'+id+'/assignment-decision',
+   withAuth(specialistCookie,{decision:'accept'}));
+  assert.equal(accept.data.accepted,true);
+  const job=await db.collection('academic_commissions').findOne({id});
+  assert.equal(job.specialistId,specialist.id);
+  assert.equal(job.assignmentTermsAcceptedAt instanceof Date,true);
+  assert.equal(job.specialistFeeMinor,12000);
+  const terms=await db.collection('academic_specialist_compensation').findOne({commissionId:id});
+  assert.equal(terms.status,'accepted');
+  assert.equal(terms.proposedFeeMinor,12000);
+  await call('/finance/compensation/'+id+'/propose',withAuth(rootCookie,{
+   feeMinor:10000,reason:'Unauthorized attempt to rewrite an accepted contract.'}),409);
+  const client=await call('/academic/commissions/'+id,{cookie:studentCookie});
+  assert.ok(!JSON.stringify(client.data).includes('12000'),
+   'Student must not see confidential Specialist fees');
+  await call('/academic/commissions/'+id+'/assignment-decision',
+   withAuth(specialistCookie,{decision:'accept'}),409);
+  assert.equal((await db.collection('academic_accounts').findOne({id:specialist.id})).activeAssignments,
+   previous.activeAssignments+1);
+  // Remove synthetic fixture only. Preserve all company tests and their owned records.
+  await db.collection('academic_commissions').deleteOne({id});
+  await db.collection('academic_specialist_compensation').deleteOne({commissionId:id});
+  await db.collection('academic_accounts').updateOne({id:specialist.id},{
+   $set:{availabilityStatus:previous.availabilityStatus,
+    maxConcurrentCases:previous.maxConcurrentCases,turnaroundDays:previous.turnaroundDays,
+    activeAssignments:previous.activeAssignments}});
+ });
  await assertCheck('Server-side people search pages beyond 300 accounts without leaking scoped identities',async()=>{
   // Direct test inserts model genuine directory scale; sandbox only, no invitation
   // or password bypass in the real registration endpoints.
