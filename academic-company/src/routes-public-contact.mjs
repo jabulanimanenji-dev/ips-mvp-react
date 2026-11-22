@@ -31,6 +31,7 @@ export function registerPublicContactRoutes(ctx){
    status:'awaiting_verification',contactVerified:false,assignedTo:'',
    verificationHash:security.digest('public-contact:'+token),
    verificationUntil:new Date(Date.now()+20*60000),privacyConsentAt:at,
+   privacyNoticeVersion:PRIVACY_NOTICE_VERSION,
    createdAt:at,updatedAt:at,replies:[]};
   await db.publicContacts.insertOne(d);
   try{
