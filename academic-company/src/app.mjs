@@ -114,6 +114,8 @@ await Promise.all([
  db.publicContacts.createIndex({verificationUntil:1},{expireAfterSeconds:0}),
  db.publicContacts.createIndex({contactVerified:1,category:1,receivedAt:-1}),
  db.notifications.createIndex({accountId:1,createdAt:-1}),
+ db.notifications.createIndex({accountId:1,kind:1,ref:1},{unique:true,
+  partialFilterExpression:{ref:{$type:'string'}}}),
  db.notificationDeliveries.createIndex({status:1,nextAttemptAt:1,createdAt:1}),
  db.outbox.createIndex({idempotencyKey:1},{unique:true,sparse:true}),
  db.quoteMessages.createIndex({quoteId:1,createdAt:1}),
