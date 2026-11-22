@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',telegramLinkUrl:'',guestVerifiedEmail:'',contactPage:1,contactKind:'general'};
+ message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',inboxPage:1,inboxQuery:'',telegramLinkUrl:'',guestVerifiedEmail:'',contactPage:1,contactKind:'general'};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
@@ -323,8 +323,8 @@ const realActivityChart=metrics=>{
 };
 const kpi=(name,count,sub)=>'<div class="metric"><span>'+e(name)+'</span><strong>'+e(count)+'</strong><small>'+e(sub)+'</small></div>';
 // Busy company inboxes remain searchable and paginated without lost keyboard focus.
-const workListTools=(items)=>'<div class="worklist-tools"><label class="field">Search this worklist'+
- '<input type="search" data-work-search placeholder="Search case, person, service or department" autocomplete="off"></label>'+
+const workListTools=(items,search='')=>'<div class="worklist-tools"><label class="field">Search this worklist'+
+ '<input type="search" data-work-search value="'+e(search)+'" placeholder="Search case, person, service or department" autocomplete="off"></label>'+
  '<label class="field">Filter status<select data-work-status><option value="all">All statuses</option>'+
  [...new Set(items.map(x=>String(x.status||'pending')))].sort().map(x=>
  '<option value="'+e(x)+'">'+e(x.replaceAll('_',' '))+'</option>').join('')+
@@ -396,8 +396,11 @@ async function loadTab(){
     '<div class="case-actions">'+b('Manage Students','tab-students')+
      b('Manage Specialists','tab-specialists')+b('Team','tab-workforce')+'</div>'):'')+'</div>';
  }else if(tab==='inbox'){
-  const d=await api('/operations/inbox');
-  if(!rootAssisted&&(a.role==='root'||(['manager','staff'].includes(a.role)&&a.department==='communications'))){
+  const lookup=new URLSearchParams({page:String(state.inboxPage),
+   pageSize:'50',search:state.inboxQuery});
+  const d=await api('/operations/inbox?'+lookup.toString());
+  if(!state.inboxQuery&&state.inboxPage===1&&!rootAssisted&&
+   (a.role==='root'||(['manager','staff'].includes(a.role)&&a.department==='communications'))){
    const conversations=await api('/communications/telegram/threads');
    d.inbox.push(...conversations.threads.map(x=>({type:'telegram',id:x.accountId,
     subject:'Telegram · '+x.label,service:'Verified IPS chat'+(x.unread?' · '+x.unread+' unread':''),
@@ -406,8 +409,12 @@ async function loadTab(){
   }
   if(state.opened?.startsWith('TG:'))html=await telegramDetail(state.opened.slice(3));
   else if(state.opened?.startsWith('DM-'))html=await dmDetail(state.opened,a);
-  else html=panel('Inbox & conversations','Search and handle private academic enquiries, support, job conversations and verified written channels.',
-   d.inbox.length?workListTools(d.inbox)+
+  else html=panel('Inbox & conversations','Search the full authorised IPS inbox, not just recently loaded records. Telegram linked chats are shown on the newest page.',
+   '<div class="case-actions">'+b('Search all company messages','inbox-search','','small primary')+
+   b('Clear full search','inbox-clear','','small')+'</div>'+
+   '<p class="subtle">Page '+d.page+' · '+d.total+
+   ' authorised company records available across full database search. Additional verified Telegram threads appear on the newest page.</p>'+
+   (d.inbox.length?workListTools(d.inbox,state.inboxQuery)+
    '<div class="small-list worklist-rows">'+d.inbox.map(x=>
     '<article class="inbox-row" data-work-row data-work-status="'+e(x.status||'pending')+
     '" data-work-search="'+e([x.type,x.id,x.service,x.subject,x.status].filter(Boolean).join(' '))+'">'+
@@ -415,7 +422,9 @@ async function loadTab(){
     '<h3>'+e(x.subject||'Academic case')+'</h3><p>'+e(x.id)+' · '+date(x.updatedAt)+'</p></div>'+
     '<div class="case-actions">'+stat(x.status)+b('Open','inbox-open',x.type+'::'+x.id,'primary')+
     '</div></article>').join('')+'</div>'+workListPager():
-   empty('Nothing waiting in your IPS inbox. New written correspondence will appear here.'));
+   empty('Nothing waiting in your IPS inbox. New written correspondence will appear here.'))+
+   '<div class="case-actions">'+(d.hasPrevious?b('Newer company records','inbox-prev','','small'):'')+
+   (d.hasNext?b('Older company records','inbox-next','','small'):'')+'</div>');
  }else if(tab==='queues'){
   const d=await api('/administration/queues');
   const rows=d.queues.flatMap(q=>q.items.map(x=>({...x,departmentId:q.department,
@@ -1463,6 +1472,14 @@ document.addEventListener('click',async ev=>{
    state.directoryQuery='';state.directoryStatus='all';state.directoryPage=1;
   }else state.directoryPage=Math.max(1,state.directoryPage+(act==='directory-next'?1:-1));
   state.opened='';state.error='';render();return;
+ }
+ if(['inbox-search','inbox-clear','inbox-prev','inbox-next'].includes(act)){
+  if(act==='inbox-search'){
+   state.inboxQuery=(root.querySelector('input[data-work-search]')?.value||'').trim();
+   state.inboxPage=1;
+  }else if(act==='inbox-clear'){state.inboxQuery='';state.inboxPage=1}
+  else state.inboxPage=Math.max(1,state.inboxPage+(act==='inbox-next'?1:-1));
+  state.workPage=0;state.opened='';state.error='';render();return;
  }
  if(act==='work-prev'||act==='work-next'){
   state.workPage=Math.max(0,state.workPage+(act==='work-next'?1:-1));
