@@ -1,0 +1,163 @@
+# IPS Academic Services — independent, reversible NON-PAYMENT infrastructure.
+# PROPOSAL: do not apply until subscription costs, credential bindings, Atlas snapshots,
+# isolation, real providers and restore evidence are accepted. NEVER adopts old services.
+# The legacy IPS service remains live for rollback until official cutover is accepted.
+services:
+  - type: web
+    name: ips-academic-services-production
+    runtime: docker
+    repo: https://github.com/jabulanimanenji-dev/ips-mvp-react
+    branch: company/ips-academic-services-2026
+    region: frankfurt
+    plan: starter
+    autoDeploy: false
+    dockerfilePath: ./Dockerfile.ips-academic-production
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: IPS_ACADEMIC_MODE
+        value: production
+      - key: PORT
+        value: "8080"
+      - key: PUBLIC_APP_URL
+        value: https://www.ipsglobalservice.com
+      - key: MONGODB_URI
+        sync: false
+      - key: ROOT_EMAIL
+        value: admin@ipsglobalservice.com
+      - key: ROOT_PASSWORD
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: CONTACT_RESEND_API_KEY
+      - key: FROM_EMAIL
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: CONTACT_FROM_EMAIL
+      - key: RESEND_WEBHOOK_SECRET
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: CONTACT_RESEND_WEBHOOK_SECRET
+      - key: TELEGRAM_BOT_TOKEN
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: TELEGRAM_BOT_TOKEN
+      - key: IPS_TELEGRAM_BOT_USERNAME
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: TELEGRAM_BOT_USERNAME
+      - key: IPS_TELEGRAM_WEBHOOK_SECRET
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: TELEGRAM_WEBHOOK_SECRET
+      - key: IPS_CLAMAV_HOST
+        value: ips-academic-clamav
+      - key: IPS_CLAMAV_PORT
+        value: "3310"
+
+  # Provider staging uses a distinct database and NO legacy Telegram bot.
+  # It may reuse only the established Resend sender configuration.
+  - type: web
+    name: ips-academic-provider-staging
+    runtime: docker
+    repo: https://github.com/jabulanimanenji-dev/ips-mvp-react
+    branch: company/ips-academic-services-2026
+    region: frankfurt
+    plan: free
+    autoDeploy: false
+    dockerfilePath: ./Dockerfile.ips-academic-production
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: IPS_ACADEMIC_MODE
+        value: staging
+      - key: PORT
+        value: "8080"
+      - key: PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: ips-academic-provider-staging
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: MONGODB_URI
+        sync: false
+      - key: IPS_STAGING_ALLOWED_EMAILS
+        value: admin@ipsglobalservice.com
+      - key: ROOT_EMAIL
+        value: admin@ipsglobalservice.com
+      - key: ROOT_PASSWORD
+        generateValue: true
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: CONTACT_RESEND_API_KEY
+      - key: FROM_EMAIL
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: CONTACT_FROM_EMAIL
+      - key: RESEND_WEBHOOK_SECRET
+        fromService:
+          type: web
+          name: ips-mvp-react
+          envVarKey: CONTACT_RESEND_WEBHOOK_SECRET
+      - key: IPS_CLAMAV_HOST
+        value: ips-academic-clamav
+      - key: IPS_CLAMAV_PORT
+        value: "3310"
+
+  # Official ClamAV engine + fresh signatures; NEVER exposes TCP 3310 publicly.
+  - type: pserv
+    name: ips-academic-clamav
+    runtime: image
+    image:
+      url: docker.io/clamav/clamav:stable
+    region: frankfurt
+    plan: 1c-2g
+    disk:
+      name: ips-academic-av-signatures
+      mountPath: /var/lib/clamav
+      sizeGB: 4
+
+  # Daily additional encrypted offsite backup, independent of Atlas snapshots.
+  - type: cron
+    name: ips-academic-encrypted-offsite-backup
+    runtime: docker
+    repo: https://github.com/jabulanimanenji-dev/ips-mvp-react
+    branch: company/ips-academic-services-2026
+    region: frankfurt
+    plan: starter
+    autoDeploy: false
+    schedule: "0 2 * * *"
+    dockerfilePath: ./Dockerfile.ips-academic-backup
+    dockerCommand: bash scripts/backup-offsite.sh
+    envVars:
+      - key: AWS_REGION
+        value: eu-central-1
+      - key: MONGODB_URI
+        sync: false
+      - key: IPS_BACKUP_AES256_KEY
+        sync: false
+      - key: IPS_BACKUP_S3_BUCKET
+        sync: false
+      - key: IPS_BACKUP_S3_PREFIX
+        value: ips/academic
+      - key: IPS_ACADEMIC_SOURCE_COMMIT
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
