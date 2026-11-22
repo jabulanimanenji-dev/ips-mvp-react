@@ -23,9 +23,12 @@ const escapeText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<
 const e=escapeText;
 const readableStatus=value=>({client_delivery:'Ready for your review',qa_pending:'Under academic quality review',awaiting_payment_integration:'Commissioning unavailable until payments launch',ready_for_assignment:'Preparing your academic team',specialist_assigned:'Specialist assigned',correction_requested:'Corrections in progress',student_revision_requested:'Revision requested',awaiting_specialist_acceptance:'Awaiting Specialist confirmation',pending_review:'Application under review',pending_verification:'Email verification required',offer_delivery_failed:'Quote notification needs attention'})[value]||String(value||'pending').replaceAll('_',' ');
 const stat=value=>'<span class="pill '+(['active','approved','accepted','completed','client_delivery','scoped'].includes(value)?'good':['suspended','declined','correction_requested'].includes(value)?'bad':'wait')+'">'+e(readableStatus(value))+'</span>';
-const rootCanTakeOver=p=>!!p&&['ready_for_assignment','specialist_assigned','correction_requested','student_revision_requested'].includes(p.status)&&
+const rootCanTakeOver=p=>!!p&&['ready_for_assignment','awaiting_specialist_acceptance',
+ 'specialist_assigned','correction_requested','student_revision_requested'].includes(p.status)&&
  p.paymentStatus!=='not_collected'&&p.status!=='awaiting_payment_integration';
-const rootTakeoverButton=p=>rootCanTakeOver(p)?b('Take over job',p.specialistId?'root-takeover-assigned':'root-takeover',p.id,'primary'):'';
+const rootTakeoverButton=p=>rootCanTakeOver(p)?b('Take over job',
+ p.status==='awaiting_specialist_acceptance'?'root-takeover-offer':
+ p.specialistId?'root-takeover-assigned':'root-takeover',p.id,'primary'):'';
 
 const date=d=>d?new Date(d).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'Not scheduled';
 const price=c=>Number.isInteger(c)?(c/100).toLocaleString('en-PL',{style:'currency',currency:'PLN'}):'Reviewed quote pending';
@@ -1094,7 +1097,9 @@ async function commissionDetail(p,a){
     p.specialistId?'Assigned IPS Specialist':'IPS Academic Delivery')+'</p>'+
   (isRoot&&!state.rootLens&&rootCanTakeOver(p)?
    '<div class="case-actions quick-owner-action">'+rootTakeoverButton(p)+
-   '<span class="subtle">'+e(p.specialistId?'This replaces the current Specialist and notifies them.':
+   '<span class="subtle">'+e(p.status==='awaiting_specialist_acceptance'?
+     'The pending Specialist offer will be withdrawn and its recipient notified.':
+     p.specialistId?'This replaces the current Specialist and notifies them.':
      'One action: Nyoro becomes responsible for this job.')+'</span></div>':'')+
   (isRoot&&p.status==='root_in_progress'&&p.managedBy?
    '<p class="next-action"><strong>You manage this job.</strong> Upload the deliverable below; quality review follows automatically.</p>':'')+
@@ -1605,9 +1610,11 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
  state.busy=true;
  try{
   if(act==='logout'){await api('/auth/logout',{method:'POST'});state.backStack=[];state.account=null;state.rootLens=null;state.page=state.rootEntry?'root-login':'home';state.opened='';state.tab='overview';}
-  else if(act==='root-takeover'||act==='root-takeover-assigned'){
+  else if(['root-takeover','root-takeover-assigned','root-takeover-offer'].includes(act)){
    if(act==='root-takeover-assigned'&&!window.confirm(
     'This will replace the assigned Specialist and notify them. Take over this job?'))return;
+   if(act==='root-takeover-offer'&&!window.confirm(
+    'This will withdraw the pending Specialist offer and notify the recipient. Take over this job?'))return;
    const r=await api('/operations/'+encodeURIComponent(id)+'/takeover',
     {method:'POST',operator:true,body:{}});
    state.message=r.alreadyManaged?'Nyoro already manages this job.':
