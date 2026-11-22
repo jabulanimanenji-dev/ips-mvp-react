@@ -1,0 +1,14 @@
+# Dedicated cron image: no web listener, no customer fixtures, no application sessions.
+# Only encrypted archive files are ever written on local ephemeral storage.
+FROM mongo:8 AS mongotools
+FROM node:24-bookworm-slim
+ENV NODE_ENV=production
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    awscli ca-certificates bash coreutils \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=mongotools /usr/bin/mongodump /usr/local/bin/mongodump
+WORKDIR /app
+COPY --chown=node:node academic-company/scripts/encrypted-mongo-archive.mjs ./scripts/
+COPY --chown=node:node academic-company/scripts/backup-offsite.sh ./scripts/
+USER node
+CMD ["bash","scripts/backup-offsite.sh"]
