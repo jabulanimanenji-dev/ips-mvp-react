@@ -90,6 +90,9 @@ jobs:
           node --check scripts/verify-browser.mjs
           node --check scripts/seed-review.mjs
           node --check scripts/verify-review-image.mjs
+          node --check scripts/review-atlas-guard.mjs
+          node --check scripts/verify-review-atlas-guard.mjs
+          bash -n scripts/review-entrypoint.sh
           node --check scripts/verify-restoration.mjs
           node --check scripts/encrypted-mongo-archive.mjs
           node --check scripts/verify-encrypted-archive.mjs
@@ -104,6 +107,8 @@ jobs:
             echo "REJECT: wrong IPS company identity"
             exit 1
           fi
+      - name: Ensure persistent free review cannot access live or legacy Atlas databases
+        run: node scripts/verify-review-atlas-guard.mjs
       - name: Prove source-bound production release cannot be activated with missing proof
         run: node scripts/verify-production-admission.mjs
       - name: Verify isolated provider-staging mode cannot admit public accounts or the legacy bot
