@@ -361,13 +361,28 @@ async function loadTab(){
  let html='';
  if(tab==='overview'){
   const d=await api('/academic/dashboard'),m=d.metrics;
+  const responsible=['root','manager','staff'].includes(a.role)?
+   (await api('/administration/queues')).queues:[];
+  const oldest=responsible.flatMap(q=>q.items.map(item=>({
+   ...item,queueName:q.name,department:q.department})))
+   .sort((x,y)=>new Date(x.createdAt||0)-new Date(y.createdAt||0)).slice(0,8);
   html='<div class="metrics">'+kpi('Enquiries',m.enquiries,'Academic requests')+
    kpi('Academic jobs',m.academicCommissions,'Jobs you can access')+
    kpi('Support',m.support,'Written support')+
    kpi('Updates',m.alerts,'Unread alerts')+'</div>'+
-   (a.role==='root'?realActivityChart(m):'')+
+   (responsible.length?panel('Work requiring action now',
+     'Genuine outstanding tasks, oldest first. Totals are read from the complete database; this preview lists the oldest records from departmental queues.',
+     '<p><strong>'+e(responsible.reduce((sum,q)=>sum+q.count,0))+
+     '</strong> records across accountable department queues.</p>'+
+     (oldest.length?'<div class="small-list">'+oldest.map(x=>
+      '<article class="inbox-row"><div><span class="kicker">'+e(x.queueName)+
+      '</span><h3>'+e(x.service||'Academic request')+
+      '</h3><p>'+e(x.subject||'Pending company action')+' · '+date(x.createdAt)+
+      '</p></div><div>'+stat(x.stage||x.status)+'</div></article>').join('')+'</div>':
+      empty('No overdue or pending departmental work in the current queue.'))+
+     '<div class="case-actions">'+b('Open actionable queues','tab-queues','','primary')+'</div>'):'')+
    '<div class="ops-grid">'+
-   panel(a.role==='student'?'Your next step':a.role==='specialist'?'Your assignments':'Work that needs attention','',
+   panel(a.role==='student'?'Your next step':a.role==='specialist'?'Your assignments':'Quick workspace actions','',
     '<div class="case-actions">'+(a.role==='student'?buttonRoute('Request a quote','quote','primary')+
       b('Open my academic work','tab-commissions'):
      a.role==='specialist'?b('View assignments & files','tab-commissions','','primary')+
@@ -1441,7 +1456,7 @@ document.addEventListener('click',async ev=>{
  if(act==='root-lens-exit'){remember();state.rootLens=null;state.rootDirectory=[];state.page='workspace';state.tab='overview';state.opened='';history.replaceState(null,'','/root');render();return}
  if(act==='root-lens-open'){remember();try{await openRootLens(id)}catch(err){state.error=err.message;render()}return}
  if(act==='close-case'){if(state.backStack.length)history.back();else{state.opened='';render()}return}
- if(['tab-inbox','tab-students','tab-specialists','tab-workforce'].includes(act)){
+ if(['tab-inbox','tab-students','tab-specialists','tab-workforce','tab-queues'].includes(act)){
   remember();state.tab=act.slice(4);state.opened='';render();return}
  if(['contact-open','contact-close','contact-claim','contact-prev','contact-next','queue-contact'].includes(act)){
   try{
