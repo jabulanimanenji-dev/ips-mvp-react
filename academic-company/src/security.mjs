@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 
+export const PRIVACY_NOTICE_VERSION='IPS-PRIVACY-2026-11-V1';
+export const ACADEMIC_INTEGRITY_VERSION='IPS-INTEGRITY-2026-11-V1';
 export const email=x=>String(x||'').trim().toLowerCase();
 export const validEmail=x=>typeof x==='string'&&x.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x)&&!x.includes('..');
 export const username=x=>String(x||'').trim();
