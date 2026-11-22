@@ -923,9 +923,19 @@ try{
   const job=dec.data.commission;
   await call('/operations/'+job.id+'/takeover',withAuth(rootCookie,{reason:'Unavailable Specialist; Root needs to source this approved academic review.'}),409);
   await call('/evaluation/confirm-synthetic-payment/'+job.id,withAuth(rootCookie,{}));
-  const assigned=await call('/operations/'+job.id+'/takeover',withAuth(rootCookie,{
-   reason:'No approved Specialist available for this subject, Root assumes academic delivery.'}));
+  // Quick ownership: no mandatory note; the server must generate an auditable
+  // standard reason and must not execute the handoff twice after a repeated click.
+  const assigned=await call('/operations/'+job.id+'/takeover',withAuth(rootCookie,{}));
   assert.equal(assigned.data.commission.status,'root_in_progress');
+  assert.equal(assigned.data.rootInCharge,true);
+  const repeat=await call('/operations/'+job.id+'/takeover',withAuth(rootCookie,{}));
+  assert.equal(repeat.data.alreadyManaged,true,'Repeated takeover must be safely idempotent');
+  assert.equal(await db.collection('academic_audit_events').countDocuments({
+   action:'root_academic_job_takeover',ref:job.id}),1,
+   'Repeated click must not create a second handoff audit event');
+  const reason=(await db.collection('academic_root_operations').findOne({commissionId:job.id}))?.reason;
+  assert.match(reason,/Root Admin assumed direct responsibility/);
+  await call('/operations/'+job.id+'/takeover',withAuth(studentCookie,{}),403);
   assert.equal(assigned.data.commission.milestones.find(x=>x.name==='Specialist assignment')?.status,'complete',
    'Root work allocation must not remain incorrectly pending');
   await call('/operations/'+job.id+'/outsourcing',withAuth(rootCookie,{
