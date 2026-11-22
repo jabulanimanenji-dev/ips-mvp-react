@@ -245,15 +245,25 @@ export function beginCompanyAutomation(ctx){
   }catch(err){console.error('IPS academic notification delivery incident',err?.name||'Error')}
   finally{mailBusy=false}
  };
+ const escalate=async(kind,ref,message)=>{
+  const at=new Date();
+  const result=await db.notifications.updateOne({accountId:rootEmail,kind,ref},
+   {$setOnInsert:{id:uid('NT'),accountId:rootEmail,kind,ref,message,
+    read:false,createdAt:at}},{upsert:true});
+  if(result.upsertedCount)await db.notificationDeliveries.insertOne({
+   id:uid('OUT'),accountId:rootEmail,to:rootEmail,kind,
+   subject:'IPS Academic Services — company action requires attention',
+   text:'A company responsibility requires action in Nyoro Root Administration.\\n'+
+     'Sign in securely: '+config.origin+'\\n'+
+     'Academic details remain in the IPS workspace.',
+   status:'pending',attempts:0,nextAttemptAt:at,createdAt:at});
+ };
  const tick=async()=>{
   if(busy)return;busy=true;
   try{
    const cutoff=new Date(Date.now()-10*60000);
-   for(const q of await db.quotes.find({status:'received',createdAt:{$lt:cutoff}}).limit(100).toArray()){
-    await db.notifications.updateOne({accountId:rootEmail,kind:'intake_escalation',ref:q.id},
-     {$setOnInsert:{id:'NT-ESC-'+q.id,accountId:rootEmail,kind:'intake_escalation',ref:q.id,
-      message:'Academic enquiry has been waiting for review: '+q.id,read:false,createdAt:new Date()}},{upsert:true});
-   }
+   for(const q of await db.quotes.find({status:'received',createdAt:{$lt:cutoff}}).limit(100).toArray())
+    await escalate('intake_escalation',q.id,'Academic enquiry has been waiting for review: '+q.id);
    // A Specialist must never remain allocated to an unanswered, time-limited
    // offer. Expiry is atomic and audited; it does not consume capacity.
    const at=new Date();
@@ -277,11 +287,25 @@ export function beginCompanyAutomation(ctx){
      'The IPS assignment offer for '+p.id+' expired and is no longer available.','assignment_offer');
    }
    const overdue=new Date(Date.now()-24*3600000);
-   for(const p of await db.projects.find({status:'qa_pending',updatedAt:{$lt:overdue}}).limit(100).toArray()){
-    await db.notifications.updateOne({accountId:rootEmail,kind:'qa_escalation',ref:p.id},
-     {$setOnInsert:{id:'NT-QA-'+p.id,accountId:rootEmail,kind:'qa_escalation',ref:p.id,
-      message:'Academic deliverable QA overdue for '+p.id,read:false,createdAt:new Date()}},{upsert:true});
-   }
+   for(const p of await db.projects.find({status:'qa_pending',updatedAt:{$lt:overdue}}).limit(100).toArray())
+    await escalate('qa_escalation',p.id,'Academic deliverable QA overdue for '+p.id);
+
+   // Separate unattended company handoffs from client-facing confidential data.
+   for(const q of await db.quotes.find({status:'received',
+    $or:[{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}],
+    createdAt:{$lt:cutoff}}).limit(100).toArray())
+    await escalate('unassigned_enquiry',q.id,
+     'Academic enquiry '+q.id+' remains unassigned after the intake target.');
+   for(const t of await db.support.find({status:'open',
+    updatedAt:{$lt:new Date(Date.now()-4*3600000)}}).limit(100).toArray())
+    await escalate('support_escalation',t.id,
+     'A private IPS written support case has been awaiting a response: '+t.id);
+   for(const p of await db.projects.find({
+    status:{$in:['ready_for_assignment','specialist_assigned',
+     'root_in_progress','correction_requested','student_revision_requested']},
+    updatedAt:{$lt:overdue}}).limit(100).toArray())
+    await escalate('academic_work_aging',p.id,
+     'Commissioned academic work '+p.id+' needs responsible-team progress review.');
     // Date-only quote validity is expressed in UTC to keep enforcement stable.
     // Transition expiry atomically; only the winning worker notifies the Student.
     const today=new Date().toISOString().slice(0,10);
