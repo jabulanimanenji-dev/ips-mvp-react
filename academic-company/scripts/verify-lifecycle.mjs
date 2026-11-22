@@ -194,6 +194,21 @@ try{
   const assigned=await call('/academic/quotes/'+q.id+'/assign',withAuth(managerCookie,{
    assigneeId:manager.id,reason:'Manager takes responsibility for revised academic scope.'}));
   assert.equal(assigned.data.quote.assignedTo,manager.id);
+  const same=await call('/academic/quotes/'+q.id+'/assign',
+   withAuth(managerCookie,{assigneeId:manager.id}));
+  assert.equal(same.data.alreadyAssigned,true);
+  // Ordinary handoff to another eligible employee requires selection, not a
+  // second typed justification. The standard reason remains in the audit.
+  const back=await call('/academic/quotes/'+q.id+'/assign',
+   withAuth(managerCookie,{assigneeId:staff.id}));
+  assert.equal(back.data.quote.assignedTo,staff.id);
+  const auditHandoff=(await call('/academic/quotes/'+q.id+'/ownership',
+   {cookie:managerCookie})).data.history.at(-1);
+  assert.equal(auditHandoff.from,manager.id);
+  assert.match(auditHandoff.reason,/Responsibility transferred/);
+  const returnToManager=await call('/academic/quotes/'+q.id+'/assign',
+   withAuth(managerCookie,{assigneeId:manager.id}));
+  assert.equal(returnToManager.data.quote.assignedTo,manager.id);
   await call('/academic/quotes/'+q.id+'/messages',{cookie:staffCookie},403);
   await call('/academic/quotes/'+q.id+'/files',{cookie:staffCookie},403);
   assert.ok(!(await call('/academic/quotes',{cookie:staffCookie})).data.quotes.some(x=>x.id===q.id));
@@ -204,7 +219,7 @@ try{
   assert.equal(Object.hasOwn(studentQuote,'assignedBy'),false);
   await call('/academic/quotes/'+q.id+'/ownership',{cookie:studentCookie},403);
   const history=await call('/academic/quotes/'+q.id+'/ownership',{cookie:managerCookie});
-  assert.equal(history.data.history.length,2);
+  assert.equal(history.data.history.length,4);
   assert.equal(history.data.history[1].from,staff.id);
   assert.ok(await db.collection('academic_audit_events').findOne({
    action:'academic_enquiry_reassigned',ref:q.id}));

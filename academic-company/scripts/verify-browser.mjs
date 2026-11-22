@@ -170,7 +170,7 @@ try{
  });
  await pass('Student uploads and downloads an academic brief directly inside a pre-commission quotation',async()=>{
   await studentPage.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
-  await studentPage.getByRole('button',{name:'Open enquiry & messages'}).first().click();
+  await studentPage.getByRole('button',{name:'Open enquiry'}).first().click();
   await studentPage.getByRole('heading',{name:'Supporting documents'}).waitFor();
   assert.equal(await studentPage.locator('.record').count(),0,'Opened academic enquiry must not keep the whole quotation list above the workroom');
   await studentPage.locator('form[data-form=quote-upload] input[name=upload]').setInputFiles({
@@ -334,6 +334,22 @@ try{
  await pass('Root has separate searchable Student and Specialist directories and one academic job workroom',async()=>{
   await rootPage.locator('.sidebar').getByRole('button',{name:'Students',exact:true}).click();
   await rootPage.getByText('PrivateScholar',{exact:false}).first().waitFor();
+  const studentRow=rootPage.locator('tr[data-directory-row]',{hasText:'PrivateScholar'}).first();
+  assert.equal(await studentRow.getByRole('button',{name:'Suspend',exact:true}).count(),0,
+   'Dangerous status changes must not appear directly on a crowded people-directory row');
+  assert.equal(await studentRow.getByRole('button',{name:'Send reset link'}).count(),0,
+   'Routine row must not duplicate private access controls');
+  await studentRow.getByRole('button',{name:'Manage',exact:true}).click();
+  const security=rootPage.locator('details.account-security-tools');
+  await security.waitFor();
+  assert.equal(await rootPage.locator('table.directory-table').count(),0,
+   'Focused person management must not append a second page below the full people table');
+  assert.equal(await security.getAttribute('open'),null,
+   'Account security operations must be collapsed until intentionally opened');
+  await security.locator('summary').click();
+  await security.getByRole('button',{name:'Email password reset link'}).waitFor();
+  await security.getByRole('button',{name:'Suspend account'}).waitFor();
+  await rootPage.getByRole('button',{name:'← Back to directory'}).click();
   assert.equal(await rootPage.getByText('Evaluation Academic Nursing Editor').count(),0);
   await rootPage.locator('input[data-directory-search]').fill('nobody matches');
   assert.equal(await rootPage.locator('tr[data-directory-row]:not([hidden])').count(),0);
@@ -538,14 +554,47 @@ try{
   await staffPage.locator('.sidebar').getByRole('button',{name:'Enquiries',exact:true}).click();
   const row=staffPage.locator('.record').filter({hasText:'Intake Ownership Browser Verification'});
   await row.waitFor({timeout:12000});
-  await row.getByRole('button',{name:'Claim enquiry'}).click();
+  await row.getByRole('button',{name:'Open enquiry'}).click();
+  await staffPage.getByRole('button',{name:'Take this enquiry'}).click();
   await staffPage.getByText('You are now accountable for this academic enquiry.').waitFor();
-  await staffPage.locator('.record').filter({hasText:'Intake Ownership Browser Verification'})
-   .getByRole('button',{name:'Open enquiry & messages'}).click();
-  await staffPage.getByRole('heading',{name:'Academic enquiry ownership'}).waitFor();
+  assert.equal(await staffPage.locator('form[data-form=quote-assign]').count(),0,
+   'Routine staff ownership must not display a management handoff form');
   await staffPage.getByText(staff.id,{exact:false}).first().waitFor();
   await overflow(staffPage);
   await screen(staffPage,'22-client-relations-accountable-ownership');
+ });
+ await pass('Nyoro reviews an unowned enquiry directly without a separate claim or handoff form',async()=>{
+  const id='IPS-Q-CHROME-DIRECT-REVIEW';
+  const at=new Date();
+  await mongo.db.collection('academic_quotations').insertOne({
+   id,studentId:student.id,contactEmail:student.email,username:student.username,
+   serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',
+   academicLevel:'Undergraduate',subject:'Direct enquiry review without claim',
+   requirements:'Student-authored draft needs citation-consistency and structure feedback.',
+   status:'received',scopeDecision:'pending',contactVerified:true,
+   integrityAcknowledged:true,createdAt:at,updatedAt:at,synthetic:true
+  });
+  await rootPage.locator('.sidebar').getByRole('button',{name:'Enquiries',exact:true}).click();
+  const row=rootPage.locator('.record').filter({hasText:'Direct enquiry review without claim'});
+  await row.getByRole('button',{name:'Review enquiry'}).click();
+  assert.equal(await rootPage.getByRole('button',{name:'Claim this enquiry'}).count(),0);
+  const delegate=rootPage.locator('details.optional-admin-tools');
+  await delegate.waitFor();
+  assert.ok((await delegate.innerText()).includes('responsible'),
+   'Secondary case management must remain available when eligible employees exist');
+  assert.equal(await delegate.getAttribute('open'),null,'Routine handoff must stay collapsed');
+  assert.equal(await rootPage.locator('form[data-form=scope]').count(),1);
+  await rootPage.locator('form[data-form=scope] textarea[name=note]')
+   .fill('Permitted editorial guidance on a verified student-owned manuscript.');
+  await rootPage.locator('form[data-form=scope]').getByRole('button',{name:'Record review'}).click();
+  await rootPage.getByText('Academic scope decision has been recorded.').waitFor();
+  const owned=await mongo.db.collection('academic_quotations').findOne({id});
+  assert.equal(owned.assignedTo,vars.ROOT_EMAIL,
+   'Root review must automatically claim an unowned enquiry');
+  assert.equal(owned.status,'scoped');
+  await rootPage.getByRole('heading',{name:'Send written quotation'}).waitFor();
+  await overflow(rootPage);
+  await screen(rootPage,'42-nyoro-direct-enquiry-review');
  });
  await pass('Student clarification and Root revised quotation forms work in authenticated browser',async()=>{
   const q=await studentPage.evaluate(async()=>{
@@ -570,7 +619,7 @@ try{
   assert.equal(scope.status,200,JSON.stringify(scope.body));
   await studentPage.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
   await studentPage.locator('.record').filter({hasText:'Browser Academic Clarification Workflow'})
-   .getByRole('button',{name:'Open enquiry & messages'}).click();
+   .getByRole('button',{name:'Open enquiry'}).click();
   await studentPage.getByRole('heading',{name:'Clarification requested by IPS'}).waitFor();
   await studentPage.locator('form[data-form=quote-resubmit] textarea[name=clarification]')
    .fill('My source manuscript and the faculty rules are ready; I request permitted writing clarity feedback.');
@@ -594,7 +643,7 @@ try{
   assert.equal(ready.offer,200,JSON.stringify(ready.body));
   await rootPage.locator('.sidebar').getByRole('button',{name:'Enquiries',exact:true}).click();
   await rootPage.locator('.record').filter({hasText:'Browser Academic Clarification Workflow'})
-   .getByRole('button',{name:'Open enquiry & messages'}).click();
+   .getByRole('button',{name:'Open enquiry'}).click();
   await rootPage.getByRole('heading',{name:'Revise written quotation'}).waitFor();
   const form=rootPage.locator('form[data-form=quote-revise]');
   await form.locator('input[name=pricePLN]').fill('155');

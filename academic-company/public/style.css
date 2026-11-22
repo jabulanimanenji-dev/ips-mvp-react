@@ -262,3 +262,15 @@ input::placeholder,textarea::placeholder{color:#a9b8c1}
 .optional-root-tools>summary:focus-visible{outline:2px solid #dfc48d;outline-offset:-2px}
 .optional-root-tools>p{color:#c8d8e0;padding:0 20px;font-size:12px}
 .optional-root-tools>.panel{margin:13px;border-color:#4b6777;box-shadow:none}
+
+/* Video 22: everyday enquiry review stays first; delegation remains accessible
+   but does not clutter the main case workroom. */
+.optional-admin-tools{margin-top:16px;border:1px solid #435d6d;border-radius:10px;
+ background:#182f41;padding:0 18px 15px}
+.optional-admin-tools>summary{cursor:pointer;padding:15px 0;font-size:13px;
+ font-weight:650;color:#e4d5b8}
+.optional-admin-tools>summary:focus-visible{outline:2px solid #e6c994;outline-offset:3px}
+.optional-admin-tools>p{font-size:12px;color:#c6d8df;line-height:1.6;margin:0 0 12px}
+.optional-admin-tools .form{margin:12px 0}
+.optional-admin-tools .small-list{padding-top:10px;font-size:12px}
+.next-step-hint{font-size:12px;color:#d1dbdf;padding:10px 0}
