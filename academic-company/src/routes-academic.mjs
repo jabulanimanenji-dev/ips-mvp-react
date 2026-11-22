@@ -14,7 +14,16 @@ export function registerAcademicRoutes(ctx){
   delete x.ownershipHistory;delete x.assignedBy;delete x.ownerAssignedAt;
   return x;
  };
- const commissionView=p=>publicDocument(p);
+ const commissionView=(p,a)=>{
+  const x=publicDocument(p);
+  if(a?.role==='student'){
+   delete x.assignmentOffer;delete x.assignmentHistory;delete x.specialistFeeMinor;
+  }else if(a?.role==='specialist'){
+   delete x.studentId;delete x.priceMinor;delete x.coordinatorId;
+   if(x.assignmentOffer)delete x.assignmentOffer.createdBy;
+  }
+  return x;
+ };
  const studentOwner=(a,p)=>a?.role==='student'&&a.id===p.studentId;
  const specialistOwner=(a,p)=>a?.role==='specialist'&&a.id===p.specialistId;
  const adminOf=(a,p)=>!!a&&(a.role==='root'||(['manager','staff'].includes(a.role)&&['academic_delivery','quality_assurance','client_relations'].includes(a.department)));
@@ -378,15 +387,16 @@ export function registerAcademicRoutes(ctx){
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
   const a=req.actor;
   if(!listAllowed(a))return res.status(403).json({error:'No authority to inspect academic commissions.'});
-  const filter=a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:{};
+  const filter=a.role==='student'?{studentId:a.id}:
+   a.role==='specialist'?{specialistId:a.id}:{};
   const items=await db.projects.find(filter).sort({createdAt:-1}).limit(120).toArray();
-  res.json({commissions:items.map(commissionView)});
+  res.json({commissions:items.map(p=>commissionView(p,a))});
  }));
  app.get('/api/academic/commissions/:id',wrap(async(req,res)=>{
   const p=await db.projects.findOne({id:req.params.id});
   if(!p)return res.status(404).json({error:'Academic commission not found.'});
   if(!canSee(req.actor,p))return denial(res);
-  res.json({commission:commissionView(p)});
+  res.json({commission:commissionView(p,req.actor)});
  }));
  if(config.sandbox&&env.IPS_ACADEMIC_TEST_SETTLEMENT==='true'){
   app.post('/api/evaluation/confirm-synthetic-payment/:id',wrap(async(req,res)=>{
@@ -403,6 +413,9 @@ export function registerAcademicRoutes(ctx){
   }));
  }
  app.post('/api/academic/commissions/:id/assign',wrap(async(req,res)=>{
+  // Legacy one-step assignment exists ONLY for isolated synthetic qualification.
+  // Genuine commissioning always requires the Specialist's own scoped fee consent.
+  if(!config.sandbox)return res.status(409).json({error:'Offer the documented fee and assignment terms to the Specialist first.'});
   if(!authorize(req,res,['root','manager']))return;
   if(req.actor.role==='manager'&&req.actor.department!=='academic_delivery')
    return res.status(403).json({error:'Only IPS Academic Delivery management assigns specialists.'});
