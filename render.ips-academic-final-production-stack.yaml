@@ -21,7 +21,10 @@ services:
       - key: PORT
         value: "8080"
       - key: PUBLIC_APP_URL
-        value: https://www.ipsglobalservice.com
+        fromService:
+          type: web
+          name: ips-academic-services-production
+          envVarKey: RENDER_EXTERNAL_URL
       - key: MONGODB_URI
         sync: false
       - key: ROOT_EMAIL
@@ -51,17 +54,17 @@ services:
           name: ips-mvp-react
           envVarKey: TELEGRAM_BOT_TOKEN
       - key: IPS_TELEGRAM_BOT_USERNAME
-        fromService:
-          type: web
-          name: ips-mvp-react
-          envVarKey: TELEGRAM_BOT_USERNAME
+        value: IPScontactBot
       - key: IPS_TELEGRAM_WEBHOOK_SECRET
         fromService:
           type: web
           name: ips-mvp-react
           envVarKey: TELEGRAM_WEBHOOK_SECRET
       - key: IPS_CLAMAV_HOST
-        value: ips-academic-clamav
+        fromService:
+          type: pserv
+          name: ips-academic-clamav
+          property: host
       - key: IPS_CLAMAV_PORT
         value: "3310"
 
@@ -115,7 +118,10 @@ services:
           name: ips-mvp-react
           envVarKey: CONTACT_RESEND_WEBHOOK_SECRET
       - key: IPS_CLAMAV_HOST
-        value: ips-academic-clamav
+        fromService:
+          type: pserv
+          name: ips-academic-clamav
+          property: host
       - key: IPS_CLAMAV_PORT
         value: "3310"
 
