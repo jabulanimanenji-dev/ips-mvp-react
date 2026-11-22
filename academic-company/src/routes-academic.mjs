@@ -192,9 +192,11 @@ export function registerAcademicRoutes(ctx){
   if(!authorize(req,res,['root','manager']))return;
   if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
    return res.status(403).json({error:'Only Client Relations management can allocate enquiries.'});
-  const assigneeId=String(req.body?.assigneeId||''),reason=String(req.body?.reason||'').trim();
-  if(reason.length<10||reason.length>900)return res.status(400).json({
-   error:'Document a meaningful handoff reason before assigning this confidential enquiry.'});
+  const assigneeId=String(req.body?.assigneeId||''),customReason=String(req.body?.reason||'').trim();
+  // Day-to-day assignment is ONE choice. A standard reason is created
+  // automatically so audits remain complete without repetitive paperwork.
+  if(customReason&&(customReason.length<10||customReason.length>900))
+   return res.status(400).json({error:'An optional handoff note must contain 10–900 characters.'});
   const target=await db.accounts.findOne({id:assigneeId,verified:true,status:'active',
    role:{$in:['manager','staff']},department:'client_relations'});
   if(!target)return res.status(400).json({error:'Choose an active, verified Client Relations employee.'});
@@ -202,6 +204,10 @@ export function registerAcademicRoutes(ctx){
    status:{$in:['received','clarify','scoped','offered','offer_delivery_failed']}});
   if(!before)return res.status(409).json({error:'Only open academic enquiries may be assigned.'});
   const at=now(),previous=before.assignedTo||'';
+  if(previous===target.id)return res.json({quote:quoteView(before),alreadyAssigned:true});
+  const reason=customReason||(previous?
+   'Responsibility transferred to the selected Client Relations employee.':
+   'Client Relations ownership assigned by authorized management.');
   const updated=await db.quotes.findOneAndUpdate({id:before.id,
    status:before.status,
    ...(before.assignedTo?{assignedTo:before.assignedTo}:
