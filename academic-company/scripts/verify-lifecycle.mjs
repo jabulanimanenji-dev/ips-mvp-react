@@ -232,6 +232,8 @@ try{
   await call('/academic/guest-confirm',{method:'POST',body:{email:guestEmail,reference:guestReference,token:vt}},400);
   const r=await call('/academic/quotes/claim',withAuth(studentCookie,{reference:guestReference}));
   assert.equal(r.data.quote.serviceId,'literature-reviews');
+  assert.equal(r.data.alreadyLinked,true);
+  assert.equal(r.data.quote.studentId,(await db.collection('academic_accounts').findOne({email:studentMail})).id);
  });
  await assertCheck('Academic enquiry cannot be priced before managerial academic-scope approval',async()=>{
   const r=await call('/academic/quotes',withAuth(studentCookie,brief()),201);quoteId=r.data.quote.id;
@@ -245,6 +247,7 @@ try{
    deliverables:'Tracked editing, clarity notes and verified reference-format feedback.',
    terms:'Consultation and comments on existing text; one revision within seven days.'}));
   assert.equal(offer.data.quote.status,'offered');assert.equal(offer.data.quote.priceMinor,25000);
+  assert.ok(offer.data.quote.assignedTo,'Human-reviewed written offers must have an accountable company owner');
  });
  await assertCheck('Workspace quotation is private and never generates an unsolicited offer email',async()=>{
   const row=await db.collection('academic_quotations').findOne({id:quoteId});
@@ -575,6 +578,35 @@ try{
   assert.equal(r.data.commission.paymentStatus,'not_collected');
   const specialist=(await db.collection('academic_accounts').findOne({email:specialistMail}));
   await call('/academic/commissions/'+commissionId+'/assign',withAuth(rootCookie,{specialistId:specialist.id}),409);
+ });
+ await assertCheck('Students can withdraw an accepted unpaid commission without refund or orphaned finance records',async()=>{
+  const original=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes/'+original.id+'/scope',withAuth(rootCookie,{
+   decision:'approved',note:'Permitted tracked editing on the independent student draft.'}));
+  const scoped=(await db.collection('academic_quotations').findOne({id:original.id}));
+  assert.ok(scoped.assignedTo,'Verified scope must have a responsible employee before quote issuance');
+  await call('/academic/quotes/'+original.id+'/offer',withAuth(rootCookie,{
+   priceMinor:35000,deliverables:'One supervised feedback round on student-authored research.',
+   terms:'One revision within seven days; no authorship or final grades guaranteed.'}));
+  const accepted=await call('/academic/quotes/'+original.id+'/decision',
+   withAuth(studentCookie,{decision:'accept'}));
+  const work=accepted.data.commission;
+  assert.equal(work.coordinatorId,scoped.assignedTo);
+  assert.equal(work.status,'awaiting_payment_integration');
+  await call('/academic/commissions/'+work.id+'/withdraw',withAuth(rootCookie,{
+   reason:'Owner cannot impersonate client withdrawal.'}),403);
+  await call('/academic/commissions/'+work.id+'/withdraw',withAuth(studentCookie,{
+   reason:'This service is no longer needed before commissioning.'}));
+  await call('/academic/commissions/'+work.id+'/withdraw',withAuth(studentCookie,{
+   reason:'Withdrawal cannot be applied twice.'}),409);
+  const cancelled=await db.collection('academic_commissions').findOne({id:work.id});
+  const bill=await db.collection('academic_billing_records').findOne({commissionId:work.id});
+  assert.equal(cancelled.status,'cancelled');
+  assert.equal(cancelled.paymentStatus,'not_collected');
+  assert.equal(bill.state,'cancelled_before_payment');
+  assert.equal((await db.collection('academic_quotations').findOne({id:original.id})).status,'withdrawn');
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'academic_unpaid_commission_withdrawn',ref:work.id}));
  });
  await assertCheck('Accepted academic quotation produces truthful non-payable billing and private access',async()=>{
   const student=await call('/finance/my-billing',{cookie:studentCookie});
