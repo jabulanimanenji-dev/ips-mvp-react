@@ -28,6 +28,7 @@ on:
       - work/ips-academic-production-completion-20261122
       - work/ips-company-logic-remediation-20261122
       - work/ips-company-operational-hardening-20261122
+      - work/ips-company-final-visual-evidence-20261122
   pull_request:
     branches:
       - main
