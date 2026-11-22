@@ -750,8 +750,13 @@ try{
   const final=await call('/academic/commissions/'+commissionId+'/student-decision',withAuth(studentCookie,{decision:'accept'}));
   assert.equal(final.data.commission.status,'completed');
   const finalFiles=await call('/academic/commissions/'+commissionId+'/files',{cookie:studentCookie});
-  assert.equal(finalFiles.data.files.length,1,'Student received non-approved Specialist drafts');
-  assert.equal(finalFiles.data.files[0].id,doc.data.submissionId);
+  assert.equal(finalFiles.data.files.length,2,'Student should retain both independently QA-approved delivery versions');
+  assert.ok(finalFiles.data.files.some(x=>x.id===doc.data.submissionId));
+  assert.ok(!finalFiles.data.files.some(x=>x.id===academicFileId),
+   'QA-rejected drafts must never be included in the Student version history');
+  const previousApproved=finalFiles.data.files.find(x=>x.id!==doc.data.submissionId);
+  const historicalDownload=await call('/academic/files/'+previousApproved.id,{cookie:studentCookie});
+  assert.equal(historicalDownload.status,200,'Previously approved feedback must remain recoverable');
   const rejectedDraft=await call('/academic/files/'+academicFileId,{cookie:studentCookie},403);
   assert.ok(rejectedDraft);
   assert.ok(await db.collection('academic_private_files').countDocuments({commissionId})>=3,
