@@ -629,8 +629,8 @@ async function loadTab(){
     form('specialist-availability',
      options('New availability','availabilityStatus',
       [['available','Available for academic work'],['limited','Limited availability'],['unavailable','Unavailable for new assignments']])+
-     field('Maximum concurrent assignments (1–8)','maxConcurrentCases','number','e.g. 2')+
-     field('Normal turnaround in days (1–60)','turnaroundDays','number','e.g. 7'),
+     field('Maximum concurrent assignments (1–8)','maxConcurrentCases','number','e.g. 2',false)+
+     field('Normal turnaround in days (1–60)','turnaroundDays','number','e.g. 7',false),
      'Update my availability'));
   }
  }else if(tab==='billing'){
@@ -1421,6 +1421,7 @@ async function submit(name,formNode){
   return 'Your signed confidentiality agreement is recorded in your Specialist workspace.';
  }
  if(name==='specialist-availability'){
+  if(data.availabilityStatus==='unavailable'){data.maxConcurrentCases=0;data.turnaroundDays=0}
   await api('/specialist/availability',{method:'PATCH',body:data});
   return 'Your availability and assignment capacity are saved for IPS Academic Delivery.';
  }
@@ -1446,6 +1447,18 @@ function filterDirectory(){
 }
 document.addEventListener('input',ev=>{if(ev.target.matches('[data-directory-search]'))filterDirectory();if(ev.target.matches('[data-work-search]'))filterWorklist(true)});
 document.addEventListener('change',async ev=>{
+ if(ev.target.matches('select[name=availabilityStatus]')){
+  const unavailable=ev.target.value==='unavailable';
+  for(const key of ['maxConcurrentCases','turnaroundDays']){
+   const input=root.querySelector('input[name='+key+']');
+   if(!input)continue;
+   input.closest('label.field').hidden=unavailable;
+   input.required=!unavailable;
+   if(unavailable)input.value='0';
+   else if(input.value==='0')input.value='';
+  }
+  return;
+ }
  if(ev.target.matches('select[name=serviceId]')){updateServiceGuidance();return}
  if(ev.target.matches('[data-directory-status]')){filterDirectory();return}
  if(ev.target.matches('[data-work-status]')){filterWorklist(true);return}
