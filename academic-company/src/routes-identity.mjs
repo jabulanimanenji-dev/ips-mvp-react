@@ -211,6 +211,66 @@ export function registerIdentityRoutes(ctx){
   await audit(req.actor,'written_contact_preference_changed',req.actor.id,{channel});
   res.json({success:true,contactPreference:channel});
  }));
+ // Verified account holders can request access, correction or erasure review
+ // without proving ownership of their verified email a second time.
+ // This NEVER deletes records automatically; retention/legal obligations require
+ // accountable Governance review. Replies remain a confidential IPS case.
+ app.post('/api/profile/privacy-requests',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','specialist']))return;
+  if(await throttle.limited(req,'academic-account-privacy-request',5))
+   return res.status(429).json({error:'Too many privacy requests. Your existing requests remain visible.'});
+  const type=String(req.body?.type||'');
+  const allowed=['access','correction','erasure','portability','restriction','objection'];
+  const details=String(req.body?.details||'').trim();
+  const requestId=String(req.body?.requestId||'');
+  if(!allowed.includes(type)||!/^PRIV-[A-Za-z0-9_-]{12,90}$/.test(requestId)||
+    details.length>2000||
+    !['access','portability'].includes(type)&&details.length<12)
+   return res.status(400).json({
+    error:'Choose a privacy request type and provide a clear explanation for correction, deletion or restriction.'});
+  const account=await db.accounts.findOne({id:req.actor.id,verified:true,status:'active'},
+   {projection:{email:1,role:1}});
+  if(!account)return res.status(403).json({error:'An active, verified IPS account is required.'});
+  const at=now(),item={
+   id:uid('IPS-CONT'),category:'privacy_request',
+   sourceAccountId:req.actor.id,requestId,
+   rightType:type,email:account.email,
+   subject:'Verified account privacy request: '+type,
+   message:details||'Please process this verified account data request.',
+   status:'open',contactVerified:true,assignedTo:'',
+   verificationMethod:'authenticated_account_session',
+   reviewRequired:true,automaticErasure:false,
+   receivedAt:at,createdAt:at,updatedAt:at,replies:[]};
+  try{await db.publicContacts.insertOne(item)}
+  catch(err){
+   if(err?.code!==11000)throw err;
+   const prior=await db.publicContacts.findOne({
+    sourceAccountId:req.actor.id,requestId,category:'privacy_request'});
+   if(!prior)return res.status(409).json({error:'Privacy request identifier is already in use.'});
+   return res.json({reference:prior.id,status:prior.status,duplicate:true});
+  }
+  await audit(req.actor,'academic_verified_account_privacy_requested',item.id,
+   {rightType:type,automaticErasure:false});
+  await notify(rootEmail,'Verified IPS '+type+' privacy request '+item.id+
+   ' needs a Governance review.','privacy_request');
+  const governance=await db.accounts.find({role:{$in:['manager','staff']},
+   department:'governance',verified:true,status:'active'},
+   {projection:{id:1}}).toArray();
+  for(const g of governance)await notify(g.id,
+   'A verified IPS account privacy request needs Governance review.','privacy_request');
+  res.status(201).json({reference:item.id,status:item.status,reviewRequired:true,
+   message:'Your private request has been received for accountable Governance review.'});
+ }));
+ app.get('/api/profile/privacy-requests',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','specialist']))return;
+  const rows=await db.publicContacts.find({sourceAccountId:req.actor.id,
+   category:'privacy_request'},
+   {projection:{_id:0,id:1,rightType:1,status:1,createdAt:1,updatedAt:1}})
+   .sort({createdAt:-1}).limit(50).toArray();
+  res.json({requests:rows.map(r=>({reference:r.id,type:r.rightType,
+   status:r.status,createdAt:r.createdAt,updatedAt:r.updatedAt})),
+   noAutomaticDeletion:true});
+ }));
  // A Specialist declares actual capacity before the company may assign paid work.
  app.get('/api/specialist/availability',wrap(async(req,res)=>{
   if(!authorize(req,res,['specialist']))return;

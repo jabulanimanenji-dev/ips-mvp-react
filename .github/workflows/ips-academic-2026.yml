@@ -34,6 +34,7 @@ on:
       - work/ips-final-real-production-topology-20261122
       - work/ips-simplify-takeover-20261122
       - work/ips-video22-quoteflow-ux-20261122
+      - work/ips-scenario-gaps-support-20261122
   pull_request:
     branches:
       - main
@@ -89,6 +90,10 @@ jobs:
           node --check scripts/verify-browser.mjs
           node --check scripts/seed-review.mjs
           node --check scripts/verify-review-image.mjs
+          node --check scripts/review-atlas-guard.mjs
+          node --check scripts/verify-review-atlas-guard.mjs
+          node --check scripts/verify-scenario-register.mjs
+          bash -n scripts/review-entrypoint.sh
           node --check scripts/verify-restoration.mjs
           node --check scripts/encrypted-mongo-archive.mjs
           node --check scripts/verify-encrypted-archive.mjs
@@ -103,6 +108,10 @@ jobs:
             echo "REJECT: wrong IPS company identity"
             exit 1
           fi
+      - name: Enforce all 409 owner operating-scenario gates without falsely claiming success
+        run: node scripts/verify-scenario-register.mjs
+      - name: Ensure persistent free review cannot access live or legacy Atlas databases
+        run: node scripts/verify-review-atlas-guard.mjs
       - name: Prove source-bound production release cannot be activated with missing proof
         run: node scripts/verify-production-admission.mjs
       - name: Verify isolated provider-staging mode cannot admit public accounts or the legacy bot

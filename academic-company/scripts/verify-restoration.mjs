@@ -86,9 +86,11 @@ try{
  const directRes=await fetch(base+'/api/operations/direct-file/'+directRecord.id,{headers:{Cookie:studentCookie}});
  assert.equal(directRes.status,200);
  assert.equal(crypto.createHash('sha256').update(Buffer.from(await directRes.arrayBuffer())).digest('hex'),directRecord.sha256);
- const largeFile=await db.collection('academic_private_files').findOne({blobId:{$exists:true}});
- assert.ok(largeFile?.blobId&&largeFile.byteLength>5*1024*1024,
-  'Large private GridFS document was not included in independent MongoDB archive');
+ const largeFile=await db.collection('academic_private_files').findOne({
+  blobId:{$exists:true},specialistId:specialist.id,
+  byteLength:{$gt:5*1024*1024}});
+ assert.ok(largeFile?.blobId,
+  'Specialist-owned large private GridFS document was not included in independent MongoDB archive');
  assert.ok(await db.collection('academic_document_blobs.files').findOne({_id:largeFile.blobId}),
   'Restored GridFS manifest missing');
  assert.ok((await db.collection('academic_document_blobs.chunks').countDocuments({
@@ -101,6 +103,29 @@ try{
   'Restored 7 MB academic document checksum mismatch');
  const largeDenied=await request('/academic/files/'+largeFile.id,{cookie:specialistCookie});
  assert.equal(largeDenied.status,200,'Assigned Specialist must retain access to their own stored document');
+ const rootLarge=await db.collection('academic_private_files').findOne({
+  blobId:{$exists:true},rootSubmission:true,byteLength:{$gt:5*1024*1024}});
+ assert.ok(rootLarge?.blobId,
+  'Root-controlled large deliverable is missing from the independently restored archive');
+ const rootCopy=await fetch(base+'/api/academic/files/'+rootLarge.id,
+  {headers:{Cookie:rootCookie}});
+ assert.equal(rootCopy.status,200);
+ assert.equal(crypto.createHash('sha256')
+  .update(Buffer.from(await rootCopy.arrayBuffer())).digest('hex'),rootLarge.sha256);
+ const rootPrivateDenied=await request('/academic/files/'+rootLarge.id,
+  {cookie:specialistCookie});
+ assert.equal(rootPrivateDenied.status,403,
+  'Specialist must not read Root-controlled deliverables for unrelated commissions');
+ const rootProject=await db.collection('academic_commissions')
+  .findOne({id:rootLarge.commissionId});
+ assert.equal(rootProject.qaMode,'root_supervised_exception');
+ assert.ok([rootProject.releasedFileId,...(rootProject.releasedFileHistory||[])]
+  .includes(rootLarge.id),'Restored Root file must have a verified release history');
+ const studentRootCopy=await fetch(base+'/api/academic/files/'+rootLarge.id,
+  {headers:{Cookie:studentCookie}});
+ assert.equal(studentRootCopy.status,200);
+ assert.equal(crypto.createHash('sha256')
+  .update(Buffer.from(await studentRootCopy.arrayBuffer())).digest('hex'),rootLarge.sha256);
  const outsiderLarge=await request('/academic/files/'+largeFile.id);
  assert.equal(outsiderLarge.status,403,'An anonymous user must never download a restored academic file');
  const clientEnquiryBlob=await db.collection('academic_quote_files').findOne({

@@ -111,6 +111,8 @@ await Promise.all([
  db.support.createIndex({ownerId:1,updatedAt:-1}),
  db.audit.createIndex({at:-1}),
  db.publicContacts.createIndex({id:1},{unique:true}),
+ db.publicContacts.createIndex({sourceAccountId:1,requestId:1},{unique:true,
+  partialFilterExpression:{requestId:{$type:'string'}}}),
  db.publicContacts.createIndex({verificationUntil:1},{expireAfterSeconds:0}),
  db.publicContacts.createIndex({contactVerified:1,category:1,receivedAt:-1}),
  db.notifications.createIndex({accountId:1,createdAt:-1}),

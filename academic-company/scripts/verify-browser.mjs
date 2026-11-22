@@ -168,6 +168,27 @@ try{
   await overflow(studentPage);
   await screen(studentPage,'29-student-private-billing-no-receipts');
  });
+ await pass('Verified Student requests account data access directly and sees its Governance case',async()=>{
+  await studentPage.locator('.sidebar').getByRole('button',{name:'Profile',exact:true}).click();
+  const form=studentPage.locator('form[data-form=privacy-request]');
+  await form.waitFor();
+  const requestId=await form.locator('input[name=requestId]').inputValue();
+  await form.locator('select[name=type]').selectOption('access');
+  await form.getByRole('button',{name:'Send private data request'}).click();
+  await studentPage.getByText('Your verified privacy request').waitFor();
+  const caseRow=await mongo.db.collection('academic_public_contacts')
+   .findOne({sourceAccountId:student.id,requestId});
+  assert.ok(caseRow?.id);
+  assert.equal(caseRow.category,'privacy_request');
+  assert.equal(caseRow.contactVerified,true);
+  assert.equal(caseRow.automaticErasure,false);
+  assert.equal(await studentPage.locator('.record').filter({hasText:caseRow.id}).count(),1,
+   'The new verified privacy request must appear exactly once, even when older requests exist');
+  assert.equal(await studentPage.locator('form[data-form=public-contact]').count(),0,
+   'Verified customer must not be forced into another email-verification journey');
+  await overflow(studentPage);
+  await screen(studentPage,'45-student-verified-privacy-request');
+ });
  await pass('Student uploads and downloads an academic brief directly inside a pre-commission quotation',async()=>{
   await studentPage.locator('.sidebar').getByRole('button',{name:'My quotations'}).click();
   await studentPage.getByRole('button',{name:'Open enquiry'}).first().click();
@@ -397,6 +418,27 @@ try{
   await overflow(rootPage);
   await screen(rootPage,'40-root-one-click-job-takeover');
  });
+ await pass('Nyoro uploads a 6 MB Root-authored document directly to QA without the old 5 MB cap',async()=>{
+  const id='IPS-A-CHROME-QUICK-TAKEOVER';
+  const form=rootPage.locator('form[data-form=case-upload]');
+  await form.locator('select[name=purpose]').selectOption('deliverable');
+  await form.locator('input[name=upload]').setInputFiles({
+   name:'six-megabyte-root-review.txt',mimeType:'text/plain',
+   buffer:Buffer.alloc(6*1024*1024,82)
+  });
+  await form.getByRole('button',{name:'Upload document'}).click();
+  await rootPage.getByText('Nyoro’s private academic document is submitted for governed quality review.').waitFor();
+  const p=await mongo.db.collection('academic_commissions').findOne({id});
+  assert.equal(p.status,'qa_pending');
+  assert.equal(p.qaMode,'root_supervised_exception');
+  const file=await mongo.db.collection('academic_private_files').findOne({id:p.pendingFileId});
+  assert.ok(file?.blobId,'Root direct upload must use GridFS instead of the 5 MB legacy JSON route');
+  assert.equal(file.byteLength,6*1024*1024);
+  assert.equal(await rootPage.locator('form[data-form=quality]').count(),1,
+   'IPS quality review must be the immediate next step after Root submission');
+  await overflow(rootPage);
+  await screen(rootPage,'44-root-large-document-direct-qa');
+ });
  await pass('Root takeover of a pending Specialist offer confirms withdrawal and stops later acceptance',async()=>{
   const id='IPS-A-CHROME-PENDING-OFFER';
   const now=new Date();
@@ -538,6 +580,50 @@ try{
   assert.equal(await staffPage.getByRole('button',{name:'Finance',exact:true}).count(),0);
   assert.equal(await staffPage.getByRole('button',{name:'Audit',exact:true}).count(),0);
   await screen(staffPage,'11-client-relations-staff');
+ });
+ await pass('Client Relations answers a new support case immediately; Student can reopen the same conversation',async()=>{
+  const subject='Browser support reopened without another ticket';
+  const created=await studentPage.evaluate(async subj=>{
+   const r=await fetch('/api/support',{method:'POST',credentials:'same-origin',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({subject:subj,message:
+     'My independently authored literature review needs an explanation of its citation feedback.'})});
+   return {status:r.status,body:await r.json()};
+  },subject);
+  assert.equal(created.status,201,JSON.stringify(created.body));
+  const id=created.body.ticket.id;
+  await staffPage.locator('.sidebar').getByRole('button',{name:'Support',exact:true}).click();
+  const row=staffPage.locator('.record').filter({hasText:subject});
+  await row.getByRole('button',{name:'Open conversation'}).click();
+  await staffPage.locator('form[data-form=support-reply]').waitFor();
+  assert.equal(await staffPage.locator('form[data-form=support-reply]').count(),1,
+   'A legitimate Client Relations first response should not require a separate Claim operation');
+  const reply=staffPage.locator('form[data-form=support-reply]');
+  await reply.locator('textarea[name=message]').fill(
+   'We have received your citation feedback question; IPS will clarify the permitted editorial changes.');
+  await reply.getByRole('button',{name:'Send secure reply'}).click();
+  await staffPage.getByText('IPS assigned this support case to you automatically.').waitFor();
+  const assigned=await mongo.db.collection('academic_support_cases').findOne({id});
+  assert.equal(assigned.assignedTo,staff.id);
+  assert.equal(assigned.replies.length,2);
+  await studentPage.locator('.sidebar').getByRole('button',{name:'Support',exact:true}).click();
+  await studentPage.locator('.record').filter({hasText:subject})
+   .getByRole('button',{name:'Open conversation'}).click();
+  await studentPage.getByRole('button',{name:'Resolve support case'}).click();
+  await studentPage.locator('form[data-form=support-reopen]').waitFor();
+  assert.equal(await studentPage.locator('form[data-form=support-reply]').count(),0);
+  await studentPage.locator('form[data-form=support-reopen] textarea[name=reason]')
+   .fill('The referencing explanation is still incomplete; please confirm the required corrections.');
+  await studentPage.locator('form[data-form=support-reopen]')
+   .getByRole('button',{name:'Reopen support case'}).click();
+  await studentPage.getByText('Support case reopened with its previous conversation').waitFor();
+  const reopened=await mongo.db.collection('academic_support_cases').findOne({id});
+  assert.equal(reopened.status,'open');
+  assert.equal(reopened.reopenCount,1);
+  assert.equal(reopened.replies.length,3);
+  assert.equal(reopened.assignedTo,staff.id);
+  await overflow(studentPage);
+  await screen(studentPage,'43-reopen-original-support-conversation');
  });
  await pass('Client Relations staff claims academic enquiry and opens private ownership workroom',async()=>{
   const created=await studentPage.evaluate(async()=>{

@@ -638,6 +638,22 @@ async function loadTab(){
        '" target="_blank" rel="noopener noreferrer">Open IPS Telegram bot and confirm this one-use link</a></p>':''):
      '<p>Telegram connection is not yet enabled. IPS workspace and email remain available.</p>'));
   }
+  if(!rootAssisted&&['student','specialist'].includes(a.role)){
+   const rights=await api('/profile/privacy-requests');
+   html+=panel('Privacy and account data',
+    'Ask IPS to provide, correct, restrict or review deletion of your personal records. IPS reviews retention obligations before any deletion.',
+    (rights.requests.length?'<div class="small-list">'+rights.requests.map(r=>
+     record('Data request · '+e(r.type),date(r.createdAt),
+      r.reference,r.status)).join('')+'</div>':'')+
+    form('privacy-request',
+     '<input type="hidden" name="requestId" value="'+e('PRIV-'+crypto.randomUUID())+'">'+
+     options('Request type','type',[
+      ['access','Access my information'],['correction','Correct my information'],
+      ['erasure','Review account/data deletion'],['portability','Copy of my records'],
+      ['restriction','Restrict processing'],['objection','Object to a particular use']])+
+     textarea('Further information','details','Explain what information needs attention if relevant',false),
+     'Send private data request'));
+  }
   if(a.role==='specialist'&&!rootAssisted){
    const agreement=state.catalogue.specialistAgreement;
    html+=panel('Specialist confidentiality agreement',
@@ -1147,15 +1163,23 @@ async function supportDetail(t){
    transfer=people.length?form('support-assign',
     '<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+
     options('Responsible Client Relations employee','assigneeId',people.map(p=>[p.id,p.name||p.email]))+
-    textarea('Reason for handoff','reason','Why is this person responsible now?'),
+    textarea('Optional handoff note','reason','Only if additional context is needed',false),
     'Assign support owner'):'';
   }
-  assignment=panel('Support responsibility',
-   'This support case has one accountable employee. Writing a reply never silently changes the owner.',
-   '<p><strong>Responsible:</strong> '+e(t.assignedTo||'Unassigned · needs ownership')+'</p>'+
-   claim+transfer);
+  assignment=(claim?'<div class="case-actions quick-owner-action">'+claim+
+   '<span class="subtle">You can also reply directly; IPS will record responsibility automatically.</span></div>':'')+
+   (transfer?'<details class="optional-admin-tools"><summary>Change responsible employee</summary>'+
+    '<p>Use this only to delegate or transfer a support case. Ownership history is recorded automatically.</p>'+
+    transfer+'</details>':'');
  }
- const canRespond=t.status==='open'&&(!company||a.role==='root'||owned);
+ const canRespond=t.status==='open'&&(!company||a.role==='root'||owned||canOwn&&!t.assignedTo);
+ const canReopen=t.status==='closed'&&(a.role==='root'||a.id===t.ownerId||
+    a.role==='manager'&&a.department==='client_relations');
+ const reopen=canReopen?panel('Need more assistance?',
+   'Continue this same support case without creating a duplicate request.',
+   form('support-reopen','<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+
+    textarea('What still needs attention?','reason','Explain what is unresolved or has changed.'),
+    'Reopen support case')):'';
  return '<div class="mt"><div class="toolbar">'+b('← Back to support','close-case')+'</div>'+
   panel('Support case '+t.id,'Written assistance, case ownership and resolution history.',
   '<p><strong>Status:</strong> '+e(readableStatus(t.status))+
@@ -1166,8 +1190,9 @@ async function supportDetail(t){
    '<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+
    textarea('Private reply','message','Write the next helpful response'),'Send secure reply')+
    '<div class="action-row">'+b('Resolve support case','support-close',t.id)+'</div>':
-   '<p>This case requires an assigned employee before a reply or resolution.</p>'))+
-   assignment+'</div>';
+   t.status==='closed'?'<p>This case was closed. Reopen it if something remains unresolved.</p>':
+   '<p>This case has another responsible employee. Ask a Manager to transfer it if necessary.</p>'))+
+   reopen+assignment+'</div>';
 }
 function render(){
  if(!state.catalogue){root.textContent='IPS Academic Services is loading…';return}
@@ -1215,7 +1240,7 @@ async function uploadAcademicReferenceBinary(endpoint,file,audience='student'){
     {'X-IPS-Root-Workspace-Target':state.rootLens.account.id}:{})},
   body:file});
  const response=await result.json().catch(()=>({}));
- if(!result.ok)throw Error(response.error||'IPS could not store the private reference.');
+ if(!result.ok)throw Error(response.error||'IPS could not store the private academic document.');
  return response;
 }
 async function uploadAcademicBinary(commissionId,file){
@@ -1288,6 +1313,12 @@ async function submit(name,formNode){
    await uploadAcademicReferenceBinary('/api/operations/'+
     encodeURIComponent(data.commissionId)+'/upload-reference-binary',chosen);
    return 'Your large academic reference is securely attached to this workroom.';
+  }
+  if(data.purpose==='deliverable'&&state.account?.role==='root'&&!state.rootLens){
+   const file=formNode.querySelector('input[name=upload]')?.files?.[0];
+   await uploadAcademicReferenceBinary('/api/operations/'+
+    encodeURIComponent(data.commissionId)+'/upload-deliverable-binary',file);
+   return 'Nyoro’s private academic document is submitted for governed quality review.';
   }
   if(data.purpose==='deliverable'&&
    (state.account?.role==='specialist'||state.rootLens?.account?.role==='specialist')){
@@ -1451,16 +1482,28 @@ async function submit(name,formNode){
  if(name==='student-decision'){await api('/academic/commissions/'+encodeURIComponent(id)+'/student-decision',{method:'POST',body:data});return 'Your academic delivery decision is saved.'}
  if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Message sent and attached to this academic job.'}
  if(name==='support'){await api('/support',{method:'POST',body:data});return 'Your written academic support case is in the IPS Client Relations queue.'}
- if(name==='support-reply'){await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',{method:'POST',body:{message:data.message}});return 'Private support response recorded.'}
+ if(name==='support-reply'){
+  const result=await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',
+   {method:'POST',body:{message:data.message}});
+  return result.claimedAutomatically?
+   'Your reply was saved and IPS assigned this support case to you automatically.':
+   'Private support response recorded.';
+ }
+ if(name==='support-reopen'){
+  await api('/support/'+encodeURIComponent(data.ticketId)+'/reopen',
+   {method:'POST',body:{reason:data.reason}});
+  return 'Support case reopened with its previous conversation and history intact.';
+ }
  if(name==='contact-reply'){
   await api('/administration/public-contacts/'+encodeURIComponent(data.contactId)+'/reply',
    {method:'POST',body:{message:data.message}});
   return 'IPS sent the response to the verified email address. Provider acceptance is not proof of reading.';
  }
  if(name==='support-assign'){
-  await api('/support/'+encodeURIComponent(data.ticketId)+'/assign',{method:'POST',body:{
-   assigneeId:data.assigneeId,reason:data.reason}});
-  return 'Support responsibility transferred with an audit record.';
+  const result=await api('/support/'+encodeURIComponent(data.ticketId)+'/assign',
+   {method:'POST',body:{assigneeId:data.assigneeId,reason:data.reason}});
+  return result.alreadyAssigned?'This employee is already responsible for the support case.':
+   'Support ownership recorded; the responsible employee has been notified.';
  }
  if(name==='specialist-agreement'){
   const r=await api('/specialist/agreement/accept',{method:'POST',body:data});
@@ -1473,6 +1516,12 @@ async function submit(name,formNode){
   return 'Your availability and assignment capacity are saved for IPS Academic Delivery.';
  }
  if(name==='contact-preference'){await api('/profile',{method:'PATCH',body:data});state.account.contactPreference=data.contactPreference;return 'Your preferred written contact channel was saved.'}
+ if(name==='privacy-request'){
+  const r=await api('/profile/privacy-requests',{method:'POST',
+   body:{type:data.type,details:data.details||'',requestId:data.requestId}});
+  return r.duplicate?'Your existing data request remains open under reference '+r.reference+'.':
+   'Your verified privacy request '+r.reference+' is now in the IPS Governance queue.';
+ }
  throw Error('This academic operation has not been connected.');
 }
 document.addEventListener('submit',async ev=>{

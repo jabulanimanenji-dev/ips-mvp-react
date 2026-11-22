@@ -59,7 +59,8 @@ export const ensureRuntime=env=>{
  return {sandbox,staging,production,allowedStagingEmails,dbName,origin,prod};
 };
 export function createSecurity(env,{sandbox}){
- const secret=env.SESSION_SECRET,secure=sandbox?'':'; Secure';
+ const secret=env.SESSION_SECRET,
+  secure=(!sandbox||String(env.PUBLIC_APP_URL||'').startsWith('https://'))?'; Secure':'';
  const mac=t=>crypto.createHmac('sha256',secret).update(t).digest('base64url');
  const digest=t=>crypto.createHmac('sha256',secret).update(t).digest('hex');
  const issue=(data)=>{const body=Buffer.from(JSON.stringify({...data,exp:Date.now()+12*3600000})).toString('base64url');return body+'.'+mac(body)};

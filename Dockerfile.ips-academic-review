@@ -10,6 +10,7 @@ RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts
 COPY academic-company/src ./src
 COPY academic-company/public ./public
 COPY academic-company/scripts/seed-review.mjs ./scripts/seed-review.mjs
+COPY academic-company/scripts/review-atlas-guard.mjs ./scripts/review-atlas-guard.mjs
 COPY academic-company/scripts/review-entrypoint.sh ./review-entrypoint.sh
 EXPOSE 8080
 ENTRYPOINT ["/bin/bash","/app/review-entrypoint.sh"]

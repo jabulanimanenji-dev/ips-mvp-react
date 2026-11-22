@@ -810,15 +810,56 @@ try{
   const r=await call('/support',withAuth(studentCookie,{
    subject:'Nursing editing document',message:'Please clarify which reference corrections were included in my academic editing delivery.'}),201);
   const id=r.data.ticket.id;
-  await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'IPS has logged the reference-format explanation for your review.'}),409);
-  const claimed=await call('/support/'+id+'/claim',withAuth(staffCookie,{}));
+  // A first authorized reply also claims an unowned ticket; no extra form.
+  const first=await call('/support/'+id+'/reply',withAuth(staffCookie,{
+   message:'IPS has logged the reference-format explanation for your review.'}));
+  assert.equal(first.data.claimedAutomatically,true);
   const staff=(await db.collection('academic_accounts').findOne({email:staffMail}));
-  assert.equal(claimed.data.ticket.assignedTo,staff.id);
+  const claimed=await db.collection('academic_support_cases').findOne({id});
+  assert.equal(claimed.assignedTo,staff.id);
+  assert.equal(claimed.ownershipHistory.length,1);
   await call('/support/'+id+'/claim',withAuth(managerCookie,{}),409);
-  await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'IPS has logged the reference-format explanation for your review.'}));
-  const all=await call('/support',{cookie:studentCookie});assert.ok(all.data.tickets.some(t=>t.id===id&&t.replies.length===2));
+  const all=await call('/support',{cookie:studentCookie});
+  assert.ok(all.data.tickets.some(t=>t.id===id&&t.replies.length===2));
   await call('/support/'+id+'/resolve',withAuth(studentCookie,{}));
   await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'Should not be appended.'}),409);
+  await call('/support/'+id+'/reopen',withAuth(otherCookie,{
+   reason:'Please let me see someone else’s private support history.'}),403);
+  await call('/support/'+id+'/reopen',withAuth(staffCookie,{
+   reason:'The company did not authorize me to reopen this ticket.'}),403);
+  const reopened=await call('/support/'+id+'/reopen',withAuth(studentCookie,{
+   reason:'I still require a detailed explanation of the referencing corrections.'}));
+  assert.equal(reopened.data.ticket.status,'open');
+  assert.equal(reopened.data.ticket.reopenCount,1);
+  assert.ok(reopened.data.ticket.replies.at(-1).message.includes('Reopening request'));
+  await call('/support/'+id+'/reopen',withAuth(studentCookie,{
+   reason:'This second request should not count twice.'}),409);
+  assert.equal((await db.collection('academic_support_cases').findOne({id}))
+   .reopeningHistory.length,1);
+  await call('/support/'+id+'/reply',withAuth(staffCookie,{
+   message:'IPS has reviewed your reopened issue and will send the remaining clarification.'}));
+  await call('/support/'+id+'/resolve',withAuth(studentCookie,{}));
+ });
+ await assertCheck('Routine support handoffs need no narrative and do not silently reassign the same owner',async()=>{
+  const created=await call('/support',withAuth(studentCookie,{
+   subject:'Academic support delegation check',
+   message:'I require a written update about my submitted manuscript and the review status.'}),201);
+  const id=created.data.ticket.id;
+  const staff=await db.collection('academic_accounts').findOne({email:staffMail});
+  const managed=await call('/support/'+id+'/assign',withAuth(managerCookie,{
+   assigneeId:staff.id}));
+  assert.equal(managed.data.ticket.assignedTo,staff.id);
+  assert.match(managed.data.ticket.ownershipHistory.at(-1).reason,/Manager assigned/);
+  const repeated=await call('/support/'+id+'/assign',withAuth(managerCookie,{
+   assigneeId:staff.id}));
+  assert.equal(repeated.data.alreadyAssigned,true);
+  assert.equal((await db.collection('academic_support_cases').findOne({id}))
+   .ownershipHistory.length,1);
+  await call('/support/'+id+'/assign',withAuth(otherCookie,{
+   assigneeId:staff.id}),403);
+  await call('/support/'+id+'/reply',withAuth(staffCookie,{
+   message:'The original review will proceed through the IPS Academic Services team.'}));
+  await call('/support/'+id+'/resolve',withAuth(studentCookie,{}));
  });
  await assertCheck('Completing a case releases the reserved slot for another real commission',async()=>{
   const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
@@ -984,6 +1025,57 @@ try{
   await call('/operations/'+job.id+'/files',{cookie:otherCookie},403);
   assert.ok(await db.collection('academic_audit_events').findOne({action:'root_academic_job_takeover',ref:job.id}));
   assert.ok(await db.collection('academic_audit_events').findOne({action:'root_private_external_fulfilment_recorded',ref:job.id}));
+ });
+ await assertCheck('Root submits a genuine 6 MB academic deliverable through the scanner and QA with no early client release',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const id='IPS-A-ROOT-BINARY-'+random(),at=new Date();
+  const p={id,quoteId:'IPS-Q-ROOT-BINARY-'+random(),studentId:student.id,
+   specialistId:'',serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',
+   subject:'Legitimate large Root editorial feedback',academicLevel:'Undergraduate',
+   status:'root_in_progress',managedBy:vars.ROOT_EMAIL,fulfilmentMode:'root',
+   paymentStatus:'not_collected',revisionCount:0,revisionAllowance:1,
+   milestones:[],createdAt:at,updatedAt:at};
+  await db.collection('academic_commissions').insertOne(p);
+  const bytes=Buffer.alloc(6*1024*1024,82),
+   sha=crypto.createHash('sha256').update(bytes).digest('hex');
+  const endpoint=url+'/api/operations/'+id+'/upload-deliverable-binary';
+  const post=(cookie)=>fetch(endpoint,{method:'POST',headers:{Cookie:cookie,
+   Origin:url,'Content-Type':'application/octet-stream',
+   'X-IPS-File-Name':'large-root-academic-review.txt','X-IPS-File-Type':'text/plain'},
+   body:bytes});
+  const unpaid=await post(rootCookie);
+  assert.equal(unpaid.status,409,'Root cannot bypass unpaid commissioning');
+  await db.collection('academic_commissions').updateOne({id},
+   {$set:{paymentStatus:'synthetic_test_only',evaluationPayment:true}});
+  const denied=await post(studentCookie);
+  assert.equal(denied.status,403);
+  const saved=await post(rootCookie);
+  assert.equal(saved.status,201,'Root binary upload failed: '+(await saved.clone().text()).slice(0,220));
+  const json=await saved.json();
+  assert.equal(json.file.sha256,sha);
+  assert.equal(json.storage,'private_gridfs');
+  assert.equal(json.byteLength,bytes.length);
+  const file=await db.collection('academic_private_files').findOne({id:json.file.id});
+  assert.ok(file?.blobId);
+  assert.equal(file.fileData,undefined,'Large Root file bytes must not be embedded in the metadata document');
+  const before=await fetch(url+'/api/academic/files/'+file.id,{headers:{Cookie:studentCookie}});
+  assert.equal(before.status,403,'Unapproved Root authored material must not be visible to the Student');
+  const current=await db.collection('academic_commissions').findOne({id});
+  assert.equal(current.status,'qa_pending');
+  assert.equal(current.qaMode,'root_supervised_exception');
+  const tooLate=await post(rootCookie);
+  assert.equal(tooLate.status,409,'Root cannot submit a second competing deliverable during QA');
+  const qa=await call('/academic/commissions/'+id+'/quality',withAuth(rootCookie,{
+   decision:'approve',note:'A documented supervised Root release reviewed the permitted academic editing feedback.'}));
+  assert.equal(qa.data.commission.qaMode,'root_supervised_exception');
+  const after=await fetch(url+'/api/academic/files/'+file.id,{headers:{Cookie:studentCookie}});
+  assert.equal(after.status,200);
+  assert.equal(crypto.createHash('sha256')
+   .update(Buffer.from(await after.arrayBuffer())).digest('hex'),sha);
+  await call('/academic/files/'+file.id,{cookie:otherCookie},403);
+  const audit=await db.collection('academic_audit_events').findOne({
+   action:'academic_root_gridfs_deliverable_submitted',ref:id});
+  assert.equal(audit.details.sha256,sha);
  });
  await assertCheck('Nyoro authorizes private supplier safeguards and alone accesses the checksummed vault',async()=>{
   const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
@@ -1464,6 +1556,41 @@ try{
    $set:{availabilityStatus:previous.availabilityStatus,
     maxConcurrentCases:previous.maxConcurrentCases,turnaroundDays:previous.turnaroundDays,
     activeAssignments:previous.activeAssignments}});
+ });
+ await assertCheck('Verified Students and Specialists can request privacy rights without redundant email checks or automatic deletion',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const id='PRIV-IPS-ACCESS-'+random();
+  await call('/profile/privacy-requests',withAuth(rootCookie,{
+   type:'access',requestId:'PRIV-ROOT-MUST-NOT-PASS'}),403);
+  await call('/profile/privacy-requests',withAuth(studentCookie,{
+   type:'erasure',requestId:'PRIV-TOO-SHORT',details:'Brief'}),400);
+  const opened=await call('/profile/privacy-requests',withAuth(studentCookie,{
+   type:'access',requestId:id,details:''}),201);
+  assert.match(opened.data.reference,/^IPS-CONT-/);
+  assert.equal(opened.data.reviewRequired,true);
+  const duplicate=await call('/profile/privacy-requests',withAuth(studentCookie,{
+   type:'access',requestId:id,details:''}));
+  assert.equal(duplicate.data.duplicate,true);
+  assert.equal(duplicate.data.reference,opened.data.reference);
+  const auditRecord=await db.collection('academic_public_contacts').findOne({id:opened.data.reference});
+  assert.equal(auditRecord.sourceAccountId,student.id);
+  assert.equal(auditRecord.contactVerified,true);
+  assert.equal(auditRecord.reviewRequired,true);
+  assert.equal(auditRecord.automaticErasure,false);
+  assert.equal(auditRecord.verificationMethod,'authenticated_account_session');
+  assert.equal(await db.collection('academic_public_contacts').countDocuments({
+   sourceAccountId:student.id,requestId:id}),1);
+  const own=await call('/profile/privacy-requests',{cookie:studentCookie});
+  assert.ok(own.data.requests.some(x=>x.reference===opened.data.reference));
+  const foreign=await call('/profile/privacy-requests',{cookie:otherCookie});
+  assert.ok(!foreign.data.requests.some(x=>x.reference===opened.data.reference));
+  const specialist=await call('/profile/privacy-requests',{cookie:specialistCookie});
+  assert.ok(!specialist.data.requests.some(x=>x.reference===opened.data.reference));
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'academic_verified_account_privacy_requested',ref:opened.data.reference}));
+  const queues=await call('/administration/queues',{cookie:rootCookie});
+  assert.ok(queues.data.queues.some(q=>q.department==='governance'&&
+   q.items?.some(item=>item.id===opened.data.reference)));
  });
  await assertCheck('Unregistered people can verify written appeals and privacy requests without phone or login',async()=>{
   const mail=emailFor('public-appeal');
