@@ -405,6 +405,7 @@ async function loadTab(){
     (x.type==='telegram'?b('Open conversation','queue-telegram',x.accountId,'primary'):
      x.type==='delivery'||x.type==='alert'?b('Review exceptions','queue-notifications',x.id,'primary'):
      x.type==='specialist'?b('Review application','queue-specialist',x.id,'primary'):
+     x.type==='contact'?b('Open written request','queue-contact',x.id,'primary'):
      !x.ownerId&&a.role!=='root'&&a.department===x.departmentId&&
       ['academic_delivery','quality_assurance'].includes(x.departmentId)?
       b('Claim and open','queue-claim',x.id,'primary'):
