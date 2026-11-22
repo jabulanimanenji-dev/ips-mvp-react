@@ -591,9 +591,11 @@ async function loadTab(){
     b('Open workspace','root-lens-open',p.id,'small primary'):'')+
    (a.role==='root'?b('Message','person-message',p.id,'small'):'')+
    (!rootLensList&&canApprove(a,p)?b('Review application','person-manage',p.id,'small primary'):'')+
+   (!rootLensList&&a.role==='staff'&&canRecover(a,p)?
+    b('Send reset link','person-recover',p.id,'small'):'')+
    (!rootLensList&&!canApprove(a,p)&&
-    (a.role==='root'||canRecover(a,p)||canSuspend(a,p)||
-      a.role==='manager'&&p.role==='staff'&&p.managerId===a.id)?
+    (a.role==='root'||a.role==='manager'&&(canRecover(a,p)||canSuspend(a,p)||
+      p.role==='staff'&&p.managerId===a.id))?
     b('Manage','person-manage',p.id,'small'):'')+
    '</div></td></tr>').join('')+'</tbody></table></div>':empty('No accounts found.'))+
    '<div class="case-actions">'+(d.hasPrevious?b('Previous accounts','directory-prev','','small'):'')+
