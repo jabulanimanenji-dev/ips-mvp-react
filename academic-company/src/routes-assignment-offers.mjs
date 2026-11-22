@@ -49,6 +49,9 @@ export function registerAssignmentOfferRoutes(ctx){
   const p=await db.projects.findOne({id:req.params.id,status:'ready_for_assignment',
    specialistId:'',paymentStatus:{$ne:'not_collected'}});
   if(!p)return res.status(409).json({error:'A genuinely commissioned, unassigned academic job is required before making an offer.'});
+  if(req.actor.role==='manager'&&p.deliveryOwnerId!==req.actor.id&&
+   p.deliveryManagerId!==req.actor.id)
+   return res.status(403).json({error:'Claim Academic Delivery responsibility for this case before offering work.'});
   if(feeMinor>p.priceMinor)
    return res.status(400).json({error:'The Specialist fee cannot exceed the documented client quotation.'});
   const candidate=await checkCandidate({specialistId:id,serviceId:p.serviceId});
