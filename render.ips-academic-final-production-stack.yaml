@@ -95,7 +95,7 @@ services:
       - key: MONGODB_URI
         sync: false
       - key: IPS_STAGING_ALLOWED_EMAILS
-        value: admin@ipsglobalservice.com
+        value: admin@ipsglobalservice.com,support@ipsglobalservice.com,contact@ipsglobalservice.com
       - key: ROOT_EMAIL
         value: admin@ipsglobalservice.com
       - key: ROOT_PASSWORD
