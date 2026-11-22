@@ -130,7 +130,7 @@ export function registerSupportRoutes(ctx){
     .sort({createdAt:1}).limit(50).toArray();
    queues.push({department:'specialist_network',name:'Verified Specialist applications awaiting evaluation',
     count:await db.accounts.countDocuments({role:'specialist',status:'pending_review',verified:true}),items:applications.map(a=>({id:a.id,service:'Specialist application',
-      subject:a.name,stage:'pending_review',createdAt:a.createdAt}))});
+      subject:a.name,type:'specialist',stage:'pending_review',createdAt:a.createdAt}))});
   }
   if(root||dept==='quality_assurance'){
    const waiting=await db.projects.find({status:'qa_pending'}).sort({updatedAt:1}).limit(50).toArray();
@@ -177,6 +177,20 @@ export function registerSupportRoutes(ctx){
      kind:{$in:['communication_failure','intake_escalation','qa_escalation']},read:false}),
     items:overdue.map(n=>({id:n.id,type:'alert',service:'Governance exception',
      subject:n.message,stage:'unread',createdAt:n.createdAt}))});
+  }
+
+  for(const [category,owner,name] of [
+   ['general','client_relations','Verified guest enquiries requiring a written reply'],
+   ['specialist_appeal','specialist_network','Specialist application appeals and reviews'],
+   ['privacy_request','governance','Privacy and data-rights requests']]){
+   if(!root&&dept!==owner)continue;
+   const filter={category,contactVerified:true,status:'open'};
+   const cases=await db.publicContacts.find(filter).sort({receivedAt:1}).limit(50).toArray();
+   queues.push({department:owner,name,
+    count:await db.publicContacts.countDocuments(filter),
+    items:cases.map(c=>({id:c.id,type:'contact',service:'Verified written contact',
+     subject:c.subject,stage:c.status,ownerId:c.assignedTo||'',
+     createdAt:c.receivedAt||c.createdAt}))});
   }
   res.json({queues,product:'IPS Academic Services',paymentsEnabled:false});
  }));
