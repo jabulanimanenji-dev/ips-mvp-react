@@ -104,6 +104,9 @@ try{
   studentCookie=verified.cookie;assert.ok(studentCookie.startsWith('ips_academic_session='));
   const row=await db.collection('academic_accounts').findOne({email:studentMail});
   assert.equal(row.name,'');assert.equal(row.verified,true);assert.ok(row.username.startsWith('PrivateScholar'));
+  const aliasCookie=await signIn(row.username,'StudentAcademic2026!');
+  assert.ok(aliasCookie.startsWith('ips_academic_session='));
+  await call('/auth/login',{method:'POST',body:{email:row.username,password:'IncorrectAcademic2026!'}},401);
  });
  await assertCheck('Sign-up rejects mismatched password confirmation',async()=>{
   await call('/auth/register',{method:'POST',body:{role:'student',email:emailFor('mismatch'),
@@ -755,6 +758,11 @@ try{
   const r=await call('/support',withAuth(studentCookie,{
    subject:'Nursing editing document',message:'Please clarify which reference corrections were included in my academic editing delivery.'}),201);
   const id=r.data.ticket.id;
+  await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'IPS has logged the reference-format explanation for your review.'}),409);
+  const claimed=await call('/support/'+id+'/claim',withAuth(staffCookie,{}));
+  const staff=(await db.collection('academic_accounts').findOne({email:staffMail}));
+  assert.equal(claimed.data.ticket.assignedTo,staff.id);
+  await call('/support/'+id+'/claim',withAuth(managerCookie,{}),409);
   await call('/support/'+id+'/reply',withAuth(staffCookie,{message:'IPS has logged the reference-format explanation for your review.'}));
   const all=await call('/support',{cookie:studentCookie});assert.ok(all.data.tickets.some(t=>t.id===id&&t.replies.length===2));
   await call('/support/'+id+'/resolve',withAuth(studentCookie,{}));
