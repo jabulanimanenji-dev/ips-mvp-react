@@ -133,6 +133,8 @@ export function registerFinanceRoutes(ctx){
    specialistId:{$ne:''},status:{$in:[...eligibleWork]}});
   if(!p||p.paymentStatus==='not_collected')
    return res.status(409).json({error:'Only a genuinely assigned academic job may have proposed Specialist compensation.'});
+  if(p.assignmentTermsAcceptedAt)
+   return res.status(409).json({error:'The Specialist already accepted fee and assignment terms; Finance cannot replace that agreement.'});
   const amount=Number(req.body?.feeMinor),reason=String(req.body?.reason||'').trim();
   if(!Number.isSafeInteger(amount)||amount<1||amount>p.priceMinor||
    reason.length<15||reason.length>700)
