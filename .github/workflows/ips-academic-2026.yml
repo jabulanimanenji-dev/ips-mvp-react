@@ -27,6 +27,7 @@ on:
       - work/ips-academic-governed-people-20261121
       - work/ips-academic-production-completion-20261122
       - work/ips-company-logic-remediation-20261122
+      - work/ips-company-operational-hardening-20261122
   pull_request:
     branches:
       - main
@@ -75,6 +76,7 @@ jobs:
           node --check src/routes-operations.mjs
           node --check src/routes-people-governance.mjs
           node --check src/routes-assignment-offers.mjs
+          node --check src/routes-public-contact.mjs
           node --check public/app.js
           node --check scripts/verify-lifecycle.mjs
           node --check scripts/verify-browser.mjs
