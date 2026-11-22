@@ -365,16 +365,25 @@ async function loadTab(){
    empty('Nothing waiting in your IPS inbox. New written correspondence will appear here.'));
  }else if(tab==='queues'){
   const d=await api('/administration/queues');
-  const rows=d.queues.flatMap(q=>q.items.map(x=>({...x,departmentName:q.name,
-   status:x.stage||'pending'})));
-  html=panel('Department queues','A searchable company-wide responsibility queue with actual ownership and case status.',
+  const rows=d.queues.flatMap(q=>q.items.map(x=>({...x,departmentId:q.department,
+   departmentName:q.name,status:x.stage||'pending'})));
+  const summary='<div class="metrics">'+d.queues.map(q=>kpi(q.name,q.count,
+   q.items.length<q.count?'Showing '+q.items.length+' oldest items':'All visible items')).join('')+'</div>';
+  html=summary+panel('Department queues','Real total counts, responsible departments and individual tasks. Lists display the oldest 50 records per queue; do not mistake them for the full company.',
    rows.length?workListTools(rows)+
    '<div class="small-list worklist-rows">'+rows.map(x=>
     '<article class="inbox-row" data-work-row data-work-status="'+e(x.status)+
     '" data-work-search="'+e([x.departmentName,x.service,x.subject,x.id,x.stage].filter(Boolean).join(' '))+'">'+
     '<div><span class="kicker">'+e(x.departmentName)+'</span>'+
     '<h3>'+e((x.service||'Academic case')+' · '+(x.subject||'Case needing attention'))+'</h3><p>'+e(x.id)+'</p></div>'+
-    '<div class="case-actions">'+stat(x.status)+b('Open work','queue-open',x.id,'primary')+
+    '<div class="case-actions">'+stat(x.status)+
+    (x.type==='telegram'?b('Open conversation','queue-telegram',x.accountId,'primary'):
+     x.type==='delivery'||x.type==='alert'?b('Review exceptions','queue-notifications',x.id,'primary'):
+     x.type==='specialist'?b('Review application','queue-specialist',x.id,'primary'):
+     !x.ownerId&&a.role!=='root'&&a.department===x.departmentId&&
+      ['academic_delivery','quality_assurance'].includes(x.departmentId)?
+      b('Claim and open','queue-claim',x.id,'primary'):
+      b('Open work','queue-open',x.id,'primary'))+
     '</div></article>').join('')+'</div>'+workListPager():
    empty('No pending tasks for this department.'));
  }else if(tab==='quotes'){
@@ -1347,6 +1356,24 @@ document.addEventListener('click',async ev=>{
  if(act==='close-case'){if(state.backStack.length)history.back();else{state.opened='';render()}return}
  if(['tab-inbox','tab-students','tab-specialists','tab-workforce'].includes(act)){
   remember();state.tab=act.slice(4);state.opened='';render();return}
+ if(act==='queue-claim'){
+  try{await api('/operations/'+encodeURIComponent(id)+'/claim',{method:'POST'});
+   state.tab=state.account?.department==='quality_assurance'?'quality':'commissions';
+   state.opened=id;state.message='You now own this academic responsibility.';render();
+  }catch(err){state.error=err.message;render()}
+  return;
+ }
+ if(act==='queue-specialist'){
+  remember();state.tab='specialists';state.directoryTab='specialists';
+  state.directoryPage=1;state.directoryQuery=id;state.directoryStatus='all';
+  state.opened='PERSON:'+id;render();return;
+ }
+ if(act==='queue-telegram'){
+  remember();state.tab='inbox';state.opened='TG:'+id;render();return;
+ }
+ if(act==='queue-notifications'){
+  remember();state.tab='notifications';state.opened='';render();return;
+ }
  if(act==='inbox-open'||act==='queue-open'){
   remember();
   const parts=act==='inbox-open'?id.split('::'): [id.startsWith('IPS-Q')?'quote':id.startsWith('IPS-S')?'support':'commission',id];
