@@ -1373,7 +1373,7 @@ try{
    availabilityStatus:'available',maxConcurrentCases:Math.max(2,(previous.activeAssignments||0)+1),
    turnaroundDays:7}});
   const id='IPS-A-CI-OFFER-'+random(),quoteId='IPS-Q-CI-OFFER-'+random(),at=new Date();
-  await db.collection('academic_commissions').insertOne({
+  const baseJob={
    id,quoteId,studentId:student.id,specialistId:'',
    serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',
    subject:'Review of student-owned research text',academicLevel:'Undergraduate',
@@ -1383,9 +1383,31 @@ try{
    paymentStatus:'synthetic_test_only',evaluationPayment:true,
    status:'ready_for_assignment',revisionCount:0,createdAt:at,updatedAt:at,
    milestones:[{name:'Specialist assignment',status:'pending',at:null}]
-  });
+  };
+  await db.collection('academic_commissions').insertOne({...baseJob});
   const offerBody={specialistId:specialist.id,feeMinor:12000,
    terms:'A voluntary editorial consultation. Seven day turnaround, one feedback revision, no ghostwriting.'};
+  // Root can retract an outstanding voluntary offer in a single governed action:
+  // no Specialist capacity is reserved, and late acceptance must be rejected.
+  const pendingId='IPS-A-CI-PENDING-ROOT-'+random();
+  await db.collection('academic_commissions').insertOne({...baseJob,
+   id:pendingId,quoteId:'IPS-Q-CI-PENDING-ROOT-'+random()});
+  await call('/academic/commissions/'+pendingId+'/assignment-offer',
+   withAuth(rootCookie,offerBody),201);
+  const quick=await call('/operations/'+pendingId+'/takeover',withAuth(rootCookie,{}));
+  assert.equal(quick.data.commission.status,'root_in_progress');
+  const withdrawn=await db.collection('academic_commissions').findOne({id:pendingId});
+  assert.equal(withdrawn.assignmentOffer,undefined,
+   'Root takeover must atomically revoke the pending assignment offer');
+  assert.equal(withdrawn.assignmentHistory.at(-1).decision,'withdrawn_by_root');
+  assert.equal(withdrawn.assignmentHistory.at(-1).specialistId,specialist.id);
+  await call('/academic/commissions/'+pendingId+'/assignment-decision',
+   withAuth(specialistCookie,{decision:'accept'}),409);
+  assert.equal((await db.collection('academic_accounts').findOne({id:specialist.id})).activeAssignments,
+   previous.activeAssignments,'Revoking an unaccepted offer cannot consume Specialist capacity');
+  assert.ok(!(await call('/academic/assignment-offers',{cookie:specialistCookie}))
+   .data.offers.some(x=>x.id===pendingId),'Withdrawn offer must disappear from Specialist inbox');
+  await db.collection('academic_commissions').deleteOne({id:pendingId});
   await call('/academic/commissions/'+id+'/assignment-offer',
    withAuth(staffCookie,offerBody),403);
   await call('/academic/commissions/'+id+'/assignment-decision',
