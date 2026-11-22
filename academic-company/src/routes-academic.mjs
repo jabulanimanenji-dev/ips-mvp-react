@@ -584,6 +584,11 @@ export function registerAcademicRoutes(ctx){
   const decision=String(req.body?.decision||''),note=String(req.body?.note||'').trim();
   if(!['approve','return_for_correction'].includes(decision)||note.length<15||note.length>2500)
    return res.status(400).json({error:'A documented academic quality decision and specific feedback are required.'});
+  if(req.actor.role==='manager'){
+   const owned=await db.projects.findOne({id:req.params.id,status:'qa_pending'});
+   if(!owned||!canSee(req.actor,owned))
+    return res.status(403).json({error:'Claim or be assigned this Quality Assurance review before authorizing a client release.'});
+  }
   if(!config.sandbox&&decision==='approve'){
    const candidate=await db.projects.findOne({id:req.params.id,status:'qa_pending'});
    const released=candidate?.pendingFileId?await db.files.findOne({id:candidate.pendingFileId}):null;
