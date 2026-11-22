@@ -21,7 +21,7 @@ const goBack=()=>{
 window.addEventListener('popstate',()=>goBack());
 const escapeText=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&#39;'}[c]));
 const e=escapeText;
-const readableStatus=value=>({client_delivery:'Ready for your review',qa_pending:'Under academic quality review',awaiting_payment_integration:'Commissioning unavailable until payments launch',ready_for_assignment:'Preparing your academic team',specialist_assigned:'Specialist assigned',correction_requested:'Corrections in progress',student_revision_requested:'Revision requested',pending_review:'Application under review',pending_verification:'Email verification required',offer_delivery_failed:'Quote notification needs attention'})[value]||String(value||'pending').replaceAll('_',' ');
+const readableStatus=value=>({client_delivery:'Ready for your review',qa_pending:'Under academic quality review',awaiting_payment_integration:'Commissioning unavailable until payments launch',ready_for_assignment:'Preparing your academic team',specialist_assigned:'Specialist assigned',correction_requested:'Corrections in progress',student_revision_requested:'Revision requested',awaiting_specialist_acceptance:'Awaiting Specialist confirmation',pending_review:'Application under review',pending_verification:'Email verification required',offer_delivery_failed:'Quote notification needs attention'})[value]||String(value||'pending').replaceAll('_',' ');
 const stat=value=>'<span class="pill '+(['active','approved','accepted','completed','client_delivery','scoped'].includes(value)?'good':['suspended','declined','correction_requested'].includes(value)?'bad':'wait')+'">'+e(readableStatus(value))+'</span>';
 const date=d=>d?new Date(d).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'Not scheduled';
 const price=c=>Number.isInteger(c)?(c/100).toLocaleString('en-PL',{style:'currency',currency:'PLN'}):'Reviewed quote pending';
@@ -401,7 +401,19 @@ async function loadTab(){
   const d=await api('/academic/commissions');
   const items=tab==='quality'?d.commissions.filter(x=>['qa_pending','correction_requested','client_delivery'].includes(x.status)):d.commissions;
   if(state.opened)html=await commissionDetail(items.find(p=>p.id===state.opened),a);
-  else html=panel(tab==='quality'?'Quality review':'Academic jobs',
+  else html=(a.role==='specialist'&&!rootAssisted?(
+   await api('/academic/assignment-offers')).offers.map(o=>
+    panel('New Specialist assignment offer','Review the permitted scope, your fee and delivery time before committing your capacity.',
+     '<p><strong>'+e(o.serviceName)+'</strong> · '+e(o.subject)+'</p>'+
+     '<p><strong>Agreed fee if accepted:</strong> '+price(o.feeMinor)+
+     ' · <strong>Deadline:</strong> '+e(o.deadline||'To be agreed')+'</p>'+
+     '<p>'+e(o.deliverables)+'</p><p><strong>Terms:</strong> '+e(o.terms)+'</p>'+
+     form('assignment-decision',
+      '<input type="hidden" name="commissionId" value="'+e(o.id)+'">'+
+      options('Your response','decision',[['accept','Accept assignment and stated fee'],['decline','Decline without a penalty']])+
+      field('Reason if declining','reason','text','Provide a brief reason when declining',false),
+      'Send my decision'))).join(''):'')+
+   panel(tab==='quality'?'Quality review':'Academic jobs',
    'Open any job to manage its messages, instructions, assigned work and files.',
    items.length?'<div class="small-list">'+items.map(p=>record(
      p.subject+' · '+p.serviceName,
@@ -830,10 +842,12 @@ async function commissionDetail(p,a){
  if(manager&&p.status==='ready_for_assignment'){
   const avail=await api('/operations/available-specialists?service='+encodeURIComponent(p.serviceId));
   actions+=panel('Assign an academic Specialist','',
-   avail.specialists.length?form('assign',
+   avail.specialists.length?form('assignment-offer',
     '<input type="hidden" name="commissionId" value="'+e(p.id)+'">'+
-    options('Approved Specialist','specialistId',avail.specialists.map(s=>[s.id,s.name+' · '+s.availableSlots+' open slot(s) · '+s.turnaroundDays+'d turnaround'])),
-    'Assign Specialist'):empty('No approved Specialist is currently available for this service. Root can take responsibility directly.'))}
+    options('Approved Specialist','specialistId',avail.specialists.map(s=>[s.id,s.name+' · '+s.availableSlots+' open slot(s) · '+s.turnaroundDays+'d turnaround']))+
+    field('Proposed Specialist fee (PLN)','feePLN','number','e.g. 150')+
+    textarea('Assignment scope and commercial terms','terms','Define permitted work, deadline, revision terms and fee'),
+    'Send assignment offer'):empty('No approved Specialist is currently available for this service. Root can take responsibility directly.'))}
  if(manager&&p.status==='qa_pending')
   actions+=panel(p.fulfilmentMode==='root'?'Root-supervised release review':'Academic quality review',
    p.fulfilmentMode==='root'?'If Nyoro prepared this deliverable, the release is recorded as a supervised exception—not independent QA.':'Approve or request corrections before Student delivery.',
@@ -1237,6 +1251,18 @@ async function submit(name,formNode){
  if(name==='scope'){await api('/academic/quotes/'+encodeURIComponent(id)+'/scope',{method:'POST',operator:state.account?.role==='root',body:data});return 'Academic scope decision has been recorded.'}
  if(name==='offer'){data.priceMinor=Math.round(Number(data.pricePLN)*100);delete data.pricePLN;
   await api('/academic/quotes/'+encodeURIComponent(id)+'/offer',{method:'POST',operator:state.account?.role==='root',body:data});return 'Reviewed academic quotation issued in writing.'}
+ if(name==='assignment-offer'){
+  await api('/academic/commissions/'+encodeURIComponent(data.commissionId)+'/assignment-offer',
+   {method:'POST',body:{specialistId:data.specialistId,
+    feeMinor:Math.round(Number(data.feePLN)*100),terms:data.terms}});
+  return 'A scoped offer was sent to the Specialist. No capacity is reserved until they accept.';
+ }
+ if(name==='assignment-decision'){
+  await api('/academic/commissions/'+encodeURIComponent(data.commissionId)+'/assignment-decision',
+   {method:'POST',body:{decision:data.decision,reason:data.reason||''}});
+  return data.decision==='accept'?'You accepted the assignment and fee. IPS has reserved your available capacity.':
+   'You declined this offer; IPS can select another Specialist.';
+ }
  if(name==='assign'){await api('/academic/commissions/'+encodeURIComponent(id)+'/assign',{method:'POST',operator:state.account?.role==='root',body:{specialistId:data.specialistId}});return 'Approved academic Specialist assignment recorded.'}
  if(name==='submit-academic'){
   const file=formNode.querySelector('input[name=upload]')?.files?.[0];
