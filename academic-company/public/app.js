@@ -1147,15 +1147,23 @@ async function supportDetail(t){
    transfer=people.length?form('support-assign',
     '<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+
     options('Responsible Client Relations employee','assigneeId',people.map(p=>[p.id,p.name||p.email]))+
-    textarea('Reason for handoff','reason','Why is this person responsible now?'),
+    textarea('Optional handoff note','reason','Only if additional context is needed',false),
     'Assign support owner'):'';
   }
-  assignment=panel('Support responsibility',
-   'This support case has one accountable employee. Writing a reply never silently changes the owner.',
-   '<p><strong>Responsible:</strong> '+e(t.assignedTo||'Unassigned · needs ownership')+'</p>'+
-   claim+transfer);
+  assignment=(claim?'<div class="case-actions quick-owner-action">'+claim+
+   '<span class="subtle">You can also reply directly; IPS will record responsibility automatically.</span></div>':'')+
+   (transfer?'<details class="optional-admin-tools"><summary>Change responsible employee</summary>'+
+    '<p>Use this only to delegate or transfer a support case. Ownership history is recorded automatically.</p>'+
+    transfer+'</details>':'');
  }
- const canRespond=t.status==='open'&&(!company||a.role==='root'||owned);
+ const canRespond=t.status==='open'&&(!company||a.role==='root'||owned||canOwn&&!t.assignedTo);
+ const canReopen=t.status==='closed'&&(a.role==='root'||a.id===t.ownerId||
+    a.role==='manager'&&a.department==='client_relations');
+ const reopen=canReopen?panel('Need more assistance?',
+   'Continue this same support case without creating a duplicate request.',
+   form('support-reopen','<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+
+    textarea('What still needs attention?','reason','Explain what is unresolved or has changed.'),
+    'Reopen support case')):'';
  return '<div class="mt"><div class="toolbar">'+b('← Back to support','close-case')+'</div>'+
   panel('Support case '+t.id,'Written assistance, case ownership and resolution history.',
   '<p><strong>Status:</strong> '+e(readableStatus(t.status))+
@@ -1166,8 +1174,9 @@ async function supportDetail(t){
    '<input type="hidden" name="ticketId" value="'+e(t.id)+'">'+
    textarea('Private reply','message','Write the next helpful response'),'Send secure reply')+
    '<div class="action-row">'+b('Resolve support case','support-close',t.id)+'</div>':
-   '<p>This case requires an assigned employee before a reply or resolution.</p>'))+
-   assignment+'</div>';
+   t.status==='closed'?'<p>This case was closed. Reopen it if something remains unresolved.</p>':
+   '<p>This case has another responsible employee. Ask a Manager to transfer it if necessary.</p>'))+
+   reopen+assignment+'</div>';
 }
 function render(){
  if(!state.catalogue){root.textContent='IPS Academic Services is loading…';return}
@@ -1451,16 +1460,28 @@ async function submit(name,formNode){
  if(name==='student-decision'){await api('/academic/commissions/'+encodeURIComponent(id)+'/student-decision',{method:'POST',body:data});return 'Your academic delivery decision is saved.'}
  if(name==='commission-message'){await api('/academic/commissions/'+encodeURIComponent(id)+'/messages',{method:'POST',body:data});return 'Message sent and attached to this academic job.'}
  if(name==='support'){await api('/support',{method:'POST',body:data});return 'Your written academic support case is in the IPS Client Relations queue.'}
- if(name==='support-reply'){await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',{method:'POST',body:{message:data.message}});return 'Private support response recorded.'}
+ if(name==='support-reply'){
+  const result=await api('/support/'+encodeURIComponent(data.ticketId)+'/reply',
+   {method:'POST',body:{message:data.message}});
+  return result.claimedAutomatically?
+   'Your reply was saved and IPS assigned this support case to you automatically.':
+   'Private support response recorded.';
+ }
+ if(name==='support-reopen'){
+  await api('/support/'+encodeURIComponent(data.ticketId)+'/reopen',
+   {method:'POST',body:{reason:data.reason}});
+  return 'Support case reopened with its previous conversation and history intact.';
+ }
  if(name==='contact-reply'){
   await api('/administration/public-contacts/'+encodeURIComponent(data.contactId)+'/reply',
    {method:'POST',body:{message:data.message}});
   return 'IPS sent the response to the verified email address. Provider acceptance is not proof of reading.';
  }
  if(name==='support-assign'){
-  await api('/support/'+encodeURIComponent(data.ticketId)+'/assign',{method:'POST',body:{
-   assigneeId:data.assigneeId,reason:data.reason}});
-  return 'Support responsibility transferred with an audit record.';
+  const result=await api('/support/'+encodeURIComponent(data.ticketId)+'/assign',
+   {method:'POST',body:{assigneeId:data.assigneeId,reason:data.reason}});
+  return result.alreadyAssigned?'This employee is already responsible for the support case.':
+   'Support ownership recorded; the responsible employee has been notified.';
  }
  if(name==='specialist-agreement'){
   const r=await api('/specialist/agreement/accept',{method:'POST',body:data});
