@@ -1,3 +1,7 @@
+## November 22 — Final UI/evidence qualification
+
+The protected company branch was fast-forwarded again from `beda95c1441714e6f2a898456c6c345abf22edcf` to **`1ab92f8e5dcf4bc7fef74b1ed5aea0a6c871348d`** after complete GitHub Actions run **44972356452 SUCCESS**. This release corrected repetitive Root tab descriptions and required the Chrome visual witness to wait until the Root dashboard finished loading. The final screenshot now shows real scoped department action cards, rather than a premature loading placeholder. The prior accepted commit is archived as `archive/ips-academic-before-final-visual-evidence-20261122`. Render deployment `dep-dc14g0nlk1mc73832v1g` was independently confirmed **live** at the exact final source revision. This remains an isolated fictional-evaluation application, not official customer-serving production.
+
 ## November 22 — Business logic remediation and operational hardening (independently qualified)
 
 Canonical company branch `company/ips-academic-services-2026` was fast-forwarded without force through two complete source-bound releases:
