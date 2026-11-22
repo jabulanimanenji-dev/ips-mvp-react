@@ -31,6 +31,7 @@ on:
       - work/ips-company-final-visual-evidence-20261122
       - work/ips-lease-concurrency-20261122
       - work/ips-offsite-backup-ops-20261122
+      - work/ips-final-real-production-topology-20261122
   pull_request:
     branches:
       - main
@@ -90,6 +91,7 @@ jobs:
           node --check scripts/encrypted-mongo-archive.mjs
           node --check scripts/verify-encrypted-archive.mjs
           node --check scripts/verify-offsite-backup.mjs
+          node --check scripts/probe-real-providers.mjs
           bash -n scripts/backup-offsite.sh
           node --check src/legacy-reconciliation.mjs
           node --check scripts/audit-legacy-boundary.mjs
