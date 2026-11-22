@@ -25,8 +25,47 @@ export function registerSupportRoutes(ctx){
   const a=req.actor;
   if(['manager','staff'].includes(a.role)&&a.department!=='client_relations')
    return res.status(403).json({error:'Only Client Relations handles general academic support cases.'});
-  const filter=['student','specialist'].includes(a.role)?{ownerId:a.id}:{};
+  const filter=['student','specialist'].includes(a.role)?{ownerId:a.id}:
+   a.role==='staff'?{$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null}]}:{};
   res.json({tickets:(await db.support.find(filter).sort({updatedAt:-1}).limit(100).toArray()).map(view)});
+ }));
+ // A support reply never silently changes accountable ownership. Explicitly claim,
+ // hand off or revoke responsibility with a traceable assignment history.
+ app.post('/api/support/:id/claim',wrap(async(req,res)=>{
+  if(!department(req,res,['client_relations']))return;
+  const at=now();
+  const t=await db.support.findOneAndUpdate({id:req.params.id,status:'open',
+   $or:[{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]},
+   {$set:{assignedTo:req.actor.id,assignedAt:at,updatedAt:at},
+    $push:{ownershipHistory:{to:req.actor.id,by:req.actor.id,reason:'Responsibility claimed',at}}},
+   {returnDocument:'after'});
+  if(!t)return res.status(409).json({error:'This support case is closed or another employee already owns it.'});
+  await audit(req.actor,'academic_support_claimed',t.id);
+  await notify(t.ownerId,'An IPS representative is now responsible for support case '+t.id,'support');
+  res.json({ticket:view(t)});
+ }));
+ app.post('/api/support/:id/assign',wrap(async(req,res)=>{
+  if(!authorize(req,res,['root','manager']))return;
+  if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
+   return res.status(403).json({error:'Only Client Relations management can transfer support responsibility.'});
+  const reason=String(req.body?.reason||'').trim();
+  if(reason.length<12||reason.length>900)return res.status(400).json({error:'Document the support handoff reason.'});
+  const target=await db.accounts.findOne({id:String(req.body?.assigneeId||''),
+   verified:true,status:'active',department:'client_relations',role:{$in:['manager','staff']}});
+  if(!target)return res.status(400).json({error:'Choose an active Client Relations employee.'});
+  const current=await db.support.findOne({id:req.params.id,status:'open'});
+  if(!current)return res.status(409).json({error:'Only open support cases can be transferred.'});
+  const at=now();
+  const t=await db.support.findOneAndUpdate({id:current.id,status:'open',
+   ...(current.assignedTo?{assignedTo:current.assignedTo}:
+    {$or:[{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]})},
+   {$set:{assignedTo:target.id,assignedAt:at,updatedAt:at},
+    $push:{ownershipHistory:{from:current.assignedTo||'',to:target.id,
+     by:req.actor.id,reason,at}}},{returnDocument:'after'});
+  if(!t)return res.status(409).json({error:'Support ownership changed; reload before transferring.'});
+  await audit(req.actor,'academic_support_reassigned',t.id,{from:current.assignedTo||'',to:target.id,reason});
+  await notify(target.id,'IPS assigned support case '+t.id+' to you','support');
+  res.json({ticket:view(t)});
  }));
  app.post('/api/support/:id/reply',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
@@ -35,9 +74,11 @@ export function registerSupportRoutes(ctx){
   const message=String(req.body?.message||'').trim();
   if(message.length<2||message.length>3500)return res.status(400).json({error:'Write a helpful private reply.'});
   if(t.status==='closed')return res.status(409).json({error:'The case is closed; request reopening through IPS.'});
+  const employee=['manager','staff'].includes(req.actor.role);
+  if(employee&&t.assignedTo!==req.actor.id)
+   return res.status(409).json({error:'Claim or be assigned this support case before replying.'});
   const update={$push:{replies:{actorId:req.actor.id,role:req.actor.role,message,at:now()}},
     $set:{updatedAt:now()}};
-  if(['root','manager','staff'].includes(req.actor.role))update.$set.assignedTo=req.actor.id;
   await db.support.updateOne({id:t.id,status:{$ne:'closed'}},update);
   await notify(req.actor.id===t.ownerId?t.assignedTo||rootEmail:t.ownerId,
    'Confidential academic support response on '+t.id,'support');
@@ -48,6 +89,8 @@ export function registerSupportRoutes(ctx){
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
   const t=await db.support.findOne({id:req.params.id});if(!t)return res.status(404).json({error:'Support case not found.'});
   if(!canSee(req.actor,t))return res.status(403).json({error:'You cannot resolve this case.'});
+  if(['manager','staff'].includes(req.actor.role)&&t.assignedTo!==req.actor.id)
+   return res.status(403).json({error:'Only the responsible employee may resolve this support case.'});
   const p=await db.support.findOneAndUpdate({id:t.id,status:'open'},
    {$set:{status:'closed',closedBy:req.actor.id,closedAt:now(),updatedAt:now()}},{returnDocument:'after'});
   if(!p)return res.status(409).json({error:'Support case already closed.'});
