@@ -604,7 +604,9 @@ async function loadTab(){
   if(a.role==='root'&&state.opened?.startsWith('DMTO:'))html=directCompose(state.opened.slice(5),people);
   if(state.opened?.startsWith('PERSON:')){
    const selected=d.people.find(p=>p.id===state.opened.slice(7));
-   if(selected)html+=await peopleManagementDetail(selected,a,d.people);
+   if(selected)html=await peopleManagementDetail(selected,a,d.people);
+   else html=panel('Account unavailable','This person is no longer in the current directory result.',
+    '<div class="case-actions">'+b('← Back to directory','close-case','','primary')+'</div>');
   }
  }else if(tab==='support'){
   const d=await api('/support');
