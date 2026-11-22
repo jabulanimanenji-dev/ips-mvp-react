@@ -3,12 +3,14 @@
 import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import {SPECIALIST_AGREEMENT} from '../src/specialist-agreement.mjs';
+import {assertSyntheticReviewAtlas} from './review-atlas-guard.mjs';
 const env=process.env;
 if(env.NODE_ENV!=='test'||env.IPS_ACADEMIC_MODE!=='evaluation'||env.IPS_ACADEMIC_TEST_SETTLEMENT==='true')
  throw Error('Synthetic academic seed refuses non-isolated or payment-test runtime.');
-if(!/^mongodb:\/\/[^@]*@?127\.0\.0\.1:27017\//.test(String(env.MONGODB_URI||''))&&
+if(env.IPS_REVIEW_PERSISTENT_ATLAS==='true')assertSyntheticReviewAtlas(env.MONGODB_URI);
+else if(!/^mongodb:\/\/[^@]*@?127\.0\.0\.1:27017\//.test(String(env.MONGODB_URI||''))&&
  !/^mongodb:\/\/localhost:27017\//.test(String(env.MONGODB_URI||'')))
- throw Error('Synthetic IPS academic seed requires localhost-only MongoDB');
+ throw Error('Synthetic IPS academic seed requires localhost-only MongoDB unless the isolated free Atlas review option is explicitly active.');
 const credentials=[
  ['student','student.academic.review@example.org','IPS_REVIEW_STUDENT_PASSWORD','STU-DEMO-2026'],
  ['specialist','specialist.academic.review@example.org','IPS_REVIEW_SPECIALIST_PASSWORD','SPC-DEMO-2026'],
