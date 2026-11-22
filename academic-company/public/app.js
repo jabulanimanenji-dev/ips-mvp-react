@@ -590,12 +590,11 @@ async function loadTab(){
    (a.role==='root'&&['student','specialist'].includes(p.role)&&p.verified&&p.status==='active'?
     b('Open workspace','root-lens-open',p.id,'small primary'):'')+
    (a.role==='root'?b('Message','person-message',p.id,'small'):'')+
-   (!rootLensList&&canRecover(a,p)?b('Send reset link','person-recover',p.id,'small'):'')+
-   (!rootLensList&&canApprove(a,p)?b('Review','person-manage',p.id,'small primary'):'')+
-   (!rootLensList&&(a.role==='root'||a.role==='manager'&&p.role==='staff'&&p.managerId===a.id)&&
-    !canApprove(a,p)?b('Manage','person-manage',p.id,'small'):'')+
-   (!rootLensList&&canSuspend(a,p)?b('Suspend','person-suspend',p.id,'small danger'):'')+
-   (!rootLensList&&p.status==='suspended'&&a.role==='root'?b('Reactivate','person-reactivate',p.id,'small'):'')+
+   (!rootLensList&&canApprove(a,p)?b('Review application','person-manage',p.id,'small primary'):'')+
+   (!rootLensList&&!canApprove(a,p)&&
+    (a.role==='root'||canRecover(a,p)||canSuspend(a,p)||
+      a.role==='manager'&&p.role==='staff'&&p.managerId===a.id)?
+    b('Manage','person-manage',p.id,'small'):'')+
    '</div></td></tr>').join('')+'</tbody></table></div>':empty('No accounts found.'))+
    '<div class="case-actions">'+(d.hasPrevious?b('Previous accounts','directory-prev','','small'):'')+
    (d.hasNext?b('Next accounts','directory-next','','small'):'')+'</div>')+
@@ -838,18 +837,23 @@ async function peopleManagementDetail(p,a,people){
  return panel('Manage IPS person · '+(p.username||p.name||p.id),
   e(p.role)+' · '+e(p.status)+' · '+e(p.department||'Academic account'),
   '<div class="case-actions">'+b('← Back to directory','close-case')+'</div>'+note+
-  form('person-session-revoke',id+reason,'Revoke all sessions')+
   (reviewer?form('specialist-review',id+
    options('Application decision','decision',[['approve_specialist','Approve after credential review'],['reject_specialist','Reject with written explanation']])+
    textarea('Credential evidence and decision explanation','reviewNote',
     'Record the actual credential checks, academic experience and reason for approval or refusal')+
    '<label class="field full"><span><input type="checkbox" name="credentialEvidenceReviewed"> I personally verified professional credential evidence (mandatory for approval).</span></label>',
    'Record Specialist review'):'')+
-  (isManagedStaff?form('people-offboard',id+reason,
-    'Offboard employee without deleting records'):'')+
-  (a.role==='root'&&p.role==='staff'&&managerChoices.length?
-   form('people-reassign',id+options('New departmental manager','managerId',managerChoices)+reason,
-    'Reassign employee'):'')+
+  '<details class="optional-admin-tools account-security-tools"><summary>Account access and security actions</summary>'+
+   '<p>Only use these when needed. IPS records each access or status change; passwords are never shown to staff.</p>'+
+   (canRecover(a,p)?'<div class="case-actions">'+b('Email password reset link','person-recover',p.id,'small')+'</div>':'')+
+   (canSuspend(a,p)?'<div class="case-actions">'+b('Suspend account','person-suspend',p.id,'small danger')+'</div>':'')+
+   (p.status==='suspended'&&a.role==='root'?'<div class="case-actions">'+b('Reactivate account','person-reactivate',p.id,'small')+'</div>':'')+
+   (a.role==='root'||isManagedStaff?form('person-session-revoke',id+reason,'Revoke all sessions'):'')+
+   (isManagedStaff?form('people-offboard',id+reason,'Offboard employee without deleting records'):'')+
+   (a.role==='root'&&p.role==='staff'&&managerChoices.length?
+    form('people-reassign',id+options('New departmental manager','managerId',managerChoices)+reason,
+     'Reassign employee'):'')+
+  '</details>'+
   panel('Recorded account management history','Actions are attributed to authorized IPS personnel.',history));
 }
 function canRecover(a,p){return p.verified&&p.status==='active'&&
@@ -1654,6 +1658,10 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
    state.message='';
   }
   else if(['person-recover','person-suspend','person-reactivate'].includes(act)){
+   if(act==='person-suspend'&&!window.confirm(
+     'Suspend this account? The person will lose access until an authorized employee reactivates it.'))return;
+   if(act==='person-reactivate'&&!window.confirm(
+     'Reactivate access for this previously suspended account?'))return;
    if(act==='person-recover'){await api('/administration/people/'+encodeURIComponent(id)+'/send-recovery',{method:'POST'});state.message='IPS emailed a secure recovery link to the account owner.'}
    else{const decision=act==='person-reactivate'?'reactivate':'suspend';await api('/administration/people/'+encodeURIComponent(id)+'/decision',{method:'POST',body:{decision}});state.message='Governed account decision recorded.'}
   }
