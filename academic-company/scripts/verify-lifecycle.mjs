@@ -1469,6 +1469,64 @@ try{
   assert.ok(await db.collection('academic_audit_events').findOne({
    action:'academic_public_contact_verified',ref:rights.data.reference}));
  });
+ await assertCheck('Expired Specialist offer automatically returns to allocation without capacity loss',async()=>{
+  const specialist=await db.collection('academic_accounts').findOne({email:specialistMail});
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const id='IPS-A-EXPIRED-'+random(),at=new Date(Date.now()-4*86400000);
+  const offer={specialistId:specialist.id,feeMinor:12500,version:1,
+   terms:'Synthetic one-off fee consent test; no actual academic assignment accepted.',
+   createdBy:vars.ROOT_EMAIL,createdAt:at,
+   expiresAt:new Date(Date.now()-35000)};
+  const before=specialist.activeAssignments||0;
+  await db.collection('academic_commissions').insertOne({id,
+   quoteId:'IPS-Q-EXPIRED-'+random(),studentId:student.id,specialistId:'',
+   serviceId:'academic-editing',serviceName:'Academic Editing & Proofreading',
+   subject:'Expiration and capacity acceptance test',
+   priceMinor:35000,currency:'PLN',paymentStatus:'synthetic_test_only',
+   status:'awaiting_specialist_acceptance',assignmentVersion:1,
+   assignmentOffer:offer,updatedAt:at,createdAt:at,synthetic:true});
+  let row;
+  for(let i=0;i<35;i++){
+   row=await db.collection('academic_commissions').findOne({id});
+   if(row?.status==='ready_for_assignment')break;
+   await sleep(200);
+  }
+  assert.equal(row.status,'ready_for_assignment');
+  assert.equal(row.assignmentOffer,undefined);
+  assert.equal(row.assignmentHistory?.[0]?.decision,'expired');
+  assert.equal((await db.collection('academic_accounts').findOne({id:specialist.id})).activeAssignments||0,before);
+  assert.ok(await db.collection('academic_audit_events').findOne({
+   action:'academic_specialist_offer_expired',ref:id}));
+  await db.collection('academic_commissions').deleteOne({id});
+ });
+ await assertCheck('Urgent unanswered client support escalates once to protected Root written notices',async()=>{
+  const student=await db.collection('academic_accounts').findOne({email:studentMail});
+  const id='IPS-S-ESC-'+random(),at=new Date(Date.now()-5*3600000);
+  await db.collection('academic_support_cases').insertOne({id,ownerId:student.id,
+   ownerRole:'student',subject:'Synthetic overdue coordination response',
+   category:'academic_service',status:'open',assignedTo:'',
+   updatedAt:at,createdAt:at,replies:[]});
+  let item;
+  for(let i=0;i<35;i++){
+   item=await db.collection('academic_notifications').findOne({
+    accountId:vars.ROOT_EMAIL,kind:'support_escalation',ref:id});
+   if(item)break;
+   await sleep(200);
+  }
+  assert.ok(item,'Root must see the overdue support escalation');
+  const delivery=await db.collection('academic_notification_deliveries').find({
+   accountId:vars.ROOT_EMAIL,kind:'support_escalation'}).toArray();
+  assert.ok(delivery.some(x=>x.text.includes('Root Administration')));
+  await sleep(1300);
+  assert.equal(await db.collection('academic_notifications').countDocuments({
+   accountId:vars.ROOT_EMAIL,kind:'support_escalation',ref:id}),1,
+   'Escalation must be idempotent, even across repeated automation ticks');
+  await db.collection('academic_support_cases').deleteOne({id});
+  await db.collection('academic_notifications').deleteOne({id:item.id});
+  await db.collection('academic_notification_deliveries').deleteMany({
+   accountId:vars.ROOT_EMAIL,kind:'support_escalation',
+   notificationId:{$exists:false}});
+ });
  await assertCheck('Server-side people search pages beyond 300 accounts without leaking scoped identities',async()=>{
   // Direct test inserts model genuine directory scale; sandbox only, no invitation
   // or password bypass in the real registration endpoints.
