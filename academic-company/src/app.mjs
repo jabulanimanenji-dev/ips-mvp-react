@@ -11,6 +11,7 @@ import {email,validEmail,hashPassword,publicAccount,ensureRuntime,createSecurity
 import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
 import {registerAssignmentOfferRoutes} from './routes-assignment-offers.mjs';
+import {registerPublicContactRoutes} from './routes-public-contact.mjs';
 import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs';
 import {registerOperationsRoutes} from './routes-operations.mjs';
 import {registerTelegramRoutes,telegramConfigured} from './routes-telegram.mjs';
@@ -80,6 +81,7 @@ const db={
  notifications:raw.collection('academic_notifications'),
  notificationDeliveries:raw.collection('academic_notification_deliveries'),
  audit:raw.collection('academic_audit_events'),
+ publicContacts:raw.collection('academic_public_contacts'),
  outbox:raw.collection('academic_evaluation_mail'),
  quoteMessages:raw.collection('academic_quote_messages'),
  quoteFiles:raw.collection('academic_quote_files'),
@@ -108,6 +110,9 @@ await Promise.all([
  db.messages.createIndex({commissionId:1,createdAt:1}),
  db.support.createIndex({ownerId:1,updatedAt:-1}),
  db.audit.createIndex({at:-1}),
+ db.publicContacts.createIndex({id:1},{unique:true}),
+ db.publicContacts.createIndex({verificationUntil:1},{expireAfterSeconds:0}),
+ db.publicContacts.createIndex({contactVerified:1,category:1,receivedAt:-1}),
  db.notifications.createIndex({accountId:1,createdAt:-1}),
  db.notificationDeliveries.createIndex({status:1,nextAttemptAt:1,createdAt:1}),
  db.outbox.createIndex({idempotencyKey:1},{unique:true,sparse:true}),
@@ -371,6 +376,7 @@ app.get('/api/session',wrap(async(req,res)=>{
 registerIdentityRoutes(ctx);
 registerAcademicRoutes(ctx);
 registerAssignmentOfferRoutes(ctx);
+registerPublicContactRoutes(ctx);
 registerSupportRoutes(ctx);
 registerOperationsRoutes(ctx);
 registerTelegramRoutes(ctx);
