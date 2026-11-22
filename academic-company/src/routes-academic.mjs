@@ -204,7 +204,15 @@ export function registerAcademicRoutes(ctx){
   const decision=String(req.body?.decision||''),note=String(req.body?.note||'').trim();
   if(!['approved','clarify','declined'].includes(decision)||note.length<10||note.length>1700)
    return res.status(400).json({error:'Document an academic eligibility decision and meaningful explanation.'});
-  const q=await db.quotes.findOneAndUpdate({id:req.params.id,status:'received'},
+  // No human-reviewed scope or binding offer may remain an ownerless company task.
+  const claimed=await db.quotes.findOneAndUpdate({id:req.params.id,status:'received',
+   $or:[{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]},
+   {$set:{assignedTo:req.actor.id,assignedBy:req.actor.id,ownerAssignedAt:now(),updatedAt:now()},
+    $push:{ownershipHistory:{to:req.actor.id,by:req.actor.id,at:now(),
+     action:'reviewer_assumes_responsibility'}}},{returnDocument:'after'});
+  if(claimed)await audit(req.actor,'academic_enquiry_scope_owner_assigned',claimed.id);
+  const q=await db.quotes.findOneAndUpdate({id:req.params.id,status:'received',
+   assignedTo:{$nin:['',null]}},
    {$set:{status:decision==='approved'?'scoped':decision,scopeDecision:decision,
      scopeNote:note,reviewedBy:req.actor.id,updatedAt:now()}},{returnDocument:'after'});
   if(!q)return res.status(409).json({error:'This academic enquiry is not waiting for initial review.'});
@@ -219,7 +227,14 @@ export function registerAcademicRoutes(ctx){
   const offer=reviewedOffer(req.body);
   if(offer.error)return res.status(400).json({error:offer.error});
   const at=now();
-  const q=await db.quotes.findOneAndUpdate({id:req.params.id,status:'scoped',scopeDecision:'approved'},{
+  const adopted=await db.quotes.findOneAndUpdate({id:req.params.id,status:'scoped',
+   scopeDecision:'approved',$or:[{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]},
+   {$set:{assignedTo:req.actor.id,assignedBy:req.actor.id,ownerAssignedAt:at},
+    $push:{ownershipHistory:{to:req.actor.id,by:req.actor.id,at,
+     action:'legacy_offer_owner_adopted'}}},{returnDocument:'after'});
+  if(adopted)await audit(req.actor,'academic_enquiry_offer_owner_adopted',adopted.id);
+  const q=await db.quotes.findOneAndUpdate({id:req.params.id,status:'scoped',scopeDecision:'approved',
+   assignedTo:{$nin:['',null]}},{
    $set:{status:'offered',...offer,offeredBy:req.actor.id,offeredAt:at,updatedAt:at},
    $inc:{offerVersion:1},
    $push:{offerHistory:{version:1,...offer,issuedAt:at,issuedBy:req.actor.id,
@@ -314,7 +329,9 @@ export function registerAcademicRoutes(ctx){
     {name:'Specialist assignment',status:'pending',at:now()},
     {name:'Academic quality assurance',status:'pending',at:now()},
     {name:'Secure final delivery',status:'pending',at:now()}],
-   revisionCount:0,assignedBy:'',qaReviewer:'',createdAt:now(),updatedAt:now()};
+   revisionCount:0,revisionAllowance:1,
+   coordinatorId:q.assignedTo||rootEmail,deliveryOwnerId:'',qaOwnerId:'',
+   assignedBy:'',qaReviewer:'',createdAt:now(),updatedAt:now()};
   try{await db.projects.insertOne(project)}
   catch(e){if(e.code===11000){const existing=await db.projects.findOne({quoteId:q.id});
     if(existing)await ensureBillingRecord(db,existing,now,uid);
@@ -322,6 +339,26 @@ export function registerAcademicRoutes(ctx){
   await ensureBillingRecord(db,project,now,uid);
   await notify(rootEmail,'Accepted academic quotation '+q.id+' awaits commissioned payment capability','finance');
   res.json({success:true,commission:commissionView(project),paymentsEnabled:false});
+ }));
+ // Students may withdraw an uncommissioned, unpaid service rather than waiting
+ // indefinitely for a payment provider that IPS has not activated.
+ app.post('/api/academic/commissions/:id/withdraw',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student']))return;
+  const reason=String(req.body?.reason||'').trim();
+  if(reason.length<12||reason.length>1000)
+   return res.status(400).json({error:'Explain briefly why you are withdrawing this unpaid academic commission.'});
+  const p=await db.projects.findOneAndUpdate({id:req.params.id,
+   studentId:req.actor.id,status:'awaiting_payment_integration',paymentStatus:'not_collected'},
+   {$set:{status:'cancelled',cancelledAt:now(),cancelledBy:req.actor.id,
+    cancelReason:reason,updatedAt:now()}},{returnDocument:'after'});
+  if(!p)return res.status(409).json({error:'Only your unpaid, not-yet-started commission can be withdrawn here.'});
+  await db.quotes.updateOne({id:p.quoteId,status:'accepted'},{$set:{status:'withdrawn',
+   withdrawalAt:now(),withdrawalReason:reason,updatedAt:now()}});
+  await db.billing.updateOne({commissionId:p.id,paymentStatus:'not_collected'},
+   {$set:{state:'cancelled_before_payment',updatedAt:now()}});
+  await notify(rootEmail,'Student withdrew unpaid academic commission '+p.id,'intake');
+  await audit(req.actor,'academic_unpaid_commission_withdrawn',p.id);
+  res.json({success:true,commission:commissionView(p),refundRequired:false});
  }));
  const listAllowed=a=>a.role==='root'||a.role==='student'||a.role==='specialist'
   ||(['manager','staff'].includes(a.role)&&['client_relations','academic_delivery','quality_assurance'].includes(a.department));
