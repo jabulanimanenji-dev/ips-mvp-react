@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {pipeline} from 'node:stream/promises';
-import {Transform} from 'node:stream';
+import {Transform,Writable} from 'node:stream';
 
 const MAGIC=Buffer.from('IPS-ACADEMIC-AES256GCM-v1\n');
 const IV_BYTES=12,TAG_BYTES=16;
@@ -60,11 +60,27 @@ async function decrypt(){
   fs.readSync(fd,iv,0,IV_BYTES,MAGIC.length);
   fs.readSync(fd,tag,0,TAG_BYTES,st.size-TAG_BYTES);
  }finally{fs.closeSync(fd)}
- const decipher=crypto.createDecipheriv('aes-256-gcm',key,iv);
- decipher.setAuthTag(tag);
- const source=fs.createReadStream(file,{start:MAGIC.length+IV_BYTES,
-  end:st.size-TAG_BYTES-1});
- await pipeline(source,decipher,process.stdout);
+ // GCM authenticates at the END of a ciphertext stream. Sending a one-pass
+ // stream directly to mongorestore could therefore write untrusted partial
+ // records before an invalid tag is discovered. First verify every byte into
+ // a no-output sink; only after the tag succeeds, stream the plaintext.
+ // No decrypted archive is ever saved to disk.
+ const decryptOnce=destination=>{
+  const decipher=crypto.createDecipheriv('aes-256-gcm',key,iv);
+  decipher.setAuthTag(tag);
+  const source=fs.createReadStream(file,{start:MAGIC.length+IV_BYTES,
+   end:st.size-TAG_BYTES-1});
+  return pipeline(source,decipher,destination);
+ };
+ const discard=new Writable({write(_chunk,_encoding,done){done()}});
+ await decryptOnce(discard);
+ // Refuse archives modified or replaced between authentication and restore.
+ // The archive must be held in a trusted, immutable recovery location.
+ const after=fs.statSync(file);
+ if(after.size!==st.size||after.ino!==st.ino||after.mtimeMs!==st.mtimeMs||
+  after.ctimeMs!==st.ctimeMs)
+  throw Error('IPS encrypted archive changed during authentication.');
+ await decryptOnce(process.stdout);
 }
 try{
  if(command==='encrypt')await encrypt();

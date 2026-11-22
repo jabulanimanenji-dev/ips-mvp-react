@@ -39,12 +39,14 @@ try{
  assert.notEqual(duplicate.exit,0,'Existing archive must never be overwritten');
  const bad=await run('decrypt',dst,Buffer.alloc(0),wrongKey);
  assert.notEqual(bad.exit,0,'Wrong backup key must not authenticate');
+ assert.equal(bad.output.length,0,'Wrong-key archives must not release ANY plaintext before rejection');
  const altered=path.join(dir,'corrupted.mongo-aes256gcm');
  const changed=Buffer.from(saved);
  changed[Math.floor(changed.length/2)]^=0x81;
  fs.writeFileSync(altered,changed,{mode:0o600});
  const tampered=await run('decrypt',altered);
  assert.notEqual(tampered.exit,0,'Corrupted archive must never authenticate');
+ assert.equal(tampered.output.length,0,'Tampered archives must not release ANY plaintext before rejection');
  assert.ok(!fs.readdirSync(dir).some(x=>x.includes('.part-')));
- console.log('IPS_ENCRYPTED_MONGO_BACKUP_GREEN 7 checks; 2 MiB binary, authentic recovery, wrong key, tamper, no overwrite or plaintext file');
+ console.log('IPS_ENCRYPTED_MONGO_BACKUP_GREEN 9 checks; 2 MiB binary, authenticate-before-release, wrong-key and tamper emit zero plaintext, no overwrite or plaintext file');
 }finally{fs.rmSync(dir,{recursive:true,force:true})}
