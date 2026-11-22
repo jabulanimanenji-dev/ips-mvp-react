@@ -1,7 +1,7 @@
 // IPS Academic Services: genuine scoped academic enquiries, cases, commissions and QA.
 import crypto from 'node:crypto';
 import express from 'express';
-import {email,validEmail,validUsername,publicDocument,normalizeFilename,strongToken,validToken} from './security.mjs';
+import {PRIVACY_NOTICE_VERSION,ACADEMIC_INTEGRITY_VERSION,email,validEmail,validUsername,publicDocument,normalizeFilename,strongToken,validToken} from './security.mjs';
 import {SERVICES,SERVICE_MAP,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
 import {SPECIALIST_AGREEMENT_VERSION} from './specialist-agreement.mjs';
 import {ensureBillingRecord} from './routes-finance.mjs';
