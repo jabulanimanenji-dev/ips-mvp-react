@@ -5,18 +5,29 @@ if [[ "$(printenv IPS_ACADEMIC_MODE || true)" != "evaluation" || "$(printenv NOD
   echo "IPS academic evaluation image refuses production service settings." >&2; exit 2
 fi
 if [[ -n "$(printenv RESEND_API_KEY || true)" || -n "$(printenv STRIPE_SECRET_KEY || true)" || -n "$(printenv TELEGRAM_BOT_TOKEN || true)" ||
-      -n "$(printenv R2_ENDPOINT || true)" || -n "$(printenv MONGODB_URI || true)" ]]; then
-  echo "IPS academic evaluation refuses live provider tokens and external MongoDB." >&2; exit 3
+      -n "$(printenv R2_ENDPOINT || true)" ||
+      ( -n "$(printenv MONGODB_URI || true)" && "$(printenv IPS_REVIEW_PERSISTENT_ATLAS || true)" != "true" ) ]]; then
+  echo "IPS academic evaluation refuses live provider tokens and unauthorized MongoDB." >&2; exit 3
 fi
 for key in ROOT_EMAIL ROOT_PASSWORD PUBLIC_APP_URL IPS_REVIEW_STUDENT_PASSWORD IPS_REVIEW_SPECIALIST_PASSWORD IPS_REVIEW_MANAGER_PASSWORD IPS_REVIEW_STAFF_PASSWORD; do
   if [[ -z "$(printenv "$key" || true)" ]]; then
     echo "Synthetic academic review requires private environment variable $key" >&2; exit 4
   fi
 done
-mkdir -p /tmp/ips_academic_mongodb
-chmod 700 /tmp/ips_academic_mongodb
-export MONGO_EVAL_PASS="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))")"
-export SESSION_SECRET="$(node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))")"
+if [[ "$(printenv IPS_REVIEW_PERSISTENT_ATLAS || true)" == "true" ]]; then
+  # Free Atlas project is dedicated to fictional evaluation records, never live IPS.
+  node scripts/review-atlas-guard.mjs
+  [[ -n "$(printenv IPS_REVIEW_SESSION_SECRET || true)" &&
+     "${#IPS_REVIEW_SESSION_SECRET}" -ge 40 ]] ||
+    { echo "Persistent review requires an independent secret stored in Render." >&2; exit 6; }
+  export SESSION_SECRET="$IPS_REVIEW_SESSION_SECRET"
+else
+  # Disposable local MongoDB remains the default and CI fallback. Nothing is
+  # ever copied to the new Atlas production database or historic IPS database.
+  mkdir -p /tmp/ips_academic_mongodb
+  chmod 700 /tmp/ips_academic_mongodb
+  export MONGO_EVAL_PASS="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))")"
+  export SESSION_SECRET="$(node -e "process.stdout.write(require('node:crypto').randomBytes(48).toString('base64url'))")"
 export MONGODB_URI="mongodb://ips_academic_preview:$MONGO_EVAL_PASS@127.0.0.1:27017/ips_academic_sandbox?authSource=admin"
 export IPS_ACADEMIC_TEST_SETTLEMENT=false
 mongod --dbpath /tmp/ips_academic_mongodb --port 27017 --bind_ip 127.0.0.1 \
@@ -34,7 +45,10 @@ mongosh "mongodb://127.0.0.1:27017/admin" --quiet --eval \
 mongod --dbpath /tmp/ips_academic_mongodb --shutdown >/dev/null
 mongod --dbpath /tmp/ips_academic_mongodb --port 27017 --bind_ip 127.0.0.1 \
   --wiredTigerCacheSizeGB 0.25 --logpath /tmp/ips_academic_mongodb.log --fork --auth >/dev/null
-unset MONGO_EVAL_PASS
+  unset MONGO_EVAL_PASS
+fi
+# Synthetic seed is idempotent: existing account passwords, support actions,
+# project status, uploaded files and notes remain untouched after restarts.
 node scripts/seed-review.mjs
 echo "IPS ACADEMIC SERVICES review: fictional students, academic Specialists and commissions; no external mail, messages or payments."
 exec node src/app.mjs
