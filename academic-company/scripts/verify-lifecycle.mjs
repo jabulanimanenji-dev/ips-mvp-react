@@ -1527,6 +1527,39 @@ try{
    accountId:vars.ROOT_EMAIL,kind:'support_escalation',
    notificationId:item.id});
  });
+ await assertCheck('Entire confidential inbox supports server-side search beyond initial 60 and 80 row caps',async()=>{
+  const student=(await db.collection('academic_accounts').findOne({email:studentMail}));
+  const salt=random(),base='NT-CI-SEARCH-'+salt+'-';
+  const rows=Array.from({length:180},(_,i)=>({
+   id:base+i,accountId:student.id,kind:'academic_work',
+   message:'Indexed academic inbox expansion '+salt+' archive item '+i,
+   read:false,createdAt:new Date(Date.now()-i*1000)
+  }));
+  await db.collection('academic_notifications').insertMany(rows);
+  const p1=await call('/operations/inbox?page=1&pageSize=25&search='+salt,
+   {cookie:studentCookie});
+  assert.equal(p1.data.inbox.length,25);
+  assert.equal(p1.data.total,180);
+  assert.equal(p1.data.page,1);
+  assert.equal(p1.data.hasNext,true);
+  const p7=await call('/operations/inbox?page=7&pageSize=25&search='+salt,
+   {cookie:studentCookie});
+  assert.equal(p7.data.inbox.length,25);
+  assert.equal(p7.data.total,180);
+  const exact=await call('/operations/inbox?search='+salt+'%20archive%20item%20164',
+   {cookie:studentCookie});
+  assert.equal(exact.data.total,1);
+  assert.equal(exact.data.inbox[0].id,base+'164');
+  const literal=await call('/operations/inbox?search='+encodeURIComponent('.*'),
+   {cookie:studentCookie});
+  assert.ok(!literal.data.inbox.some(x=>x.id.startsWith(base)),
+   'Regex metacharacters cannot turn a private inbox search into an unrestricted query');
+  const other=await call('/operations/inbox?search='+salt,{cookie:otherCookie});
+  assert.equal(other.data.total,0,'A second Student may not discover private inbox content');
+  await call('/operations/inbox?page=0',{cookie:studentCookie},400);
+  await call('/operations/inbox?pageSize=500',{cookie:studentCookie},400);
+  await db.collection('academic_notifications').deleteMany({id:{$regex:'^'+base}});
+ });
  await assertCheck('Server-side people search pages beyond 300 accounts without leaking scoped identities',async()=>{
   // Direct test inserts model genuine directory scale; sandbox only, no invitation
   // or password bypass in the real registration endpoints.
