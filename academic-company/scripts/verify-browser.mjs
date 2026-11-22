@@ -76,7 +76,8 @@ try{
   await publicPage.getByRole('heading',{name:'Discreet academic support with accountable data handling.'}).waitFor();
   await overflow(publicPage);
   await screen(publicPage,'35-public-data-rights-policy');
-  await publicPage.locator('.topnav').getByRole('button',{name:'Academic services'}).click();
+  await publicPage.locator('a.mark[data-nav=home]').click();
+  await publicPage.locator('img.hero-photo').waitFor();
  });
  await pass('Academic website uses verified real photography and signup confirms passwords',async()=>{
   await publicPage.locator('img.hero-photo').waitFor();
