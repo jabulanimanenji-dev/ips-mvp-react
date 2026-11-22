@@ -213,7 +213,8 @@ async function queuePrivateNotice(to,kind,notificationId,accountId='',actionText
  await db.notificationDeliveries.insertOne({
   id:uid('OUT'),notificationId,accountId,to:recipient,
   subject:'IPS Academic Services — new private update',
-  text:'A private IPS Academic Services update is ready in your secure workspace.\n'+
+  text:(accountId?'A private IPS Academic Services update is ready in your secure workspace.\n':
+   'Your verified IPS Academic Services enquiry has a private update.\n')+
        (actionText||'Sign in: '+config.origin)+'\n\nFor security, this email contains no academic case details.',
   kind,status:'pending',attempts:0,nextAttemptAt:now(),createdAt:now()
  });
@@ -229,6 +230,14 @@ async function notify(accountId,message,kind='academic_work',options={}){
  if(!accountId)return;
  const item={id:uid('NT'),accountId,message,kind,read:false,createdAt:now()};
  await db.notifications.insertOne(item);
+ if(accountId===rootEmail){
+  // Root is not an ordinary account but urgent operating exceptions must
+  // reach an independent, secured on-call mailbox.
+  if(['intake_escalation','qa_escalation','communication_failure',
+    'privacy_request','security_incident'].includes(kind))
+   await queuePrivateNotice(rootEmail,kind,item.id,rootEmail);
+  return;
+ }
  const owner=await db.accounts.findOne({id:accountId,verified:true,status:'active'},
   {projection:{email:1,contactPreference:1,telegramChatId:1,telegramVerifiedAt:1,telegramConnectionStatus:1}});
  // Quote-specific consent overrides account-level notification defaults, but only for
