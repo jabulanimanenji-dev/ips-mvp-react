@@ -1,5 +1,5 @@
 // Student, Specialist and IPS staff identity: new academic-services implementation.
-import {email,username,validEmail,validUsername,validPassword,hashPassword,checkPassword,publicAccount,publicDocument,strongToken,validToken} from './security.mjs';
+import {PRIVACY_NOTICE_VERSION,email,username,validEmail,validUsername,validPassword,hashPassword,checkPassword,publicAccount,publicDocument,strongToken,validToken} from './security.mjs';
 import {SERVICE_MAP,DEPARTMENTS} from './catalogue.mjs';
 import {SPECIALIST_AGREEMENT} from './specialist-agreement.mjs';
 
