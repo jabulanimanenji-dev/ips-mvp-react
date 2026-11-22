@@ -12,9 +12,23 @@ export function registerOperationsRoutes(ctx){
  const staff=a=>a&&(['root','manager','staff'].includes(a.role));
  const intake=a=>a?.role==='root'||(staff(a)&&a.department==='client_relations');
  const delivery=a=>a?.role==='root'||(staff(a)&&['academic_delivery','quality_assurance'].includes(a.department));
+ const assignedCase=(a,p)=>!!a&&(
+  a.department==='client_relations'&&(p.coordinatorId===a.id||
+   a.role==='manager'&&p.coordinatorManagerId===a.id)||
+  a.department==='academic_delivery'&&(p.deliveryOwnerId===a.id||
+   a.role==='manager'&&p.deliveryManagerId===a.id)||
+  a.department==='quality_assurance'&&(p.qaOwnerId===a.id||
+   a.role==='manager'&&p.qaManagerId===a.id));
+ const scopedCaseFilter=a=>a.role==='root'?{}:
+  a.department==='client_relations'?{$or:[{coordinatorId:a.id},
+   ...(a.role==='manager'?[{coordinatorManagerId:a.id}]:[])]}:
+  a.department==='academic_delivery'?{$or:[{deliveryOwnerId:a.id},
+   ...(a.role==='manager'?[{deliveryManagerId:a.id}]:[])]}:
+  a.department==='quality_assurance'?{$or:[{qaOwnerId:a.id},
+   ...(a.role==='manager'?[{qaManagerId:a.id}]:[])]}:{id:'none'};
  const caseAccess=(a,p)=>a&&(a.role==='root'||a.role==='student'&&p.studentId===a.id||
    a.role==='specialist'&&p.specialistId===a.id||
-   staff(a)&&['client_relations','academic_delivery','quality_assurance'].includes(a.department));
+   staff(a)&&assignedCase(a,p));
  const quoteAccess=(a,q)=>!!a&&(a.role==='root'||
   a.role==='student'&&q.studentId===a.id||
   a.role==='manager'&&a.department==='client_relations'||
@@ -135,6 +149,33 @@ export function registerOperationsRoutes(ctx){
   }));
   res.json({specialists:eligible.filter(Boolean)});
  }));
+ // Explicit department claim precedes private case access. Root remains an
+ // override supervisor; staff never get blanket read access by department title.
+ app.post('/api/operations/:id/claim',wrap(async(req,res)=>{
+  if(!authorize(req,res,['manager','staff']))return;
+  const a=req.actor;
+  const policy={
+   academic_delivery:{field:'deliveryOwnerId',managerField:'deliveryManagerId',
+    statuses:['ready_for_assignment','specialist_assigned','root_in_progress',
+     'correction_requested','student_revision_requested']},
+   quality_assurance:{field:'qaOwnerId',managerField:'qaManagerId',
+    statuses:['qa_pending','client_delivery','correction_requested']}
+  }[a.department];
+  if(!policy)return res.status(403).json({error:'This department cannot claim confidential academic jobs.'});
+  const at=now(),empty={$or:[{[policy.field]:''},{[policy.field]:null},
+   {[policy.field]:{$exists:false}}]};
+  const assigned=await db.projects.findOneAndUpdate({id:req.params.id,
+   status:{$in:policy.statuses},...empty},
+   {$set:{[policy.field]:a.id,[policy.managerField]:a.role==='manager'?a.id:a.managerId||'',
+    updatedAt:at},
+    $push:{caseOwnershipHistory:{department:a.department,to:a.id,
+     by:a.id,action:'claim',at}}},{returnDocument:'after'});
+  if(!assigned)return res.status(409).json({error:'The job has another owner or cannot be claimed in its current state.'});
+  await audit(req.actor,'academic_case_department_claimed',assigned.id,
+   {department:a.department,ownerId:a.id});
+  await notify(rootEmail,'IPS '+a.department+' accepted responsibility for '+assigned.id,'workforce');
+  res.json({success:true,commissionId:assigned.id,department:a.department,ownerId:a.id});
+ }));
  app.get('/api/operations/inbox',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
   const a=req.actor;
@@ -144,7 +185,7 @@ export function registerOperationsRoutes(ctx){
     {$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]}:
     {id:'none'};
   const cFilter=a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:
-   (a.role==='root'||delivery(a)||intake(a))?{}:{id:'none'};
+   a.role==='root'?{}:staff(a)?scopedCaseFilter(a):{id:'none'};
   const [quotes,commissions,cases,dm,alerts]=await Promise.all([
    db.quotes.find(qFilter).sort({updatedAt:-1}).limit(60).toArray(),
    db.projects.find(cFilter).sort({updatedAt:-1}).limit(80).toArray(),
