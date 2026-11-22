@@ -342,6 +342,8 @@ try{
   await studentRow.getByRole('button',{name:'Manage',exact:true}).click();
   const security=rootPage.locator('details.account-security-tools');
   await security.waitFor();
+  assert.equal(await rootPage.locator('table.directory-table').count(),0,
+   'Focused person management must not append a second page below the full people table');
   assert.equal(await security.getAttribute('open'),null,
    'Account security operations must be collapsed until intentionally opened');
   await security.locator('summary').click();
