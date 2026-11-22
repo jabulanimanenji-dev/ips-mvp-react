@@ -250,13 +250,17 @@ export function beginCompanyAutomation(ctx){
   const result=await db.notifications.updateOne({accountId:rootEmail,kind,ref},
    {$setOnInsert:{id:uid('NT'),accountId:rootEmail,kind,ref,message,
     read:false,createdAt:at}},{upsert:true});
-  if(result.upsertedCount)await db.notificationDeliveries.insertOne({
-   id:uid('OUT'),accountId:rootEmail,to:rootEmail,kind,
+  if(result.upsertedCount){
+   const notice=await db.notifications.findOne({accountId:rootEmail,kind,ref},
+    {projection:{id:1}});
+   await db.notificationDeliveries.insertOne({
+   id:uid('OUT'),notificationId:notice.id,accountId:rootEmail,to:rootEmail,kind,
    subject:'IPS Academic Services — company action requires attention',
    text:'A company responsibility requires action in Nyoro Root Administration.\n'+
      'Sign in securely: '+config.origin+'\n'+
      'Academic details remain in the IPS workspace.',
    status:'pending',attempts:0,nextAttemptAt:at,createdAt:at});
+  }
  };
  const tick=async()=>{
   if(busy)return;busy=true;
