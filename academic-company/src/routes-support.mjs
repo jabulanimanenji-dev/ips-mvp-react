@@ -48,13 +48,18 @@ export function registerSupportRoutes(ctx){
   if(!authorize(req,res,['root','manager']))return;
   if(req.actor.role==='manager'&&req.actor.department!=='client_relations')
    return res.status(403).json({error:'Only Client Relations management can transfer support responsibility.'});
-  const reason=String(req.body?.reason||'').trim();
-  if(reason.length<12||reason.length>900)return res.status(400).json({error:'Document the support handoff reason.'});
+  const optionalReason=String(req.body?.reason||'').trim();
+  if(optionalReason&&(optionalReason.length<12||optionalReason.length>900))
+   return res.status(400).json({error:'Optional handoff note must contain 12–900 characters.'});
   const target=await db.accounts.findOne({id:String(req.body?.assigneeId||''),
    verified:true,status:'active',department:'client_relations',role:{$in:['manager','staff']}});
   if(!target)return res.status(400).json({error:'Choose an active Client Relations employee.'});
   const current=await db.support.findOne({id:req.params.id,status:'open'});
   if(!current)return res.status(409).json({error:'Only open support cases can be transferred.'});
+  if(current.assignedTo===target.id)return res.json({ticket:view(current),alreadyAssigned:true});
+  const reason=optionalReason||(current.assignedTo?
+   'Manager transferred responsibility to the selected Client Relations employee.':
+   'Manager assigned an available Client Relations employee.');
   const at=now();
   const t=await db.support.findOneAndUpdate({id:current.id,status:'open',
    ...(current.assignedTo?{assignedTo:current.assignedTo}:
@@ -75,15 +80,36 @@ export function registerSupportRoutes(ctx){
   if(message.length<2||message.length>3500)return res.status(400).json({error:'Write a helpful private reply.'});
   if(t.status==='closed')return res.status(409).json({error:'The case is closed; request reopening through IPS.'});
   const employee=['manager','staff'].includes(req.actor.role);
-  if(employee&&t.assignedTo!==req.actor.id)
-   return res.status(409).json({error:'Claim or be assigned this support case before replying.'});
-  const update={$push:{replies:{actorId:req.actor.id,role:req.actor.role,message,at:now()}},
-    $set:{updatedAt:now()}};
-  await db.support.updateOne({id:t.id,status:{$ne:'closed'}},update);
-  await notify(req.actor.id===t.ownerId?t.assignedTo||rootEmail:t.ownerId,
+  if(employee&&t.assignedTo&&t.assignedTo!==req.actor.id)
+   return res.status(409).json({error:'This support case belongs to another employee. Ask an authorized manager to transfer it.'});
+  let assumed=false;
+  if(employee&&!t.assignedTo){
+   // A legitimate first response claims an unassigned case atomically.
+   // Do not make a Student wait for a second form or separate Claim button.
+   const at=now();
+   const claimed=await db.support.findOneAndUpdate({id:t.id,status:'open',
+    $or:[{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]},
+    {$set:{assignedTo:req.actor.id,assignedAt:at,updatedAt:at},
+     $push:{ownershipHistory:{to:req.actor.id,by:req.actor.id,
+      reason:'Responsible employee accepted the case while replying',at}}},
+    {returnDocument:'after'});
+   if(!claimed)return res.status(409).json({
+    error:'Another IPS employee took responsibility or the case has closed. Refresh to continue.'});
+   assumed=true;
+  }
+  const at=now();
+  const update={$push:{replies:{actorId:req.actor.id,role:req.actor.role,message,at}},
+    $set:{updatedAt:at}};
+  const written=await db.support.updateOne({id:t.id,status:'open',
+   ...(employee?{assignedTo:req.actor.id}:{})},update);
+  if(!written.matchedCount)return res.status(409).json({
+   error:'The support case changed or closed before your reply. Refresh the case.'});
+  if(assumed)await audit(req.actor,'academic_support_claimed',t.id,{
+   mode:'automatic_on_first_reply'});
+  await notify(req.actor.id===t.ownerId?(employee?req.actor.id:t.assignedTo||rootEmail):t.ownerId,
    'Confidential academic support response on '+t.id,'support');
   await audit(req.actor,'academic_support_replied',t.id);
-  res.json({success:true});
+  res.json({success:true,claimedAutomatically:assumed});
  }));
  app.post('/api/support/:id/resolve',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
@@ -96,6 +122,43 @@ export function registerSupportRoutes(ctx){
   if(!p)return res.status(409).json({error:'Support case already closed.'});
   await audit(req.actor,'academic_support_resolved',t.id);
   res.json({success:true,ticket:view(p)});
+ }));
+ // Reopening is a continuation of the original case, not a disconnected new
+ // ticket. Owners, Root and Client Relations management may reopen in writing.
+ // Reuse the same reference and preserve replies, closure and ownership history.
+ app.post('/api/support/:id/reopen',wrap(async(req,res)=>{
+  if(!authorize(req,res,['student','specialist','root','manager']))return;
+  const t=await db.support.findOne({id:req.params.id});
+  if(!t)return res.status(404).json({error:'Support case not found.'});
+  const permitted=req.actor.role==='root'||req.actor.id===t.ownerId||
+   req.actor.role==='manager'&&req.actor.department==='client_relations';
+  if(!permitted)return res.status(403).json({error:'This support case is not yours to reopen.'});
+  const message=String(req.body?.reason||'').trim();
+  if(message.length<12||message.length>2000)return res.status(400).json({
+   error:'Briefly explain why the support case needs additional attention (12–2,000 characters).'});
+  if(t.status!=='closed')return res.status(409).json({error:'The support case is already open.'});
+  const at=now();
+  const stillActive=t.assignedTo?await db.accounts.findOne({
+   id:t.assignedTo,role:{$in:['manager','staff']},department:'client_relations',
+   verified:true,status:'active'},{projection:{id:1}}):null;
+  const nextOwner=stillActive?t.assignedTo:'';
+  const prevClosed=t.closedAt;
+  const updated=await db.support.findOneAndUpdate({id:t.id,status:'closed',
+   closedAt:prevClosed},{$set:{status:'open',assignedTo:nextOwner,updatedAt:at,
+    reopenedAt:at},$unset:{closedAt:'',closedBy:''},$inc:{reopenCount:1},
+    $push:{replies:{actorId:req.actor.id,role:req.actor.role,
+      message:'Reopening request: '+message,at},
+      reopeningHistory:{by:req.actor.id,role:req.actor.role,at,
+       reason:message,priorClosedAt:prevClosed||null,priorAssignee:t.assignedTo||''}}},
+   {returnDocument:'after'});
+  if(!updated)return res.status(409).json({
+   error:'This support case was already reopened. Refresh to see the latest status.'});
+  await audit(req.actor,'academic_support_reopened',t.id,{assignedTo:nextOwner||''});
+  await notify(nextOwner||rootEmail,
+   'Academic support case '+t.id+' has been reopened and requires review.','support');
+  if(req.actor.id!==t.ownerId)await notify(t.ownerId,
+   'IPS has reopened your support case '+t.id+'.','support');
+  res.json({ticket:view(updated),reopened:true});
  }));
  app.get('/api/notifications',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
