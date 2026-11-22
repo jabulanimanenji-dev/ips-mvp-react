@@ -74,6 +74,7 @@ jobs:
           node --check scripts/verify-staging-boundary.mjs
           node --check src/routes-operations.mjs
           node --check src/routes-people-governance.mjs
+          node --check src/routes-assignment-offers.mjs
           node --check public/app.js
           node --check scripts/verify-lifecycle.mjs
           node --check scripts/verify-browser.mjs
