@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - company/ips-academic-services-2026
+      - work/ips-review-auth-probe-20261123
   workflow_dispatch:
 
 permissions:
