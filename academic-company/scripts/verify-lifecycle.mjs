@@ -739,6 +739,49 @@ try{
   await call('/specialist/availability',{method:'PATCH',cookie:specialistCookie,body:{
    availabilityStatus:'limited',maxConcurrentCases:0,turnaroundDays:5}},400);
  });
+ await assertCheck('Academic Delivery quote lists and dashboard cannot expose unrelated client enquiries',async()=>{
+  const deliveryMail=emailFor('scoped-delivery-manager');
+  await call('/administration/invite',withAuth(rootCookie,{
+   name:'Scoped Academic Delivery Manager',email:deliveryMail,department:'academic_delivery'}),201);
+  const managerToken=token(await inbox(deliveryMail,'Your IPS Academic Services department invitation'),'invite');
+  const deliveryCookie=(await call('/auth/invitation/accept',{method:'POST',body:{
+   email:deliveryMail,token:managerToken,password:'DeliveryManager2026!',
+   confirmPassword:'DeliveryManager2026!'}})).cookie;
+  const ownedProject=await db.collection('academic_commissions').findOne({id:secondCommissionId});
+  assert.ok(ownedProject?.quoteId);
+  const before=await call('/academic/quotes',{cookie:deliveryCookie});
+  assert.ok(!before.data.quotes.some(q=>q.id===ownedProject.quoteId));
+  assert.ok(!before.data.quotes.some(q=>q.id===quoteId));
+  await call('/academic/quotes/'+quoteId+'/messages',{cookie:deliveryCookie},403);
+  await call('/operations/'+secondCommissionId+'/claim',withAuth(deliveryCookie,{}));
+  const after=await call('/academic/quotes',{cookie:deliveryCookie});
+  assert.ok(after.data.quotes.some(q=>q.id===ownedProject.quoteId));
+  assert.ok(!after.data.quotes.some(q=>q.id===quoteId),
+   'Academic Delivery must not read unrelated Student identifiers, email or scope');
+  const dashboard=await call('/academic/dashboard',{cookie:deliveryCookie});
+  assert.equal(dashboard.data.metrics.enquiries,1,'Dashboard must count the same owned quotes');
+
+  const associateMail=emailFor('scoped-delivery-staff');
+  await call('/administration/invite',withAuth(deliveryCookie,{
+   name:'Scoped Academic Delivery Associate',email:associateMail}),201);
+  const associateToken=token(await inbox(associateMail,
+   'Your IPS Academic Services department invitation'),'invite');
+  const associateCookie=(await call('/auth/invitation/accept',{method:'POST',body:{
+   email:associateMail,token:associateToken,password:'DeliveryAssociate2026!',
+   confirmPassword:'DeliveryAssociate2026!'}})).cookie;
+  const staffQuotes=await call('/academic/quotes',{cookie:associateCookie});
+  assert.ok(!staffQuotes.data.quotes.some(q=>q.id===ownedProject.quoteId),
+   'Another Delivery employee cannot see a manager-owned private quote');
+  const staffDashboard=await call('/academic/dashboard',{cookie:associateCookie});
+  assert.equal(staffDashboard.data.metrics.enquiries,0);
+  const clientRelationsStaff=await db.collection('academic_accounts').findOne({email:staffMail});
+  const count=await db.collection('academic_quotations').countDocuments({$or:[
+   {assignedTo:clientRelationsStaff.id},{assignedTo:''},{assignedTo:null},
+   {assignedTo:{$exists:false}}]});
+  const intakeDashboard=await call('/academic/dashboard',{cookie:staffCookie});
+  assert.equal(intakeDashboard.data.metrics.enquiries,count,
+   'Client Relations dashboard cannot count cases beyond the staff member\'s worklist');
+ });
  const upload=async(text)=>call('/academic/commissions/'+commissionId+'/submission',
   withAuth(specialistCookie,{filename:'nursing-editing-feedback.txt',mime:'text/plain',data:Buffer.from(text).toString('base64')}),201);
  await assertCheck('Specialist submits a genuine private academic file to independent QA',async()=>{
