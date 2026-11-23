@@ -31,6 +31,9 @@ try{
   await sleep(4000);
  }
  assert.ok(ready,'Live fictional review was not accessible: '+reason);
+ // This job starts on the SAME company-branch push as Render's automatic
+ // deployment. Never inspect sessions while an old container is draining.
+ await sleep(55000);
  browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
  await mkdir(output,{recursive:true});
  const page=await browser.newPage({viewport:{width:1450,height:970}});
@@ -59,12 +62,21 @@ try{
     return sidebar.textContent?.includes(expectedNav);
    }catch{return false}
   },role,{timeout:20000,polling:160});
-  const result=await page.evaluate(async()=>{
-   const r=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
-   return {status:r.status,data:await r.json()}
-  });
-  assert.equal(result.status,200,'Session not created for '+role);
-  assert.equal(result.data.account.role,role,'Incorrect actual workroom actor for '+role);
+  let stableRoleReads=0,observed=null;
+  for(let tryCount=0;tryCount<24;tryCount++){
+   observed=await page.evaluate(async()=>{
+    const r=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
+    return {status:r.status,data:await r.json()}
+   });
+   if(observed.status===200&&observed.data.account?.role===role){
+    stableRoleReads++;
+    if(stableRoleReads>=3)break;
+   }else stableRoleReads=0;
+   await sleep(250);
+  }
+  assert.equal(stableRoleReads,3,'Role '+role+
+   ' never established three consecutive valid authenticated sessions');
+  assert.equal(observed.data.account.role,role,'Incorrect actual workroom actor for '+role);
   assert.equal(await page.locator('.sidebar').count(),1,'Real IPS workspace UI missing for '+role);
   assert.equal(await page.locator('.review-entry-role').count(),0,'Chooser should not obscure entered workroom');
   if(role==='root'){
