@@ -179,7 +179,15 @@ try{
   assert.ok(link,'Guest offer must have an actual written-offer link');
   assert.ok(!queued[0].text.includes('420.00'));
   await publicPage.goto(link,{waitUntil:'domcontentloaded'});
-  await publicPage.getByRole('heading',{name:'Your IPS academic offer'}).waitFor();
+  try{
+   await publicPage.getByRole('heading',{name:'Your IPS academic offer'}).waitFor({timeout:12000});
+  }catch(err){
+   const body=(await publicPage.locator('body').innerText()).slice(0,900);
+   console.error('IPS_GUEST_OFFER_BROWSER_DIAG',JSON.stringify({
+    body,headings:await publicPage.locator('h1,h2').allInnerTexts()}));
+   await screen(publicPage,'36-failed-guest-quotation-journey');
+   throw err;
+  }
   await publicPage.getByText('Your reviewed written quotation').waitFor();
   assert.equal(await publicPage.locator('form[data-form=guest-offer-changes]').count(),1);
   assert.equal(await publicPage.locator('form[data-form=register]').count(),0);

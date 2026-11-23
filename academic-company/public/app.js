@@ -1830,6 +1830,24 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
  finally{state.busy=false}
  render();
 });
+// Email links can be opened in an already-running IPS tab. A hash-only URL
+// change does not necessarily reload the document or rerun application boot.
+async function openGuestOfferHash(){
+ const params=new URLSearchParams(location.hash.slice(1));
+ if(!params.has('guestoffer'))return false;
+ state.guestOfferLink={reference:params.get('ref')||'',
+  token:params.get('guestoffer')||''};
+ history.replaceState(null,'',location.pathname+location.search);
+ try{
+  const result=await api('/academic/guest-offer/view',
+   {method:'POST',body:state.guestOfferLink});
+  state.guestOffer=result.offer;state.guestOfferError='';
+ }catch(err){state.guestOffer=null;state.guestOfferError=err.message}
+ state.page='guest-offer';
+ render();
+ return true;
+}
+window.addEventListener('hashchange',()=>{void openGuestOfferHash()});
 (async()=>{
  try{
   state.catalogue=await api('/catalogue');
@@ -1839,18 +1857,7 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
    state.reviewEntryEnabled=entry.available===true&&entry.fictionalOnly===true;
   }catch{state.reviewEntryEnabled=false}
 
-  const guestParams=new URLSearchParams(location.hash.slice(1));
-  if(guestParams.has('guestoffer')){
-   state.guestOfferLink={reference:guestParams.get('ref')||'',
-    token:guestParams.get('guestoffer')||''};
-   history.replaceState(null,'',location.pathname+location.search);
-   try{
-    const result=await api('/academic/guest-offer/view',
-     {method:'POST',body:state.guestOfferLink});
-    state.guestOffer=result.offer;state.guestOfferError='';
-   }catch(err){state.guestOffer=null;state.guestOfferError=err.message}
-   state.page='guest-offer';
-  }else{
+  if(!(await openGuestOfferHash())){
    try{const s=await api('/session');state.account=s.account;state.page='workspace'}
    catch{state.page=state.rootEntry?'root-login':'home'}
   }
