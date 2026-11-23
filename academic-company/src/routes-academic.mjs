@@ -44,11 +44,6 @@ export function registerAcademicRoutes(ctx){
   a.department==='quality_assurance'?{$or:[{qaOwnerId:a.id},
    ...(a.role==='manager'?[{qaManagerId:a.id}]:[])]}:{id:'unavailable'};
 
- // Academic Delivery can read an approved quotation only through an owned commission.
- const deliveryQuoteFilter=async a=>({
-  id:{$in:await db.projects.distinct('quoteId',caseFilter(a))},
-  scopeDecision:'approved'
- });
  const canSee=(a,p)=>!!a&&(studentOwner(a,p)||specialistOwner(a,p)||adminOf(a,p));
  const denial=(res)=>res.status(403).json({error:'You do not have access to this private academic record.'});
  const validateBrief=input=>{
@@ -248,8 +243,6 @@ export function registerAcademicRoutes(ctx){
   if(a.role==='staff'&&a.department==='client_relations')
    filter={$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},
     {assignedTo:{$exists:false}}]};
-  if(['manager','staff'].includes(a.role)&&a.department==='academic_delivery')
-   filter=await deliveryQuoteFilter(a);
 
   const rows=await db.quotes.find(filter).sort({createdAt:-1}).limit(100).toArray();
   res.json({quotes:rows.map(quoteView)});
@@ -748,12 +741,8 @@ export function registerAcademicRoutes(ctx){
  app.get('/api/academic/dashboard',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
   const a=req.actor,root=a.role==='root',dept=a.department||'';
-  const quoteFilter=root||a.role==='manager'&&dept==='client_relations'?{}:
-   a.role==='staff'&&dept==='client_relations'?
-    {$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},{assignedTo:{$exists:false}}]}:
-   a.role==='student'?{studentId:a.id}:
-   ['manager','staff'].includes(a.role)&&dept==='academic_delivery'?
-    await deliveryQuoteFilter(a):{id:'unavailable'};
+  const quoteFilter=root||(['manager','staff'].includes(a.role)&&dept==='client_relations')?{}:
+   a.role==='student'?{studentId:a.id}:{id:'unavailable'};
   const projectFilter=root?{}:
    a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:
    ['manager','staff'].includes(a.role)?caseFilter(a):{id:'unavailable'};
