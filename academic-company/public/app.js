@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',inboxPage:1,inboxQuery:'',telegramLinkUrl:'',guestVerifiedEmail:'',contactPage:1,contactKind:'general'};
+ message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,reviewEntryEnabled:false,reviewSwitchOpen:false,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',inboxPage:1,inboxQuery:'',telegramLinkUrl:'',guestVerifiedEmail:'',contactPage:1,contactKind:'general'};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
@@ -43,14 +43,32 @@ const panel=(heading,description,inner)=>'<section class="panel"><h2>'+e(heading
 const empty=t=>'<div class="empty">'+e(t)+'</div>';
 const brand=()=>'<a href="#" class="mark" data-nav="home"><span class="crest">IPS</span><span><strong>IPS ACADEMIC SERVICES</strong><small>ACADEMIC & RESEARCH SUPPORT</small></span></a>';
 const header=()=>'<div class="masthead"><header class="top">'+brand()+'<nav aria-label="Primary navigation" class="topnav">'+
- (state.account?'<span class="pill">'+e(state.account.role==='root'?'NYORO · ROOT ADMIN':state.account.role==='student'?'STUDENT / RESEARCHER':state.account.role.toUpperCase())+'</span>'+(state.rootLens?b('Return to Root','root-lens-exit'):'')+b('Sign out','logout'):
+ (state.account?'<span class="pill">'+e(state.account.role==='root'?'NYORO · ROOT ADMIN':state.account.role==='student'?'STUDENT / RESEARCHER':state.account.role.toUpperCase())+'</span>'+(state.rootLens?b('Return to Root','root-lens-exit'):'')+(state.reviewEntryEnabled?b('Switch review workspace','review-switch'):'')+b('Sign out','logout'):
  [buttonRoute('Academic services','services'),buttonRoute('How IPS works','how'),buttonRoute('Privacy','privacy'),buttonRoute('Contact IPS','contact'),buttonRoute('Student / Researcher','register'),buttonRoute('Join our specialist network','specialist'),buttonRoute('Login','login','primary')].join(''))+
  '</nav></header></div>';
 const footer=()=>'<footer class="foot"><span>© IPS Academic Services · Academic & research support</span><span>'+buttonRoute('Privacy policy','privacy','quiet')+' · '+buttonRoute('Contact IPS','contact','quiet')+' · Written correspondence only</span></footer>';
 const banner=()=>state.isEvaluation?'<div class="banner" role="status">REVIEW ENVIRONMENT · Fictional accounts and academic records · No payments or external messages</div>':
  state.isStaging?'<div class="banner" role="status">ISOLATED IPS PROVIDER TESTING · Approved test identities only · External written messages may be real · No payments</div>':'';
 const flash=()=>state.error?'<div class="notice error" role="alert">'+e(state.error)+'</div>':state.message?'<div class="notice success" role="status">'+e(state.message)+'</div>':'';
-const shell=content=>{root.innerHTML=header()+banner()+((state.page!=='home'&&state.page!=='workspace'&&state.page!=='root-login')?'<div class="toolbar global-toolbar">'+b('← Back','back','','back-btn')+'</div>':'')+content+footer();document.title='IPS Academic Services | '+(state.account?'Private workspace':state.page==='services'?'Academic services':'Academic & Research Support')};
+const fictionalReviewRoles=[
+ ['student','Student / Researcher','Ask for quotations, send messages, access files and support'],
+ ['specialist','Specialist','Work queue, terms, availability, delivery and records'],
+ ['staff','Client Relations Staff','Intake, support cases, ownership and written communication'],
+ ['manager','Client Relations Manager','Enquiries, team management and escalations'],
+ ['root','Nyoro · Root Admin','Entire operating system, departments, QA, finance and assisted workspaces']
+];
+const reviewWorkspaceSelector=()=>state.reviewEntryEnabled&&(!state.account||state.reviewSwitchOpen)?
+ '<section class="review-entry" aria-label="Fictional IPS company workspaces">'+
+ '<div class="review-entry-top"><div><span class="kicker">PRIVATE OWNER REVIEW / FICTIONAL DATA</span>'+
+ '<h2>Open the functioning IPS company</h2>'+
+ '<p>Enter any role directly. All actions operate on the isolated review database; payments and external messages are disabled.</p></div>'+
+ (state.account?b('Close role chooser','review-switch'):'')+'</div>'+
+ '<div class="review-entry-grid">'+fictionalReviewRoles.map(([role,label,desc])=>
+ '<button type="button" class="review-entry-role" data-action="review-enter" data-id="'+e(role)+'">'+
+ '<strong>'+e(label)+'</strong><small>'+e(desc)+'</small></button>').join('')+'</div>'+
+ '<p class="review-entry-caveat">Review-only access: fictional profiles and cases. This is the actual application, not a scripted tour. Real payments and real provider delivery are not active.</p>'+
+ '</section>':'';
+const shell=content=>{root.innerHTML=header()+banner()+reviewWorkspaceSelector()+((state.page!=='home'&&state.page!=='workspace'&&state.page!=='root-login')?'<div class="toolbar global-toolbar">'+b('← Back','back','','back-btn')+'</div>':'')+content+footer();document.title='IPS Academic Services | '+(state.account?'Private workspace':state.page==='services'?'Academic services':'Academic & Research Support')};
 const intro=(tag,title,desc)=>'<div class="page-intro"><span class="kicker">'+e(tag)+'</span><h1>'+e(title)+'</h1><p>'+e(desc)+'</p></div>';
 const navData=(route,name,active)=>'<button type="button" data-tab="'+e(route)+'" class="'+(active===route?'active':'')+'">'+e(name)+'</button>';
 const selectService=()=>state.catalogue.services.map(s=>[s.id,s.title]);
@@ -1572,6 +1590,23 @@ document.addEventListener('click',async ev=>{
   state.page=dest;state.registerRole=dest==='specialist'?'specialist':dest==='register'?'student':state.registerRole;render();return}
  if(tab){remember();state.workPage=0;state.tab=tab.dataset.tab;state.opened='';state.message='';state.error='';render();return}
  if(!action||state.busy)return;const act=action.dataset.action,id=action.dataset.id;
+ if(act==='review-switch'){
+  state.reviewSwitchOpen=!state.reviewSwitchOpen;
+  state.message='';state.error='';render();return;
+ }
+ if(act==='review-enter'){
+  state.busy=true;
+  try{
+   const result=await api('/review/enter',{method:'POST',body:{role:id}});
+   state.account=result.account;state.page='workspace';state.tab='overview';
+   state.opened='';state.rootLens=null;state.reviewSwitchOpen=false;
+   state.message='';state.error='';state.backStack=[];
+   if(state.rootEntry&&id!=='root'){location.replace('/');return;}
+  }catch(err){state.error=err.message}
+  finally{state.busy=false}
+  render();return;
+ }
+
  if(['directory-prev','directory-next','directory-apply','directory-clear'].includes(act)){
   if(act==='directory-apply'){
    state.directoryQuery=(root.querySelector('[data-directory-search]')?.value||'').trim();
@@ -1744,6 +1779,11 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
  try{
   state.catalogue=await api('/catalogue');
   const h=await api('/health');state.isEvaluation=h.environment==='ISOLATED_ACADEMIC_REVIEW';state.isStaging=h.environment==='STAGING_REAL_PROVIDER_VALIDATION';
+  if(state.isEvaluation)try{
+   const entry=await api('/review/roles');
+   state.reviewEntryEnabled=entry.available===true&&entry.fictionalOnly===true;
+  }catch{state.reviewEntryEnabled=false}
+
   try{const s=await api('/session');state.account=s.account;state.page='workspace'}catch{state.page=state.rootEntry?'root-login':'home'}
   render();
  }catch(ex){root.innerHTML='<main class="page"><h1>IPS Academic Services</h1><div class="notice error">'+e(ex.message)+'</div></main>'}

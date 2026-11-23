@@ -1,0 +1,40 @@
+name: IPS Academic Services — Real Five-Workspace Review Admission
+
+on:
+  push:
+    branches:
+      - company/ips-academic-services-2026
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live-review-roles:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    defaults:
+      run:
+        working-directory: academic-company
+    steps:
+      - name: Check out actual IPS academic company
+        uses: actions/checkout@v4
+      - name: Use Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install company dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install real browser driver
+        run: npm install --no-save --ignore-scripts playwright@1.56.1
+      - name: Verify production/legacy role-entry isolation first
+        run: node scripts/verify-review-access-gate.mjs
+      - name: Open real free deployed IPS and exercise all five workspaces in Chrome
+        run: node scripts/verify-live-review-access.mjs
+      - name: Preserve real review screenshot evidence and failed navigation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ips-live-five-workspace-review-evidence
+          path: academic-company/academic-browser-evidence/review-workspaces/
+          if-no-files-found: warn
