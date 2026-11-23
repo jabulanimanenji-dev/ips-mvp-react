@@ -42,8 +42,27 @@ try{
   const choice=page.locator('.review-entry-role[data-id="'+role+'"]');
   if(i){await page.getByRole('button',{name:'Switch review workspace'}).click();await choice.waitFor()}
   await choice.click();
-  await page.locator('.workspace').waitFor({timeout:18000});
-  const result=await page.evaluate(async()=>{const r=await fetch('/api/session');return {status:r.status,data:await r.json()}});
+  // Unlike the initial entrance, switching starts with an existing workspace.
+  // A generic .workspace wait succeeds immediately on the PREVIOUS identity.
+  // Wait for the session actor AND freshly rendered role-specific navigation.
+  await page.waitForFunction(async expected=>{
+   try{
+    const r=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
+    if(!r.ok)return false;
+    const d=await r.json();
+    const sidebar=document.querySelector('.workspace .sidebar');
+    if(!sidebar||d.account?.role!==expected)return false;
+    const expectedNav={
+     student:'My quotations',specialist:'Assignments & files',
+     manager:'My team',staff:'Support',root:'Command centre'
+    }[expected];
+    return sidebar.textContent?.includes(expectedNav);
+   }catch{return false}
+  },role,{timeout:20000,polling:160});
+  const result=await page.evaluate(async()=>{
+   const r=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
+   return {status:r.status,data:await r.json()}
+  });
   assert.equal(result.status,200,'Session not created for '+role);
   assert.equal(result.data.account.role,role,'Incorrect actual workroom actor for '+role);
   assert.equal(await page.locator('.sidebar').count(),1,'Real IPS workspace UI missing for '+role);
