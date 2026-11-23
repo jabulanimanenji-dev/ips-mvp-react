@@ -36,6 +36,7 @@ on:
       - work/ips-video22-quoteflow-ux-20261122
       - work/ips-scenario-gaps-support-20261122
       - work/ips-autonomous-windows-edge-qa-20261123
+      - work/ips-oneclick-review-access-20261123
   pull_request:
     branches:
       - main
@@ -69,6 +70,8 @@ jobs:
           node --check src/catalogue.mjs
           node --check src/specialist-agreement.mjs
           node --check src/security.mjs
+          node --check src/review-access-gate.mjs
+          node --check scripts/verify-review-access-gate.mjs
           node --check src/document-scan.mjs
           node --check scripts/scan-test-server.mjs
           node --check scripts/verify-document-scan.mjs
@@ -109,6 +112,8 @@ jobs:
             echo "REJECT: wrong IPS company identity"
             exit 1
           fi
+      - name: Ensure one-click real role review is impossible on production or legacy IPS
+        run: node scripts/verify-review-access-gate.mjs
       - name: Enforce all 409 owner operating-scenario gates without falsely claiming success
         run: node scripts/verify-scenario-register.mjs
       - name: Ensure persistent free review cannot access live or legacy Atlas databases
