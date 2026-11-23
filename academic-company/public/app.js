@@ -57,12 +57,29 @@ const fictionalReviewRoles=[
  ['manager','Client Relations Manager','Enquiries, team management and escalations'],
  ['root','Nyoro · Root Admin','Entire operating system, departments, QA, finance and assisted workspaces']
 ];
+// Render a workroom only after the HTTP-only signed session has become
+// consistently readable. A successful POST response alone is not proof that
+// the browser has finished persisting the new session cookie.
+async function confirmedReviewSession(role,accountId){
+ let stable=0;
+ for(let i=0;i<20;i++){
+  try{
+   const result=await api('/session');
+   if(result.account?.role===role&&result.account?.id===accountId){
+    if(++stable>=3)return result.account;
+   }else stable=0;
+  }catch{stable=0}
+  await new Promise(resolve=>setTimeout(resolve,180));
+ }
+ throw Error('IPS could not establish a stable review session. Choose the workspace again.');
+}
 const reviewWorkspaceSelector=()=>state.reviewEntryEnabled&&(!state.account||state.reviewSwitchOpen)?
  '<section class="review-entry" aria-label="Fictional IPS company workspaces">'+
  '<div class="review-entry-top"><div><span class="kicker">PRIVATE OWNER REVIEW / FICTIONAL DATA</span>'+
  '<h2>Open the functioning IPS company</h2>'+
  '<p>Enter any role directly. All actions operate on the isolated review database; payments and external messages are disabled.</p></div>'+
  (state.account?b('Close role chooser','review-switch'):'')+'</div>'+
+ (state.error?'<div class="notice error" role="alert">'+e(state.error)+'</div>':'')+
  '<div class="review-entry-grid">'+fictionalReviewRoles.map(([role,label,desc])=>
  '<button type="button" class="review-entry-role" data-action="review-enter" data-id="'+e(role)+'">'+
  '<strong>'+e(label)+'</strong><small>'+e(desc)+'</small></button>').join('')+'</div>'+
@@ -1596,14 +1613,26 @@ document.addEventListener('click',async ev=>{
  }
  if(act==='review-enter'){
   state.busy=true;
+  const selectedButton=action;
+  selectedButton.disabled=true;
+  selectedButton.setAttribute('aria-busy','true');
   try{
    const result=await api('/review/enter',{method:'POST',body:{role:id}});
-   state.account=result.account;state.page='workspace';state.tab='overview';
+   const verified=await confirmedReviewSession(id,result.account?.id);
+   state.account=verified;state.page='workspace';state.tab='overview';
    state.opened='';state.rootLens=null;state.reviewSwitchOpen=false;
    state.message='';state.error='';state.backStack=[];
    if(state.rootEntry&&id!=='root'){location.replace('/');return;}
-  }catch(err){state.error=err.message}
-  finally{state.busy=false}
+  }catch(err){
+   // Never keep showing a previous role after a failed identity transition.
+   state.account=null;state.rootLens=null;state.opened='';
+   state.page=state.rootEntry?'root-login':'home';
+   state.reviewSwitchOpen=true;state.error=err.message;
+  }finally{
+   state.busy=false;
+   selectedButton.disabled=false;
+   selectedButton.removeAttribute('aria-busy');
+  }
   render();return;
  }
 
