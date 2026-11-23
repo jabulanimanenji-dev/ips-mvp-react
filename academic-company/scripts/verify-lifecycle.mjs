@@ -62,6 +62,10 @@ try{
   assert.ok(r.data.services.some(x=>x.id==='thesis-dissertation'));assert.ok(r.data.services.every(x=>x.questions.length));
   const h=await call('/health');assert.equal(h.data.environment,'ISOLATED_ACADEMIC_REVIEW');
   assert.equal(h.data.payments,'integration-pending');
+  // Public workspace selection must NEVER activate in ordinary isolated CI,
+  // production or staging without exact dedicated review credentials.
+  await call('/review/roles',{},404);
+  await call('/review/enter',{method:'POST',body:{role:'root'}},404);
  });
  await assertCheck('Distributed production abuse limits are atomic, shared, private and fail closed',async()=>{
   const collection=db.collection('academic_abuse_rate_windows');
