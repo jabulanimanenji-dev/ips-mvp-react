@@ -35,6 +35,7 @@ on:
       - work/ips-simplify-takeover-20261122
       - work/ips-video22-quoteflow-ux-20261122
       - work/ips-scenario-gaps-support-20261122
+      - work/ips-autonomous-windows-edge-qa-20261123
   pull_request:
     branches:
       - main
@@ -232,3 +233,52 @@ jobs:
       - name: Verify academic constitution is preserved
         working-directory: .
         run: test -s GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md
+
+  windows-edge-real-company:
+    # Runs for the developer automatically. The IPS owner executes nothing.
+    # The same existing academic source, full MongoDB lifecycle and actual
+    # Windows Microsoft Edge workspaces must pass BEFORE any native tour ZIP.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      MONGOMS_VERSION: '7.0.14'
+      MONGOMS_DOWNLOAD_DIR: ${{ runner.temp }}\\ips-academic-mongodb
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    defaults:
+      run:
+        working-directory: academic-company
+        shell: pwsh
+    steps:
+      - name: Checkout accepted IPS academic-company source
+        uses: actions/checkout@v4
+      - name: Configure native Windows Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install real company dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install pinned isolated Windows MongoDB and browser drivers
+        run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund mongodb-memory-server-core@10.3.0 playwright@1.56.1
+      - name: Require genuine Microsoft Edge on hosted Windows
+        run: |
+          $paths = @(
+            'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+            'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe'
+          )
+          $edge = $paths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $edge) { throw 'Real Edge is missing from this Windows runner. Native tour cannot be owner-approved.' }
+          Write-Host 'IPS_WINDOWS_EDGE_BINARY_FOUND'
+      - name: Validate real IPS MongoDB and Edge qualification scripts
+        run: |
+          node --check scripts/qualify-windows-edge.mjs
+          node --check scripts/verify-lifecycle.mjs
+          node --check scripts/verify-browser.mjs
+      - name: Run isolated genuine Windows MongoDB 7 + Edge company journeys
+        run: node scripts/qualify-windows-edge.mjs
+      - name: Publish Windows Edge screenshots and failure evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ips-academic-real-windows-edge-evidence
+          path: academic-company/academic-browser-evidence/
+          if-no-files-found: warn
