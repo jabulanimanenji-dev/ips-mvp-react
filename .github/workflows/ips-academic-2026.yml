@@ -38,6 +38,7 @@ on:
   pull_request:
     branches:
       - main
+      - company/ips-academic-services-2026
   workflow_dispatch:
 permissions:
   contents: read
