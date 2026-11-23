@@ -7,7 +7,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {SERVICES,CATEGORIES,DEPARTMENTS,ACADEMIC_LEVELS,academicIntegrityNotice} from './catalogue.mjs';
 import {SPECIALIST_AGREEMENT} from './specialist-agreement.mjs';
-import {email,validEmail,hashPassword,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid} from './security.mjs';
+import {email,validEmail,hashPassword,publicAccount,ensureRuntime,createSecurity,Throttle,now,uid,strongToken} from './security.mjs';
 import {registerIdentityRoutes} from './routes-identity.mjs';
 import {registerAcademicRoutes} from './routes-academic.mjs';
 import {registerAssignmentOfferRoutes} from './routes-assignment-offers.mjs';
@@ -272,7 +272,34 @@ async function notifyQuotation(q,message,kind='quotation'){
  if(q.studentId){
   await notify(q.studentId,message,kind,{channel:q.contactChannel||'workspace'});
  }else if(q.contactVerified&&q.contactChannel==='email'){
-  await queuePrivateNotice(q.contactEmail,kind,uid('GUEST-NOTICE'),'','Create your private IPS account with this verified email to review the quotation: '+config.origin);
+  if(q.status==='offered'){
+   // HMAC-link stays valid for its reviewed version across delayed email notices.
+   let current=await db.quotes.findOne({id:q.id,studentId:'',
+    contactVerified:true,contactChannel:'email',status:'offered'});
+   if(current){
+    if(current.guestOfferVersion!==current.offerVersion||
+       !(current.guestOfferUntil instanceof Date)||current.guestOfferUntil<=now()||
+       !current.guestOfferNonce){
+     const nonce=strongToken(),until=new Date(Math.min(
+      Date.now()+7*86400000,new Date(current.expires+'T23:59:59.999Z').getTime()));
+     current=await db.quotes.findOneAndUpdate({id:current.id,studentId:'',
+      status:'offered',offerVersion:current.offerVersion},
+      {$set:{guestOfferNonce:nonce,guestOfferVersion:current.offerVersion,
+       guestOfferUntil:until,updatedAt:now()}},{returnDocument:'after'});
+    }
+    if(current?.guestOfferNonce&&current.guestOfferUntil>now()){
+     const token=Buffer.from(security.digest('ips-guest-offer-link:'+
+      current.id+':'+current.offerVersion+':'+current.guestOfferNonce),'hex').toString('base64url');
+     const link=config.origin+'/#guestoffer='+token+'&ref='+encodeURIComponent(current.id);
+     await queuePrivateNotice(current.contactEmail,kind,uid('GUEST-NOTICE'),'',
+      'Read your written quotation securely, without creating an account (link expires on '+
+       current.guestOfferUntil.toISOString().slice(0,10)+'): '+link);
+     return;
+    }
+   }
+  }
+  await queuePrivateNotice(q.contactEmail,kind,uid('GUEST-NOTICE'),'',
+   'IPS has updated your verified enquiry. If you need a new private quotation link, request one through IPS: '+config.origin);
  }
  if(q.contactChannel==='telegram'&&!q.studentId){
   // A Telegram username alone is not a verified bot chat destination. Do not

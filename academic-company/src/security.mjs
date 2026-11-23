@@ -29,7 +29,7 @@ export const publicAccount=a=>a?({
 }):null;
 export const publicDocument=d=>{
  if(!d)return null;
- const x={...d};for(const k of ['_id','passwordHash','challengeHash','challengeUntil','recoveryHash','recoveryUntil','fileData','file_buffer','tokenHash','privateNotes'])delete x[k];
+ const x={...d};for(const k of ['_id','passwordHash','challengeHash','challengeUntil','recoveryHash','recoveryUntil','fileData','file_buffer','tokenHash','privateNotes','guestOfferNonce','guestOfferUntil','guestOfferVersion','guestOfferLinkResentAt'])delete x[k];
  return x;
 };
 export const ensureRuntime=env=>{
