@@ -16,6 +16,7 @@ import {registerSupportRoutes,beginCompanyAutomation} from './routes-support.mjs
 import {registerOperationsRoutes} from './routes-operations.mjs';
 import {registerTelegramRoutes,telegramConfigured} from './routes-telegram.mjs';
 import {registerFinanceRoutes} from './routes-finance.mjs';
+import {isPublicFictionalReview,DEMO_ROLES} from './review-access-gate.mjs';
 import {registerPeopleGovernanceRoutes} from './routes-people-governance.mjs';
 import {assertProductionAdmission} from './release-admission.mjs';
 import {inspectAcademicFile,scanConfiguration} from './document-scan.mjs';
@@ -52,7 +53,7 @@ app.post('/api/integrations/resend/webhook',
 app.use(express.json({limit:'8mb'}));
 app.use((req,res,next)=>{
  res.setHeader('X-IPS-Product','IPS Academic Services');
- if(config.staging)res.setHeader('X-Robots-Tag','noindex, nofollow, noarchive');
+ if(config.staging||config.sandbox)res.setHeader('X-Robots-Tag','noindex, nofollow, noarchive');
  res.setHeader('Cache-Control','no-store');
  if(!['GET','HEAD','OPTIONS'].includes(req.method)){
   const supplied=req.get('origin');
@@ -316,6 +317,38 @@ function wrap(handler){return async(req,res)=>{try{await handler(req,res)}catch(
 }}}
 const inspectAcademicUpload=buffer=>inspectAcademicFile(buffer,{env,sandbox:config.sandbox});
 const ctx={app,db,documentBucket,inspectAcademicUpload,env,config,security,throttle,sendEmail,sendTelegram,rootEmail,notify,notifyQuotation,audit,authorize,department,wrap,now,uid};
+// The actual IPS workspaces are publicly inspectable ONLY on the dedicated,
+// fictional-data Render/Atlas review deployment. These endpoints cannot turn
+// on in staging, production, local developer databases or paid environments.
+// The users are deliberately fictional; ordinary authorization still applies.
+const fictionalReviewEntry=isPublicFictionalReview(env,config);
+app.get('/api/review/roles',(_req,res)=>{
+ if(!fictionalReviewEntry)return res.status(404).json({error:'Review-only entry is unavailable.'});
+ res.json({available:true,fictionalOnly:true,paymentsDisabled:true,
+  roles:DEMO_ROLES.map(({role,label})=>({role,label}))});
+});
+app.post('/api/review/enter',wrap(async(req,res)=>{
+ if(!fictionalReviewEntry)return res.status(404).json({error:'Review-only entry is unavailable.'});
+ if(await throttle.limited(req,'academic-review-workspace-entry',90))
+  return res.status(429).json({error:'Too many review entry attempts. Please retry.'});
+ const chosen=DEMO_ROLES.find(x=>x.role===req.body?.role);
+ if(!chosen)return res.status(400).json({error:'Choose one of the five fictional IPS review workspaces.'});
+ if(chosen.role==='root'){
+  const root=await db.rootCredentials.findOne({id:rootEmail},{projection:{sessionVersion:1}});
+  if(!root)return res.status(503).json({error:'Fictional Root review identity is unavailable.'});
+  security.set(res,{id:rootEmail,role:'root',version:root.sessionVersion});
+  await audit({id:rootEmail,role:'root'},'academic_public_fictional_review_entry','root');
+  return res.json({fictionalOnly:true,account:{id:rootEmail,email:rootEmail,name:'Nyoro',
+   role:'root',status:'active',verified:true,approved:true}});
+ }
+ const a=await db.accounts.findOne({id:chosen.id,role:chosen.role,
+  synthetic:true,verified:true,status:'active'});
+ if(!a||(chosen.role==='specialist'&&!a.approved))
+  return res.status(503).json({error:'The selected fictional review identity is unavailable.'});
+ security.set(res,{id:a.id,role:a.role,version:a.sessionVersion});
+ await audit(a,'academic_public_fictional_review_entry',a.id,{role:a.role});
+ return res.json({fictionalOnly:true,account:publicAccount(a)});
+}));
 app.get('/api/health',wrap(async(_req,res)=>{
  const databaseReady=mongoose.connection.readyState===1;
  return res.status(databaseReady?200:503).json({
