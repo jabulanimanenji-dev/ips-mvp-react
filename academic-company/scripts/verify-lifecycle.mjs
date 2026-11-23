@@ -240,6 +240,42 @@ try{
   assert.ok([vars.ROOT_EMAIL,(await db.collection('academic_accounts').findOne({email:staffMail})).id]
    .includes(saved.assignedTo));
  });
+ await assertCheck('Private quotation authority follows Client Relations, not general department membership',async()=>{
+  const deliveryEmail=emailFor('separate-academic-delivery-manager');
+  await call('/administration/invite',withAuth(rootCookie,{name:'Test Academic Delivery Manager',
+   email:deliveryEmail,department:'academic_delivery'}),201);
+  const invitation=token(await inbox(deliveryEmail,
+   'Your IPS Academic Services department invitation'),'invite');
+  const deliveryCookie=(await call('/auth/invitation/accept',{method:'POST',body:{
+   email:deliveryEmail,token:invitation,password:'DeliveryReview2026!',
+   confirmPassword:'DeliveryReview2026!'}})).cookie;
+  const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
+  await call('/academic/quotes',{cookie:deliveryCookie},403);
+  await call('/academic/quotes/'+q.id+'/scope',withAuth(deliveryCookie,{
+   decision:'approved',note:'A delivery team cannot independently approve private intake.'}),403);
+  await call('/academic/quotes/'+q.id+'/messages',{cookie:deliveryCookie},403);
+  const noPrivateIntake=await call('/academic/dashboard',{cookie:deliveryCookie});
+  assert.equal(noPrivateIntake.data.metrics.enquiries,0);
+  const intakeBefore=await call('/academic/quotes',{cookie:staffCookie});
+  assert.ok(intakeBefore.data.quotes.some(x=>x.id===q.id),'Unassigned work must be available to responsible intake staff');
+  const intakeUser=await db.collection('academic_accounts').findOne({email:staffMail});
+  const scopedFilter={$or:[{assignedTo:intakeUser.id},{assignedTo:''},{assignedTo:null},
+   {assignedTo:{$exists:false}}]};
+  assert.equal((await call('/academic/dashboard',{cookie:staffCookie})).data.metrics.enquiries,
+   await db.collection('academic_quotations').countDocuments(scopedFilter),
+   'Staff dashboard must reflect precisely their authorized intake queue');
+  assert.ok((await call('/academic/quotes',{cookie:managerCookie})).data.quotes.some(x=>x.id===q.id));
+  assert.ok((await call('/academic/quotes',{cookie:rootCookie})).data.quotes.some(x=>x.id===q.id));
+  assert.ok((await call('/academic/quotes',{cookie:studentCookie})).data.quotes.some(x=>x.id===q.id));
+  const reviewed=await call('/academic/quotes/'+q.id+'/scope',withAuth(managerCookie,{
+   decision:'approved',note:'Client Relations manager approved permitted editing only.'}));
+  assert.equal(reviewed.data.quote.status,'scoped');
+  assert.equal(reviewed.data.quote.assignedTo,
+   (await db.collection('academic_accounts').findOne({email:managerMail})).id);
+  assert.ok(!(await call('/academic/quotes',{cookie:staffCookie})).data.quotes.some(x=>x.id===q.id));
+  assert.equal((await call('/academic/dashboard',{cookie:staffCookie})).data.metrics.enquiries,
+   await db.collection('academic_quotations').countDocuments(scopedFilter));
+ });
  await assertCheck('Guest sends real subject-specific academic quote without supplying legal name',async()=>{
   const guestEmail=studentMail;
   const q=await call('/academic/guest-quote',{method:'POST',body:{...brief('literature-reviews'),

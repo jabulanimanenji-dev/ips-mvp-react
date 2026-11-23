@@ -44,6 +44,14 @@ export function registerAcademicRoutes(ctx){
   a.department==='quality_assurance'?{$or:[{qaOwnerId:a.id},
    ...(a.role==='manager'?[{qaManagerId:a.id}]:[])]}:{id:'unavailable'};
 
+ // Confidential academic enquiries belong to Client Relations until commissioned.
+ // Academic Delivery and QA operate on case-scoped jobs, not the intake directory.
+ const intakeQuoteFilter=a=>a.role==='root'||
+  a.role==='manager'&&a.department==='client_relations'?{}:
+  a.role==='student'?{studentId:a.id}:
+  a.role==='staff'&&a.department==='client_relations'?
+   {$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},
+    {assignedTo:{$exists:false}}]}:null;
  const canSee=(a,p)=>!!a&&(studentOwner(a,p)||specialistOwner(a,p)||adminOf(a,p));
  const denial=(res)=>res.status(403).json({error:'You do not have access to this private academic record.'});
  const validateBrief=input=>{
@@ -322,20 +330,13 @@ export function registerAcademicRoutes(ctx){
  }));
  app.get('/api/academic/quotes',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','root','manager','staff']))return;
-  const a=req.actor;
-  let filter=a.role==='student'?{studentId:a.id}:{};
-  if(['manager','staff'].includes(a.role)&&!['client_relations','academic_delivery'].includes(a.department))
-   return res.status(403).json({error:'Academic intake authority is required.'});
-  if(a.role==='staff'&&a.department==='academic_delivery')filter={scopeDecision:'approved'};
-  if(a.role==='staff'&&a.department==='client_relations')
-   filter={$or:[{assignedTo:a.id},{assignedTo:''},{assignedTo:null},
-    {assignedTo:{$exists:false}}]};
-
+  const filter=intakeQuoteFilter(req.actor);
+  if(!filter)return res.status(403).json({error:'Only the Student, Nyoro or accountable Client Relations personnel may inspect private enquiries.'});
   const rows=await db.quotes.find(filter).sort({createdAt:-1}).limit(100).toArray();
   res.json({quotes:rows.map(quoteView)});
  }));
  app.post('/api/academic/quotes/:id/scope',wrap(async(req,res)=>{
-  if(!department(req,res,['client_relations','academic_delivery']))return;
+  if(!department(req,res,['client_relations']))return;
   if(req.actor.role==='staff')return res.status(403).json({error:'A manager must approve academic scope.'});
   const decision=String(req.body?.decision||''),note=String(req.body?.note||'').trim();
   if(!['approved','clarify','declined'].includes(decision)||note.length<10||note.length>1700)
@@ -828,8 +829,7 @@ export function registerAcademicRoutes(ctx){
  app.get('/api/academic/dashboard',wrap(async(req,res)=>{
   if(!authorize(req,res,['student','specialist','root','manager','staff']))return;
   const a=req.actor,root=a.role==='root',dept=a.department||'';
-  const quoteFilter=root||(['manager','staff'].includes(a.role)&&dept==='client_relations')?{}:
-   a.role==='student'?{studentId:a.id}:{id:'unavailable'};
+  const quoteFilter=intakeQuoteFilter(a)||{id:'unavailable'};
   const projectFilter=root?{}:
    a.role==='student'?{studentId:a.id}:a.role==='specialist'?{specialistId:a.id}:
    ['manager','staff'].includes(a.role)?caseFilter(a):{id:'unavailable'};
