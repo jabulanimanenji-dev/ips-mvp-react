@@ -5,6 +5,7 @@ on:
     branches:
       - work/ips-autonomous-windows-edge-qa-20261123
       - company/ips-academic-services-2026
+      - review/ips-nyoro-frozen-20261123
   workflow_dispatch:
 
 permissions:
