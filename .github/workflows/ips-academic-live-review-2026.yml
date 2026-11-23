@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - company/ips-academic-services-2026
+      - review/ips-nyoro-frozen-20261123
   workflow_dispatch:
 
 permissions:
