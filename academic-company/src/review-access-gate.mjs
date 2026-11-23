@@ -1,7 +1,7 @@
 // This is a deliberately PUBLIC, fictional-data-only workspace inspection gate.
 // A preview visitor must never gain access to production, staging, legacy
 // customer information, paid settlements or external provider credentials.
-export const EVAL_REVIEW_URL='https://ips-academic-services-review-20261121.onrender.com';
+export const EVAL_REVIEW_URL='https://ips-nyoro-frozen-review-20261123.onrender.com';
 export const EVAL_REVIEW_HOST='ips-academic-review-fre.1w7baaf.mongodb.net';
 export const EVAL_REVIEW_DB='ips_academic_sandbox';
 export const DEMO_ROLES=Object.freeze([
