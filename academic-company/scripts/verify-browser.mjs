@@ -7,6 +7,10 @@ import {mkdir} from 'node:fs/promises';
 import {chromium} from 'playwright';
 
 const origin='http://127.0.0.1:18122';
+const browserChannel=process.env.IPS_BROWSER_CHANNEL||'chrome';
+if(!['chrome','msedge'].includes(browserChannel))
+ throw Error('IPS browser qualification must use installed Chrome or Microsoft Edge');
+const browserLabel=browserChannel==='msedge'?'EDGE':'CHROME';
 const vars={...process.env,NODE_ENV:'test',IPS_ACADEMIC_MODE:'evaluation',
  MONGODB_URI:'mongodb://127.0.0.1:27017/ips_academic_sandbox',
  PORT:'18122',PUBLIC_APP_URL:origin,
@@ -16,7 +20,7 @@ const vars={...process.env,NODE_ENV:'test',IPS_ACADEMIC_MODE:'evaluation',
 const proc=spawn(process.execPath,['src/app.mjs'],{env:vars,stdio:['ignore','pipe','pipe']});
 let mongo,browser,log='',count=0;
 for(const stream of [proc.stdout,proc.stderr])stream.on('data',d=>log=(log+String(d)).slice(-1900));
-const pass=async(label,fn)=>{await fn();count++;console.log('PASS ACADEMIC CHROME '+label)};
+const pass=async(label,fn)=>{await fn();count++;console.log('PASS ACADEMIC '+browserLabel+' '+label)};
 const pageOpen=async mobile=>browser.newPage({viewport:mobile?{width:390,height:844}:{width:1440,height:910}});
 const overflow=async page=>{const n=await page.evaluate(()=>({width:document.documentElement.scrollWidth,inner:innerWidth}));
  assert.ok(n.width<=n.inner+7,'Academic screen horizontal overflow '+JSON.stringify(n))};
@@ -42,7 +46,7 @@ try{
   a.findOne({role:'staff',department:'client_relations'})
  ]);
  for(const identity of [student,specialist,manager,staff])assert.ok(identity?.email,'Missing lifecycle identity before Chrome journey');
- browser=await chromium.launch({channel:'chrome',headless:true,args:['--no-sandbox']});
+ browser=await chromium.launch({channel:browserChannel,headless:true,args:['--no-sandbox']});
  await mkdir('academic-browser-evidence',{recursive:true});
  const publicPage=await pageOpen(false);
  await pass('IPS ACADEMIC SERVICES homepage with research and academic identity',async()=>{
@@ -765,6 +769,6 @@ try{
    await page.close();
   }
  });
- console.log('IPS_ACADEMIC_CHROME_QUALIFICATION_GREEN '+count+' desktop/mobile role journeys and visual evidence');
-}catch(err){console.error('IPS_ACADEMIC_CHROME_FAIL',String(err),log.slice(-1600));process.exitCode=1}
+ console.log('IPS_ACADEMIC_'+browserLabel+'_QUALIFICATION_GREEN '+count+' desktop/mobile role journeys and visual evidence');
+}catch(err){console.error('IPS_ACADEMIC_'+browserLabel+'_FAIL',String(err),log.slice(-1600));process.exitCode=1}
 finally{try{await browser?.close()}catch{}try{await mongo?.close()}catch{}proc.kill('SIGTERM')}

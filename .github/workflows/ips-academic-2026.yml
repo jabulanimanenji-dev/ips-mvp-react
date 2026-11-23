@@ -35,6 +35,7 @@ on:
       - work/ips-simplify-takeover-20261122
       - work/ips-video22-quoteflow-ux-20261122
       - work/ips-scenario-gaps-support-20261122
+      - work/ips-autonomous-windows-edge-qa-20261123
   pull_request:
     branches:
       - main
