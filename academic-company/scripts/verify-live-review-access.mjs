@@ -63,6 +63,27 @@ try{
    const r=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
    return {status:r.status,data:await r.json()}
   });
+  // Diagnoses transient and persistent session failures without exposing
+  // cookie values, tokens, names, passwords or private customer data.
+  const cookieMeta=(await page.context().cookies(origin)).map(c=>({
+   name:c.name,domain:c.domain,secure:c.secure,httpOnly:c.httpOnly,
+   sameSite:c.sameSite,valueLength:c.value?.length||0
+  }));
+  const repeated=[];
+  for(let k=0;k<5;k++){
+   const p=await page.evaluate(async()=>{
+    const r=await fetch('/api/session',{credentials:'same-origin',cache:'no-store'});
+    return {status:r.status,role:r.ok?(await r.json()).account?.role:null}
+   });
+   repeated.push(p);
+   await sleep(250);
+  }
+  console.log('IPS_REVIEW_AUTH_DIAGNOSTIC',JSON.stringify({
+   expected:role,firstStatus:result.status,firstRole:result.data?.account?.role||null,
+   cookieMeta,repeated,host:new URL(page.url()).hostname,
+   actualWorkspacePresent:!!(await page.locator('.workspace').count()),
+   actualSelectorVisible:!!(await page.locator('.review-entry-role').count())
+  }));
   assert.equal(result.status,200,'Session not created for '+role);
   assert.equal(result.data.account.role,role,'Incorrect actual workroom actor for '+role);
   assert.equal(await page.locator('.sidebar').count(),1,'Real IPS workspace UI missing for '+role);
