@@ -129,6 +129,96 @@ try{
   await publicPage.locator('input[name=username]').waitFor();
   await screen(publicPage,'04-subject-specific-private-quotation');
  });
+ await pass('Guest receives and responds to the genuine written offer without signup',async()=>{
+  const guestMail='guest-visual-flow-'+Date.now().toString(36)+'@example.org';
+  await publicPage.locator('select[name=serviceId]').selectOption('academic-editing');
+  await publicPage.locator('select[name=academicLevel]').selectOption('Undergraduate');
+  await publicPage.locator('input[name=username]').fill('PrivateGuestVisual2026');
+  await publicPage.locator('input[name=email]').fill(guestMail);
+  await publicPage.locator('input[name=subject]').fill('Student-owned Research Methods');
+  await publicPage.locator('textarea[name=requirements]').fill(
+   'Please review my independently authored methodology section for clarity and reference-format consistency.');
+  await publicPage.locator('input[name=privacyConsent]').check();
+  await publicPage.locator('input[name=integrityAcknowledged]').check();
+  await publicPage.locator('form[data-form=guest-quote]').getByRole('button',{name:'Send request'}).click();
+  await publicPage.getByText('needs email confirmation',{exact:false}).waitFor();
+  const verification=await mongo.db.collection('academic_evaluation_mail').findOne({
+   to:guestMail,subject:'Confirm your confidential IPS Academic Services quotation request'});
+  assert.ok(verification?.text);
+  const confirmation=verification.text.match(/http:\/\/127\.0\.0\.1:18122\/#guestconfirm=[^\s]+/)?.[0];
+  assert.ok(confirmation,'Guest must get a genuine one-use verification link');
+  const quoteId=confirmation.match(/&ref=(IPS-Q-[A-F0-9]{18})/)?.[1];
+  assert.ok(quoteId);
+  await publicPage.goto(confirmation,{waitUntil:'domcontentloaded'});
+  await publicPage.getByRole('button',{name:'Confirm my academic enquiry'}).click();
+  await publicPage.getByText('Your enquiry is verified.',{exact:false}).waitFor();
+  assert.equal(await publicPage.locator('form[data-form=register]').count(),0,
+   'Confirmation must not force an account registration form');
+  const auth=await fetch(origin+'/api/auth/login',{method:'POST',
+   headers:{'Content-Type':'application/json',Origin:origin},
+   body:JSON.stringify({email:vars.ROOT_EMAIL,password:vars.ROOT_PASSWORD})});
+  assert.equal(auth.status,200);
+  const rootCookie=(auth.headers.get('set-cookie')||'').split(';')[0];
+  assert.ok(rootCookie.startsWith('ips_academic_session='));
+  const rootPost=async(endpoint,body)=>{
+   const r=await fetch(origin+'/api'+endpoint,{method:'POST',
+    headers:{'Content-Type':'application/json',Origin:origin,Cookie:rootCookie},
+    body:JSON.stringify(body)});
+   const data=await r.json();assert.equal(r.status,200,JSON.stringify(data));return data;
+  };
+  await rootPost('/academic/quotes/'+quoteId+'/scope',{
+   decision:'approved',note:'Permitted research-methods review of a student-owned manuscript.'});
+  await rootPost('/academic/quotes/'+quoteId+'/offer',{
+   priceMinor:42000,
+   deliverables:'Written methodology review, language annotations and citation-format feedback.',
+   terms:'The Student remains the author; one documented feedback cycle is provided without fabricated citations.'});
+  const queued=await mongo.db.collection('academic_notification_deliveries')
+   .find({to:guestMail,kind:'quotation'}).sort({createdAt:-1}).limit(1).toArray();
+  assert.equal(queued.length,1);
+  const link=queued[0].text.match(/http:\/\/127\.0\.0\.1:18122\/#guestoffer=[^\s]+/)?.[0];
+  assert.ok(link,'Guest offer must have an actual written-offer link');
+  assert.ok(!queued[0].text.includes('420.00'));
+  await publicPage.goto(link,{waitUntil:'domcontentloaded'});
+  try{
+   await publicPage.getByRole('heading',{name:'Your IPS academic offer'}).waitFor({timeout:12000});
+  }catch(err){
+   const body=(await publicPage.locator('body').innerText()).slice(0,900);
+   console.error('IPS_GUEST_OFFER_BROWSER_DIAG',JSON.stringify({
+    body,headings:await publicPage.locator('h1,h2').allInnerTexts()}));
+   await screen(publicPage,'36-failed-guest-quotation-journey');
+   throw err;
+  }
+  await publicPage.getByText('Your reviewed written quotation').waitFor();
+  assert.equal(await publicPage.locator('form[data-form=guest-offer-changes]').count(),1);
+  assert.equal(await publicPage.locator('form[data-form=register]').count(),0);
+  await screen(publicPage,'36-verified-guest-real-quotation-no-registration');
+  await publicPage.setViewportSize({width:390,height:844});
+  await overflow(publicPage);
+  await screen(publicPage,'37-mobile-guest-written-quotation');
+  await publicPage.setViewportSize({width:1440,height:910});
+  await publicPage.locator('textarea[name=note]').fill(
+   'Please add an explanation of the limits of the methodology advice in the quote.');
+  await publicPage.getByRole('button',{name:'Send my written question'}).click();
+  await publicPage.getByText('IPS received your request.',{exact:false}).waitFor();
+  const pending=await mongo.db.collection('academic_quotations').findOne({id:quoteId});
+  assert.equal(pending.guestReviewVersion,pending.offerVersion);
+  await rootPost('/academic/quotes/'+quoteId+'/revise-offer',{
+   priceMinor:46000,
+   deliverables:'Updated written academic methodology review with ethics and reference-format feedback.',
+   terms:'Student authorship and documented limits to research guidance remain mandatory.',
+   reason:'Guest asked IPS to clarify the methodology consultation and scope in the written offer.'});
+  const revised=await mongo.db.collection('academic_notification_deliveries')
+   .find({to:guestMail,kind:'quotation'}).sort({createdAt:-1}).limit(1).toArray();
+  const newLink=revised[0]?.text.match(/http:\/\/127\.0\.0\.1:18122\/#guestoffer=[^\s]+/)?.[0];
+  assert.ok(newLink&&newLink!==link);
+  await publicPage.goto(link,{waitUntil:'domcontentloaded'});
+  await publicPage.getByText('This private quotation link is invalid or expired.',{exact:false}).waitFor();
+  await publicPage.goto(newLink,{waitUntil:'domcontentloaded'});
+  await publicPage.getByText('Your reviewed written quotation').waitFor();
+  await publicPage.getByRole('button',{name:'Decline this quotation'}).click();
+  await publicPage.getByText('Your quotation was declined and closed.',{exact:false}).waitFor();
+  assert.equal((await mongo.db.collection('academic_quotations').findOne({id:quoteId})).status,'declined');
+ });
  await pass('Self-service password recovery and email-verification resend work in the real browser',async()=>{
   const p=await pageOpen(false);
   await p.goto(origin+'/',{waitUntil:'domcontentloaded'});

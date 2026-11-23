@@ -1,7 +1,7 @@
 /* IPS Academic Services — independent public site and authenticated company workspaces. */
 const root=document.getElementById('app');
 const state={account:null,catalogue:null,page:'home',category:'all',registerRole:'student',service:'',tab:'overview',opened:'',
- message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,reviewEntryEnabled:false,reviewSwitchOpen:false,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',inboxPage:1,inboxQuery:'',telegramLinkUrl:'',guestVerifiedEmail:'',contactPage:1,contactKind:'general'};
+ message:'',error:'',busy:false,workPage:0,backStack:[],isEvaluation:false,isStaging:false,firstLogin:false,rootEntry:location.pathname.startsWith('/root'),rootLens:null,reviewEntryEnabled:false,reviewSwitchOpen:false,rootDirectory:[],directoryTab:'',directoryPage:1,directoryQuery:'',directoryStatus:'all',inboxPage:1,inboxQuery:'',telegramLinkUrl:'',guestVerifiedEmail:'',guestOfferLink:null,guestOffer:null,guestOfferError:'',contactPage:1,contactKind:'general'};
 // Every screen has a Back control. Native browser Back restores the same in-app context.
 const snap=()=>({page:state.page,tab:state.tab,opened:state.opened,
  service:state.service,category:state.category,rootLens:state.rootLens});
@@ -198,13 +198,49 @@ function quote(){
  shell('<main class="page quote-page">'+intro('REQUEST A QUOTATION','Tell us what you need.',
  'Choose an academic service and describe your requirements. IPS will reply in writing.')+
  panel('Your academic request','',
- (guest?'<p class="subtle">You can request a confidential quotation without creating an account. IPS verifies your email first; create a free private Student account with that email to see the reviewed quotation and reply securely.</p>':'')+
+ (guest?'<p class="subtle">You can request and read your private written quotation without registering. IPS verifies email ownership, then sends a secure offer link when the review is complete.</p>':'')+
  form(guest?'guest-quote':'student-quote',
  (guest?field('Private username','username','text','Choose a username')+
  field('Email address','email','email','you@example.com'):'')+
  quoteFields(guest)+(guest?privacyCheck:''),'Send request'))+'</main>');
  const el=root.querySelector('select[name=serviceId]');if(el&&state.service)el.value=state.service;
  updateServiceGuidance();
+}
+function guestOfferPage(){
+ state.page='guest-offer';
+ const offer=state.guestOffer;
+ const main=offer?
+  panel('Your reviewed written quotation',
+   'This is the actual IPS academic offer associated with your verified email. No account is required to review it.',
+   '<p><strong>Reference:</strong> '+e(offer.reference)+'</p>'+
+   '<p><strong>Academic service:</strong> '+e(offer.serviceName)+'</p>'+
+   '<p><strong>Subject:</strong> '+e(offer.subject)+'</p>'+
+   '<p><strong>Reviewed price:</strong> '+e(price(offer.priceMinor))+'</p>'+
+   '<p><strong>Offer valid until:</strong> '+e(offer.expires)+'</p>'+
+   '<p><strong>Included revisions:</strong> '+e(offer.revisionAllowance)+'</p>'+
+   '<h3>Deliverables</h3><p class="pre-wrap">'+e(offer.deliverables)+'</p>'+
+   '<h3>Written terms</h3><p class="pre-wrap">'+e(offer.terms)+'</p>')+
+  (offer.reviewRequested?
+   panel('Your request is with IPS','Our Client Relations team has received your question about this version. IPS will respond in writing or issue a revised quotation.',''):
+   panel('Need a change or clarification?','Ask the IPS team to review the quotation without opening an account.',
+    form('guest-offer-changes',textarea('What should IPS clarify or change?','note',
+     'Explain your question or requested scope/price adjustment (20 characters minimum)'),
+     'Send my written question')))+
+  panel('Your decision',
+   'No payment will be collected while payment integration is pending. A verified private workspace is required only when you proceed to commissioning.',
+   form('guest-offer-decline','<p>Declining closes this quotation without creating a paid job.</p>',
+    'Decline this quotation')+
+   '<div class="mt">'+buttonRoute('Proceed to commissioning · Create a private account','register','primary')+'</div>'):
+  panel('Request another secure link',
+   'The link may have expired, been replaced by a revised offer or already been answered. Enter the original reference and verified email; IPS will send a replacement only if the quotation is eligible.',
+   form('guest-offer-resend',
+    field('Enquiry reference','reference','text','IPS-Q-…')+
+    field('Email verified for this enquiry','email','email','you@example.com'),
+    'Email my private quotation link'));
+ shell('<main class="page quote-page">'+intro('PRIVATE WRITTEN QUOTATION',
+  'Your IPS academic offer','A clear, confidential response to your request—without compulsory registration.')+
+  flash()+(state.guestOfferError?'<div class="notice error" role="alert">'+e(state.guestOfferError)+'</div>':'')+
+  main+'</main>');
 }
 function updateServiceGuidance(){
  const id=root.querySelector('select[name=serviceId]')?.value;
@@ -1218,6 +1254,7 @@ function render(){
 
  const params=new URLSearchParams(location.hash.slice(1));
  for(const k of ['verify','recover','invite','guestconfirm','contactverify'])if(params.has(k)){tokenForm(k);return}
+ if(state.page==='guest-offer'){guestOfferPage();return}
  if(state.rootEntry&&!state.account&&!['recover','recovery'].includes(state.page))return rootLogin();
  if(state.account&&!['quote','services','service','how','privacy','contact','recover','resend'].includes(state.page))return work();
  switch(state.page){case 'services':services();break;case 'service':serviceDetail();break;
@@ -1291,6 +1328,24 @@ async function submit(name,formNode){
   const r=await api('/auth/register',{method:'POST',body:data});state.page='login';return 'IPS sent your verification link. Confirm your mailbox before signing in.';
  }
  if(name==='guest-quote'){const r=await api('/academic/guest-quote',{method:'POST',body:data});state.page='login';return 'Your private academic enquiry '+r.reference+' needs email confirmation. IPS has sent a one-use link.'}
+  if(name==='guest-offer-resend'){
+  await api('/academic/guest-offer/resend',{method:'POST',body:data});
+  return 'If IPS has an eligible verified quotation under that email, a fresh private link has been queued.';
+ }
+ if(name==='guest-offer-changes'){
+  if(!state.guestOfferLink||!state.guestOffer)throw Error('Open the current private offer from your IPS email first.');
+  await api('/academic/guest-offer/request-changes',{method:'POST',body:{
+   ...state.guestOfferLink,note:data.note}});
+  state.guestOffer.reviewRequested=true;
+  return 'IPS received your request. A responsible team member will review and respond in writing.';
+ }
+ if(name==='guest-offer-decline'){
+  if(!state.guestOfferLink||!state.guestOffer)throw Error('Open the current private offer first.');
+  await api('/academic/guest-offer/decline',{method:'POST',body:state.guestOfferLink});
+  state.guestOffer=null;state.guestOfferLink=null;state.guestOfferError='';
+  state.page='home';
+  return 'Your quotation was declined and closed. No payment was collected.';
+ }
  if(name==='public-contact'){
   const r=await api('/public/contact',{method:'POST',body:data});
   state.page='contact';return 'IPS sent a one-use email verification link for request '+r.reference+'. Verify before we review it.';
@@ -1301,7 +1356,7 @@ async function submit(name,formNode){
   state.page='home';return r.message;
  }
  if(name==='student-quote'){const r=await api('/academic/quotes',{method:'POST',body:data});state.page='workspace';state.tab='quotes';return 'IPS received your academic enquiry '+r.quote.id+'. A qualified team member will review its scope.'}
- if(name==='guestconfirm'){const result=await api('/academic/guest-confirm',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);state.guestVerifiedEmail=data.email;state.page=result.linkedToAccount?'login':'register';state.registerRole='student';return result.message;}
+ if(name==='guestconfirm'){const result=await api('/academic/guest-confirm',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);state.guestVerifiedEmail=data.email;state.page='home';return result.message;}
  if(name==='verify'){const r=await api('/auth/verify',{method:'POST',body:data});history.replaceState(null,'',location.pathname+location.search);if(r.account){state.account=r.account;state.page='workspace';state.firstLogin=true;state.tab='overview'}else state.page='login';return r.reviewRequired?'Your specialist email is verified. IPS must approve your professional application.':'Your email is verified. Welcome to IPS.'}
  if(name==='recovery'){await api('/auth/recovery/request',{method:'POST',body:data});state.page=state.account?'workspace':'login';if(state.account)state.tab='profile';return 'If this account is verified, a one-use recovery link is being emailed now.'}
  if(name==='resend-verification'){await api('/auth/resend-verification',{method:'POST',body:data});state.page='login';return 'If verification is pending, IPS has emailed a new link.'}
@@ -1775,6 +1830,24 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
  finally{state.busy=false}
  render();
 });
+// Email links can be opened in an already-running IPS tab. A hash-only URL
+// change does not necessarily reload the document or rerun application boot.
+async function openGuestOfferHash(){
+ const params=new URLSearchParams(location.hash.slice(1));
+ if(!params.has('guestoffer'))return false;
+ state.guestOfferLink={reference:params.get('ref')||'',
+  token:params.get('guestoffer')||''};
+ history.replaceState(null,'',location.pathname+location.search);
+ try{
+  const result=await api('/academic/guest-offer/view',
+   {method:'POST',body:state.guestOfferLink});
+  state.guestOffer=result.offer;state.guestOfferError='';
+ }catch(err){state.guestOffer=null;state.guestOfferError=err.message}
+ state.page='guest-offer';
+ render();
+ return true;
+}
+window.addEventListener('hashchange',()=>{void openGuestOfferHash()});
 (async()=>{
  try{
   state.catalogue=await api('/catalogue');
@@ -1784,7 +1857,10 @@ if(act==='service'){remember();state.service=id;state.page='service';serviceDeta
    state.reviewEntryEnabled=entry.available===true&&entry.fictionalOnly===true;
   }catch{state.reviewEntryEnabled=false}
 
-  try{const s=await api('/session');state.account=s.account;state.page='workspace'}catch{state.page=state.rootEntry?'root-login':'home'}
+  if(!(await openGuestOfferHash())){
+   try{const s=await api('/session');state.account=s.account;state.page='workspace'}
+   catch{state.page=state.rootEntry?'root-login':'home'}
+  }
   render();
  }catch(ex){root.innerHTML='<main class="page"><h1>IPS Academic Services</h1><div class="notice error">'+e(ex.message)+'</div></main>'}
 })();

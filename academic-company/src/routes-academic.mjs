@@ -60,6 +60,20 @@ export function registerAcademicRoutes(ctx){
   return {service,serviceId,level,subject,brief,deadline,instructions};
  };
  const utcDate=()=>new Date().toISOString().slice(0,10);
+ const guestOffer=async input=>{
+  const ref=String(input?.reference||''),token=String(input?.token||'');
+  if(!/^IPS-Q-[A-F0-9]{18}$/.test(ref)||!validToken(token))return null;
+  const q=await db.quotes.findOne({id:ref,studentId:'',contactVerified:true,
+   contactChannel:'email',status:'offered',scopeDecision:'approved',
+   expires:{$gte:utcDate()},guestOfferUntil:{$gt:now()}});
+  if(!q||!validToken(q.guestOfferNonce)||q.guestOfferVersion!==q.offerVersion)return null;
+  const expected=Buffer.from(security.digest('ips-guest-offer-link:'+
+   q.id+':'+q.offerVersion+':'+q.guestOfferNonce),'hex').toString('base64url');
+  if(expected.length!==token.length||
+     !crypto.timingSafeEqual(Buffer.from(expected),Buffer.from(token)))return null;
+  return q;
+ };
+
  const reviewedOffer=input=>{
   const total=Number(input?.priceMinor),terms=String(input?.terms||'').trim(),
    deliverables=String(input?.deliverables||'').trim();
@@ -139,7 +153,80 @@ export function registerAcademicRoutes(ctx){
   await audit({id:'guest',role:'guest'},'academic_guest_enquiry_verified',quote.id);
   res.json({success:true,reference:quote.id,linkedToAccount:!!account,
    message:account?'Your enquiry is verified and appears in your private Student workspace.':
-    'Your enquiry is verified. Create a private IPS account with the same email to view your written quotation and messages; it will attach automatically.'});
+    'Your enquiry is verified. IPS will email a private review link when your written quotation is ready; no account is required to see it.'});
+ }));
+ // Verified guests may inspect a written offer without compulsory registration.
+ // The URL fragment remains client-side; only an expiring HMAC bearer credential
+ // reaches this API via POST. No unverified email address can view private data.
+ app.post('/api/academic/guest-offer/view',wrap(async(req,res)=>{
+  if(await throttle.limited(req,'academic-guest-offer-view',30))
+   return res.status(429).json({error:'Too many private quotation requests.'});
+  const q=await guestOffer(req.body);
+  if(!q)return res.status(404).json({error:'This private quotation link is invalid or expired. Request a new link from IPS.'});
+  res.set('Cache-Control','no-store');
+  res.json({offer:{reference:q.id,serviceName:q.serviceName,subject:q.subject,
+   deliverables:q.deliverables,terms:q.terms,priceMinor:q.priceMinor,
+   currency:q.currency,expires:q.expires,revisionAllowance:q.revisionAllowance,
+   version:q.offerVersion,reviewRequested:q.guestReviewVersion===q.offerVersion},
+   registrationRequiredToView:false,paymentsEnabled:false});
+ }));
+ app.post('/api/academic/guest-offer/request-changes',wrap(async(req,res)=>{
+  if(await throttle.limited(req,'academic-guest-offer-changes',12))
+   return res.status(429).json({error:'Too many quotation change requests.'});
+  const note=String(req.body?.note||'').trim();
+  if(note.length<20||note.length>3000)
+   return res.status(400).json({error:'Explain the requested clarification in 20–3,000 characters.'});
+  const q=await guestOffer(req.body);
+  if(!q)return res.status(404).json({error:'This private quotation link is unavailable.'});
+  const updated=await db.quotes.findOneAndUpdate({id:q.id,status:'offered',
+   studentId:'',offerVersion:q.offerVersion,guestOfferVersion:q.offerVersion,
+   guestReviewVersion:{$ne:q.offerVersion}},
+   {$set:{guestReviewVersion:q.offerVersion,guestReviewRequestedAt:now(),
+    updatedAt:now()}},{returnDocument:'after'});
+  if(!updated)return res.status(409).json({error:'IPS has already received a review request for this quotation version.'});
+  await db.quoteMessages.insertOne({id:uid('QM'),quoteId:q.id,
+   actorId:'verified_guest',actorRole:'guest',audience:'student',
+   body:note,createdAt:now()});
+  await audit({id:'verified_guest',role:'guest'},'academic_guest_offer_changes_requested',q.id,
+   {offerVersion:q.offerVersion});
+  await notify(q.assignedTo||rootEmail,'Verified guest requested a change to written quotation '+q.id,'quote_message');
+  res.status(202).json({success:true,reference:q.id,
+   message:'IPS received your written request. We will review it before revising the quotation.'});
+ }));
+ app.post('/api/academic/guest-offer/decline',wrap(async(req,res)=>{
+  if(await throttle.limited(req,'academic-guest-offer-decline',12))
+   return res.status(429).json({error:'Too many quotation responses.'});
+  const q=await guestOffer(req.body);
+  if(!q)return res.status(404).json({error:'This private quotation link is unavailable.'});
+  const changed=await db.quotes.findOneAndUpdate({id:q.id,status:'offered',
+   studentId:'',offerVersion:q.offerVersion,guestOfferVersion:q.offerVersion,
+   guestOfferNonce:q.guestOfferNonce},
+   {$set:{status:'declined',clientDecisionAt:now(),updatedAt:now()},
+    $unset:{guestOfferNonce:'',guestOfferUntil:'',guestOfferVersion:''}},
+   {returnDocument:'after'});
+  if(!changed)return res.status(409).json({error:'The quotation was already changed or answered.'});
+  await audit({id:'verified_guest',role:'guest'},'academic_guest_quote_declined',q.id,
+   {offerVersion:q.offerVersion});
+  await notify(q.assignedTo||rootEmail,'Verified guest declined written quotation '+q.id,'intake');
+  res.json({success:true,reference:q.id,decision:'declined',paymentCollected:false});
+ }));
+ app.post('/api/academic/guest-offer/resend',wrap(async(req,res)=>{
+  if(await throttle.limited(req,'academic-guest-offer-resend',7))
+   return res.status(429).json({error:'Too many private link requests. Please try later.'});
+  const ref=String(req.body?.reference||''),mail=email(req.body?.email);
+  if(!/^IPS-Q-[A-F0-9]{18}$/.test(ref)||!validEmail(mail))
+   return res.status(202).json({accepted:true});
+  const at=now();
+  const q=await db.quotes.findOneAndUpdate({id:ref,contactEmail:mail,
+   studentId:'',contactVerified:true,contactChannel:'email',
+   status:'offered',expires:{$gte:utcDate()},
+   $or:[{guestOfferLinkResentAt:{$exists:false}},
+    {guestOfferLinkResentAt:{$lt:new Date(at.getTime()-10*60000)}}]},
+   {$set:{guestOfferUntil:new Date(0),guestOfferLinkResentAt:at}},
+   {returnDocument:'after'});
+  if(q)await notifyQuotation(q,'A new private written-offer link was requested','quotation');
+  res.status(202).json({accepted:true,
+   message:'If this verified quotation is still available, IPS has queued a new private email link.'});
  }));
  app.post('/api/academic/quotes',wrap(async(req,res)=>{
   if(!authorize(req,res,['student']))return;

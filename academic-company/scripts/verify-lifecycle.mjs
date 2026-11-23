@@ -486,6 +486,69 @@ try{
   assert.equal(items.length,1);
   assert.equal(items[0].accountId,'');
   assert.ok(!items[0].text.includes('540.00')&&!items[0].text.includes('research consultation'));
+  assert.ok(!items[0].text.includes('Private academic service agreement'));
+  const offeredUrl=items[0].text.match(/#guestoffer=([A-Za-z0-9_-]{43})&ref=/);
+  assert.ok(offeredUrl,'The verified guest must receive a private view link, not a forced registration');
+  const firstToken=offeredUrl[1];
+  const access={reference:q,token:firstToken};
+  const viewed=await call('/academic/guest-offer/view',{method:'POST',body:access});
+  assert.equal(viewed.data.registrationRequiredToView,false);
+  assert.equal(viewed.data.offer.priceMinor,54000);
+  assert.equal(viewed.data.offer.subject,(await db.collection('academic_quotations').findOne({id:q})).subject);
+  assert.ok(!JSON.stringify(viewed.data).includes(guestEmail));
+  assert.ok(!JSON.stringify(viewed.data).includes('guestOfferNonce'));
+  await call('/academic/guest-offer/view',{method:'POST',
+   body:{reference:q,token:firstToken.slice(0,-1)+(firstToken.endsWith('A')?'B':'A')}},404);
+  await call('/academic/guest-offer/view',{method:'POST',
+   body:{reference:'IPS-Q-000000000000000000',token:firstToken}},404);
+  const requested=await call('/academic/guest-offer/request-changes',{
+   method:'POST',body:{...access,note:'Please include an additional research-methods consultation in this scoped quotation.'}},202);
+  assert.equal(requested.data.success,true);
+  await call('/academic/guest-offer/request-changes',{method:'POST',
+   body:{...access,note:'This second request must not silently overwrite the first request.'}},409);
+  assert.equal(await db.collection('academic_quote_messages').countDocuments({
+   quoteId:q,actorRole:'guest'}),1);
+  const listed=await call('/academic/quotes',{cookie:rootCookie});
+  assert.ok(!Object.hasOwn(listed.data.quotes.find(x=>x.id===q),'guestOfferNonce'));
+  const revised=await call('/academic/quotes/'+q+'/revise-offer',withAuth(rootCookie,{
+   priceMinor:57500,
+   deliverables:'Updated research consultation, literature feedback and permitted reference-format checks.',
+   terms:'Expanded advisory guidance within the academic integrity policy and the verified student-owned scope.',
+   reason:'Guest requested a revised academic consultation package and documented scope.'}));
+  assert.equal(revised.data.quote.offerVersion,2);
+  const newest=await db.collection('academic_notification_deliveries').find({
+   to:guestEmail,kind:'quotation'}).sort({createdAt:-1}).limit(1).toArray();
+  const secondToken=newest[0].text.match(/#guestoffer=([A-Za-z0-9_-]{43})&ref=/)?.[1];
+  assert.ok(secondToken&&secondToken!==firstToken,'New offer versions must rotate old access');
+  await call('/academic/guest-offer/view',{method:'POST',body:access},404);
+  const newAccess={reference:q,token:secondToken};
+  assert.equal((await call('/academic/guest-offer/view',{method:'POST',body:newAccess})).data.offer.priceMinor,57500);
+  await call('/academic/guest-offer/resend',{method:'POST',body:{reference:q,email:'wrong-'+guestEmail}},202);
+  const beforeResend=await db.collection('academic_notification_deliveries').countDocuments({to:guestEmail,kind:'quotation'});
+  await call('/academic/guest-offer/resend',{method:'POST',body:{reference:q,email:guestEmail}},202);
+  const afterResend=await db.collection('academic_notification_deliveries').countDocuments({to:guestEmail,kind:'quotation'});
+  assert.equal(afterResend,beforeResend+1);
+  const refreshed=await db.collection('academic_notification_deliveries').find({
+   to:guestEmail,kind:'quotation'}).sort({createdAt:-1}).limit(1).toArray();
+  const finalToken=refreshed[0].text.match(/#guestoffer=([A-Za-z0-9_-]{43})&ref=/)?.[1];
+  assert.ok(finalToken&&finalToken!==secondToken);
+  await call('/academic/guest-offer/view',{method:'POST',body:newAccess},404);
+  const finalAccess={reference:q,token:finalToken};
+  await call('/academic/guest-offer/resend',{method:'POST',body:{reference:q,email:guestEmail}},202);
+  assert.equal(await db.collection('academic_notification_deliveries').countDocuments({
+   to:guestEmail,kind:'quotation'}),afterResend,'Resend must be throttled per actual quote');
+  await db.collection('academic_quotations').updateOne({id:q},
+   {$set:{guestOfferUntil:new Date(0)}});
+  await call('/academic/guest-offer/view',{method:'POST',body:finalAccess},404);
+  await db.collection('academic_quotations').updateOne({id:q},
+   {$set:{guestOfferUntil:new Date(Date.now()+86400000)}});
+  const declined=await call('/academic/guest-offer/decline',{method:'POST',body:finalAccess});
+  assert.equal(declined.data.decision,'declined');
+  assert.equal(declined.data.paymentCollected,false);
+  assert.equal((await db.collection('academic_quotations').findOne({id:q})).status,'declined');
+  assert.equal(await db.collection('academic_commissions').countDocuments({quoteId:q}),0);
+  await call('/academic/guest-offer/view',{method:'POST',body:finalAccess},404);
+  await call('/academic/guest-offer/decline',{method:'POST',body:finalAccess},404);
  });
  await assertCheck('Clarification creates a complete Student-to-IPS review loop, not a dead-end',async()=>{
   const q=(await call('/academic/quotes',withAuth(studentCookie,brief('academic-editing')),201)).data.quote;
