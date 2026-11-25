@@ -279,12 +279,14 @@ try{
  await assertCheck('Past, impossible and malformed academic deadlines fail before opening guest or student cases',async()=>{
   const before=await db.collection('academic_quotations').countDocuments();
   for(const deadline of ['2020-01-01','2032-02-30','2030-00-01','01-01-2030']){
-   const input={...brief('academic-editing'),deadline};
-   const guest={...input,email:studentMail,username:'DeadlineTestGuest',
-    contactChannel:'email',privacyConsent:true};
-   await call('/academic/guest-quote',{method:'POST',body:guest},400);
-   await call('/academic/quotes',withAuth(studentCookie,input),400);
+   await call('/academic/quotes',
+    withAuth(studentCookie,{...brief('academic-editing'),deadline}),400);
   }
+  // One negative guest request exercises the shared validator without
+  // consuming the public five-request anti-abuse window.
+  await call('/academic/guest-quote',{method:'POST',body:{
+   ...brief('academic-editing'),email:studentMail,username:'DeadlineTestGuest',
+   contactChannel:'email',privacyConsent:true,deadline:'2020-01-01'}},400);
   assert.equal(await db.collection('academic_quotations').countDocuments(),before,
    'Invalid academic deadlines must never enter the private company work queue');
  });

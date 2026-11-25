@@ -1,15 +1,15 @@
 # IPS Academic Services — source-bound company audit (25 November 2026)
 
-**Authority:** Owner instructions consolidated in \`GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md\` and the 409-case \`IPS_COMPANY_SCENARIO_ACCEPTANCE_V1.csv\`.  
-**Inspected application:** \`company/ips-academic-services-2026\` baseline \`d4205c250912c0d267cc50fb888d7604d61956bf\`.  
+**Authority:** Owner instructions consolidated in `GOVERNANCE/IPS_ACADEMIC_SERVICES_COMPANY_CONSTITUTION_V1.md` and the 409-case `IPS_COMPANY_SCENARIO_ACCEPTANCE_V1.csv`.  
+**Inspected application:** `company/ips-academic-services-2026` baseline `d4205c250912c0d267cc50fb888d7604d61956bf`.  
 **Purpose:** Engineering acceptance assessment, not a production release certificate. No historical client data or public website migration is authorized by this report.
 
 ## Verified boundaries
 
 - Source inventory: 129 literal HTTP routes in 11 route modules; 49 named frontend forms and 59 ordinary action labels have corresponding recognized frontend dispatch patterns. This is **static wiring inspection**, not an assertion that every interaction succeeds.
-- Automated checks present: 63 real-MongoDB lifecycle assertions and 38 Chrome browser journeys, plus an independent native Edge run and live five-workspace Render browser acceptance on source \`d4205c2\`. The final three jobs all passed on 23 November 2026. They are not proofs of real provider delivery.
-- Hosted synthetic review: \`https://ips-academic-services-review-20261121.onrender.com\` at Render deployment \`d4205c2\`. Dedicated free Atlas cluster \`ips-academic-review-free\`, database \`ips_academic_sandbox\`. Read-only 25 November check: four active fictional regular identities (Student, Specialist, Client Relations Manager, Client Relations Staff), four quotations (2 accepted, 1 offered, 1 received), two commissions (1 completed, 1 active), four synthetic-dispatched email queue records. Root is an independent protected principal, not a normal account.
-- **Production is not active:** separate new Atlas \`ips_academic_services_2026\` holds one control row with \`productionActivated=false\`, \`legacyDataMigrated=false\`, \`ownerAccepted=false\` and email/Telegram/malware verification false. The live public \`main\` branch is distinct from academic source. No production cutover permitted.
+- Automated checks present: 63 real-MongoDB lifecycle assertions and 38 Chrome browser journeys, plus an independent native Edge run and live five-workspace Render browser acceptance on source `d4205c2`. The final three jobs all passed on 23 November 2026. They are not proofs of real provider delivery.
+- Hosted synthetic review: `https://ips-academic-services-review-20261121.onrender.com` at Render deployment `d4205c2`. Dedicated free Atlas cluster `ips-academic-review-free`, database `ips_academic_sandbox`. Read-only 25 November check: four active fictional regular identities (Student, Specialist, Client Relations Manager, Client Relations Staff), four quotations (2 accepted, 1 offered, 1 received), two commissions (1 completed, 1 active), four synthetic-dispatched email queue records. Root is an independent protected principal, not a normal account.
+- **Production is not active:** separate new Atlas `ips_academic_services_2026` holds one control row with `productionActivated=false`, `legacyDataMigrated=false`, `ownerAccepted=false` and email/Telegram/malware verification false. The live public `main` branch is distinct from academic source. No production cutover permitted.
 - The governing scenario register still marks **387 non-payment scenarios NOT_INDIVIDUALLY_ADMITTED** and **22 PAYMENT_DEFERRED**. Aggregate green checks cannot automatically change those statuses.
 
 ## Domain-by-domain audit of all requested functionality
@@ -20,7 +20,7 @@
 | Student / Researcher account (20) | Private username without legal name, verified email gate, strong password, one-use recovery, settings, privacy cases; Mongo/Chrome | Real mailbox witness, historic retention, compromised-account exercises not admitted |
 | Academic intake & integrity (20) | Service, discipline, requirements, guidance, academic-integrity guard, CL ownership and escalation; tests | **Found:** past/impossible deadlines accepted by base source; targeted repair and negative regression in this review; all hard service/exception decisions not individually admitted |
 | Quotations & decisions (17) | Scoped human prices, revisions, expiry/reminders, student accept/decline, verified guest private view/change/decline/resend; Mongo/Chrome | Real customer mail delivery and complete provider exception matrix not admitted |
-| Prepayment commission gate (12) | Accepted offers create truthful \`awaiting_payment_integration\` and non-payable billing records; fictional isolated settlement only | No real paid commissioning or real-world fulfilled orders until payments and release acceptance |
+| Prepayment commission gate (12) | Accepted offers create truthful `awaiting_payment_integration` and non-payable billing records; fictional isolated settlement only | No real paid commissioning or real-world fulfilled orders until payments and release acceptance |
 | Specialist recruitment (20) | Name, qualifications, signed versioned agreement, email ownership, credential-review decision, availability and suspensions | External credential truth and all exceptional cases require independent witnesses |
 | Specialist allocation (20) | Qualified availability/capacity, explicit fee/offer acceptance, Root override/withdrawal, concurrent reservations tested | Paid-job proof is synthetic; genuine capacity and leave procedures unadmitted |
 | Academic job execution (24) | Scoped workroom, attachments, messages, milestones, real file bytes/GridFS in sandbox, Root takeover/private supplier protocol | Live malware screening, third-party supplier witness, outages and exceptions unadmitted |
@@ -36,11 +36,11 @@
 | Hosting & continuity (24) | Isolated Render/Atlas deployment and CI encrypted backup/restore drill on fictional data | Live paid backup, offsite store/cron, restore of customer data, disaster recovery and real production release are **not verified** |
 | Long-term company operation (26) | Some staffing, service and queues source foundations | Scaling, legal market review, data disposal, enterprise governance and closure are not individually tested |
 | Academic service types (16) | Full public service catalogue; workflow shares reusable scoped intake | Individual discipline-specific accuracy and lawful service delivery not owner-admitted |
-| Future real payments (22) | Deliberately disabled; simulated payment labelled synthetic in isolated tests | \`PAYMENT_DEFERRED\` for every payment, chargeback, payout and reconciliation case |
+| Future real payments (22) | Deliberately disabled; simulated payment labelled synthetic in isolated tests | `PAYMENT_DEFERRED` for every payment, chargeback, payout and reconciliation case |
 
 ## Repair admission
 
-**Q08 / past academic deadline:** \`validateBrief()\` accepted arbitrary deadline strings, including dates in the past or impossible dates. This violates the documented intake requirement. Repair must check real ISO calendar dates and reject earlier-than-today dates on both guest and Student intake before inserting cases, add date-picker minimum, and use positive/negative Mongo and Chrome checks. Do not mark the repair accepted before exact-head CI.
+**Q08 / past academic deadline:** `validateBrief()` accepted arbitrary deadline strings, including dates in the past or impossible dates. This violates the documented intake requirement. Repair must check real ISO calendar dates and reject earlier-than-today dates on both guest and Student intake before inserting cases, add date-picker minimum, and use positive/negative Mongo and Chrome checks. Do not mark the repair accepted before exact-head CI.
 
 ## Honest owner review
 
