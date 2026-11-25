@@ -221,6 +221,7 @@ function quote(){
  field('Email address','email','email','you@example.com'):'')+
  quoteFields(guest)+(guest?privacyCheck:''),'Send request'))+'</main>');
  const el=root.querySelector('select[name=serviceId]');if(el&&state.service)el.value=state.service;
+ const due=root.querySelector('input[name=deadline]');if(due)due.min=new Date().toISOString().slice(0,10);
  updateServiceGuidance();
 }
 function guestOfferPage(){

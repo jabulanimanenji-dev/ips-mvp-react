@@ -276,6 +276,20 @@ try{
   assert.equal((await call('/academic/dashboard',{cookie:staffCookie})).data.metrics.enquiries,
    await db.collection('academic_quotations').countDocuments(scopedFilter));
  });
+ await assertCheck('Past, impossible and malformed academic deadlines fail before opening guest or student cases',async()=>{
+  const before=await db.collection('academic_quotations').countDocuments();
+  for(const deadline of ['2020-01-01','2032-02-30','2030-00-01','01-01-2030']){
+   await call('/academic/quotes',
+    withAuth(studentCookie,{...brief('academic-editing'),deadline}),400);
+  }
+  // One negative guest request exercises the shared validator without
+  // consuming the public five-request anti-abuse window.
+  await call('/academic/guest-quote',{method:'POST',body:{
+   ...brief('academic-editing'),email:studentMail,username:'DeadlineTestGuest',
+   contactChannel:'email',privacyConsent:true,deadline:'2020-01-01'}},400);
+  assert.equal(await db.collection('academic_quotations').countDocuments(),before,
+   'Invalid academic deadlines must never enter the private company work queue');
+ });
  await assertCheck('Guest sends real subject-specific academic quote without supplying legal name',async()=>{
   const guestEmail=studentMail;
   const q=await call('/academic/guest-quote',{method:'POST',body:{...brief('literature-reviews'),

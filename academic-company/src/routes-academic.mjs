@@ -64,6 +64,14 @@ export function registerAcademicRoutes(ctx){
   if(subject.length<3||subject.length>140)return {error:'Enter an academic subject or research discipline.'};
   if(brief.length<25||brief.length>6000)return {error:'Describe the academic assistance needed in at least 25 characters.'};
   if(instructions.length>3000||deadline.length>60)return {error:'Instructions or deadline are too long.'};
+  if(deadline){
+   const actual=new Date(deadline+'T00:00:00.000Z');
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(deadline)||
+      !Number.isFinite(actual.getTime())||actual.toISOString().slice(0,10)!==deadline)
+    return {error:'Choose a real calendar date for the requested academic deadline.'};
+   if(deadline<new Date().toISOString().slice(0,10))
+    return {error:'The requested academic deadline cannot be in the past.'};
+  }
   if(input?.integrityAcknowledged!==true)return {error:'Confirm that your request complies with academic integrity requirements.'};
   return {service,serviceId,level,subject,brief,deadline,instructions};
  };

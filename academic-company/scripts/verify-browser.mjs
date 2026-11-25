@@ -126,6 +126,7 @@ try{
   await publicPage.getByRole('button',{name:'Request a quote for this service'}).click();
   await publicPage.locator('select[name=academicLevel]').waitFor();
   await publicPage.locator('textarea[name=requirements]').waitFor();
+  assert.equal(await publicPage.locator('input[name=deadline]').getAttribute('min'),new Date().toISOString().slice(0,10),'The quotation date picker must not offer past deadlines');
   await publicPage.locator('input[name=username]').waitFor();
   await screen(publicPage,'04-subject-specific-private-quotation');
  });
